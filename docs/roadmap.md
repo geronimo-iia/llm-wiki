@@ -345,6 +345,20 @@ streams ingest/research workflows.
 
 ---
 
+## Phase 9 — Documentation
+
+**Goal:** Project documentation reflects the current design and is useful to
+a new contributor or user arriving cold.
+
+- `README.md` — rewrite around features and workflows, not implementation history
+- `CONTRIBUTING.md` — rewrite to reflect the new module architecture, dev setup, and contribution workflow
+- `CHANGELOG.md` — rewrite as a feature-oriented changelog (what the tool can do, not a git log)
+
+**Deliverable:** A new contributor can read `README.md`, understand what llm-wiki
+does, run it, and know where to start contributing.
+
+---
+
 ## What Each Phase Unlocks
 
 | After phase | You can… |
@@ -357,3 +371,4 @@ streams ingest/research workflows.
 | 6 | Use the wiki from Claude Code with full MCP access, crystallize sessions, session bootstrap |
 | 7 | `wiki serve --acp` — native Zed / VS Code streaming agent |
 | 8 | `/llm-wiki:ingest` and `/llm-wiki:crystallize` as one-command slash workflows |
+| 9 | README, CONTRIBUTING, and CHANGELOG reflect the current design |

@@ -169,27 +169,3 @@ wiki read wiki://research/concepts/mixture-of-experts   # LLM reads scaffold
 # LLM writes updated content via wiki_write
 wiki ingest concepts/mixture-of-experts.md
 ```
-
----
-
-## 8. Rust Module Changes
-
-| Module | Change |
-|--------|--------|
-| `cli.rs` | Add `new` subcommand with `page` and `section` subcommands; arg is `wiki://` URI |
-| `spaces.rs` | Add `resolve_uri(uri) -> Result<(WikiEntry, slug)>` — shared with `wiki read` |
-| `markdown.rs` | Add `create_page(slug, bundle, wiki_root)` and `create_section(slug, wiki_root)` |
-| `frontmatter.rs` | Add `scaffold_frontmatter(slug)` — derive title from slug, type defaults to `page` |
-| `mcp.rs` | Add `wiki_new_page` and `wiki_new_section` MCP tools |
-
----
-
-## 9. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `wiki new page <wiki:// URI>` | **not implemented** |
-| `wiki new page <wiki:// URI> --bundle` | **not implemented** |
-| `wiki new section <wiki:// URI>` | **not implemented** |
-| `wiki_new_page` MCP tool | **not implemented** |
-| `wiki_new_section` MCP tool | **not implemented** |

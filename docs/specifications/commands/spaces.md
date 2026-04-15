@@ -111,30 +111,3 @@ pub struct SpaceEntry {
     pub default:     bool,
 }
 ```
-
----
-
-## 3. Rust Module Changes
-
-| Module | Change |
-|--------|--------|
-| `spaces.rs` | Add `list()`, `remove(name, delete)` — read/write `~/.wiki/config.toml` |
-| `cli.rs` | Add `spaces` subcommand with `list`, `remove`, `set-default` |
-| `mcp.rs` | Add `wiki_spaces_list`, `wiki_spaces_remove`, `wiki_spaces_set_default` MCP tools |
-
-`set-default` delegates to `config::set("global.default_wiki", name)` — no
-new logic in `spaces.rs`.
-
----
-
-## 4. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `wiki spaces list` | **not implemented** |
-| `wiki spaces remove <name>` | **not implemented** |
-| `wiki spaces remove --delete` | **not implemented** |
-| `wiki spaces set-default <name>` | **not implemented** |
-| `wiki_spaces_list` MCP tool | **not implemented** |
-| `wiki_spaces_remove` MCP tool | **not implemented** |
-| `wiki_spaces_set_default` MCP tool | **not implemented** |

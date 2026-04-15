@@ -66,7 +66,7 @@ ground, prefer updating it over creating a new page.
 ### Step 2 — Write the page
 
 The LLM writes a complete Markdown file directly into the wiki tree using
-`wiki_write`, following the [frontmatter authoring guide](frontmatter-authoring.md).
+`wiki_write`, following the [frontmatter authoring guide](../core/frontmatter-authoring.md).
 
 **For a new page** (no existing home found):
 
@@ -234,12 +234,3 @@ Session N+1:
 
 Each session starts from a richer baseline than the last. The wiki is the
 accumulator. The LLM is stateless — the wiki is not.
-
----
-
-## 10. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `## crystallize` in `src/instructions.md` | **not implemented** |
-| `/llm-wiki:crystallize` slash command | **not implemented** |

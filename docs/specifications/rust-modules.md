@@ -11,8 +11,7 @@ last_updated: "2025-07-15"
 
 # Rust Module Architecture
 
-Single source of truth for the `src/` layout. Each spec's "Rust Module
-Changes" table references modules defined here.
+Single source of truth for the `src/` layout.
 
 ---
 
@@ -23,7 +22,7 @@ src/
 ├── main.rs       # CLI entry point — dispatch only, no logic
 ├── lib.rs        # module declarations
 ├── cli.rs        # clap Command enum — all subcommands and flags
-├── config.rs     # GlobalConfig, WikiConfig, two-level resolution
+├── config.rs     # GlobalConfig, WikiConfig, ValidationConfig, two-level resolution
 ├── spaces.rs     # Spaces, WikiEntry, resolve_name(), resolve_uri()
 ├── git.rs        # init_repo(), commit(), current_head(), diff_last()
 ├── frontmatter.rs # parse/write, scaffold_frontmatter(), validate_frontmatter(),
@@ -52,7 +51,7 @@ src/
 | `main.rs`     | CLI dispatch                                                                                                                                                                                                          | —                                                                                                                                                                                                                  |
 | `lib.rs`      | Module declarations                                                                                                                                                                                                   | —                                                                                                                                                                                                                  |
 | `cli.rs`      | All subcommands and flags                                                                                                                                                                                             | all command specs                                                                                                                                                                                                  |
-| `config.rs`   | `GlobalConfig`, `WikiConfig`, `ResolvedConfig`, `ServeConfig`, `LintConfig`, `GraphConfig`, `IndexConfig`, `ReadConfig`, `SchemaConfig`                                                                               | [configuration.md](../commands/configuration.md), [serve.md](../commands/serve.md)                                                                                                                                 |
+| `config.rs`   | `GlobalConfig`, `WikiConfig`, `ResolvedConfig`, `ServeConfig`, `LintConfig`, `GraphConfig`, `IndexConfig`, `ReadConfig`, `SchemaConfig`, `ValidationConfig`                                                                    | [configuration.md](../commands/configuration.md), [serve.md](../commands/serve.md)                                                                                                                                 |
 | `spaces.rs`   | `Spaces`, `WikiEntry`, `resolve_uri()`, `resolve_name()`, `register()`, `remove()`, `load_all()`                                                                                                                      | [spaces.md](../commands/spaces.md), [page-creation.md](../commands/page-creation.md), [read.md](../commands/read.md)                                                                                               |
 | `git.rs`      | `init_repo()`, `commit()`, `current_head()`, `diff_last()`                                                                                                                                                            | [init.md](../commands/init.md), [index.md](../commands/index.md), [graph.md](../commands/graph.md)                                                                                                                 |
 | `frontmatter.rs` | Frontmatter parse/write, `scaffold_frontmatter()`, `validate_frontmatter()`, `generate_minimal_frontmatter()` | [page-content.md](../core/page-content.md), [frontmatter-authoring.md](../core/frontmatter-authoring.md), [ingest.md](../pipelines/ingest.md), [page-creation.md](../commands/page-creation.md) |
@@ -65,23 +64,3 @@ src/
 | `server.rs`   | `WikiServer`, startup, stdio + SSE transport wiring | [serve.md](../commands/serve.md) |
 | `mcp.rs`      | All MCP tools, MCP resources, MCP prompts | [features.md](../features.md), [serve.md](../commands/serve.md), [session-bootstrap.md](../llm/session-bootstrap.md) |
 | `acp.rs`      | `WikiAgent`, `AcpSession`, ACP workflow dispatch                                                                                                                                                                      | [acp-transport.md](../integrations/acp-transport.md), [serve.md](../commands/serve.md)                                                                                                                             |
-
----
-
-## Modules Removed from Prior Design
-
-| Module         | Status        | Reason                                                                                                       |
-| -------------- | ------------- | ------------------------------------------------------------------------------------------------------------ |
-| `context.rs`   | Removed       | Body assembly logic dropped; ref logic moved to `search.rs`                                                  |
-| `integrate.rs` | Never created | Page creation logic belongs in `markdown.rs` + `frontmatter.rs` + `spaces.rs` |
-| `analysis.rs`  | Removed       | `Enrichment`, `QueryResult`, `Analysis` types removed from design; `Asset`, `AssetKind` moved to `ingest.rs` |
-
----
-
-## Notes
-
-- `frontmatter.rs`, `markdown.rs`, and `links.rs` replace the former monolithic `markdown.rs`
-- `server.rs`, `mcp.rs`, and `acp.rs` share the same underlying engine functions —
-  no logic is duplicated between them
-- `search.rs` owns both search and index management (rebuild, status) —
-  they share the tantivy index handle

@@ -369,14 +369,3 @@ This is the accumulation contract. The engine does not enforce it — you do.
 This guide is embedded in `src/instructions.md` as `## frontmatter` — a
 condensed version optimized for token efficiency: type taxonomy table,
 per-type templates, update rules, common mistakes. No rationale paragraphs.
-
----
-
-## 9. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `## frontmatter` in `src/instructions.md` | **not implemented** |
-| Frontmatter validation on ingest | **not implemented** |
-| Type taxonomy validation (built-in + custom) | **not implemented** |
-| Warning on missing recommended fields | **not implemented** |

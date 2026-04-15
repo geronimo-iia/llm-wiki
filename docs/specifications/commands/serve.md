@@ -93,29 +93,3 @@ acp      = false    # enable ACP by default
 ```
 
 CLI flags override config per-invocation.
-
----
-
-## 6. Rust Module Changes
-
-| Module | Change |
-|--------|--------|
-| `cli.rs` | Add `--sse [:<port>]`, `--acp` flags to `serve` subcommand |
-| `server.rs` | Mount all registered wikis at startup; expose `wiki` param on all tools |
-| `mcp.rs` | Expose `wiki` param on all tools |
-| `acp.rs` | Start ACP stdio server alongside MCP when `--acp` |
-| `spaces.rs` | Expose `load_all() -> Vec<WikiEntry>` for server startup |
-| `config.rs` | Add `ServeConfig { sse, sse_port, acp }` |
-
----
-
-## 7. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `wiki serve` stdio MCP | implemented |
-| `wiki serve --sse` | implemented |
-| `wiki serve --acp` | **not implemented** |
-| Multi-wiki mounting at startup | **not implemented** |
-| `[serve]` config defaults | **not implemented** |
-| Index staleness check at startup | **not implemented** |

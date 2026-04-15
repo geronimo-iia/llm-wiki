@@ -133,28 +133,3 @@ async fn wiki_read(
 | Unknown wiki name in URI | `error: unknown wiki: "unknown"` |
 | No default wiki configured | `error: no default wiki set — use --wiki or set global.default_wiki` |
 | `--list-assets` on flat page | returns empty list, no error |
-
----
-
-## 6. Rust Module Changes
-
-| Module | Change |
-|--------|--------|
-| `markdown.rs` | Add `read_page(slug, wiki_root, no_frontmatter) -> Result<String>` |
-| `markdown.rs` | Add `list_assets(slug, wiki_root) -> Result<Vec<String>>` — returns `wiki://` URIs |
-| `markdown.rs` | Add `read_asset(slug, filename, wiki_root) -> Result<Vec<u8>>` |
-| `spaces.rs` | Add `resolve_uri(uri) -> Result<(WikiEntry, slug)>` |
-| `cli.rs` | Add `read` subcommand with `<slug|uri>`, `--no-frontmatter`, `--list-assets`, `--wiki` |
-| `mcp.rs` | Add `wiki_read` MCP tool |
-
----
-
-## 7. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `wiki read <slug\|uri>` — page content | **not implemented** |
-| `wiki read <uri> --list-assets` | **not implemented** |
-| `wiki read <uri>/<asset>` — asset content | **not implemented** |
-| `--no-frontmatter` flag | **not implemented** |
-| `wiki_read` MCP tool | **not implemented** |

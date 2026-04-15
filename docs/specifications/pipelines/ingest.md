@@ -40,7 +40,7 @@ The engine validates every `.md` file on ingest:
 |-------|---------------------|
 | Valid YAML frontmatter block | Error — file rejected |
 | `title` field present | Error — file rejected |
-| `type` field present and recognized | Warning — ingest proceeds, type set to `page` |
+| `type` field present and recognized | `strict`: Error — file rejected; `loose`: Warning — ingest proceeds, type kept as-is |
 | `status` field present | Warning — ingest proceeds, status set to `active` |
 | No path traversal (`../`) in path | Error — file rejected |
 
@@ -201,27 +201,3 @@ pub struct IngestReport {
 | `wiki://` URI resolution in ingest | Ingest takes a path relative to wiki root |
 | `integrate_file` / `integrate_folder` | No file movement to integrate |
 | Bundle promotion logic in ingest | Author creates bundles directly |
-
----
-
-## 10. Rust Module Changes
-
-| Module | Change |
-|--------|--------|
-| `cli.rs` | `ingest` takes `<path>` and `--dry-run`. Remove `--target`, `--update` |
-| `ingest.rs` | `IngestOptions { dry_run }`. Validate, `git add`, commit, index |
-| `frontmatter.rs` | `validate_frontmatter(fm) -> Result<Vec<Warning>>`. Keep `generate_minimal_frontmatter` for files without frontmatter |
-| `mcp.rs` | `wiki_write` and `wiki_ingest` tools |
-
----
-
-## 11. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `wiki ingest <file>` | **not implemented** |
-| `wiki ingest <folder>` | **not implemented** |
-| `--dry-run` | **not implemented** |
-| Frontmatter validation | **not implemented** |
-| `wiki_write` MCP tool | **not implemented** |
-| `wiki_ingest` MCP tool | **not implemented** |

@@ -250,15 +250,3 @@ default wiki unless `meta.wiki` is set at `newSession`.
 
 3. **Per-session wiki targeting** — currently set at `newSession` via
    `meta.wiki`. Should the user be able to switch target wiki mid-session?
-
----
-
-## 8. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `wiki serve --acp` | **not implemented** |
-| `WikiAgent` + `AcpSession` | **not implemented** |
-| `initialize` instruction injection | **not implemented** |
-| Workflow dispatch | **not implemented** |
-| Zed configuration | **not implemented** |

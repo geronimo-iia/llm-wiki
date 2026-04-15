@@ -119,38 +119,3 @@ async fn wiki_search(
 `wiki_context` and `wiki_ask` are removed. `wiki_search` handles both human
 and LLM use cases.
 
----
-
-## 5. Relationship to `wiki context`
-
-| | `wiki context` (old) | `wiki search --no-excerpt` (new) |
-|---|---|---|
-| Returns | Full page bodies concatenated | `Vec<PageRef>` — refs only, no bodies |
-| LLM fetches pages | No — bodies already included | Yes — via `wiki read` |
-| MCP tool | `wiki_context` | `wiki_search` with `no_excerpt: true` |
-
-`wiki_context` is removed.
-
----
-
-## 6. Rust Module Changes
-
-| Module | Change |
-|--------|--------|
-| `search.rs` | Replace `SearchResult` and `ContextRef` with unified `PageRef`; add `excerpt: Option<String>` |
-| `context.rs` | Remove entirely — body assembly logic dropped, ref logic moves to `search.rs` |
-| `cli.rs` | Replace `--ask` with `--no-excerpt`; add `--top-k`, `--all` |
-| `mcp.rs` | Replace `wiki_context` + `wiki_ask` with single `wiki_search` returning `Vec<PageRef>` |
-
----
-
-## 7. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `wiki search "<term>"` (BM25) | implemented |
-| `PageRef` unified return type | **not implemented** |
-| `wiki search --no-excerpt` | **not implemented** |
-| `wiki search --all` | **not implemented** |
-| `wiki_search` returning `Vec<PageRef>` | **not implemented** |
-| `wiki_context` MCP tool | implemented (to be removed) |

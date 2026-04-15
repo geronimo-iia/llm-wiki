@@ -87,27 +87,3 @@ async fn wiki_list(
     #[tool(param)] wiki: Option<String>,
 ) -> PageList { ... }
 ```
-
----
-
-## 5. Rust Module Changes
-
-| Module | Change |
-|--------|--------|
-| `search.rs` | Add `list(filter, page, page_size)` querying tantivy with no search term; add `PageSummary`, `PageList` |
-| `cli.rs` | Add `--type`, `--status`, `--page`, `--page-size` to `list` subcommand |
-| `mcp.rs` | Update `wiki_list` return type to `PageList` |
-
----
-
-## 6. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `wiki list` basic enumeration | implemented (partial) |
-| `PageSummary` struct | **not implemented** |
-| `PageList` pagination struct | **not implemented** |
-| `--type` filter | implemented |
-| `--status` filter | **not implemented** |
-| `--page` / `--page-size` pagination | **not implemented** |
-| `wiki_list` returning `PageList` | **not implemented** |

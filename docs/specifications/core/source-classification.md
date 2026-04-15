@@ -60,7 +60,16 @@ types:
 ```
 
 Custom types are additive — they extend the built-in list. The engine
-validates `type` against the combined list (built-in + custom) on ingest.
+validates `type` against the combined list (built-in + custom) on ingest,
+according to the `validation.type_strictness` setting in `wiki.toml` or
+`~/.wiki/config.toml`:
+
+| Strictness | Unknown type behavior |
+|------------|----------------------|
+| `loose` (default) | Warning — ingest proceeds with the type as-is |
+| `strict` | Error — ingest rejected |
+
+See [configuration.md](../commands/configuration.md) for the full config reference.
 
 ---
 
@@ -138,25 +147,3 @@ carries both the epistemic role (it's a source) and the source nature
 
 To query "all sources": `wiki list --type paper,article,documentation,clipping,transcript,note,data,book-chapter,thread`
 or filter by whatever folder convention the wiki uses.
-
----
-
-## 7. Rust Module Changes
-
-| Module | Change |
-|--------|--------|
-| `frontmatter.rs` | Expand recognized types to include source types; remove `classification` from `PageFrontmatter` |
-| `search.rs` | No change — `type` is already indexed and filterable |
-| `lint.rs` | Flag `source-summary` as deprecated; flag source pages with missing/unrecognized type |
-| `config.rs` | Parse `types` list from `schema.md` for custom types |
-
----
-
-## 8. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| Source types in type validation | **not implemented** |
-| Custom types from `schema.md` | **not implemented** |
-| `source-summary` deprecation warning in lint | **not implemented** |
-| Untyped source detection in lint | **not implemented** |

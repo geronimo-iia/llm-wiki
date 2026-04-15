@@ -83,6 +83,7 @@ External tool integrations.
 |----------|---------------|
 | [acp-transport.md](integrations/acp-transport.md) | ACP transport for Zed / VS Code |
 | [claude-plugin.md](integrations/claude-plugin.md) | Claude Code plugin structure |
+| [mcp-clients.md](integrations/mcp-clients.md) | Cursor, VS Code, Windsurf and generic MCP client config |
 
 ---
 
@@ -92,5 +93,4 @@ The `design/` folder contains historical design documents. The specifications
 folder is the source of truth for current contracts and behavior.
 
 [rust-modules.md](rust-modules.md) is the canonical reference for the `src/`
-module layout — consult it when a spec's "Rust Module Changes" table is
-ambiguous.
+module layout — consult it when deciding which module a new function belongs in.

@@ -157,27 +157,3 @@ async fn wiki_index_status(
     #[tool(param)] wiki: Option<String>,
 ) -> IndexStatus { ... }
 ```
-
----
-
-## 8. Rust Module Changes
-
-| Module | Change |
-|--------|--------|
-| `search.rs` | Extract `rebuild_index(wiki_root)` as a standalone function; add `index_status(wiki_root)` reading `state.toml` from `~/.wiki/indexes/<name>/` |
-| `git.rs` | Add `current_head(wiki_root) -> String` for staleness check |
-| `cli.rs` | Replace `--rebuild-index` flag on `search` with `index` subcommand (`rebuild`, `status`) |
-| `mcp.rs` | Add `wiki_index_rebuild` and `wiki_index_status` MCP tools |
-
----
-
-## 9. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| Index rebuild (via `wiki search --rebuild-index`) | implemented (to be moved) |
-| `wiki index rebuild` | **not implemented** |
-| `wiki index status` | **not implemented** |
-| Staleness detection | **not implemented** |
-| `wiki_index_rebuild` MCP tool | **not implemented** |
-| `wiki_index_status` MCP tool | **not implemented** |

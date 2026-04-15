@@ -67,6 +67,9 @@ sse      = false    # enable SSE transport by default
 sse_port = 8080     # SSE port
 acp      = false    # enable ACP transport by default
 
+[validation]
+type_strictness = "loose"  # strict | loose
+
 [lint]
 fix_missing_stubs   = true   # auto-create scaffold pages for missing stubs
 fix_empty_sections  = true   # auto-create index.md for empty sections
@@ -93,6 +96,9 @@ search_excerpt  = false  # refs only for this wiki
 search_sections = true   # this wiki uses sections as navigation, include them
 page_mode       = "flat"
 
+[validation]
+type_strictness = "strict"  # override global loose default for this wiki
+
 [lint]
 fix_missing_stubs  = false  # do not auto-create stubs for this wiki
 ```
@@ -115,6 +121,7 @@ fix_missing_stubs  = false  # do not auto-create stubs for this wiki
 | `graph.depth` | global / per-wiki | `3` | Default hop limit when `--root` is set |
 | `graph.type` | global / per-wiki | `[]` | Page types to include; empty = all types |
 | `graph.output` | global / per-wiki | `""` | Default output path; empty = stdout |
+| `validation.type_strictness` | global / per-wiki | `loose` | `strict` — unknown type is an error; `loose` — unknown type is a warning, ingest proceeds |
 | `serve.sse` | global only | `false` | Enable SSE transport by default |
 | `serve.sse_port` | global only | `8080` | SSE port |
 | `serve.acp` | global only | `false` | Enable ACP transport by default |
@@ -183,30 +190,3 @@ async fn wiki_config(
     #[tool(param)] wiki: Option<String>,
 ) -> String { ... }
 ```
-
----
-
-## 7. Rust Module Changes
-
-| Module | Change |
-|--------|--------|
-| `config.rs` | Add `Defaults { search_top_k, search_excerpt, search_sections, page_mode, list_page_size }`; add `resolve(global, per_wiki)` merging both levels |
-| `cli.rs` | Add `config` subcommand with `get`, `set`, `list` |
-| `spaces.rs` | Load `[global]` and `[defaults]` alongside wiki spaces; replace `default = true` on entries with `global.default_wiki` |
-| `search.rs` | Read `search_top_k` from resolved config when `--top-k` not provided |
-| `mcp.rs` | Add `wiki_config` MCP tool |
-
----
-
-## 8. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `~/.wiki/config.toml` wiki spaces | implemented |
-| `wiki.toml` per-wiki config | implemented (name only) |
-| `[defaults]` in global config | **not implemented** |
-| `[defaults]` in per-wiki config | **not implemented** |
-| `wiki config get` | **not implemented** |
-| `wiki config set` | **not implemented** |
-| `wiki config list` | **not implemented** |
-| `wiki_config` MCP tool | **not implemented** |

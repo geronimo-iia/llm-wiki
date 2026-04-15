@@ -155,19 +155,17 @@ not from scratch.
 
 ## 6. MCP Server Integration
 
-The MCP server already injects `src/instructions.md` at session start. To
-complete the bootstrap, `schema.md` content is also injected:
+The MCP server injects both `src/instructions.md` and the active wiki's
+`schema.md` at session start. Because `schema.md` is per-wiki and loaded at
+runtime, the injection is a two-step operation:
 
-```rust
-#[tool_handler(
-    name = "wiki",
-    version = "0.1.0",
-    instructions = concat!(include_str!("instructions.md"), "\n---\n\n", "{{schema}}")
-)]
-```
+1. `src/instructions.md` is embedded at compile time via `include_str!()`
+2. At server startup, `schema.md` is read from the default wiki root and
+   appended to the instructions string before being passed to the MCP handler
 
-At runtime, `{{schema}}` is replaced with the content of `schema.md` from
-the default wiki root. If no schema.md exists, the placeholder is removed.
+When multiple wikis are mounted, the `schema.md` of `global.default_wiki` is
+used for the session-level injection. Per-wiki schema is available to the LLM
+via `wiki_read("schema.md", wiki: "<name>")` for non-default wikis.
 
 ---
 
@@ -185,15 +183,3 @@ Session N+1:
 
 Each session starts from a richer baseline than the last. The wiki is the
 accumulator. The LLM is stateless — the wiki is not.
-
----
-
-## 8. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `src/instructions.md` injection at MCP start | implemented |
-| `schema.md` injection at MCP start | **not implemented** |
-| `## session-orientation` in instructions.md | **not implemented** |
-| Orientation step in each instruct workflow | **not implemented** |
-| ACP `initialize` with schema.md | **not implemented** |

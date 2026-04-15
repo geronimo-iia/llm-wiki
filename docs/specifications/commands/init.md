@@ -143,32 +143,3 @@ pub struct InitReport {
     pub committed:  bool,
 }
 ```
-
----
-
-## 7. Rust Module Changes
-
-| Module | Change |
-|--------|--------|
-| `cli.rs` | Add `init` subcommand with `<path>`, `--name`, `--description`, `--force`, `--set-default` |
-| `spaces.rs` | Add `register(entry, force)` — append or update `~/.wiki/config.toml` |
-| `git.rs` | Add `init_repo(path)` — `git init` + initial commit |
-| `init.rs` | Add `init_structure(path)` — create dirs, `README.md`, `wiki.toml`, `schema.md` |
-| `mcp.rs` | Add `wiki_init` MCP tool |
-
----
-
-## 8. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `wiki init <path> --name` | **not implemented** |
-| Directory structure creation | **not implemented** |
-| `README.md` generation | **not implemented** |
-| `wiki.toml` creation | **not implemented** |
-| `schema.md` generation | **not implemented** |
-| Initial git commit | **not implemented** |
-| Registry registration | **not implemented** |
-| `--set-default` | **not implemented** |
-| `--force` rename | **not implemented** |
-| `wiki_init` MCP tool | **not implemented** |

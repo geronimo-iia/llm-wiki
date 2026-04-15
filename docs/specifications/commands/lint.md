@@ -11,7 +11,7 @@ last_updated: "2025-07-15"
 
 # Lint
 
-`wiki lint` is a structural audit. It walks the wiki, checks three things, and
+`wiki lint` is a structural audit. It walks the wiki, checks five things, and
 produces a `LintReport`. The report is written to `LINT.md` and committed. The
 wiki binary makes no content judgments — it surfaces structural problems and
 hands them to the LLM.
@@ -287,33 +287,3 @@ LLM reads the `LintReport` and decides what to act on:
 
 All decisions are delegated to the LLM. The wiki instruct `lint` workflow
 guides the LLM through this sequence step by step.
-
----
-
-## 8. Rust Module Changes
-
-| Module | Change |
-|--------|--------|
-| `lint.rs` | Define `LintReport`, `MissingConnection`; implement orphan, stub, empty section, missing connection, and untyped source detection |
-| `graph.rs` | Expose `in_degree(slug)` for orphan detection |
-| `links.rs` | Expose `extract_links(page)` for stub detection |
-| `cli.rs` | Add `fix` subcommand with `--only`, `--dry-run` to `lint` |
-| `mcp.rs` | Update `wiki_lint` return type to `LintReport` |
-
----
-
-## 9. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `wiki lint` structural audit | implemented (partial) |
-| `LintReport` struct | **not implemented** |
-| `MissingConnection` struct | **not implemented** |
-| Orphan detection | implemented |
-| Missing stub detection | **not implemented** |
-| Empty section detection | **not implemented** |
-| Missing connection detection | **not implemented** |
-| Untyped source detection | **not implemented** |
-| `LINT.md` commit | implemented |
-| `wiki lint fix` | **not implemented** |
-| `wiki_lint` returning `LintReport` | **not implemented** |

@@ -141,30 +141,3 @@ pub struct GraphReport {
     pub committed: bool,
 }
 ```
-
----
-
-## 7. Rust Module Changes
-
-| Module | Change |
-|--------|--------|
-| `graph.rs` | Add `build_graph(wiki_root, filter)`, `render_mermaid(graph)`, `render_dot(graph)`, `subgraph(root, depth)` |
-| `cli.rs` | Add `--format`, `--root`, `--depth`, `--type`, `--output`, `--dry-run` to `graph` subcommand |
-| `mcp.rs` | Add `wiki_graph` MCP tool returning `GraphReport` |
-| `git.rs` | Commit output file if inside wiki root |
-
----
-
-## 8. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `wiki graph` DOT output | implemented |
-| Mermaid output | **not implemented** |
-| `--format` flag | **not implemented** |
-| `--root` subgraph | **not implemented** |
-| `--depth` limit | **not implemented** |
-| `--type` filter | **not implemented** |
-| `--output` file + auto-commit | **not implemented** |
-| Output file frontmatter | **not implemented** |
-| `wiki_graph` MCP tool | **not implemented** |

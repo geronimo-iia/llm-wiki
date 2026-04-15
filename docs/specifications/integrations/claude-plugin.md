@@ -227,15 +227,3 @@ plugin files. See [instruct.md](instruct.md).
 |------|---------------|
 | `Stop` | Auto-save current conversation as a `query-result` page |
 | `PreCompact` | Preserve important findings before context compression |
-
----
-
-## Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `plugin.json` | **not implemented** |
-| `marketplace.json` | **not implemented** |
-| `.mcp.json` | **not implemented** |
-| Slash commands | **not implemented** |
-| `SKILL.md` | **not implemented** |

@@ -123,27 +123,4 @@ The full instructions are sent to the LLM at MCP session start — no explicit
 ## 5. ACP Integration
 
 On ACP `initialize`, the wiki injects `src/instructions.md` as the system
-context. See [acp-transport.md](acp-transport.md).
-
----
-
-## 6. Rust Module Changes
-
-| Module | Change |
-|--------|--------|
-| `cli.rs` | Add `instruct` subcommand with optional `<workflow>` arg |
-| `main.rs` | Add `const INSTRUCTIONS: &str = include_str!("instructions.md")` |
-| `mcp.rs` | Pass `INSTRUCTIONS` to `#[tool_handler]` instructions field |
-| `acp.rs` | Inject `INSTRUCTIONS` at `initialize` response |
-
----
-
-## 7. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| `wiki instruct` (all) | implemented |
-| `wiki instruct <workflow>` | **not implemented** |
-| `src/instructions.md` structured by workflow | **not implemented** |
-| MCP server instructions field | implemented |
-| ACP initialize injection | **not implemented** |
+context. See [acp-transport.md](../integrations/acp-transport.md).

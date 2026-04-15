@@ -100,58 +100,6 @@ links over many weak ones.
 
 ## 6. Lint Integration
 
-`wiki lint` currently detects orphan pages (in-degree 0) and missing stubs
-(referenced but non-existent pages). The backlink quality principle adds a
-complementary check:
-
-### Missing connections (candidate pairs)
-
-Lint scans `index.md` descriptions and page frontmatter for significant term
-overlap between page pairs that have no mutual links. Pairs that share
-multiple key concepts but have no `sources`, `concepts`, or body links are
-flagged as **missing connection candidates**.
-
-This is a heuristic — not every flagged pair should be linked. The LLM or
-human evaluates each candidate against the quality test before adding a link.
-
-Addition to `LintReport`:
-
-```rust
-pub struct MissingConnection {
-    pub slug_a:          String,
-    pub slug_b:          String,
-    pub overlapping_terms: Vec<String>,
-}
-
-pub struct LintReport {
-    pub orphans:             Vec<PageRef>,
-    pub missing_stubs:       Vec<String>,
-    pub empty_sections:      Vec<String>,
-    pub missing_connections: Vec<MissingConnection>,  // new
-    pub untyped_sources:     Vec<String>,             // new
-    pub date:                String,
-}
-```
-
-Addition to `LINT.md`:
-
-```markdown
-## Missing Connections (N)
-
-| page_a | page_b | shared terms |
-|--------|--------|--------------|
-| concepts/mixture-of-experts | concepts/scaling-laws | MoE, compute efficiency, parameter count |
-
-_Candidates only — evaluate each pair before linking._
-```
-
----
-
-## 7. Implementation Status
-
-| Feature | Status |
-|---------|--------|
-| Linking policy in `src/instructions.md` | **not implemented** |
-| `MissingConnection` in `LintReport` | **not implemented** |
-| Missing connection detection in `wiki lint` | **not implemented** |
-| Missing connections section in `LINT.md` | **not implemented** |
+`wiki lint` detects orphan pages, missing stubs, empty sections, missing
+connection candidates, and untyped sources. See
+[lint.md](../commands/lint.md) for the full `LintReport` definition.
