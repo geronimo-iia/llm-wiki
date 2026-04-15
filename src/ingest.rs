@@ -3,7 +3,7 @@
 
 use crate::analysis::Analysis;
 use crate::config::WikiConfig;
-use crate::{git, integrate};
+use crate::{git, integrate, search};
 use anyhow::{Context, Result};
 use std::io::Read as _;
 use std::path::PathBuf;
@@ -27,8 +27,14 @@ pub struct IngestReport {
     pub pages_appended: usize,
     /// Number of contradiction pages written.
     pub contradictions_written: usize,
+    /// Number of flat pages promoted to bundles.
+    pub bundles_created: usize,
     /// Title of the ingested document.
     pub title: String,
+    /// Whether the search index was updated incrementally after this ingest.
+    pub index_updated: bool,
+    /// Slugs of all pages written during this ingest (used for index update).
+    pub changed_slugs: Vec<String>,
 }
 
 impl IngestReport {
@@ -93,5 +99,21 @@ pub async fn ingest(input: Input, config: &WikiConfig) -> Result<IngestReport> {
     let commit_msg = format!("ingest: {} — +{} pages", report.title, report.total_pages());
     git::commit(wiki_root, &commit_msg)?;
 
-    Ok(report)
+    let index_dir = wiki_root.join(".wiki").join("search-index");
+    let index_updated = if index_dir.exists() {
+        search::update_index(wiki_root, &index_dir, &report.changed_slugs).is_ok()
+    } else {
+        false
+    };
+
+    Ok(IngestReport {
+        pages_created: report.pages_created,
+        pages_updated: report.pages_updated,
+        pages_appended: report.pages_appended,
+        contradictions_written: report.contradictions_written,
+        bundles_created: report.bundles_created,
+        title: report.title,
+        index_updated,
+        changed_slugs: report.changed_slugs,
+    })
 }

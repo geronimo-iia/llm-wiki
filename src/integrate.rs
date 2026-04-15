@@ -8,10 +8,11 @@
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use walkdir::WalkDir;
 
 use crate::analysis::{Action, Analysis, Contradiction, Dimension, Status};
 use crate::ingest::IngestReport;
-use crate::markdown::{frontmatter_from_page, parse_frontmatter, today_iso8601, write_page};
+use crate::markdown::{frontmatter_from_page, parse_frontmatter, promote_to_bundle, today_iso8601, write_page};
 
 /// Slug prefixes that the wiki accepts.
 const VALID_PREFIXES: &[&str] = &["concepts/", "sources/", "queries/", "contradictions/"];
@@ -105,17 +106,128 @@ fn write_contradiction_page(path: &Path, c: &Contradiction) -> Result<()> {
     Ok(())
 }
 
+/// Map an asset `kind` string to its `assets/` subdirectory.
+fn kind_to_subdir(kind: &str) -> &'static str {
+    match kind {
+        "image" => "diagrams",
+        "yaml" | "toml" | "json" => "configs",
+        "script" => "scripts",
+        "data" => "data",
+        _ => "other",
+    }
+}
+
+/// Infer asset kind from file extension.
+fn kind_from_ext(filename: &str) -> &'static str {
+    match filename.rsplit('.').next().unwrap_or("") {
+        "png" | "jpg" | "svg" | "gif" => "image",
+        "yaml" | "yml" => "yaml",
+        "toml" => "toml",
+        "json" => "json",
+        "py" | "sh" | "rs" | "js" => "script",
+        "csv" | "tsv" | "jsonl" => "data",
+        _ => "other",
+    }
+}
+
+/// Write an asset co-located with its page bundle.
+///
+/// Promotes the page to a bundle if it is currently flat.
+/// Writes `{wiki_root}/{page_slug}/{filename}`.
+pub fn write_asset_colocated(
+    wiki_root: &Path,
+    page_slug: &str,
+    filename: &str,
+    content: &[u8],
+) -> Result<()> {
+    promote_to_bundle(wiki_root, page_slug)
+        .with_context(|| format!("failed to promote `{page_slug}` to bundle"))?;
+    let dest = wiki_root.join(page_slug).join(filename);
+    std::fs::write(&dest, content)
+        .with_context(|| format!("failed to write asset {}", dest.display()))?;
+    Ok(())
+}
+
+/// Write a shared asset to `assets/{subdir}/{filename}` and update `assets/index.md`.
+pub fn write_asset_shared(
+    wiki_root: &Path,
+    kind: &str,
+    filename: &str,
+    content: &[u8],
+) -> Result<()> {
+    let subdir = kind_to_subdir(kind);
+    let dir = wiki_root.join("assets").join(subdir);
+    std::fs::create_dir_all(&dir)
+        .with_context(|| format!("failed to create {}", dir.display()))?;
+    let dest = dir.join(filename);
+    std::fs::write(&dest, content)
+        .with_context(|| format!("failed to write shared asset {}", dest.display()))?;
+    regenerate_assets_index(wiki_root)
+}
+
+/// Return the path to `assets/index.md`.
+pub fn assets_index_path(wiki_root: &Path) -> std::path::PathBuf {
+    wiki_root.join("assets").join("index.md")
+}
+
+/// Rebuild `assets/index.md` from all files under `assets/` (excluding `index.md`).
+pub fn regenerate_assets_index(wiki_root: &Path) -> Result<()> {
+    let assets_dir = wiki_root.join("assets");
+    if !assets_dir.exists() {
+        return Ok(());
+    }
+
+    let mut rows: Vec<String> = Vec::new();
+    for entry in WalkDir::new(&assets_dir).follow_links(false) {
+        let entry = entry?;
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path = entry.path();
+        let rel = match path.strip_prefix(wiki_root) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        let rel_str = rel.to_string_lossy().replace('\\', "/");
+        if rel_str == "assets/index.md" {
+            continue;
+        }
+        let filename = path.file_name().map(|n| n.to_string_lossy()).unwrap_or_default();
+        let kind = kind_from_ext(&filename);
+        let slug = rel.with_extension("").to_string_lossy().replace('\\', "/");
+        rows.push(format!("| {slug} | {kind} | | |"));
+    }
+    rows.sort();
+
+    let mut md = String::from("# Shared Assets\n\n");
+    md.push_str("| slug | kind | caption | referenced_by |\n");
+    md.push_str("|------|------|---------|---------------|\n");
+    for row in &rows {
+        md.push_str(row);
+        md.push('\n');
+    }
+
+    let index_path = assets_index_path(wiki_root);
+    std::fs::write(&index_path, md)
+        .with_context(|| format!("failed to write {}", index_path.display()))?;
+    Ok(())
+}
+
 /// Write all pages and contradictions from `analysis` into `wiki_root`.
 ///
 /// Does **not** commit — call [`crate::git::commit`] afterwards.
-/// Returns an [`IngestReport`] with counts for each action type.
+/// Returns an [`IngestReport`] with counts for each action type and the
+/// slugs of all pages written (for incremental index update).
 pub fn integrate(analysis: Analysis, wiki_root: &Path) -> Result<IngestReport> {
     let mut report = IngestReport {
         pages_created: 0,
         pages_updated: 0,
         pages_appended: 0,
         contradictions_written: 0,
+        bundles_created: 0,
         title: analysis.title.clone(),
+        index_updated: false,
+        changed_slugs: Vec::new(),
     };
 
     // Validate all slugs before writing anything — fail fast.
@@ -145,6 +257,7 @@ pub fn integrate(analysis: Analysis, wiki_root: &Path) -> Result<IngestReport> {
                 let fm = frontmatter_from_page(page);
                 write_page(&path, &fm, &page.body)?;
                 report.pages_created += 1;
+                report.changed_slugs.push(page.slug.clone());
             }
 
             Action::Update => {
@@ -189,6 +302,7 @@ pub fn integrate(analysis: Analysis, wiki_root: &Path) -> Result<IngestReport> {
 
                 write_page(&path, &fm, &page.body)?;
                 report.pages_updated += 1;
+                report.changed_slugs.push(page.slug.clone());
             }
 
             Action::Append => {
@@ -225,6 +339,7 @@ pub fn integrate(analysis: Analysis, wiki_root: &Path) -> Result<IngestReport> {
                 let new_body = format!("{}\n\n---\n\n{}", old_body.trim_end(), page.body);
                 write_page(&path, &fm, &new_body)?;
                 report.pages_appended += 1;
+                report.changed_slugs.push(page.slug.clone());
             }
         }
     }
@@ -235,6 +350,7 @@ pub fn integrate(analysis: Analysis, wiki_root: &Path) -> Result<IngestReport> {
         let path = wiki_root.join("contradictions").join(format!("{slug}.md"));
         write_contradiction_page(&path, contradiction)?;
         report.contradictions_written += 1;
+        report.changed_slugs.push(format!("contradictions/{slug}"));
     }
 
     Ok(report)

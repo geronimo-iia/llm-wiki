@@ -26,7 +26,7 @@
 use anyhow::Result;
 use std::path::Path;
 
-use crate::markdown::parse_frontmatter;
+use crate::markdown::{parse_frontmatter, resolve_slug};
 use crate::search::search;
 
 /// Return the top-`top_k` wiki pages relevant to `question` as a single
@@ -46,12 +46,14 @@ pub fn context(question: &str, wiki_root: &Path, top_k: usize) -> Result<String>
 
     let mut output = String::new();
     for result in results.into_iter().take(top_k) {
-        // Derive the file path from the slug.
-        let page_path = wiki_root.join(format!("{}.md", result.slug));
+        let page_path = match resolve_slug(wiki_root, &result.slug) {
+            Some(p) => p,
+            None => continue,
+        };
 
         let content = match std::fs::read_to_string(&page_path) {
             Ok(c) => c,
-            Err(_) => continue, // page removed after indexing; skip gracefully
+            Err(_) => continue,
         };
 
         let (_fm, body) = match parse_frontmatter(&content) {

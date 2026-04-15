@@ -7,7 +7,7 @@
 use crate::analysis::{Confidence, PageType, SuggestedPage};
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Lifecycle status of a wiki page.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,6 +146,66 @@ pub fn write_page(path: &Path, frontmatter: &PageFrontmatter, body: &str) -> Res
         .with_context(|| format!("failed to write {}", path.display()))?;
 
     Ok(())
+}
+
+// ── Bundle / slug helpers ─────────────────────────────────────────────────────
+
+/// Derive the slug for a wiki page file.
+///
+/// - `index.md` inside a folder → slug = parent dir relative to `wiki_root`
+/// - any other `.md` → slug = path without extension relative to `wiki_root`
+pub fn slug_for(path: &Path, wiki_root: &Path) -> String {
+    let rel = path.strip_prefix(wiki_root).unwrap_or(path);
+    if rel.file_name().map(|n| n == "index.md").unwrap_or(false) {
+        rel.parent()
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default()
+    } else {
+        rel.with_extension("")
+            .to_string_lossy()
+            .replace('\\', "/")
+    }
+}
+
+/// Resolve a slug to its file path.
+///
+/// Checks `{slug}.md` first, then `{slug}/index.md`.
+/// Returns `None` if neither exists.
+pub fn resolve_slug(wiki_root: &Path, slug: &str) -> Option<PathBuf> {
+    let flat = wiki_root.join(format!("{slug}.md"));
+    if flat.exists() {
+        return Some(flat);
+    }
+    let bundle = wiki_root.join(slug).join("index.md");
+    if bundle.exists() {
+        return Some(bundle);
+    }
+    None
+}
+
+/// Promote a flat `{slug}.md` to a bundle `{slug}/index.md`.
+///
+/// No-op if the bundle already exists. Returns an error if neither form exists.
+pub fn promote_to_bundle(wiki_root: &Path, slug: &str) -> Result<()> {
+    let bundle_dir = wiki_root.join(slug);
+    let bundle_index = bundle_dir.join("index.md");
+    if bundle_index.exists() {
+        return Ok(());
+    }
+    let flat = wiki_root.join(format!("{slug}.md"));
+    if !flat.exists() {
+        anyhow::bail!("promote_to_bundle: neither `{slug}.md` nor `{slug}/index.md` exists");
+    }
+    std::fs::create_dir_all(&bundle_dir)
+        .with_context(|| format!("failed to create bundle dir {}", bundle_dir.display()))?;
+    std::fs::rename(&flat, &bundle_index)
+        .with_context(|| format!("failed to move {} to {}", flat.display(), bundle_index.display()))?;
+    Ok(())
+}
+
+/// Return `true` if `{slug}/index.md` exists (bundle form).
+pub fn is_bundle(wiki_root: &Path, slug: &str) -> bool {
+    wiki_root.join(slug).join("index.md").exists()
 }
 
 #[cfg(test)]

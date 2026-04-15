@@ -9,6 +9,7 @@ use crate::context::context as wiki_context_fn;
 use crate::ingest;
 use crate::integrate;
 use crate::lint;
+use crate::markdown::resolve_slug;
 use crate::registry::WikiRegistry;
 use crate::search::{search as wiki_search_fn, search_all};
 use rmcp::model::{
@@ -198,11 +199,18 @@ impl WikiServer {
             if rel == std::path::Path::new("LINT.md") {
                 continue;
             }
+            // Skip non-index.md files inside bundle folders.
+            if let Some(filename) = path.file_name() {
+                if filename != OsStr::new("index.md") {
+                    if let Some(parent) = path.parent() {
+                        if parent.join("index.md").exists() {
+                            continue;
+                        }
+                    }
+                }
+            }
 
-            let slug = rel
-                .with_extension("")
-                .to_string_lossy()
-                .replace('\\', "/");
+            let slug = crate::markdown::slug_for(path, wiki_root);
             let content = match std::fs::read_to_string(path) {
                 Ok(c) => c,
                 Err(_) => continue,
@@ -240,11 +248,11 @@ impl WikiServer {
         summaries
     }
 
-    /// Read a wiki page by resource URI `wiki://{wiki_name}/{type}/{slug}`.
+    /// Read a wiki page or bundle asset by resource URI.
     ///
-    /// Phase 4 URIs used `wiki://default/…`; Phase 6 uses the actual wiki name.
-    /// When no registry is configured (single-wiki mode) the wiki name is ignored
-    /// and `self.wiki_root` is always used — preserving backward compatibility.
+    /// Supports:
+    /// - `wiki://{wiki}/{slug}` — page (flat or bundle, resolved via `resolve_slug`)
+    /// - `wiki://{wiki}/{slug}/{filename}` — bundle asset co-located with a page
     pub fn do_read_resource(&self, uri: &str) -> Result<String, McpError> {
         let rest = uri
             .strip_prefix("wiki://")
@@ -260,14 +268,7 @@ impl WikiServer {
             return Err(McpError::resource_not_found("empty slug", None));
         }
 
-        // Validate type prefix.
-        let valid = ["concepts/", "sources/", "contradictions/", "queries/"];
-        if !valid.iter().any(|p| slug.starts_with(p)) {
-            return Err(McpError::resource_not_found("unknown resource type", None));
-        }
-
-        // Resolve the root: use the registry when available, otherwise fall back
-        // to self.wiki_root (single-wiki mode / backward compatibility).
+        // Resolve the root.
         let root = if let Some(reg) = &self.registry {
             match reg.resolve(Some(wiki_name)) {
                 Ok(config) => config.root.clone(),
@@ -282,7 +283,43 @@ impl WikiServer {
             self.wiki_root.clone()
         };
 
-        let path = root.join(format!("{}.md", slug));
+        // Try bundle asset: if slug has the form `{page_slug}/{filename}` where
+        // filename has no further slashes and is not a .md file, treat as asset.
+        let parts: Vec<&str> = slug.splitn(3, '/').collect();
+        if parts.len() >= 2 {
+            let last = *parts.last().unwrap();
+            // If the last component looks like a non-md file (has an extension)
+            // and the path without the last component resolves as a bundle, read the asset.
+            if last.contains('.') && !last.ends_with(".md") {
+                let page_slug = &slug[..slug.rfind('/').unwrap()];
+                let asset_path = root.join(page_slug).join(last);
+                if asset_path.exists() {
+                    return std::fs::read_to_string(&asset_path).map_err(|_| {
+                        McpError::resource_not_found(
+                            format!("asset not found: {slug}"),
+                            None,
+                        )
+                    });
+                }
+            }
+        }
+
+        // Validate type prefix for page resources.
+        let valid = ["concepts/", "sources/", "contradictions/", "queries/", "assets/"];
+        if !valid.iter().any(|p| slug.starts_with(p)) {
+            return Err(McpError::resource_not_found("unknown resource type", None));
+        }
+
+        // Resolve flat or bundle page.
+        let path = match resolve_slug(&root, slug) {
+            Some(p) => p,
+            None => {
+                return Err(McpError::resource_not_found(
+                    format!("page not found: {slug}"),
+                    None,
+                ))
+            }
+        };
         std::fs::read_to_string(&path)
             .map_err(|_| McpError::resource_not_found(format!("page not found: {slug}"), None))
     }

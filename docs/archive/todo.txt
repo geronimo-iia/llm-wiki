@@ -2,8 +2,6 @@
 - ~~where did came from concept of root folder ? meaning, source~~ → resolved: documented in repository-layout.md ### Roots
 - could we init a local git project (project init, push pull) with a ci (update index) ?
 
-
-- rewrote all design docs file under docs with the current design
 - add claude-plugin (did we need the mcp or should we use direct client)
 - add integration Documentation how to
 - add link docs to README

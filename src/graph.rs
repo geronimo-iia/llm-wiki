@@ -13,6 +13,8 @@ use std::ffi::OsStr;
 use std::path::Path;
 use walkdir::WalkDir;
 
+use crate::markdown::slug_for;
+
 /// The kind of relationship an edge represents.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EdgeKind {
@@ -127,7 +129,7 @@ fn extract_wikilinks(body: &str) -> Vec<String> {
 pub fn build_graph(wiki_root: &Path) -> Result<WikiGraph> {
     let mut g = WikiGraph::new();
 
-    // First pass — register every existing .md file as a node.
+    // First pass — register every page as a node.
     for entry in WalkDir::new(wiki_root).follow_links(false) {
         let entry = entry?;
         if !entry.file_type().is_file() {
@@ -141,7 +143,17 @@ pub fn build_graph(wiki_root: &Path) -> Result<WikiGraph> {
         if rel.starts_with(".wiki") {
             continue;
         }
-        let slug = rel.with_extension("").to_string_lossy().into_owned();
+        // Skip non-index.md files inside bundle folders (they are assets).
+        if let Some(filename) = path.file_name() {
+            if filename != OsStr::new("index.md") {
+                if let Some(parent) = path.parent() {
+                    if parent.join("index.md").exists() {
+                        continue;
+                    }
+                }
+            }
+        }
+        let slug = slug_for(path, wiki_root);
         g.get_or_insert(&slug);
     }
 
@@ -159,7 +171,17 @@ pub fn build_graph(wiki_root: &Path) -> Result<WikiGraph> {
         if rel.starts_with(".wiki") {
             continue;
         }
-        let source_slug = rel.with_extension("").to_string_lossy().into_owned();
+        // Skip non-index.md files inside bundle folders.
+        if let Some(filename) = path.file_name() {
+            if filename != OsStr::new("index.md") {
+                if let Some(parent) = path.parent() {
+                    if parent.join("index.md").exists() {
+                        continue;
+                    }
+                }
+            }
+        }
+        let source_slug = slug_for(path, wiki_root);
         let source_idx = *g.node_map.get(source_slug.as_str()).unwrap();
 
         let content = std::fs::read_to_string(path)?;
@@ -233,8 +255,7 @@ pub fn missing_stubs(graph: &WikiGraph, wiki_root: &Path) -> Vec<String> {
             {
                 return false;
             }
-            let path = wiki_root.join(format!("{slug}.md"));
-            !path.exists()
+            crate::markdown::resolve_slug(wiki_root, slug).is_none()
         })
         .map(|idx| graph.inner[idx].clone())
         .collect();

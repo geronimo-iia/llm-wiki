@@ -44,7 +44,6 @@ for why each category exists.
 |-----------|---------|-------------|
 | `concepts/` | Canonical knowledge pages | `concepts/` |
 | `sources/` | Per-source summary pages | `sources/` |
-| `contradictions/` | Contradiction nodes | `contradictions/` |
 | `queries/` | Saved Q&A results | `queries/` |
 | `raw/` | Original source files, never modified | not a slug prefix |
 | `.wiki/` | Config + search index (gitignored) | not a slug prefix |
@@ -71,8 +70,6 @@ wiki/                               ← wiki root (git repository)
 │   └── semantic-commit/
 │       ├── index.md                ← from SKILL.md
 │       └── lifecycle.yaml          ← right next to it
-├── contradictions/                 ← always flat (no assets)
-│   └── moe-scaling-efficiency.md
 ├── queries/                        ← always flat (no assets)
 │   └── moe-compute-query.md
 ├── raw/                            ← original source files, never modified
@@ -81,6 +78,7 @@ wiki/                               ← wiki root (git repository)
 ├── LINT.md                         ← committed by wiki lint
 └── .wiki/
     ├── config.toml
+    ├── index-status.toml           ← committed on every index rebuild
     └── search-index/               ← gitignored, rebuilt on demand
 ```
 
@@ -204,11 +202,11 @@ and referenced by short relative paths in the page body.
 
 ---
 
-## Contradictions and queries — always flat
+## Queries — always flat
 
-Contradiction and query pages never have co-located assets. They are always flat
-`.md` files. If a contradiction analysis references a diagram, it links to the
-source page's bundle asset or a shared asset.
+Query pages never have co-located assets. They are always flat `.md` files.
+If a query result references a diagram, it links to the source page's bundle
+asset or a shared asset.
 
 ---
 

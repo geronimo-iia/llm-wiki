@@ -1,376 +1,354 @@
-# Implementation Roadmap
+---
+title: "Roadmap"
+summary: "Phase-by-phase implementation plan derived from the specifications. Each phase is independently shippable and unlocks a concrete capability."
+read_when:
+  - Planning implementation work
+  - Understanding the target architecture and delivery order
+  - Deciding what to implement next
+status: active
+last_updated: "2025-07-15"
+---
 
-Each phase is independently shippable. A phase is "done" when its deliverables
-compile, pass CI, and work end-to-end with real inputs.
-
-Detailed task lists live in [docs/tasks/](tasks/).
+# Roadmap
 
 ---
 
-## Phase 0 — Skeleton (compile-green baseline)
+## Target Architecture
 
-**Goal:** Everything compiles. CI is green. Schema structs are locked.
-
-**Deliverables:**
-- All `src/*.rs` modules compile with typed signatures (stubs return `todo!()`)
-- `Analysis`, `SuggestedPage`, `Contradiction`, `PageFrontmatter` serde structs defined
-  in `analysis.rs` and `markdown.rs` — the contracts everything else builds on
-- `config.rs`: per-wiki `.wiki/config.toml` loads
-- `Cargo.toml` dependency set finalized (no `rig-core`)
-- CI: `cargo check`, `cargo clippy`, `cargo test` (empty integration tests pass)
-
-**Why first:** Locking the data model early prevents rework. Every later phase
-depends on `Analysis` and `PageFrontmatter` being stable.
-
-Tasks: [tasks/phase-0.md](tasks/phase-0.md)
-
----
-
-## Phase 1 — Core Write Loop
-
-**Goal:** `wiki ingest analysis.json` works end-to-end. Pages appear on disk, committed.
-
-**Deliverables:**
-- `markdown.rs`: frontmatter parse + write (`serde_yaml` + `comrak`)
-  - Round-trip fidelity: parse → write → parse produces identical struct
-- `integrate.rs`:
-  - `suggested_pages` → write `concepts/`, `sources/`, `queries/` Markdown files
-  - `contradictions[]` → write `contradictions/` Markdown files if present
-    (silently stored; no surfacing tooling yet — that is Phase 3)
-  - `action: create|update|append` semantics for existing pages
-- `git.rs`: `git2` commit with message `"ingest: <title> — +N pages"`
-- `ingest.rs`: deserialize `analysis.json` → validate → `integrate` → `git commit`
-- `cli.rs` + `main.rs`: `wiki ingest <file|->` wired up
-
-**What is NOT in Phase 1:**
-- No search (Phase 2)
-- No contradiction surfacing commands (Phase 3)
-- No `wiki contradict`, `wiki lint`, `wiki graph` (Phase 3)
-- No MCP server (Phase 4)
-
-**Acceptance test:**
-```bash
-echo '{"source":"test","doc_type":"note","title":"Test","claims":[],"concepts":[],"suggested_pages":[{"slug":"concepts/test","title":"Test","type":"concept","action":"create","tldr":"...","body":"...","tags":[]}],"contradictions":[]}' \
-  | wiki ingest -
-# → concepts/test.md exists with correct frontmatter
-# → git log shows commit "ingest: Test — +1 pages"
+```
+src/
+├── main.rs             # CLI entry point — dispatch only
+├── lib.rs              # module declarations
+├── cli.rs              # clap Command enum — all subcommands and flags
+├── config.rs           # GlobalConfig, WikiConfig, two-level resolution
+├── registry.rs         # Registry, WikiEntry, resolve_name(), resolve_uri()
+├── git.rs              # init_repo(), commit(), current_head(), diff_last()
+├── markdown.rs         # frontmatter parse/write, scaffold, slug helpers,
+│                       # promote_to_bundle, read_page, list_assets, read_asset
+├── analysis.rs         # Enrichment, QueryResult, Asset, Analysis — new schema
+├── ingest.rs           # Input, DirectIngestOptions, ingest()
+├── integrate.rs        # integrate_direct_file/folder, integrate_enrichment,
+│                       # integrate_query_result, create_page, create_section,
+│                       # write_assets, IngestReport
+├── search.rs           # PageRef, PageList, tantivy index, search(), list(),
+│                       # IndexStatus, IndexReport, index-status.toml
+├── lint.rs             # LintReport, orphan/stub/section detection, LINT.md
+├── graph.rs            # petgraph build, render_mermaid/dot, GraphReport
+├── server.rs           # rmcp WikiServer — all MCP tools, resources, prompts
+└── acp.rs              # WikiAgent, AcpSession, workflow dispatch
 ```
 
-Tasks: [tasks/phase-1.md](tasks/phase-1.md)
+---
+
+## Phase 1 — Foundation: Schema + Config + Registry
+
+**Goal:** The new data model compiles. Config and registry load correctly.
+`wiki init`, `wiki config`, and `wiki registry` work end-to-end.
+
+### 1.1 New `analysis.rs` schema
+
+Replace the old contract with the spec-defined types:
+
+```rust
+// Keep
+pub struct Claim { text, confidence, section }
+pub enum Confidence { High, Medium, Low }
+
+// New
+pub struct Asset { slug, filename, kind, content_encoding, content, caption }
+pub enum AssetKind { Image, Yaml, Toml, Json, Script, Data, Other }
+pub enum ContentEncoding { Utf8, Base64 }
+
+// Remove
+DocType, PageType, Action, SuggestedPage, Contradiction, Dimension, Status,
+Enrichment, QueryResult, Analysis
+```
+
+### 1.2 `config.rs` — two-level config
+
+```rust
+pub struct GlobalConfig {
+    pub global:   GlobalSection,   // default_wiki
+    pub wikis:    Vec<WikiEntry>,
+    pub defaults: Defaults,        // search_top_k, search_excerpt, page_mode, etc.
+    pub index:    IndexConfig,     // auto_rebuild
+    pub graph:    GraphConfig,     // format, depth, type, output
+    pub serve:    ServeConfig,     // sse, sse_port, acp
+    pub lint:     LintConfig,      // fix_missing_stubs, fix_empty_sections
+    pub read:     ReadConfig,      // no_frontmatter
+}
+pub struct WikiConfig { name, root, description }
+pub fn resolve(global: &GlobalConfig, per_wiki: &WikiConfig) -> ResolvedConfig
+```
+
+### 1.3 `registry.rs` — `wiki://` URI resolution
+
+```rust
+pub fn resolve_uri(uri: &str, global: &GlobalConfig) -> Result<(WikiEntry, String)>
+// "wiki://research/concepts/foo" → (research entry, "concepts/foo")
+// "wiki://concepts/foo"          → (default wiki entry, "concepts/foo")
+pub fn register(entry: WikiEntry, force: bool, config_path: &Path) -> Result<()>
+pub fn remove(name: &str, delete: bool, config_path: &Path) -> Result<()>
+```
+
+### 1.4 CLI + MCP
+
+- `wiki init <path> --name --description --force --set-default`
+- `wiki config get/set/list`
+- `wiki registry list/remove/set-default`
+- MCP tools: `wiki_init`, `wiki_config`, `wiki_registry_*`
+
+**Deliverable:** `cargo test` green. `wiki init` creates a wiki and registers it.
 
 ---
 
-## Phase 2 — Search + Context
+## Phase 2 — Core Write Loop: Ingest + Page Creation
 
-**Goal:** `wiki search` and `wiki context` work. External LLM can retrieve pages.
+**Goal:** `wiki ingest <path> --target <uri>` writes pages and assets to the
+wiki. `wiki new page/section <uri>` creates scaffolded pages.
 
-**Deliverables:**
-- `search.rs`:
-  - `tantivy` schema: fields for `slug`, `title`, `tags`, `body`, `type`
-  - Index built from all `.md` files under the wiki root
-  - `search(query) → Vec<SearchResult>` (BM25 ranked)
-  - `--rebuild-index` flag to regenerate from scratch
-  - Index stored in `.wiki/search-index/` (gitignored — rebuilt on demand)
-- `context.rs`:
-  - `context(question, top_k) → String` — runs search, fetches page bodies,
-    formats as Markdown block ready for an LLM context window
-- `cli.rs`: `wiki search "<term>"` + `wiki context "<question>"`
+### 2.1 `markdown.rs` additions
 
-**Acceptance test:**
-```bash
-wiki ingest paper.json
-wiki search "mixture of experts"       # → list of matching page slugs
-wiki context "how does MoE work?"      # → Markdown with top-K page bodies
+```rust
+pub fn generate_minimal_frontmatter(title: &str, slug: &str) -> PageFrontmatter
+pub fn scaffold_frontmatter(slug: &str) -> PageFrontmatter  // for wiki new
+pub fn read_page(slug: &str, wiki_root: &Path, no_frontmatter: bool) -> Result<String>
+pub fn list_assets(slug: &str, wiki_root: &Path) -> Result<Vec<String>>  // wiki:// URIs
+pub fn read_asset(slug: &str, filename: &str, wiki_root: &Path) -> Result<Vec<u8>>
 ```
 
-Tasks: [tasks/phase-2.md](tasks/phase-2.md)
+`PageFrontmatter` updated: remove `contradictions` field, add `claims`.
+
+### 2.2 `integrate.rs` — ingest
+
+```rust
+pub fn integrate_file(path: &Path, target: &ResolvedTarget, options: &IngestOptions, wiki_root: &Path) -> Result<IngestReport>
+pub fn integrate_folder(path: &Path, target: &ResolvedTarget, options: &IngestOptions, wiki_root: &Path) -> Result<IngestReport>
+pub fn write_assets(assets: &[Asset], wiki_root: &Path) -> Result<usize>
+pub fn create_page(uri: &str, bundle: bool, registry: &Registry) -> Result<String>
+pub fn create_section(uri: &str, registry: &Registry) -> Result<String>
+```
+
+`IngestReport`: `pages_written`, `assets_written`, `bundles_created`, `commit`.
+
+### 2.3 `ingest.rs`
+
+```rust
+pub enum Input { Direct(PathBuf), }
+pub struct IngestOptions { target: Option<String>, update: bool }
+```
+
+### 2.4 CLI + MCP
+
+- `wiki ingest <path> --target --update --dry-run`
+- `wiki new page <uri> --bundle --dry-run`
+- `wiki new section <uri> --dry-run`
+- MCP tools: `wiki_ingest`, `wiki_new_page`, `wiki_new_section`
+
+**Deliverable:** `wiki ingest ~/agent-skills/semantic-commit/ --target wiki://research/skills`
+writes pages + assets, commits.
 
 ---
 
-## Phase 3 — Graph + Lint + Contradiction Surfacing
+## Phase 3 — Frontmatter Validation + Type Taxonomy
 
-**Goal:** Structural quality signals. `wiki lint` produces an actionable report.
-Contradiction pages written since Phase 1 are now queryable and clustered.
+**Goal:** Engine validates frontmatter on ingest. Unified type taxonomy
+(knowledge types + source types + custom) enforced. Frontmatter authoring
+guide in instructions.
 
-**Deliverables:**
-- `graph.rs`:
-  - Build `petgraph::DiGraph` from `[[wikilinks]]` and `related_concepts` frontmatter
-  - Orphan detection: nodes with in-degree = 0 (excluding `raw/`)
-  - `wiki graph` → DOT output (pipe to `dot -Tsvg`)
-- `contradiction.rs`:
-  - `list(status_filter) → Vec<ContradictionSummary>`
-  - `cluster()` — petgraph subgraph of pages connected to active contradictions
-- `lint.rs`:
-  - Orphans, missing stubs (referenced but no file), active contradictions
-  - Write `LINT.md`
-  - `git commit -m "lint: <date>"`
-- `cli.rs`: `wiki lint`, `wiki contradict [--status active|resolved]`,
-  `wiki graph`, `wiki list [--type ...]`, `wiki diff`
+### 3.1 `markdown.rs` — validation
 
-**Note:** contradiction pages may already exist from Phase 1 ingests. Phase 3 adds
-the commands to surface, query, and cluster them — not the write path.
-
-**Acceptance test:**
-```bash
-wiki lint
-# → LINT.md committed, reports orphans + active contradictions
-wiki contradict --status active
-# → table of unresolved contradictions
+```rust
+pub fn validate_frontmatter(fm: &PageFrontmatter, schema: &SchemaConfig) -> Result<Vec<Warning>>
+// Checks: required fields present, type in built-in + custom list, source-summary deprecated
 ```
 
-Tasks: [tasks/phase-3.md](tasks/phase-3.md)
+### 3.2 `config.rs` — schema.md parsing
+
+```rust
+pub struct SchemaConfig {
+    pub custom_types: Vec<String>,  // additional types from schema.md
+}
+pub fn load_schema(wiki_root: &Path) -> Result<SchemaConfig>
+```
+
+### 3.3 Instructions
+
+- `## frontmatter` section in `src/instructions.md`
+- Condensed version of frontmatter-authoring.md with type taxonomy
+
+**Deliverable:** `wiki ingest` validates frontmatter and warns on missing
+recommended fields or deprecated `source-summary` type. LLM has frontmatter
+authoring guide with full type taxonomy in context.
 
 ---
 
-## Phase 4 — MCP Server
+## Phase 4 — Search + Read + Index
 
-**Goal:** `wiki serve` works inside Claude Code. All tools + resources + prompts live.
+**Goal:** `wiki search`, `wiki read`, `wiki list`, `wiki index` work.
+Unified `PageRef` return type. `index-status.toml` committed on rebuild.
 
-**Deliverables:**
-- `server.rs` with `rmcp`:
-  - Tools: `wiki_ingest`, `wiki_context`, `wiki_search`, `wiki_lint`, `wiki_list`
-  - Resources: `wiki://{wiki}/{type}/{slug}` URIs
-  - Resource notifications: `notify_resource_updated` on every ingest
-  - Prompts: `ingest_source`, `research_question`, `lint_and_enrich`,
-    `analyse_contradiction`
-  - `src/instructions.md` embedded via `include_str!` and injected at connection time
-- `cli.rs`: `wiki serve [--sse :<port>]`, `wiki instruct [<workflow>]`
-- MCP config snippet in `.claude-plugin/.mcp.json` already present
+### 4.1 `search.rs` — unified return types + full frontmatter indexing
 
-**Acceptance test:**
-```
-# In Claude Code with wiki MCP server configured:
-wiki_context(question: "how does MoE scaling work?")  → returns page bodies
-wiki_ingest(analysis: {...})                          → pages committed, notification fired
+```rust
+pub struct PageRef { slug, uri, title, score, excerpt: Option<String> }
+pub struct PageList { pages: Vec<PageSummary>, total, page, page_size }
+pub struct PageSummary { slug, uri, title, r#type, status, tags }
+pub struct IndexStatus { wiki, path, built: Option<String>, pages, sections, stale }
+pub struct IndexReport { wiki, pages_indexed, duration_ms }
 ```
 
-Tasks: [tasks/phase-4.md](tasks/phase-4.md)  |  [tasks/schema-resource.md](tasks/schema-resource.md)
+All frontmatter fields indexed in tantivy schema (not just `slug`, `title`,
+`tags`, `body`, `type`). `index-status.toml` written and committed on rebuild.
+Staleness detection: compare `commit` field vs `git HEAD`.
+
+### 4.2 CLI + MCP
+
+- `wiki search "<query>" --no-excerpt --top-k --include-sections --all`
+- `wiki read <uri> --no-frontmatter --list-assets`
+- `wiki read <uri>/<asset-filename>`
+- `wiki list --type --status --page --page-size`
+- `wiki index rebuild/status`
+- MCP tools: `wiki_search`, `wiki_read`, `wiki_list`, `wiki_index_rebuild/status`
+
+**Deliverable:** `wiki search "MoE scaling"` returns `Vec<PageRef>` with
+`wiki://` URIs. `wiki read wiki://research/concepts/mixture-of-experts` returns
+full page content.
 
 ---
 
-## Phase 5 — Claude Plugin
+## Phase 5 — Lint + Graph
 
-**Goal:** The `.claude-plugin/` directory is complete and installable.
+**Goal:** `wiki lint` produces a `LintReport` and commits `LINT.md`.
+`wiki graph` emits Mermaid or DOT.
 
-**Deliverables:**
-- `.claude-plugin/plugin.json`, `marketplace.json`, `.mcp.json` finalized
-- Commands wired to `wiki instruct <command>` via `SKILL.md`
-- `wiki instruct` returns correct step-by-step workflow for each command:
-  `help`, `init`, `ingest`, `research`, `lint`, `contradiction`
-- `src/instructions.md` covers all six workflows
-- Install path verified: `claude plugin add /path/to/llm-wiki` → `/llm-wiki:ingest` works
+### 5.1 `lint.rs`
 
-**Acceptance test:**
-```bash
-claude plugin add /path/to/llm-wiki
-# In Claude Code:
-/llm-wiki:ingest
-# → LLM fetches wiki instruct ingest, follows workflow, calls wiki_ingest
+```rust
+pub struct MissingConnection { slug_a: String, slug_b: String, overlapping_terms: Vec<String> }
+pub struct LintReport { orphans: Vec<PageRef>, missing_stubs: Vec<String>, empty_sections: Vec<String>, missing_connections: Vec<MissingConnection>, untyped_sources: Vec<String>, date: String }
+pub fn lint(wiki_root: &Path) -> Result<LintReport>
+pub fn lint_fix(wiki_root: &Path, config: &LintConfig, only: Option<&str>) -> Result<()>
 ```
 
-Tasks: [tasks/phase-5.md](tasks/phase-5.md)
+`LINT.md` format from spec: all sections always present, empty sections show
+`_No X found._`, `uri` and `path` in orphan/contradiction tables.
+Missing connections section shows candidate pairs with overlapping terms.
+Untyped sources section lists source pages with missing or deprecated
+`source-summary` type. See [backlink-quality.md](specifications/backlink-quality.md)
+and [source-classification.md](specifications/source-classification.md).
+
+### 5.2 `graph.rs`
+
+```rust
+pub struct GraphReport { nodes: usize, edges: usize, output: String, committed: bool }
+pub fn build_graph(wiki_root: &Path, filter: &GraphFilter) -> DiGraph<PageNode, ()>
+pub fn render_mermaid(graph: &DiGraph<PageNode, ()>) -> String
+pub fn render_dot(graph: &DiGraph<PageNode, ()>) -> String
+pub fn subgraph(graph: &DiGraph<PageNode, ()>, root: &str, depth: usize) -> DiGraph<PageNode, ()>
+```
+
+Output file gets minimal frontmatter with `status: generated`. Auto-committed
+if output path is inside wiki root.
+
+### 5.3 CLI + MCP
+
+- `wiki lint`, `wiki lint fix --only missing-stubs|empty-sections --dry-run`
+- `wiki graph --format --root --depth --type --output --dry-run`
+- MCP tools: `wiki_lint`, `wiki_graph`
+
+**Deliverable:** `wiki lint` writes `LINT.md` with orphans, missing stubs,
+empty sections. `wiki graph` outputs Mermaid to stdout.
 
 ---
 
-## Phase 6 — Multi-wiki + SSE
+## Phase 6 — MCP Server + Session Bootstrap
 
-**Goal:** One `wiki` process manages multiple repos. Remote agents work via SSE.
+**Goal:** `wiki serve` works with all registered wikis mounted. All MCP tools,
+resources, and prompts from the spec live. `wiki instruct` structured by workflow.
+Session bootstrap complete.
 
-**Deliverables:**
-- `registry.rs`:
-  - Load `[[wikis]]` from `~/.wiki/config.toml`
-  - `resolve(name) → WikiConfig` — default wiki if name omitted
-- All CLI commands accept `--wiki <name>` flag
-- `wiki search --all` — fan out tantivy across all registered wikis, merge + rank
-- `wiki serve --sse :<port>` — SSE transport (multi-client, remote agents)
-- All MCP tools accept optional `wiki` parameter
+### 6.1 `server.rs` — complete
 
-**Acceptance test:**
-```bash
-wiki --wiki work ingest analysis.json
-wiki search --all "transformer scaling"   # hits both wikis
-wiki serve --sse :8080                    # accepts remote connections
-```
+All tools from `specifications/features.md` MCP Tools table. Resources
+namespaced by wiki name. Prompts: `ingest_source`, `research_question`,
+`lint_and_enrich`. `src/instructions.md` structured as:
+`## help`, `## new`, `## ingest`, `## research`, `## lint`,
+`## crystallize`, `## frontmatter`.
 
-Tasks: [tasks/phase-6.md](tasks/phase-6.md)  |  Cross-cutting: [tasks/project.md](tasks/project.md)
+Remove: `wiki_context` tool, `analyse_contradiction` prompt, contradiction
+references in all prompts.
 
----
+### 6.2 Session bootstrap
 
-## Phase 7 — Search Index — Incremental Update
+See [session-bootstrap.md](specifications/session-bootstrap.md).
 
-**Goal:** The search index is no longer rebuilt on every `wiki search` call.
-Build on first use, update incrementally after each ingest, explicit
-`--rebuild-index` for fresh clones.
+- `schema.md` injected alongside instructions at MCP server start
+- `## session-orientation` preamble in `src/instructions.md`
+- `## linking-policy` preamble in `src/instructions.md`
+- Every instruct workflow begins with orientation step
 
-**Deliverables:**
-- `search.rs`: `open_or_build_index`, `update_index(wiki_root, changed_slugs)`
-- `integrate.rs`: all integrate functions call `update_index` after git commit
-- `cli.rs`: `wiki search` uses `open_or_build_index` (not `build_index`)
+### 6.3 CLI
 
-**Acceptance test:**
-```bash
-wiki ingest paper.json          # index updated incrementally
-wiki search "mixture of experts" # fast — no rebuild
-wiki search --rebuild-index      # explicit full rebuild
-```
+- `wiki serve [--sse [:<port>]] [--acp]`
+- `wiki instruct [help|new|ingest|research|lint|crystallize|frontmatter]`
 
-Tasks: [tasks/phase-7.md](tasks/phase-7.md)
+**Deliverable:** Claude Code can use all wiki tools via MCP. Crystallize
+workflow guides session knowledge capture. Session bootstrap orients the LLM
+from the wiki's current state. All registered wikis accessible via
+`wiki://<name>/<slug>`.
 
 ---
 
-## Phase 8 — Repository Layout + Bundle Support
+## Phase 7 — ACP Transport
 
-**Goal:** The wiki supports both flat pages and bundle folders (page + co-located
-assets). Slug resolution handles both forms transparently. All walkers updated.
+**Goal:** `wiki serve --acp` works as a native Zed / VS Code agent.
 
-**Deliverables:**
-- `markdown.rs`: `slug_for`, `resolve_slug`, `promote_to_bundle`, `is_bundle`
-- `integrate.rs`: `write_asset_colocated`, `write_asset_shared`,
-  `regenerate_assets_index`
-- All walkers (`search.rs`, `graph.rs`, `context.rs`, `lint.rs`, `server.rs`)
-  updated to use `slug_for` and `resolve_slug`
-- `lint.rs`: orphan asset reference detection
-- `cli.rs`: `wiki read <slug>` — fetch full content of one page
-- MCP resources: bundle assets exposed at `wiki://{wiki}/{slug}/{filename}`
+### 7.1 `acp.rs`
 
-**Acceptance test:**
-```bash
-wiki ingest agent-skills/semantic-commit/ --prefix skills
-# → skills/semantic-commit/index.md + lifecycle.yaml co-located
-wiki read skills/semantic-commit
-# → full page content
+```rust
+pub struct WikiAgent { registry: Arc<Registry>, sessions: Mutex<HashMap<String, AcpSession>> }
+pub struct AcpSession { id, label, wiki: Option<String>, created_at, active_run }
+impl Agent for WikiAgent { initialize, new_session, load_session, list_sessions, prompt, cancel }
 ```
 
-Tasks: [tasks/phase-8.md](tasks/phase-8.md)
+Workflow dispatch: `ingest`, `research`, `lint`, `enrich`. Instructions injected
+at `initialize`. All registered wikis accessible per session.
+
+### 7.2 Cargo.toml
+
+```toml
+agent-client-protocol       = "0.10"
+agent-client-protocol-tokio = "0.1"
+```
+
+**Deliverable:** `wiki serve --acp` starts. Zed agent panel connects and
+streams ingest/research workflows.
 
 ---
 
-## Phase 9 — Direct Ingest + Enrichment Contract
+## Phase 8 — Claude Plugin
 
-**Goal:** `wiki ingest <path>` works for files and folders without an LLM step.
-`analysis.json` replaced by `enrichment.json` — frontmatter enrichment only.
-`SuggestedPage` and `Action` removed.
+**Goal:** `.claude-plugin/` is complete and installable. All slash commands work.
 
-**Deliverables:**
-- `analysis.rs`: `Enrichment`, `QueryResult`, `Asset`, `AssetKind`,
-  `ContentEncoding` structs; `Analysis` rebuilt; `SuggestedPage`/`Action`/
-  `DocType`/`PageType` removed
-- `ingest.rs`: `Input::Direct` (default) + `Input::AnalysisOnly` (legacy);
-  `DirectIngestOptions`
-- `integrate.rs`: `integrate_direct_file`, `integrate_direct_folder`,
-  `integrate_enrichment`, `integrate_query_result`, `integrate_analysis`;
-  old `integrate` removed
-- `markdown.rs`: `generate_minimal_frontmatter`, `extract_h1`, `merge_enrichment`
-- `cli.rs`: `wiki ingest <path>` as primary form; `--analysis`, `--dry-run` flags;
-  `--analysis-only` legacy flag
-- `server.rs`: new `wiki_ingest` tool (primary); `wiki_ingest_analysis` (legacy)
+- `plugin.json`, `marketplace.json`, `.mcp.json` updated to spec
+- Commands: `help`, `init`, `new`, `ingest`, `research`, `enrich`, `lint`
+- `SKILL.md` updated — no contradiction workflow
+- `wiki instruct <workflow>` returns correct step-by-step for all workflows
 
-**Acceptance test:**
-```bash
-wiki ingest agent-skills/semantic-commit/ --prefix skills
-# → pages + co-located assets, no LLM needed
-wiki ingest --analysis-only enrichment.json
-# → enrichments applied to existing pages, query results written
-```
-
-Tasks: [tasks/phase-9.md](tasks/phase-9.md)
-
----
-
-## Phase 10 — Context Retrieval + wiki read + instruct update
-
-**Goal:** `wiki context` returns ranked references (slug, URI, path, score) —
-never page bodies. `wiki read` fetches a single page. `wiki instruct` gains
-named topic variants covering doc authoring and the enrichment contract.
-
-**Deliverables:**
-- `context.rs`: `ContextRef` struct; `context` returns `Vec<ContextRef>`,
-  body assembly removed
-- `search.rs`: `score: f32` added to `SearchResult`
-- `cli.rs`: `wiki context` prints reference list; `wiki read <slug>` (moved
-  from Phase 8 stub to full implementation); `wiki instruct <topic>`
-- `server.rs`: `wiki_context` returns `Vec<ContextRef>`; `wiki_read` tool;
-  `wiki_instruct` gains `topic` param; prompts updated
-- `src/instructions.md`: `## doc-authoring` and `## enrichment` sections added;
-  `## ingest-workflow` updated; `suggested_pages` contract removed
-
-**Acceptance test:**
-```bash
-wiki context "MoE scaling efficiency"
-# → slug, uri, path, title, score per result — no page bodies
-wiki read concepts/mixture-of-experts
-# → full page content
-wiki instruct doc-authoring
-# → frontmatter schema + read_when discipline
-wiki instruct enrichment
-# → enrichment.json schema + field rules
-```
-
-Tasks: [tasks/phase-10.md](tasks/phase-10.md)
-
----
-
-## Phase 11 — ACP Transport
-
-**Goal:** `wiki serve --acp` works as a native Zed / VS Code agent. Sessions
-are streaming and multi-turn. `src/instructions.md` injected at `initialize`.
-
-**Deliverables:**
-- `acp.rs`: `WikiAgent` implementing `Agent` trait from `agent-client-protocol`;
-  `AcpSession`; workflow dispatch (`Ingest`, `Research`, `Lint`, `Enrichment`)
-- `cli.rs`: `wiki serve --acp [--wiki <name>]`
-- Zed config snippet in README
-- New deps: `agent-client-protocol = "0.10"`, `agent-client-protocol-tokio = "0.1"`
-
-**Acceptance test:**
-```bash
-# In ~/.config/zed/settings.json:
-# { "agent_servers": { "llm-wiki": { "command": "wiki", "args": ["serve", "--acp"] } } }
-# Open Zed agent panel, select llm-wiki:
-# "ingest agent-skills/semantic-commit/"
-# → streams tool_call events, done with ingest report
-```
-
-Tasks: [tasks/phase-11.md](tasks/phase-11.md)
-
----
-
-## Dependency Table by Phase
-
-| Crate           | First used  |
-|-----------------|-------------|
-| `serde_json`    | Phase 0     |
-| `serde_yaml`    | Phase 0     |
-| `toml`          | Phase 0     |
-| `comrak`        | Phase 1     |
-| `walkdir`       | Phase 1     |
-| `git2`          | Phase 1     |
-| `tantivy`       | Phase 2     |
-| `petgraph`      | Phase 3     |
-| `rmcp`          | Phase 4     |
-| `clap`          | Phase 0     |
-| `tokio`         | Phase 0     |
-| `anyhow`        | Phase 0     |
-| `base64`        | Phase 9     |
-| `agent-client-protocol` | Phase 11 |
-| `agent-client-protocol-tokio` | Phase 11 |
-
-No LLM dependency in any phase.
+**Deliverable:** `claude plugin add /path/to/llm-wiki` → `/llm-wiki:ingest` works.
 
 ---
 
 ## What Each Phase Unlocks
 
-| After phase | You can…                                                              |
-|-------------|-----------------------------------------------------------------------|
-| 1           | Feed `analysis.json` from any LLM, pages (+ contradictions) on disk  |
-| 2           | Ask "what do I know about X?" and get page context                   |
-| 3           | Surface orphans, stubs, query and cluster contradiction pages         |
-| 4           | Use the wiki from Claude Code with full MCP tool access               |
-| 5           | `/llm-wiki:ingest` as a one-command slash workflow                    |
-| 6           | Manage multiple knowledge bases, serve remote agents                  |
-| 7           | Search index incremental update — no rebuild on every query          |
-| 8           | Co-locate assets with pages, stable bundle slugs, `wiki read`         |
-| 9           | Ingest any file or folder directly, enrich frontmatter without LLM   |
-| 10          | `wiki context` returns references not bodies, `wiki instruct <topic>` |
-| 11          | `wiki serve --acp` — native Zed / VS Code agent, streaming workflows  |
+| After phase | You can… |
+|-------------|----------|
+| 1 | Initialize wikis, manage registry and config |
+| 2 | Ingest any file or folder, create pages and sections |
+| 3 | Frontmatter validation on ingest, unified type taxonomy enforced, authoring guide in instructions |
+| 4 | Search (with classification filter), read pages and assets, manage the index |
+| 5 | Audit wiki structure (orphans, stubs, missing connections, unclassified sources), visualize concept graph |
+| 6 | Use the wiki from Claude Code with full MCP access, crystallize sessions, session bootstrap |
+| 7 | `wiki serve --acp` — native Zed / VS Code streaming agent |
+| 8 | `/llm-wiki:ingest` and `/llm-wiki:crystallize` as one-command slash workflows |

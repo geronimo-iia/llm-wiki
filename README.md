@@ -70,6 +70,8 @@ Subcommands:
 | `wiki diff` | Print the diff of the last commit (git diff HEAD~1) |
 | `wiki init [<path>]` | Initialise a new wiki repo (git init + directory scaffold) |
 | `wiki init [<path>] --register` | Also register the new wiki in `~/.wiki/config.toml` |
+| `wiki read <slug>` | Print full content of a page (frontmatter + body) |
+| `wiki read <slug> --body-only` | Print body only, no frontmatter |
 | `wiki serve` | Start the MCP server (stdio transport) |
 | `wiki serve --sse :<port>` | Start the MCP server on HTTP SSE transport |
 | `wiki instruct [<workflow>]` | Print LLM usage instructions (full or named section) |
@@ -407,17 +409,53 @@ Full contract: [`docs/design/design.md`](docs/design/design.md)
 
 ## Repository layout
 
+Pages exist in two forms. A slug like `concepts/foo` resolves to whichever
+form is on disk — all commands handle both transparently.
+
+**Flat** — page with no assets:
+```
+concepts/foo.md
+```
+
+**Bundle** — page with co-located assets:
+```
+concepts/foo/
+├── index.md          ← the page
+├── diagram.png       ← asset co-located beside the page
+└── config.yaml
+```
+
+Full wiki tree:
+
 ```
 my-wiki/                    ← git root (auto-initialised by wiki ingest)
-├── concepts/               ← concept pages
+├── concepts/               ← concept pages (flat or bundle)
 ├── sources/                ← per-source summary pages
-├── contradictions/         ← contradiction nodes
-├── queries/                ← saved Q&A results
+├── contradictions/         ← contradiction nodes (always flat)
+├── queries/                ← saved Q&A results (always flat)
+├── assets/                 ← shared assets only (referenced by 2+ pages)
+│   ├── index.md            ← auto-generated table of shared assets
+│   ├── diagrams/
+│   ├── configs/
+│   └── scripts/
 └── .wiki/
     └── config.toml
 ```
 
 Every page file: `---\n<yaml frontmatter>\n---\n\n<Markdown body>`
+
+**When to use each form:**
+- Flat — page has no assets, or assets are short enough to inline as fenced blocks.
+- Bundle — page has one or more files worth preserving (diagrams, configs, scripts).
+  Assets live beside `index.md` and are referenced with short relative paths
+  (`./diagram.png`). The wiki promotes a flat page to a bundle automatically
+  when the first asset is written.
+- Central `assets/` — only for assets explicitly shared across multiple pages.
+  Prefer co-location; use `assets/` as the exception.
+
+See [`docs/design/repository-layout.md`](docs/design/repository-layout.md) for
+the full layout rationale and [`docs/dev/layout.md`](docs/dev/layout.md) for
+the implementation details (slug resolution, bundle promotion, walker rules).
 
 ---
 

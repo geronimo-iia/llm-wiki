@@ -43,8 +43,8 @@ The implication: **the LLM reads pages from the wiki, it does not write them**.
 ### 1.4 Analysis as enrichment (this document)
 
 Following from 1.1–1.3: the LLM's job is to read existing pages and annotate
-them — add claims, concepts, confidence, contradictions to frontmatter. It does
-not author page bodies. The body is already there from direct ingest.
+them — add claims, concepts, confidence to frontmatter. It does not author
+page bodies. The body is already there from direct ingest.
 
 ---
 
@@ -53,11 +53,10 @@ not author page bodies. The body is already there from direct ingest.
 ```
 Direct ingest (primary)          Analysis enrichment (optional, LLM)
 ─────────────────────────        ──────────────────────────────────────
-wiki ingest <path>               wiki context → LLM reads pages
+wiki ingest <path>               wiki search → LLM reads pages
   write pages as-is                LLM produces enrichment.json
   co-locate assets                 wiki ingest --analysis enrichment.json
   git commit                         merge claims/concepts into frontmatter
-                                     write contradiction pages
                                      git commit
 ```
 
@@ -128,17 +127,11 @@ The only remaining top-level fields are:
 {
   "source": "sources/switch-transformer-2021",   // which wiki page was analyzed
   "enrichments": [...],                           // frontmatter additions per page
-  "contradictions": [...]                         // unchanged
+  "query_results": [...]                          // LLM-authored pages
 }
 ```
 
-### 3.3 `contradictions` — unchanged
-
-Contradiction detection still requires LLM judgment. The LLM reads existing
-pages via `wiki context`, identifies tensions, and writes contradiction entries.
-This part of the contract is unchanged.
-
-### 3.4 New `enrichment` action in integrate.rs
+### 3.3 New `enrichment` action in integrate.rs
 
 `integrate_analysis` gains a new path: for each `enrichment` entry, read the
 existing page's frontmatter, merge the new fields (union tags, union read_when,
@@ -175,10 +168,10 @@ pub struct Enrichment {
 
 ```
 1. wiki ingest <path>              → pages exist, assets co-located
-2. wiki context → LLM reads pages → produces enrichment.json
+2. wiki search → LLM reads pages  → produces enrichment.json
 3. wiki ingest --analysis enrichment.json → merges metadata into frontmatter
-4. wiki context → LLM synthesizes answers using enriched pages
-5. wiki lint → LLM enriches contradictions → re-ingest
+4. wiki search → LLM synthesizes answers using enriched pages
+5. wiki lint → LLM fills stubs, links orphans
 ```
 
 Step 2 and 3 are optional. A wiki of direct-ingested pages is already useful
@@ -202,14 +195,13 @@ The `research_question` and `lint_and_enrich` prompts are unchanged.
 
 ## 6. What Stays the Same
 
-- Contradictions as first-class knowledge nodes — unchanged
 - Git as backend — unchanged
 - No LLM calls inside the wiki binary — unchanged
 - Tantivy full-text search — unchanged
 - MCP server and resource exposure — unchanged
 - Multi-wiki registry — unchanged
 - `wiki lint` structural audit — unchanged
-- `wiki context` returning `Vec<ContextRef>` — unchanged
+- `wiki search` returning `Vec<PageRef>` — unchanged
 
 ---
 
@@ -234,10 +226,9 @@ for this case only.
       "body": "## Summary\n\n...",
       "tags": ["moe", "scaling"],
       "read_when": ["Reviewing MoE scaling tradeoffs"],
-      "sources": ["concepts/mixture-of-experts", "contradictions/moe-scaling-efficiency"]
+      "sources": ["concepts/mixture-of-experts"]
     }
-  ],
-  "contradictions": []
+  ]
 }
 ```
 
@@ -268,7 +259,7 @@ no LLM inside the binary — remains fully valid and unchanged.
 
 ---
 
-## 9. Revised analysis.json Schema
+## 9. Revised enrichment.json Schema
 
 ```json
 {
@@ -296,27 +287,13 @@ no LLM inside the binary — remains fully valid and unchanged.
       "read_when": ["Reviewing MoE scaling tradeoffs"],
       "sources": ["concepts/mixture-of-experts"]
     }
-  ],
-  "contradictions": [
-    {
-      "title": "MoE scaling efficiency: contradictory views",
-      "claim_a": "sparse MoE reduces effective compute 8x at same quality",
-      "source_a": "sources/switch-transformer-2021",
-      "claim_b": "MoE gains diminish sharply beyond 100B parameters",
-      "source_b": "sources/moe-survey-2023",
-      "dimension": "context",
-      "epistemic_value": "The contradiction reveals a training-phase boundary.",
-      "status": "resolved",
-      "resolution": "claim_a holds for pre-training FLOPs; claim_b applies to fine-tuning."
-    }
   ]
 }
 ```
 
-Three top-level arrays, each with a distinct purpose:
+Two top-level arrays, each with a distinct purpose:
 - `enrichments` — metadata additions to existing pages (no body)
 - `query_results` — LLM-authored pages (body present, always `create`)
-- `contradictions` — unchanged
 
 ---
 
@@ -347,14 +324,13 @@ pub struct QueryResult {
 
 // Analysis struct — simplified
 pub struct Analysis {
-    pub source:       String,
-    pub enrichments:  Vec<Enrichment>,
+    pub source:        String,
+    pub enrichments:   Vec<Enrichment>,
     pub query_results: Vec<QueryResult>,
-    pub contradictions: Vec<Contradiction>,
-    pub assets:       Vec<Asset>,
+    pub assets:        Vec<Asset>,
 }
 ```
 
-`SuggestedPage`, `Action`, `DocType`, `PageType` are removed from `analysis.rs`.
-`integrate.rs` gains `integrate_enrichment` and `integrate_query_result`
-replacing the old `Action`-based dispatch.
+`SuggestedPage`, `Action`, `DocType`, `PageType`, `Contradiction` are removed
+from `analysis.rs`. `integrate.rs` gains `integrate_enrichment` and
+`integrate_query_result` replacing the old `Action`-based dispatch.

@@ -1,6 +1,6 @@
 ---
 title: "Epistemic Model"
-summary: "Why the five default wiki categories exist — the epistemic roles of concepts, sources, contradictions, queries, and raw, and why separating them matters."
+summary: "Why the four default wiki categories exist — the epistemic roles of concepts, sources, queries, and raw, and why separating them matters."
 read_when:
   - Understanding why the wiki has these specific default directories
   - Deciding which category a new page belongs in
@@ -11,9 +11,9 @@ last_updated: "2025-07-15"
 
 # Epistemic Model
 
-The five default wiki categories are not arbitrary. Each has a distinct
+The four default wiki categories are not arbitrary. Each has a distinct
 epistemic role. Mixing them collapses distinctions that matter for knowledge
-quality, contradiction detection, and provenance tracking.
+quality and provenance tracking.
 
 ## Origin
 
@@ -22,16 +22,11 @@ gist). Karpathy's core ideas:
 
 - Process sources at **ingest time**, not query time — build a persistent wiki
 - The LLM reads each source and integrates it, updating existing pages
-- It detects and flags **contradictions** between new and existing claims
 - Save valuable Q&A as **query-result** pages
-- Run **lint passes** to audit for contradictions, orphans, and obsolete content
+- Run **lint passes** to audit for orphans and obsolete content
 
 What this project adds beyond Karpathy:
 
-- Contradictions as **first-class knowledge nodes** with their own pages,
-  `epistemic_value` field, `dimension` taxonomy, and permanent status —
-  Karpathy flags them during ingestion; this design preserves them as
-  structured artifacts that are richer than either source alone
 - The explicit **epistemic layer model** below — Karpathy describes the
   workflow but does not name the layers this way
 - `raw/` as a dedicated directory — implied by Karpathy's workflow but not
@@ -42,11 +37,10 @@ What this project adds beyond Karpathy:
 ## The Layers
 
 ```
-raw/              → what we received        (unprocessed input)
-sources/          → what each source claims (provenance)
-concepts/         → what we know            (synthesized knowledge)
-contradictions/   → where sources disagree  (knowledge structure)
-queries/          → what we concluded       (reasoning output)
+raw/       → what we received        (unprocessed input)
+sources/   → what each source claims (provenance)
+concepts/  → what we know            (synthesized knowledge)
+queries/   → what we concluded       (reasoning output)
 ```
 
 Each layer answers a different question. None can substitute for another.
@@ -80,7 +74,7 @@ transcript claims, with what confidence, and where the gaps are.
 **Why it exists separately from `concepts/`:**
 
 The same concept can be claimed by many sources with different confidence
-levels, different methodologies, and different scopes. Contradiction detection
+levels, different methodologies, and different scopes. Provenance tracking
 requires knowing *which source made which claim*. If source summaries are
 merged directly into concept pages, that provenance is lost.
 
@@ -89,8 +83,7 @@ sources/switch-transformer-2021.md  → "sparse MoE reduces compute 8x (high con
 sources/moe-survey-2023.md          → "MoE gains diminish beyond 100B params (medium confidence)"
 ```
 
-Without `sources/`, you cannot ask "which sources support this claim?" or
-"does this source contradict that one?".
+Without `sources/`, you cannot ask "which sources support this claim?".
 
 ---
 
@@ -100,7 +93,7 @@ Without `sources/`, you cannot ask "which sources support this claim?" or
 
 One page per concept, continuously enriched across multiple sources. The
 canonical answer to "what do we know about X?". Pages accumulate claims,
-tags, confidence levels, and contradiction links over time.
+tags, confidence levels, and source links over time.
 
 **Why it exists separately from `sources/`:**
 
@@ -111,37 +104,9 @@ said. These are different things:
 - `concepts/mixture-of-experts.md` — everything we know about MoE, from all sources
 - `sources/switch-transformer-2021.md` — what this one paper said about MoE
 
-Concept pages are the primary retrieval target for `wiki context`. They are
+Concept pages are the primary retrieval target for `wiki search`. They are
 what an LLM reads to answer a question. Source pages are what an LLM reads
-to check provenance or detect contradictions.
-
----
-
-## `contradictions/`
-
-**Where sources disagree — knowledge structure.**
-
-One page per detected contradiction between sources. Each page carries
-`claim_a`, `claim_b`, `dimension` (context/time/scale/methodology/open-dispute),
-`epistemic_value`, and `status` (active/resolved/under-analysis).
-
-**Karpathy's framing:** the LLM detects and flags contradictions during
-ingestion. They are surfaced in lint passes for review.
-
-**This project's extension:** contradictions are not just flags — they are
-persistent structured pages that are never deleted. A contradiction page is
-*richer than either source alone* because it encodes information neither
-source captures individually:
-
-- **Context-dependence** — claim A holds in domain X, claim B in domain Y
-- **Time-dependence** — A was true in 2021, superseded by B in 2024
-- **Scale-dependence** — A works at small scale, B at large scale
-- **Methodology divergence** — different measurement approaches yield different results
-- **Genuine open dispute** — the field has not resolved this yet
-
-A "resolved" contradiction still carries the analysis that explains *why*
-the two sources disagreed. That explanation is the knowledge. `git log`
-preserves the full history of how the understanding evolved.
+to check provenance.
 
 ---
 
@@ -151,7 +116,7 @@ preserves the full history of how the understanding evolved.
 
 Saved Q&A results. When an LLM synthesizes an answer from wiki context,
 that synthesis is itself knowledge worth preserving — especially when it
-draws on multiple concept pages and surfaces contradiction pages.
+draws on multiple concept pages.
 
 **Why it exists separately from `concepts/`:**
 
@@ -174,7 +139,6 @@ The failure mode of naive RAG is collapsing these layers:
 | Collapsed | Problem |
 |-----------|---------|
 | `sources/` merged into `concepts/` | Cannot ask "which source claims this?" — provenance lost |
-| `contradictions/` deleted or merged | Knowledge structure lost — domain boundaries invisible |
 | `queries/` merged into `concepts/` | Conclusions presented as facts — reasoning not auditable |
 | `raw/` indexed alongside pages | Unprocessed content pollutes search — noise in retrieval |
 
@@ -186,10 +150,10 @@ for knowledge quality.
 ## Relationship to `validate_slug`
 
 The fixed category prefixes enforced by `validate_slug_analysis` in
-`integrate.rs` are exactly these five directories (minus `raw/`, which is
+`integrate.rs` are exactly these four directories (minus `raw/`, which is
 never a slug prefix). Analysis-only ingest is restricted to these categories
-because the enrichment contract (`enrichments[]`, `query_results[]`,
-`contradictions[]`) maps directly onto them.
+because the enrichment contract (`enrichments[]`, `query_results[]`) maps
+directly onto them.
 
 Direct ingest (`wiki ingest <path> --prefix <name>`) relaxes this — user-defined
 prefixes like `skills/` or `guides/` are valid because they represent

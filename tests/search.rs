@@ -6,7 +6,7 @@
 use llm_wiki::analysis::{Confidence, PageType};
 use llm_wiki::context::context;
 use llm_wiki::markdown::{write_page, PageFrontmatter, PageStatus};
-use llm_wiki::search::{build_index, search};
+use llm_wiki::search::{build_index, open_or_build_index, search, update_index};
 use std::path::Path;
 use tempfile::TempDir;
 
@@ -281,7 +281,7 @@ fn cli_search_rebuild_index_on_fresh_clone_succeeds() {
 }
 
 #[test]
-fn cli_search_new_page_reflected_without_explicit_rebuild() {
+fn cli_search_new_page_reflected_after_update_index() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
 
@@ -302,11 +302,20 @@ fn cli_search_new_page_reflected_without_explicit_rebuild() {
         "This page covers xyznewtopicterm that did not exist before.",
     );
 
-    // Search without explicit rebuild — must find the new page (always-rebuild policy).
-    let results2 = search("xyznewtopicterm", root, false).unwrap();
+    // Without update_index, the new page is NOT in the index (incremental policy).
+    let results_before = search("xyznewtopicterm", root, false).unwrap();
     assert!(
-        results2.iter().any(|r| r.slug == "concepts/new-unique-topic"),
-        "newly added page must appear in search results without explicit rebuild"
+        results_before.iter().all(|r| r.slug != "concepts/new-unique-topic"),
+        "new page must not appear before update_index"
+    );
+
+    // After update_index, the new page IS searchable.
+    let index_dir = root.join(".wiki/search-index");
+    update_index(root, &index_dir, &["concepts/new-unique-topic".to_string()]).unwrap();
+    let results_after = search("xyznewtopicterm", root, false).unwrap();
+    assert!(
+        results_after.iter().any(|r| r.slug == "concepts/new-unique-topic"),
+        "newly added page must appear in search results after update_index"
     );
 }
 
@@ -344,4 +353,231 @@ fn cli_context_no_matching_pages_returns_empty_no_error() {
 
     let output = context("xyzabsolutelynonexistentterm99999", root, 5).unwrap();
     assert!(output.is_empty(), "no matching pages must return empty string, not an error");
+}
+
+// ── Phase 7: open_or_build_index and update_index tests ──────────────────────
+
+#[test]
+fn open_or_build_index_missing_dir_builds_index() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    make_page(root, "concepts/moe", "Mixture of Experts", PageType::Concept, &[], "Body A");
+
+    let index_dir = root.join(".wiki/search-index");
+    assert!(!index_dir.exists());
+
+    let index = open_or_build_index(root, &index_dir).unwrap();
+    assert!(index_dir.exists());
+    assert_eq!(index.reader().unwrap().searcher().num_docs(), 1);
+}
+
+#[test]
+fn open_or_build_index_existing_index_opens_without_rebuild() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    make_page(root, "concepts/moe", "Mixture of Experts", PageType::Concept, &[], "Body A");
+
+    let index_dir = root.join(".wiki/search-index");
+    build_index(root, &index_dir).unwrap();
+
+    // Record mtime of a file inside the index dir.
+    let meta_before = std::fs::metadata(&index_dir).unwrap().modified().unwrap();
+
+    // Add a new page on disk — open_or_build_index must NOT rebuild.
+    make_page(root, "concepts/new", "New Page", PageType::Concept, &[], "Body B");
+
+    let index = open_or_build_index(root, &index_dir).unwrap();
+    let meta_after = std::fs::metadata(&index_dir).unwrap().modified().unwrap();
+
+    // Index dir mtime unchanged — no rebuild occurred.
+    assert_eq!(meta_before, meta_after);
+    // Still only 1 doc (the new page was not indexed).
+    assert_eq!(index.reader().unwrap().searcher().num_docs(), 1);
+}
+
+#[test]
+fn update_index_new_page_appears_in_search() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    make_page(root, "concepts/moe", "Mixture of Experts", PageType::Concept, &[], "Body A");
+
+    let index_dir = root.join(".wiki/search-index");
+    build_index(root, &index_dir).unwrap();
+
+    // Add a new page and update the index.
+    make_page(root, "concepts/scaling", "Scaling Laws", PageType::Concept, &[], "xyzscalingunique");
+    update_index(root, &index_dir, &["concepts/scaling".to_string()]).unwrap();
+
+    let results = search("xyzscalingunique", root, false).unwrap();
+    assert!(
+        results.iter().any(|r| r.slug == "concepts/scaling"),
+        "new page must appear after update_index"
+    );
+}
+
+#[test]
+fn update_index_modified_page_reflects_new_content() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    make_page(root, "concepts/moe", "Mixture of Experts", PageType::Concept, &[], "original content");
+
+    let index_dir = root.join(".wiki/search-index");
+    build_index(root, &index_dir).unwrap();
+
+    // Overwrite with new content.
+    make_page(root, "concepts/moe", "Mixture of Experts", PageType::Concept, &[], "xyzmodifiedcontent99");
+    update_index(root, &index_dir, &["concepts/moe".to_string()]).unwrap();
+
+    let results = search("xyzmodifiedcontent99", root, false).unwrap();
+    assert!(
+        results.iter().any(|r| r.slug == "concepts/moe"),
+        "modified content must appear after update_index"
+    );
+}
+
+#[test]
+fn update_index_deleted_page_no_longer_in_search() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    make_page(root, "concepts/moe", "Mixture of Experts", PageType::Concept, &[], "xyzdeleteunique");
+
+    let index_dir = root.join(".wiki/search-index");
+    build_index(root, &index_dir).unwrap();
+
+    // Delete the file and update the index.
+    std::fs::remove_file(root.join("concepts/moe.md")).unwrap();
+    update_index(root, &index_dir, &["concepts/moe".to_string()]).unwrap();
+
+    let results = search("xyzdeleteunique", root, false).unwrap();
+    assert!(
+        results.iter().all(|r| r.slug != "concepts/moe"),
+        "deleted page must not appear after update_index"
+    );
+}
+
+#[test]
+fn update_index_empty_slugs_is_noop() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    make_page(root, "concepts/moe", "Mixture of Experts", PageType::Concept, &[], "Body A");
+
+    let index_dir = root.join(".wiki/search-index");
+    build_index(root, &index_dir).unwrap();
+
+    let mtime_before = std::fs::metadata(&index_dir).unwrap().modified().unwrap();
+    update_index(root, &index_dir, &[]).unwrap();
+    let mtime_after = std::fs::metadata(&index_dir).unwrap().modified().unwrap();
+
+    assert_eq!(mtime_before, mtime_after, "empty update must not touch index");
+}
+
+#[test]
+fn two_consecutive_searches_do_not_modify_index_on_second_call() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    make_page(root, "concepts/moe", "Mixture of Experts", PageType::Concept, &[], "Body A");
+
+    // First search builds the index.
+    search("Mixture", root, false).unwrap();
+
+    let index_dir = root.join(".wiki/search-index");
+    let mtime_after_first = std::fs::metadata(&index_dir).unwrap().modified().unwrap();
+
+    // Second search must open the existing index, not rebuild.
+    search("Mixture", root, false).unwrap();
+    let mtime_after_second = std::fs::metadata(&index_dir).unwrap().modified().unwrap();
+
+    assert_eq!(
+        mtime_after_first, mtime_after_second,
+        "second search must not modify index files"
+    );
+}
+
+// ── Phase 8: bundle-aware indexing ───────────────────────────────────────────
+
+#[test]
+fn build_index_bundle_page_indexed_once() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    // Create a bundle page.
+    let bundle_dir = root.join("concepts/moe");
+    std::fs::create_dir_all(&bundle_dir).unwrap();
+    make_page(root, "concepts/moe/index", "Mixture of Experts", PageType::Concept, &["moe"], "Bundle body.");
+    // Rename to index.md (make_page writes {slug}.md, so we need to move it).
+    std::fs::rename(root.join("concepts/moe/index.md"), bundle_dir.join("index.md")).unwrap_or(());
+    // Write directly as bundle.
+    let bundle_index = bundle_dir.join("index.md");
+    if !bundle_index.exists() {
+        make_page(root, "concepts/moe/index", "Mixture of Experts", PageType::Concept, &["moe"], "Bundle body.");
+    }
+
+    let index_dir = root.join(".wiki/search-index");
+    let index = build_index(root, &index_dir).unwrap();
+    let reader = index.reader().unwrap();
+    // Should be indexed exactly once.
+    assert_eq!(reader.searcher().num_docs(), 1, "bundle page must be indexed exactly once");
+}
+
+#[test]
+fn build_index_asset_files_not_indexed() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    // Bundle page.
+    let bundle_dir = root.join("concepts/moe");
+    std::fs::create_dir_all(&bundle_dir).unwrap();
+    make_page(root, "concepts/moe/index", "Mixture of Experts", PageType::Concept, &[], "Body.");
+    // Co-located non-md asset.
+    std::fs::write(bundle_dir.join("diagram.png"), b"PNG").unwrap();
+
+    let index_dir = root.join(".wiki/search-index");
+    let index = build_index(root, &index_dir).unwrap();
+    let reader = index.reader().unwrap();
+    assert_eq!(reader.searcher().num_docs(), 1, "asset files must not be indexed");
+}
+
+#[test]
+fn build_index_assets_dir_not_indexed_except_index_md() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    make_page(root, "concepts/moe", "Mixture of Experts", PageType::Concept, &[], "Body.");
+
+    // Shared asset (non-md) — must not be indexed.
+    let assets_dir = root.join("assets/diagrams");
+    std::fs::create_dir_all(&assets_dir).unwrap();
+    std::fs::write(assets_dir.join("chart.png"), b"PNG").unwrap();
+
+    let index_dir = root.join(".wiki/search-index");
+    let index = build_index(root, &index_dir).unwrap();
+    let reader = index.reader().unwrap();
+    // Only the concept page; assets/index.md doesn't exist yet.
+    assert_eq!(reader.searcher().num_docs(), 1);
+}
+
+#[test]
+fn search_after_bundle_promotion_slug_unchanged() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    // Start with flat page.
+    make_page(root, "concepts/moe", "Mixture of Experts", PageType::Concept, &["moe"], "Sparse routing.");
+
+    // Build index while flat.
+    let index_dir = root.join(".wiki/search-index");
+    build_index(root, &index_dir).unwrap();
+
+    // Promote to bundle.
+    llm_wiki::markdown::promote_to_bundle(root, "concepts/moe").unwrap();
+
+    // Update index for the slug.
+    update_index(root, &index_dir, &["concepts/moe".to_string()]).unwrap();
+
+    let results = search("Sparse routing", root, false).unwrap();
+    assert!(
+        results.iter().any(|r| r.slug == "concepts/moe"),
+        "slug must remain concepts/moe after bundle promotion; results: {:?}",
+        results.iter().map(|r| &r.slug).collect::<Vec<_>>()
+    );
 }

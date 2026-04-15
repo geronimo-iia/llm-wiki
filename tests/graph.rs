@@ -529,3 +529,111 @@ fn cli_diff_nonempty_after_ingest() {
         "diff should mention the newly added file: {diff}"
     );
 }
+
+// ── Phase 8: bundle-aware graph and lint ─────────────────────────────────────
+
+#[test]
+fn build_graph_bundle_page_has_correct_slug() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+
+    // Bundle page.
+    std::fs::create_dir_all(root.join("concepts/moe")).unwrap();
+    write(
+        &root.join("concepts/moe/index.md"),
+        &concept_page_md("Mixture of Experts"),
+    );
+
+    let g = graph::build_graph(root).unwrap();
+    let slugs: Vec<&str> = g.inner.node_weights().map(|s| s.as_str()).collect();
+    assert!(
+        slugs.contains(&"concepts/moe"),
+        "bundle slug must be concepts/moe; got: {slugs:?}"
+    );
+    assert!(
+        !slugs.iter().any(|s| s.contains("index")),
+        "index.md must not appear as a slug component; got: {slugs:?}"
+    );
+}
+
+#[test]
+fn build_graph_bundle_asset_not_treated_as_page() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+
+    std::fs::create_dir_all(root.join("concepts/moe")).unwrap();
+    write(
+        &root.join("concepts/moe/index.md"),
+        &concept_page_md("Mixture of Experts"),
+    );
+    // A non-md asset beside index.md.
+    std::fs::write(root.join("concepts/moe/diagram.png"), b"PNG").unwrap();
+
+    let g = graph::build_graph(root).unwrap();
+    let slugs: Vec<&str> = g.inner.node_weights().map(|s| s.as_str()).collect();
+    assert_eq!(slugs.len(), 1, "only the page node; got: {slugs:?}");
+}
+
+#[test]
+fn lint_orphan_asset_ref_detected() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    git_init(root);
+
+    // Bundle page referencing a non-existent asset.
+    std::fs::create_dir_all(root.join("concepts/moe")).unwrap();
+    let body = "---\ntitle: MoE\nsummary: test\nread_when: []\nstatus: active\nlast_updated: 2026-04-13\ntype: concept\ntags: []\nsources: []\nconfidence: medium\ncontradictions: []\ntldr: test\n---\n\n![diagram](./missing-diagram.png)\n";
+    std::fs::write(root.join("concepts/moe/index.md"), body).unwrap();
+
+    let report = lint::lint(root).unwrap();
+    assert!(
+        report.orphan_asset_refs.iter().any(|r| r.contains("missing-diagram.png")),
+        "orphan asset ref must be detected; got: {:?}",
+        report.orphan_asset_refs
+    );
+}
+
+#[test]
+fn lint_no_orphan_asset_ref_when_asset_exists() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    git_init(root);
+
+    std::fs::create_dir_all(root.join("concepts/moe")).unwrap();
+    let body = "---\ntitle: MoE\nsummary: test\nread_when: []\nstatus: active\nlast_updated: 2026-04-13\ntype: concept\ntags: []\nsources: []\nconfidence: medium\ncontradictions: []\ntldr: test\n---\n\n![diagram](./diagram.png)\n";
+    std::fs::write(root.join("concepts/moe/index.md"), body).unwrap();
+    std::fs::write(root.join("concepts/moe/diagram.png"), b"PNG").unwrap();
+
+    let report = lint::lint(root).unwrap();
+    assert!(
+        report.orphan_asset_refs.is_empty(),
+        "no orphan refs when asset exists; got: {:?}",
+        report.orphan_asset_refs
+    );
+}
+
+// ── Phase 8: lint integration ─────────────────────────────────────────────────
+
+#[test]
+fn lint_orphan_asset_ref_appears_in_lint_md() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    git_init(root);
+
+    // Bundle page referencing a missing asset.
+    std::fs::create_dir_all(root.join("concepts/moe")).unwrap();
+    let body = "---\ntitle: MoE\nsummary: test\nread_when: []\nstatus: active\nlast_updated: 2026-04-13\ntype: concept\ntags: []\nsources: []\nconfidence: medium\ncontradictions: []\ntldr: test\n---\n\n![diagram](./missing.png)\n";
+    std::fs::write(root.join("concepts/moe/index.md"), body).unwrap();
+
+    lint::lint(root).unwrap();
+
+    let lint_md = std::fs::read_to_string(root.join("LINT.md")).unwrap();
+    assert!(
+        lint_md.contains("missing.png"),
+        "LINT.md must mention the missing asset; content:\n{lint_md}"
+    );
+    assert!(
+        lint_md.contains("Orphan Asset"),
+        "LINT.md must have an Orphan Asset References section"
+    );
+}

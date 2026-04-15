@@ -12,6 +12,7 @@ use llm_wiki::graph;
 use llm_wiki::ingest::{ingest, Input};
 use llm_wiki::init::{init_wiki, mcp_config_snippet};
 use llm_wiki::lint;
+use llm_wiki::markdown::resolve_slug;
 use llm_wiki::registry::{WikiRegistry, global_config_path, register_wiki};
 use llm_wiki::search::{build_index, search, search_all};
 use std::path::PathBuf;
@@ -624,6 +625,36 @@ async fn main() -> Result<()> {
             }
 
             process::exit(0);
+        }
+
+        // wiki read <slug> [--body-only] — print page content.
+        Command::Read { slug, body_only } => {
+            let wiki_root = resolve_wiki_config(cli.wiki.as_deref()).root;
+            match resolve_slug(&wiki_root, &slug) {
+                None => {
+                    eprintln!("error: page not found: `{slug}`");
+                    process::exit(1);
+                }
+                Some(path) => {
+                    let content = match std::fs::read_to_string(&path) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            eprintln!("error: failed to read {}: {e}", path.display());
+                            process::exit(1);
+                        }
+                    };
+                    if body_only {
+                        use llm_wiki::markdown::parse_frontmatter;
+                        match parse_frontmatter(&content) {
+                            Ok((_fm, body)) => print!("{body}"),
+                            Err(_) => print!("{content}"),
+                        }
+                    } else {
+                        print!("{content}");
+                    }
+                    process::exit(0);
+                }
+            }
         }
     }
 }

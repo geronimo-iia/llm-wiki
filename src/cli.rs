@@ -115,4 +115,14 @@ pub enum Command {
         /// Named workflow to print. Omit for general instructions.
         workflow: Option<String>,
     },
+
+    /// Print the content of a wiki page (frontmatter + body).
+    Read {
+        /// Page slug (e.g. `concepts/foo` or `skills/semantic-commit`).
+        slug: String,
+
+        /// Print only the body, omitting frontmatter.
+        #[arg(long)]
+        body_only: bool,
+    },
 }

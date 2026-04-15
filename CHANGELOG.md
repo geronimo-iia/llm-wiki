@@ -7,6 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 8 (2026-04-15)
+
+#### Added
+- `markdown::slug_for(path, wiki_root)` — derives the slug for any wiki `.md`
+  file: `index.md` in a folder → slug = parent dir; any other `.md` → slug =
+  path without extension.
+- `markdown::resolve_slug(wiki_root, slug)` — resolves a slug to its file path;
+  checks `{slug}.md` first, then `{slug}/index.md`; returns `None` if neither
+  exists.
+- `markdown::promote_to_bundle(wiki_root, slug)` — moves `{slug}.md` →
+  `{slug}/index.md`, creating the directory; no-op if already a bundle.
+- `markdown::is_bundle(wiki_root, slug)` — returns `true` if
+  `{slug}/index.md` exists.
+- `integrate::write_asset_colocated(wiki_root, page_slug, filename, content)`
+  — promotes the page to a bundle if flat, then writes the asset beside
+  `index.md`.
+- `integrate::write_asset_shared(wiki_root, kind, filename, content)` — writes
+  to `assets/{subdir}/` per the kind→subdir table and regenerates
+  `assets/index.md`.
+- `integrate::assets_index_path(wiki_root)` — returns path to `assets/index.md`.
+- `integrate::regenerate_assets_index(wiki_root)` — walks `assets/`, rebuilds
+  the Markdown table, writes `assets/index.md`.
+- `IngestReport::bundles_created: usize` — count of flat pages promoted to
+  bundles during an ingest session.
+- `LintReport::orphan_asset_refs: Vec<String>` — bundle pages with `./asset`
+  references that don't exist in the bundle folder.
+- `wiki read <slug>` CLI subcommand — prints frontmatter + body of a page;
+  resolves via `resolve_slug` (works for flat and bundle).
+- `wiki read <slug> --body-only` — prints body only.
+- `docs/dev/layout.md` — slug resolution rules, bundle promotion, asset
+  placement decision, `assets/index.md` format.
+- 22 new tests across `tests/ingest.rs`, `tests/search.rs`, `tests/graph.rs`.
+
+#### Changed
+- `search::build_index` — uses `slug_for` for consistent slug derivation;
+  skips non-`index.md` files inside bundle folders; skips `assets/` subtree
+  except `assets/index.md`.
+- `search::update_index` — uses `resolve_slug` to find the page file (flat or
+  bundle) when re-indexing a changed slug.
+- `SearchResult` gains `path: String` (absolute path to the page file).
+- `SearchResultWithWiki` gains `path: String`.
+- `graph::build_graph` — uses `slug_for`; skips non-`index.md` files inside
+  bundle folders so bundle assets are not treated as pages.
+- `graph::missing_stubs` — uses `resolve_slug` to check existence (handles
+  both flat and bundle forms).
+- `context::context` — uses `resolve_slug` for page path resolution.
+- `lint::lint` — uses `slug_for` in the orphan asset ref scanner; adds
+  `## Orphan Asset References` section to `LINT.md`.
+- `server::do_read_resource` — uses `resolve_slug`; also handles bundle asset
+  URIs `wiki://{wiki}/{slug}/{filename}`.
+- `server::list_pages_in_root` — uses `slug_for`; skips non-`index.md` files
+  inside bundle folders.
+
+### Phase 7 (2026-04-13)
+
+#### Added
+- `search::open_or_build_index(wiki_root, index_dir)` — opens an existing
+  tantivy index or builds from scratch on first use / corrupt index.
+- `search::update_index(wiki_root, index_dir, changed_slugs)` — incremental
+  index update: deletes and re-indexes only the changed slugs; deleted pages
+  are removed from the index; no-op for empty slug list.
+- `IngestReport::index_updated: bool` — true when the index was updated
+  incrementally after an ingest; false when the index did not yet exist.
+- `IngestReport::changed_slugs: Vec<String>` — slugs of all pages written
+  during the ingest session (used internally for index update).
+- 7 new tests in `tests/search.rs`: `open_or_build_index` lifecycle,
+  `update_index` for new/modified/deleted/empty-slug cases, and two-consecutive-
+  search mtime stability.
+
+#### Changed
+- `search::search()` now calls `open_or_build_index` instead of `build_index`
+  — no full rebuild on every query. Pass `rebuild_index = true` to force a
+  full rebuild (used by `wiki search --rebuild-index`).
+- `search::search_all()` uses `open_or_build_index` per wiki.
+- `integrate::integrate()` collects slugs of all pages written and stores them
+  in `IngestReport::changed_slugs`.
+- `ingest::ingest()` calls `search::update_index` after the git commit when
+  the index directory already exists.
+- Updated `cli_search_new_page_reflected_without_explicit_rebuild` test to
+  reflect the incremental policy (renamed to
+  `cli_search_new_page_reflected_after_update_index`).
+
 ### Phase 6 (2026-04-13)
 
 #### Added

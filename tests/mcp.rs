@@ -427,3 +427,56 @@ fn mcp_resource_missing_slug_returns_error_server_stays_alive() {
         .expect("subsequent valid request should succeed");
     assert!(content.contains("Recovery Test"));
 }
+
+// ── Phase 8: bundle asset resources ──────────────────────────────────────────
+
+#[test]
+fn mcp_bundle_asset_resource_returns_content() {
+    let (dir, server) = temp_server();
+
+    // Ingest a concept page (flat).
+    server
+        .do_ingest(one_concept_analysis("mixture-of-experts", "Mixture of Experts"))
+        .expect("ingest");
+
+    // Promote to bundle and write a co-located asset.
+    llm_wiki::integrate::write_asset_colocated(
+        dir.path(),
+        "concepts/mixture-of-experts",
+        "diagram.png",
+        b"PNG_SENTINEL",
+    )
+    .expect("write_asset_colocated");
+
+    // Read the asset via the MCP resource URI.
+    let uri = "wiki://default/concepts/mixture-of-experts/diagram.png";
+    let content = server
+        .do_read_resource(uri)
+        .expect("bundle asset resource should be readable");
+    assert!(
+        content.contains("PNG_SENTINEL"),
+        "resource content should match written asset: {content}"
+    );
+}
+
+#[test]
+fn mcp_bundle_page_still_readable_after_promotion() {
+    let (dir, server) = temp_server();
+
+    server
+        .do_ingest(one_concept_analysis("scaling-laws", "Scaling Laws"))
+        .expect("ingest");
+
+    // Promote to bundle.
+    llm_wiki::markdown::promote_to_bundle(dir.path(), "concepts/scaling-laws")
+        .expect("promote_to_bundle");
+
+    // The page URI must still resolve after promotion.
+    let content = server
+        .do_read_resource("wiki://default/concepts/scaling-laws")
+        .expect("bundle page should be readable after promotion");
+    assert!(
+        content.contains("Scaling Laws"),
+        "page content should be intact after promotion: {content}"
+    );
+}

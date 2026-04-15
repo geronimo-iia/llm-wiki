@@ -3,3 +3,6 @@ Cargo.lock
 
 # tantivy search index — gitignored, rebuilt on demand via `wiki search --rebuild-index`
 .wiki/search-index/
+
+# docs archive — gitignored
+projects/llm-wiki/docs/archive

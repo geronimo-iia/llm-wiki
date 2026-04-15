@@ -6,8 +6,11 @@
 use crate::analysis::Status;
 use crate::contradiction::{list as list_contradictions, ContradictionSummary};
 use crate::graph::{build_graph, missing_stubs, orphans};
+use crate::markdown::slug_for;
 use anyhow::{Context, Result};
+use std::ffi::OsStr;
 use std::path::Path;
+use walkdir::WalkDir;
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -19,16 +22,89 @@ pub struct LintReport {
     pub missing_stubs: Vec<String>,
     /// Contradiction pages whose status is `active` or `under-analysis`.
     pub active_contradictions: Vec<ContradictionSummary>,
+    /// Bundle pages with `./asset` references that don't exist in the bundle folder.
+    pub orphan_asset_refs: Vec<String>,
+}
+
+// ── orphan asset ref detection ────────────────────────────────────────────────
+
+/// Collect `{slug}/{filename}` entries where a bundle page references `./filename`
+/// but the file does not exist beside `index.md`.
+fn collect_orphan_asset_refs(wiki_root: &Path) -> Vec<String> {
+    let mut results = Vec::new();
+
+    for entry in WalkDir::new(wiki_root).follow_links(false) {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path = entry.path();
+        if path.file_name() != Some(OsStr::new("index.md")) {
+            continue;
+        }
+        let rel = match path.strip_prefix(wiki_root) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        if rel.starts_with(".wiki") {
+            continue;
+        }
+
+        let bundle_dir = match path.parent() {
+            Some(p) => p,
+            None => continue,
+        };
+        let slug = slug_for(path, wiki_root);
+
+        let content = match std::fs::read_to_string(path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        // Only scan the body (after frontmatter) for asset references.
+        let body = if content.starts_with("---\n") {
+            if let Some(after_open) = content.strip_prefix("---\n") {
+                if let Some(end) = after_open.find("\n---\n") {
+                    let after_close = &after_open[end + 5..];
+                    after_close.strip_prefix('\n').unwrap_or(after_close)
+                } else {
+                    &content
+                }
+            } else {
+                &content
+            }
+        } else {
+            &content
+        };
+
+        // Find all `./filename` references in the body.
+        for cap in body.split("](./") {
+            // Each split after the first starts with `filename)` or `filename "title")`
+            let end = cap.find(|c: char| c == ')' || c == ' ' || c == '"');
+            if let Some(end) = end {
+                let filename = &cap[..end];
+                if filename.is_empty() || filename.contains('/') {
+                    continue;
+                }
+                let asset_path = bundle_dir.join(filename);
+                if !asset_path.exists() {
+                    results.push(format!("{slug}/{filename}"));
+                }
+            }
+        }
+    }
+
+    results.sort();
+    results.dedup();
+    results
 }
 
 // ── write_lint_report ─────────────────────────────────────────────────────────
 
 /// Write a `LINT.md` report to `wiki_root/LINT.md`.
-///
-/// The report has three sections:
-/// - `## Orphans` — pages with no inbound links
-/// - `## Missing Stubs` — slugs referenced but not yet created
-/// - `## Active Contradictions` — table with slug, title, dimension, sources
 pub fn write_lint_report(wiki_root: &Path, report: &LintReport) -> Result<()> {
     let mut md = String::new();
 
@@ -80,12 +156,25 @@ pub fn write_lint_report(wiki_root: &Path, report: &LintReport) -> Result<()> {
         md.push('\n');
     }
 
+    // ── Orphan Asset Refs ────────────────────────────────────────────────────
+    md.push_str("## Orphan Asset References\n\n");
+    md.push_str("Bundle pages referencing `./asset` files that do not exist.\n\n");
+    if report.orphan_asset_refs.is_empty() {
+        md.push_str("_None._\n\n");
+    } else {
+        for r in &report.orphan_asset_refs {
+            md.push_str(&format!("- `{r}`\n"));
+        }
+        md.push('\n');
+    }
+
     // Summary footer.
     md.push_str(&format!(
-        "---\n\n_{} orphan(s), {} missing stub(s), {} active contradiction(s)._\n",
+        "---\n\n_{} orphan(s), {} missing stub(s), {} active contradiction(s), {} orphan asset ref(s)._\n",
         report.orphan_pages.len(),
         report.missing_stubs.len(),
-        report.active_contradictions.len()
+        report.active_contradictions.len(),
+        report.orphan_asset_refs.len(),
     ));
 
     std::fs::write(wiki_root.join("LINT.md"), md)
@@ -97,20 +186,12 @@ pub fn write_lint_report(wiki_root: &Path, report: &LintReport) -> Result<()> {
 // ── lint ──────────────────────────────────────────────────────────────────────
 
 /// Run a structural lint pass on the wiki at `wiki_root`.
-///
-/// 1. Builds the concept graph.
-/// 2. Collects orphan pages, missing stubs, and active contradictions.
-/// 3. Writes `LINT.md`.
-/// 4. Commits `LINT.md` with a summary message.
-///
-/// Returns the [`LintReport`] so callers can display a summary.
 pub fn lint(wiki_root: &Path) -> Result<LintReport> {
     let graph = build_graph(wiki_root).context("failed to build concept graph")?;
 
     let orphan_pages = orphans(&graph);
     let missing_stubs = missing_stubs(&graph, wiki_root);
 
-    // Active = status is `active` OR `under-analysis`.
     let all = list_contradictions(wiki_root, None)
         .context("failed to list contradiction pages")?;
     let active_contradictions: Vec<ContradictionSummary> = all
@@ -118,10 +199,13 @@ pub fn lint(wiki_root: &Path) -> Result<LintReport> {
         .filter(|c| c.status == Status::Active || c.status == Status::UnderAnalysis)
         .collect();
 
+    let orphan_asset_refs = collect_orphan_asset_refs(wiki_root);
+
     let report = LintReport {
         orphan_pages,
         missing_stubs,
         active_contradictions,
+        orphan_asset_refs,
     };
 
     write_lint_report(wiki_root, &report)?;
