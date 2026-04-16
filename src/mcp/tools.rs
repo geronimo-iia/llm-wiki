@@ -212,6 +212,16 @@ pub fn tool_list() -> Vec<Tool> {
             ),
         ),
         Tool::new(
+            "wiki_index_check",
+            "Run read-only integrity check on the search index",
+            schema(
+                json!({
+                    "wiki": opt_str("Target wiki name"),
+                }),
+                &[],
+            ),
+        ),
+        Tool::new(
             "wiki_lint",
             "Structural audit, returns LintReport",
             schema(
@@ -308,6 +318,7 @@ pub fn call(server: &WikiServer, name: &str, args: &Map<String, Value>) -> ToolR
             "wiki_list" => handle_list(server, args),
             "wiki_index_rebuild" => handle_index_rebuild(server, args),
             "wiki_index_status" => handle_index_status(server, args),
+        "wiki_index_check" => handle_index_check(server, args),
             "wiki_lint" => handle_lint(server, args),
             "wiki_graph" => handle_graph(server, args),
             _ => Err(format!("unknown tool: {name}")),
@@ -659,6 +670,15 @@ fn handle_index_status(server: &WikiServer, args: &Map<String, Value>) -> ToolHa
     let status =
         search::index_status(&entry.name, &index_path, &repo_root).map_err(|e| format!("{e}"))?;
     let s = serde_json::to_string_pretty(&status).map_err(|e| format!("{e}"))?;
+    ok_text(s)
+}
+
+fn handle_index_check(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerResult {
+    let (entry, _) = resolve_wiki(server, args)?;
+    let repo_root = PathBuf::from(&entry.path);
+    let index_path = WikiServer::index_path_for(&entry.name);
+    let report = search::index_check(&entry.name, &index_path, &repo_root);
+    let s = serde_json::to_string_pretty(&report).map_err(|e| format!("{e}"))?;
     ok_text(s)
 }
 

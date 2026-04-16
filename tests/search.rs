@@ -614,3 +614,45 @@ fn index_status_returns_stale_on_schema_version_mismatch() {
     let status = index_status("test", &index_path, dir.path()).unwrap();
     assert!(status.stale, "schema version mismatch should be stale");
 }
+
+
+// ── index_check ───────────────────────────────────────────────────────────────
+
+#[test]
+fn index_check_reports_healthy_index() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+    let index_path = build_index(dir.path(), &wiki_root);
+
+    let report = index_check("test", &index_path, dir.path());
+    assert!(report.openable);
+    assert!(report.queryable);
+    assert!(report.schema_current);
+    assert!(report.state_valid);
+    assert!(!report.stale);
+    assert_eq!(report.schema_version, Some(current_schema_version()));
+}
+
+#[test]
+fn index_check_reports_corrupt_index() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+    let index_path = build_index(dir.path(), &wiki_root);
+
+    // Corrupt all index files
+    let search_dir = index_path.join("search-index");
+    for entry in fs::read_dir(&search_dir).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_type().unwrap().is_file() {
+            fs::write(entry.path(), b"corrupted").unwrap();
+        }
+    }
+
+    let report = index_check("test", &index_path, dir.path());
+    assert!(!report.openable);
+    assert!(!report.queryable);
+    // state.toml is still valid (we only corrupted the index files)
+    assert!(report.state_valid);
+}

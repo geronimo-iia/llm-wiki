@@ -3,9 +3,9 @@ use llm_wiki::mcp::tools;
 use llm_wiki::server::INSTRUCTIONS;
 
 #[test]
-fn tool_list_returns_all_16_tools() {
+fn tool_list_returns_all_17_tools() {
     let tools = tools::tool_list();
-    assert_eq!(tools.len(), 16);
+    assert_eq!(tools.len(), 17);
 }
 
 #[test]
@@ -27,6 +27,7 @@ fn tool_list_contains_expected_names() {
         "wiki_list",
         "wiki_index_rebuild",
         "wiki_index_status",
+        "wiki_index_check",
         "wiki_lint",
         "wiki_graph",
     ];

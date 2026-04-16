@@ -577,3 +577,84 @@ pub fn search_all(
     all_results.truncate(options.top_k);
     Ok(all_results)
 }
+
+// ── index_check ───────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IndexCheckReport {
+    pub wiki: String,
+    pub openable: bool,
+    pub queryable: bool,
+    pub schema_version: Option<u32>,
+    pub schema_current: bool,
+    pub state_valid: bool,
+    pub stale: bool,
+}
+
+pub fn current_schema_version() -> u32 {
+    CURRENT_SCHEMA_VERSION
+}
+
+pub fn index_check(wiki_name: &str, index_path: &Path, repo_root: &Path) -> IndexCheckReport {
+    let search_dir = index_path.join("search-index");
+    let state_path = index_path.join("state.toml");
+
+    // Check state.toml
+    let (state_valid, schema_version, stale) = if state_path.exists() {
+        match std::fs::read_to_string(&state_path)
+            .ok()
+            .and_then(|c| toml::from_str::<IndexState>(&c).ok())
+        {
+            Some(state) => {
+                let head = git::current_head(repo_root).unwrap_or_default();
+                let stale =
+                    state.commit != head || state.schema_version != CURRENT_SCHEMA_VERSION;
+                (true, Some(state.schema_version), stale)
+            }
+            None => (false, None, true),
+        }
+    } else {
+        (false, None, true)
+    };
+
+    let schema_current = schema_version.map(|v| v == CURRENT_SCHEMA_VERSION).unwrap_or(false);
+
+    // Try opening the index
+    if !search_dir.exists() {
+        return IndexCheckReport {
+            wiki: wiki_name.to_string(),
+            openable: false,
+            queryable: false,
+            schema_version,
+            schema_current,
+            state_valid,
+            stale,
+        };
+    }
+
+    let try_open = || -> std::result::Result<Index, Box<dyn std::error::Error>> {
+        let dir = MmapDirectory::open(&search_dir)?;
+        Ok(Index::open(dir)?)
+    };
+
+    let (openable, queryable) = match try_open() {
+        Ok(index) => {
+            let queryable = index
+                .reader()
+                .map(|r| r.searcher().search(&AllQuery, &TopDocs::with_limit(1)).is_ok())
+                .unwrap_or(false);
+            (true, queryable)
+        }
+        Err(_) => (false, false),
+    };
+
+    IndexCheckReport {
+        wiki: wiki_name.to_string(),
+        openable,
+        queryable,
+        schema_version,
+        schema_current,
+        state_valid,
+        stale,
+    }
+}

@@ -216,6 +216,8 @@ pub enum IndexAction {
     },
     /// Inspect index health
     Status,
+    /// Run integrity check (read-only)
+    Check,
 }
 
 #[derive(Subcommand)]

@@ -225,15 +225,17 @@ rebuild/recovery paths handle everything.
 #### Code changes
 
 - `src/cli.rs` — add `IndexAction::Check` variant.
-- `src/search.rs` — add `index_check()` that:
+- `src/search.rs` — add `CURRENT_SCHEMA_VERSION` public getter
+  (`pub fn current_schema_version() -> u32`). Add `index_check()` that:
   1. Checks `state.toml` exists and parses
   2. Checks schema version matches
   3. Tries `Index::open`
   4. Runs a test `AllQuery` with limit 1
   5. Returns a structured `IndexCheckReport`
 - `src/main.rs` — wire up `Commands::Index { action: Check }`.
-- `src/mcp/tools.rs` — add `wiki_index_check` tool.
-- `src/mcp/tools.rs` — add tool to `tool_list()`.
+- `src/mcp/tools.rs` — add `wiki_index_check` tool definition to
+  `tool_list()` (bumps tool count from 16 to 17). Add `handle_index_check`
+  handler. Wire into `call()` dispatch.
 
 #### Report
 
@@ -255,11 +257,15 @@ pub struct IndexCheckReport {
   - `index_check_reports_healthy_index` — build index, check, assert all ok.
   - `index_check_reports_corrupt_index` — corrupt files, check, assert
     `openable: false`.
+- `tests/mcp.rs` — update `tool_list_returns_all_16_tools` to 17.
+  Update `tool_list_contains_expected_names` to include `wiki_index_check`.
 
 #### Exit criteria
 
 - `wiki index check` prints structured health report.
 - MCP `wiki_index_check` returns the same report as JSON.
+- Healthy index → all fields ok.
+- Corrupt index → `openable: false`, `queryable: false`.
 - `cargo test` passes.
 
 ---

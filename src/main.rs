@@ -435,6 +435,16 @@ fn main() -> Result<()> {
                     println!("sections: {}", status.sections);
                     println!("stale:    {}", if status.stale { "yes" } else { "no" });
                 }
+                IndexAction::Check => {
+                    let report = search::index_check(wiki_name, &index_path, &repo_root);
+                    println!("wiki:           {}", report.wiki);
+                    println!("openable:       {}", if report.openable { "yes" } else { "no" });
+                    println!("queryable:      {}", if report.queryable { "yes" } else { "no" });
+                    println!("schema_version: {}", report.schema_version.map(|v| v.to_string()).unwrap_or_else(|| "unknown".into()));
+                    println!("schema_current: {}", if report.schema_current { "yes" } else { "no" });
+                    println!("state_valid:    {}", if report.state_valid { "yes" } else { "no" });
+                    println!("stale:          {}", if report.stale { "yes" } else { "no" });
+                }
             }
         }
         Commands::Lint { action, dry_run } => {
