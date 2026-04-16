@@ -231,7 +231,7 @@ pub enum LintAction {
     },
 }
 
-pub const INSTRUCTIONS: &str = include_str!("instructions.md");
+pub const INSTRUCTIONS: &str = include_str!("assets/instructions.md");
 
 pub fn extract_workflow(instructions: &str, name: &str) -> Option<String> {
     let header = format!("## {name}");

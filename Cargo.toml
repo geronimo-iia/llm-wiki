@@ -3,6 +3,7 @@ name = "llm-wiki"
 version = "0.1.0"
 edition = "2021"
 description = "Git-backed wiki engine with MCP server — bring your own LLM"
+authors = ["Jerome Guibert <jguibert@gmail.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/geronimo-iia/llm-wiki"
 readme = "README.md"

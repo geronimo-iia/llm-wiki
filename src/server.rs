@@ -13,7 +13,7 @@ use crate::markdown;
 use crate::search;
 use crate::spaces;
 
-pub const INSTRUCTIONS: &str = include_str!("instructions.md");
+pub const INSTRUCTIONS: &str = include_str!("assets/instructions.md");
 
 #[derive(Clone)]
 pub struct WikiServer {
