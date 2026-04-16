@@ -13,11 +13,6 @@ parameter global only should not be updated locally
 
 → [ingest-auto-commit.md](ingest-auto-commit.md)
 
-## monitoring
-
-- index corruption detection / rebuild → [index-corruption.md](index-corruption.md) · [index-corruption-tasks.md](index-corruption-tasks.md) · [index integrity spec](specifications/core/index-integrity.md)
-
-
 ## release
 
 - [ ] Fix `docs/release.md` — currently a verbatim copy of agentctl's; still says "agentctl" in title and post-release sections

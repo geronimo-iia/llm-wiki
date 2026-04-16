@@ -29,6 +29,8 @@ Available tools:
 - `wiki_graph(root?, depth?, format?)` — render the knowledge graph
 - `wiki_config(action, key?, value?)` — get/set configuration
 - `wiki_index_rebuild()` — rebuild the search index
+- `wiki_index_status()` — check if the index is stale
+- `wiki_index_check()` — run read-only integrity check
 
 Workflows: `new`, `ingest`, `research`, `lint`, `crystallize`.
 
@@ -92,6 +94,18 @@ Distil a session's insights into wiki pages.
 6. Commit: `wiki_ingest(<path>)`.
 
 Crystallize after every substantive session. The wiki is the accumulator.
+
+## index troubleshooting
+
+If search returns no results or unexpected errors:
+
+1. `wiki_index_check()` — diagnose: is the index openable? queryable? schema current?
+2. `wiki_index_status()` — check staleness: has the git HEAD moved since last rebuild?
+3. `wiki_index_rebuild()` — fix: full rebuild from wiki markdown
+
+The index auto-recovers from corruption when `index.auto_recovery` is enabled
+(default). Stale indexes are rebuilt automatically when `index.auto_rebuild`
+is enabled. If both are disabled, use the tools above to diagnose and fix.
 
 ## frontmatter
 
