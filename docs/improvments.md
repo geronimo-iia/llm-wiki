@@ -24,10 +24,10 @@ parameter global only should not be updated locally
 Reference: agentctl already has all of the below working — align llm-wiki.
 
 ### CI workflow (`ci.yml`)
-- [ ] Upgrade actions to v6 (`actions/checkout@v6`)
-- [ ] Add `feat/**` branch trigger (agentctl has it, llm-wiki only triggers on `main`)
-- [ ] Use `cargo test --locked` instead of `cargo test --verbose`
-- [ ] Use `rustsec/audit-check@v2` action instead of manual `cargo install cargo-audit`
+- [x] Upgrade actions to v6 (`actions/checkout@v6`)
+- [x] Add `feat/**` branch trigger (agentctl has it, llm-wiki only triggers on `main`)
+- [x] Use `cargo test --locked` instead of `cargo test --verbose`
+- [x] Use `rustsec/audit-check@v2` action instead of manual `cargo install cargo-audit`
 
 ### Release workflow (`release.yml`)
 - [ ] Add `aarch64-unknown-linux-gnu` target via `cross` (agentctl has it, llm-wiki doesn't)

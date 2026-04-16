@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'feat/**']
   pull_request:
     branches: [main]
 
@@ -13,18 +13,23 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
       - uses: dtolnay/rust-toolchain@stable
+
       - uses: Swatinem/rust-cache@v2
-      - name: Check
-        run: cargo check
+
       - name: Check formatting
         run: cargo fmt -- --check
+
       - name: Clippy
         run: cargo clippy -- -D warnings
-      - name: Security audit
-        run: cargo install cargo-audit --locked && cargo audit
-      - name: Build
-        run: cargo build --verbose
+
       - name: Test
-        run: cargo test --verbose
+        run: cargo test --locked
+
+      - name: Security audit
+        if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
