@@ -213,7 +213,6 @@ fn create_section_creates_index_md_with_section_frontmatter() {
     assert_eq!(fm.status, "draft");
 }
 
-
 // ── resolve_read_target ───────────────────────────────────────────────────────
 
 #[test]

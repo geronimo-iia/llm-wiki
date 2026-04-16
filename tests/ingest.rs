@@ -246,7 +246,6 @@ fn ingest_report_commit_matches_git_head() {
     assert_eq!(report.commit, head);
 }
 
-
 #[test]
 fn ingest_rebuilds_index_when_auto_rebuild_enabled() {
     let dir = tempfile::tempdir().unwrap();
@@ -314,7 +313,6 @@ fn ingest_leaves_index_stale_when_auto_rebuild_disabled() {
     assert!(status.stale);
 }
 
-
 // ── normalize_line_endings ────────────────────────────────────────────────────
 
 use llm_wiki::ingest::normalize_line_endings;
@@ -361,7 +359,10 @@ fn ingest_normalizes_crlf_to_lf() {
     .unwrap();
 
     let result = std::fs::read_to_string(&page_path).unwrap();
-    assert!(!result.contains('\r'), "file should have no CR after ingest");
+    assert!(
+        !result.contains('\r'),
+        "file should have no CR after ingest"
+    );
     assert!(result.contains("CRLF Test"));
     assert!(result.contains("## Body"));
 }

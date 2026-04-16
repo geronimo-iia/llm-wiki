@@ -442,37 +442,74 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
 pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) -> Result<()> {
     match key {
         "defaults.search_top_k" => {
-            wiki_cfg.defaults.get_or_insert_with(Defaults::default).search_top_k = value.parse()?;
+            wiki_cfg
+                .defaults
+                .get_or_insert_with(Defaults::default)
+                .search_top_k = value.parse()?;
         }
         "defaults.search_excerpt" => {
-            wiki_cfg.defaults.get_or_insert_with(Defaults::default).search_excerpt = value.parse()?;
+            wiki_cfg
+                .defaults
+                .get_or_insert_with(Defaults::default)
+                .search_excerpt = value.parse()?;
         }
         "defaults.search_sections" => {
-            wiki_cfg.defaults.get_or_insert_with(Defaults::default).search_sections = value.parse()?;
+            wiki_cfg
+                .defaults
+                .get_or_insert_with(Defaults::default)
+                .search_sections = value.parse()?;
         }
         "defaults.page_mode" => {
-            wiki_cfg.defaults.get_or_insert_with(Defaults::default).page_mode = value.into();
+            wiki_cfg
+                .defaults
+                .get_or_insert_with(Defaults::default)
+                .page_mode = value.into();
         }
         "defaults.list_page_size" => {
-            wiki_cfg.defaults.get_or_insert_with(Defaults::default).list_page_size = value.parse()?;
+            wiki_cfg
+                .defaults
+                .get_or_insert_with(Defaults::default)
+                .list_page_size = value.parse()?;
         }
         "read.no_frontmatter" => {
-            wiki_cfg.read.get_or_insert_with(ReadConfig::default).no_frontmatter = value.parse()?;
+            wiki_cfg
+                .read
+                .get_or_insert_with(ReadConfig::default)
+                .no_frontmatter = value.parse()?;
         }
         "validation.type_strictness" => {
-            wiki_cfg.validation.get_or_insert_with(ValidationConfig::default).type_strictness = value.into();
+            wiki_cfg
+                .validation
+                .get_or_insert_with(ValidationConfig::default)
+                .type_strictness = value.into();
         }
         "lint.fix_missing_stubs" => {
-            wiki_cfg.lint.get_or_insert_with(LintConfig::default).fix_missing_stubs = value.parse()?;
+            wiki_cfg
+                .lint
+                .get_or_insert_with(LintConfig::default)
+                .fix_missing_stubs = value.parse()?;
         }
         "lint.fix_empty_sections" => {
-            wiki_cfg.lint.get_or_insert_with(LintConfig::default).fix_empty_sections = value.parse()?;
+            wiki_cfg
+                .lint
+                .get_or_insert_with(LintConfig::default)
+                .fix_empty_sections = value.parse()?;
         }
-        "global.default_wiki" | "index.auto_rebuild" | "index.auto_recovery"
-        | "graph.format" | "graph.depth" | "graph.output"
-        | "serve.sse" | "serve.sse_port" | "serve.acp"
-        | "serve.max_restarts" | "serve.restart_backoff" | "serve.heartbeat_secs"
-        | "logging.log_path" | "logging.log_rotation" | "logging.log_max_files"
+        "global.default_wiki"
+        | "index.auto_rebuild"
+        | "index.auto_recovery"
+        | "graph.format"
+        | "graph.depth"
+        | "graph.output"
+        | "serve.sse"
+        | "serve.sse_port"
+        | "serve.acp"
+        | "serve.max_restarts"
+        | "serve.restart_backoff"
+        | "serve.heartbeat_secs"
+        | "logging.log_path"
+        | "logging.log_rotation"
+        | "logging.log_max_files"
         | "logging.log_format" => {
             anyhow::bail!("{key} is a global-only key \u{2014} use --global");
         }

@@ -241,12 +241,14 @@ impl acp::Agent for WikiAgent {
 
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             match workflow {
-                "ingest" => format!("Ingest workflow triggered for wiki \"{name}\". Prompt: {text}"),
+                "ingest" => {
+                    format!("Ingest workflow triggered for wiki \"{name}\". Prompt: {text}")
+                }
                 "lint" => {
                     if let Some(entry) = &wiki_entry {
                         let wiki_root = PathBuf::from(&entry.path).join("wiki");
-                        let wiki_cfg =
-                            crate::config::load_wiki(&PathBuf::from(&entry.path)).unwrap_or_default();
+                        let wiki_cfg = crate::config::load_wiki(&PathBuf::from(&entry.path))
+                            .unwrap_or_default();
                         let resolved = crate::config::resolve(&self.global, &wiki_cfg);
                         match crate::lint::lint(&wiki_root, &resolved, &entry.name) {
                             Ok(report) => format!(

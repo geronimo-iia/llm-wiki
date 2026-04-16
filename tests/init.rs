@@ -14,7 +14,15 @@ fn init_creates_wiki_structure() {
     let wiki_path = dir.path().join("research");
     let cfg = config_path(dir.path());
 
-    let report = init(&wiki_path, "research", Some("test wiki"), false, false, &cfg).unwrap();
+    let report = init(
+        &wiki_path,
+        "research",
+        Some("test wiki"),
+        false,
+        false,
+        &cfg,
+    )
+    .unwrap();
 
     assert!(report.created);
     assert!(report.registered);
@@ -37,7 +45,10 @@ fn init_creates_logs_directory() {
     init(&wiki_path, "research", None, false, false, &cfg).unwrap();
 
     let logs_dir = cfg.parent().unwrap().join("logs");
-    assert!(logs_dir.is_dir(), "~/.llm-wiki/logs/ should be created by init");
+    assert!(
+        logs_dir.is_dir(),
+        "~/.llm-wiki/logs/ should be created by init"
+    );
 }
 
 #[test]

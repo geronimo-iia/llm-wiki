@@ -302,27 +302,25 @@ pub struct ToolResult {
 
 pub fn call(server: &WikiServer, name: &str, args: &Map<String, Value>) -> ToolResult {
     let _span = tracing::info_span!("tool_call", tool = name).entered();
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        match name {
-            "wiki_init" => handle_init(server, args),
-            "wiki_config" => handle_config(server, args),
-            "wiki_spaces_list" => handle_spaces_list(server),
-            "wiki_spaces_remove" => handle_spaces_remove(server, args),
-            "wiki_spaces_set_default" => handle_spaces_set_default(server, args),
-            "wiki_write" => handle_write(server, args),
-            "wiki_ingest" => handle_ingest(server, args),
-            "wiki_new_page" => handle_new_page(server, args),
-            "wiki_new_section" => handle_new_section(server, args),
-            "wiki_search" => handle_search(server, args),
-            "wiki_read" => handle_read(server, args),
-            "wiki_list" => handle_list(server, args),
-            "wiki_index_rebuild" => handle_index_rebuild(server, args),
-            "wiki_index_status" => handle_index_status(server, args),
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match name {
+        "wiki_init" => handle_init(server, args),
+        "wiki_config" => handle_config(server, args),
+        "wiki_spaces_list" => handle_spaces_list(server),
+        "wiki_spaces_remove" => handle_spaces_remove(server, args),
+        "wiki_spaces_set_default" => handle_spaces_set_default(server, args),
+        "wiki_write" => handle_write(server, args),
+        "wiki_ingest" => handle_ingest(server, args),
+        "wiki_new_page" => handle_new_page(server, args),
+        "wiki_new_section" => handle_new_section(server, args),
+        "wiki_search" => handle_search(server, args),
+        "wiki_read" => handle_read(server, args),
+        "wiki_list" => handle_list(server, args),
+        "wiki_index_rebuild" => handle_index_rebuild(server, args),
+        "wiki_index_status" => handle_index_status(server, args),
         "wiki_index_check" => handle_index_check(server, args),
-            "wiki_lint" => handle_lint(server, args),
-            "wiki_graph" => handle_graph(server, args),
-            _ => Err(format!("unknown tool: {name}")),
-        }
+        "wiki_lint" => handle_lint(server, args),
+        "wiki_graph" => handle_graph(server, args),
+        _ => Err(format!("unknown tool: {name}")),
     }));
     match result {
         Ok(Ok((content, notify_uris))) => {
@@ -401,14 +399,16 @@ fn handle_config(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerR
             let is_global = arg_bool(args, "global");
             if is_global {
                 let mut g = config::load_global(config_path).map_err(|e| format!("{e}"))?;
-                config::set_global_config_value(&mut g, &key, &value).map_err(|e| format!("{e}"))?;
+                config::set_global_config_value(&mut g, &key, &value)
+                    .map_err(|e| format!("{e}"))?;
                 config::save_global(&g, config_path).map_err(|e| format!("{e}"))?;
                 ok_text(format!("Set {key} = {value} (global)"))
             } else {
                 let (entry, _global) = resolve_wiki(server, args)?;
                 let entry_path = PathBuf::from(&entry.path);
                 let mut wiki_cfg = config::load_wiki(&entry_path).map_err(|e| format!("{e}"))?;
-                config::set_wiki_config_value(&mut wiki_cfg, &key, &value).map_err(|e| format!("{e}"))?;
+                config::set_wiki_config_value(&mut wiki_cfg, &key, &value)
+                    .map_err(|e| format!("{e}"))?;
                 config::save_wiki(&wiki_cfg, &entry_path).map_err(|e| format!("{e}"))?;
                 ok_text(format!("Set {key} = {value} (wiki: {})", entry.name))
             }
@@ -474,11 +474,14 @@ fn handle_ingest(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerR
         if resolved.index.auto_rebuild {
             let index_path = WikiServer::index_path_for(&entry.name);
             let repo_root = PathBuf::from(&entry.path);
-            if let Err(e) = search::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root) {
+            if let Err(e) = search::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root)
+            {
                 report.warnings.push(format!("index rebuild failed: {e}"));
             }
         } else {
-            report.warnings.push("search index is stale \u{2014} run wiki_index_rebuild".into());
+            report
+                .warnings
+                .push("search index is stale \u{2014} run wiki_index_rebuild".into());
         }
     }
 
@@ -554,7 +557,9 @@ fn handle_search(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerR
         if let Ok(status) = search::index_status(&entry.name, &index_path, &repo_root) {
             if status.stale && resolved.index.auto_rebuild {
                 let wiki_root = repo_root.join("wiki");
-                if let Err(e) = search::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root) {
+                if let Err(e) =
+                    search::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root)
+                {
                     tracing::warn!(wiki = %entry.name, error = %e, "search index rebuild failed");
                 }
             }
@@ -571,7 +576,14 @@ fn handle_search(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerR
             repo_root: rr,
         });
 
-        search::search(&query, &opts, &index_path, &entry.name, recovery_ctx.as_ref()).map_err(|e| format!("{e}"))?
+        search::search(
+            &query,
+            &opts,
+            &index_path,
+            &entry.name,
+            recovery_ctx.as_ref(),
+        )
+        .map_err(|e| format!("{e}"))?
     };
 
     let s = serde_json::to_string_pretty(&results).map_err(|e| format!("{e}"))?;
@@ -601,14 +613,18 @@ fn handle_read(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerRes
             let wiki_cfg = config::load_wiki(&PathBuf::from(&entry.path)).unwrap_or_default();
             let resolved = config::resolve(&global, &wiki_cfg);
             let strip = arg_bool(args, "no_frontmatter") || resolved.read.no_frontmatter;
-            let content = markdown::read_page(&slug, &wiki_root, strip).map_err(|e| format!("{e}"))?;
+            let content =
+                markdown::read_page(&slug, &wiki_root, strip).map_err(|e| format!("{e}"))?;
             ok_text(content)
         }
         markdown::ReadTarget::Asset(parent_slug, filename) => {
-            let bytes = markdown::read_asset(&parent_slug, &filename, &wiki_root).map_err(|e| format!("{e}"))?;
+            let bytes = markdown::read_asset(&parent_slug, &filename, &wiki_root)
+                .map_err(|e| format!("{e}"))?;
             match String::from_utf8(bytes) {
                 Ok(text) => ok_text(text),
-                Err(_) => Err(format!("asset {slug} is binary — access it directly from the filesystem")),
+                Err(_) => Err(format!(
+                    "asset {slug} is binary — access it directly from the filesystem"
+                )),
             }
         }
     }
@@ -624,7 +640,8 @@ fn handle_list(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerRes
     if let Ok(st) = search::index_status(&entry.name, &index_path, &repo_root) {
         if st.stale && resolved.index.auto_rebuild {
             let wiki_root = repo_root.join("wiki");
-            if let Err(e) = search::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root) {
+            if let Err(e) = search::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root)
+            {
                 tracing::warn!(wiki = %entry.name, error = %e, "search index rebuild failed");
             }
         }
@@ -647,7 +664,8 @@ fn handle_list(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerRes
         wiki_root: wr,
         repo_root: rr,
     });
-    let result = search::list(&opts, &index_path, &entry.name, recovery_ctx.as_ref()).map_err(|e| format!("{e}"))?;
+    let result = search::list(&opts, &index_path, &entry.name, recovery_ctx.as_ref())
+        .map_err(|e| format!("{e}"))?;
     let s = serde_json::to_string_pretty(&result).map_err(|e| format!("{e}"))?;
     ok_text(s)
 }

@@ -393,7 +393,6 @@ fn list_pagination_returns_correct_page_and_total() {
     assert!(result.pages.is_empty());
 }
 
-
 // ── search_all ────────────────────────────────────────────────────────────────
 
 #[test]
@@ -404,7 +403,10 @@ fn search_all_merges_results_from_multiple_wikis() {
     write_page(
         &wiki_root_a,
         "concepts/moe.md",
-        &concept_page("Mixture of Experts", "MoE routes tokens to sparse expert subnetworks."),
+        &concept_page(
+            "Mixture of Experts",
+            "MoE routes tokens to sparse expert subnetworks.",
+        ),
     );
     let index_a = build_index(dir_a.path(), &wiki_root_a);
 
@@ -414,7 +416,10 @@ fn search_all_merges_results_from_multiple_wikis() {
     write_page(
         &wiki_root_b,
         "sources/switch.md",
-        &paper_page("Switch Transformer", "Switch Transformer uses sparse MoE layers."),
+        &paper_page(
+            "Switch Transformer",
+            "Switch Transformer uses sparse MoE layers.",
+        ),
     );
     let index_b = build_index(dir_b.path(), &wiki_root_b);
 
@@ -425,11 +430,21 @@ fn search_all_merges_results_from_multiple_wikis() {
     let opts = SearchOptions::default();
     let results = search_all("MoE", &opts, &wikis).unwrap();
 
-    assert!(results.len() >= 2, "expected results from both wikis, got {}", results.len());
+    assert!(
+        results.len() >= 2,
+        "expected results from both wikis, got {}",
+        results.len()
+    );
 
     let uris: Vec<&str> = results.iter().map(|r| r.uri.as_str()).collect();
-    assert!(uris.iter().any(|u| u.starts_with("wiki://alpha/")), "missing alpha wiki result");
-    assert!(uris.iter().any(|u| u.starts_with("wiki://beta/")), "missing beta wiki result");
+    assert!(
+        uris.iter().any(|u| u.starts_with("wiki://alpha/")),
+        "missing alpha wiki result"
+    );
+    assert!(
+        uris.iter().any(|u| u.starts_with("wiki://beta/")),
+        "missing beta wiki result"
+    );
 }
 
 #[test]
@@ -502,7 +517,10 @@ fn search_all_respects_top_k() {
         write_page(
             &wiki_root_a,
             &format!("concepts/page-{i}.md"),
-            &concept_page(&format!("Scaling Page {i}"), &format!("scaling content {i}")),
+            &concept_page(
+                &format!("Scaling Page {i}"),
+                &format!("scaling content {i}"),
+            ),
         );
     }
     let index_a = build_index(dir_a.path(), &wiki_root_a);
@@ -513,9 +531,12 @@ fn search_all_respects_top_k() {
         ..Default::default()
     };
     let results = search_all("scaling", &opts, &wikis).unwrap();
-    assert!(results.len() <= 2, "expected at most 2 results, got {}", results.len());
+    assert!(
+        results.len() <= 2,
+        "expected at most 2 results, got {}",
+        results.len()
+    );
 }
-
 
 #[test]
 fn index_status_returns_stale_on_malformed_state_toml() {
@@ -535,7 +556,6 @@ fn index_status_returns_stale_on_malformed_state_toml() {
     assert!(status.built.is_none());
     assert_eq!(status.pages, 0);
 }
-
 
 #[test]
 fn search_recovers_from_corrupt_index() {
@@ -593,7 +613,6 @@ fn search_errors_on_corrupt_index_without_recovery() {
     assert!(result.is_err());
 }
 
-
 #[test]
 fn index_status_returns_stale_on_schema_version_mismatch() {
     let dir = tempfile::tempdir().unwrap();
@@ -614,7 +633,6 @@ fn index_status_returns_stale_on_schema_version_mismatch() {
     let status = index_status("test", &index_path, dir.path()).unwrap();
     assert!(status.stale, "schema version mismatch should be stale");
 }
-
 
 // ── index_check ───────────────────────────────────────────────────────────────
 

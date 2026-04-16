@@ -110,9 +110,17 @@ pub async fn serve_stdio(server: WikiServer) -> Result<()> {
     Ok(())
 }
 
-pub async fn serve_sse(server: WikiServer, port: u16, serve_cfg: &config::ServeConfig) -> Result<()> {
+pub async fn serve_sse(
+    server: WikiServer,
+    port: u16,
+    serve_cfg: &config::ServeConfig,
+) -> Result<()> {
     let addr: SocketAddr = ([0, 0, 0, 0], port).into();
-    let max_attempts = if serve_cfg.max_restarts == 0 { 1 } else { serve_cfg.max_restarts };
+    let max_attempts = if serve_cfg.max_restarts == 0 {
+        1
+    } else {
+        serve_cfg.max_restarts
+    };
     let mut backoff = std::time::Duration::from_secs(serve_cfg.restart_backoff as u64);
     let max_backoff = std::time::Duration::from_secs(30);
 

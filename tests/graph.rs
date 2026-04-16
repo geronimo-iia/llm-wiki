@@ -293,7 +293,6 @@ fn subgraph_with_depth_0_returns_only_root_node() {
     assert_eq!(sub[sub.node_indices().next().unwrap()].slug, "concepts/a");
 }
 
-
 // ── wrap_graph_md ─────────────────────────────────────────────────────────────
 
 #[test]

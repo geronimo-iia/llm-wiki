@@ -188,7 +188,10 @@ fn main() -> Result<()> {
                     let index_path = index_path_for(wiki_name);
                     let repo_root = PathBuf::from(&entry.path);
                     match search::rebuild_index(&wiki_root, &index_path, wiki_name, &repo_root) {
-                        Ok(r) => println!("Index rebuilt: {} pages in {}ms", r.pages_indexed, r.duration_ms),
+                        Ok(r) => println!(
+                            "Index rebuilt: {} pages in {}ms",
+                            r.pages_indexed, r.duration_ms
+                        ),
                         Err(e) => eprintln!("warning: index rebuild failed: {e}"),
                     }
                 } else {
@@ -438,12 +441,33 @@ fn main() -> Result<()> {
                 IndexAction::Check => {
                     let report = search::index_check(wiki_name, &index_path, &repo_root);
                     println!("wiki:           {}", report.wiki);
-                    println!("openable:       {}", if report.openable { "yes" } else { "no" });
-                    println!("queryable:      {}", if report.queryable { "yes" } else { "no" });
-                    println!("schema_version: {}", report.schema_version.map(|v| v.to_string()).unwrap_or_else(|| "unknown".into()));
-                    println!("schema_current: {}", if report.schema_current { "yes" } else { "no" });
-                    println!("state_valid:    {}", if report.state_valid { "yes" } else { "no" });
-                    println!("stale:          {}", if report.stale { "yes" } else { "no" });
+                    println!(
+                        "openable:       {}",
+                        if report.openable { "yes" } else { "no" }
+                    );
+                    println!(
+                        "queryable:      {}",
+                        if report.queryable { "yes" } else { "no" }
+                    );
+                    println!(
+                        "schema_version: {}",
+                        report
+                            .schema_version
+                            .map(|v| v.to_string())
+                            .unwrap_or_else(|| "unknown".into())
+                    );
+                    println!(
+                        "schema_current: {}",
+                        if report.schema_current { "yes" } else { "no" }
+                    );
+                    println!(
+                        "state_valid:    {}",
+                        if report.state_valid { "yes" } else { "no" }
+                    );
+                    println!(
+                        "stale:          {}",
+                        if report.stale { "yes" } else { "no" }
+                    );
                 }
             }
         }
@@ -555,7 +579,8 @@ fn main() -> Result<()> {
                 // Auto-commit if inside repo root
                 let out_canonical = std::fs::canonicalize(out_path).ok();
                 let repo_canonical = entry_path.canonicalize().ok();
-                let committed = if let (Some(out_c), Some(repo_c)) = (out_canonical, repo_canonical) {
+                let committed = if let (Some(out_c), Some(repo_c)) = (out_canonical, repo_canonical)
+                {
                     if out_c.starts_with(&repo_c) {
                         let date = chrono::Local::now().format("%Y-%m-%d");
                         let msg = format!(
@@ -650,8 +675,6 @@ fn get_config_value(
     }
 }
 
-
-
 /// Initialize tracing subscriber. Returns a guard that must be held for the
 /// process lifetime (flushes non-blocking file writer on drop).
 fn init_logging(
@@ -702,7 +725,10 @@ fn init_logging(
     // File logging enabled: dual output (stderr + file)
     let log_path = std::path::PathBuf::from(&logging_cfg.log_path);
     if let Err(e) = std::fs::create_dir_all(&log_path) {
-        eprintln!("warning: failed to create log directory {}: {e}", log_path.display());
+        eprintln!(
+            "warning: failed to create log directory {}: {e}",
+            log_path.display()
+        );
         // Fall back to stderr only
         tracing_subscriber::fmt()
             .compact()
@@ -730,7 +756,10 @@ fn init_logging(
     let file_appender = match builder.build(&log_path) {
         Ok(appender) => appender,
         Err(e) => {
-            eprintln!("warning: failed to create log file in {}: {e}", log_path.display());
+            eprintln!(
+                "warning: failed to create log file in {}: {e}",
+                log_path.display()
+            );
             tracing_subscriber::fmt()
                 .compact()
                 .with_env_filter(env_filter)

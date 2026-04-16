@@ -113,7 +113,6 @@ fn load_schema_returns_empty_when_absent() {
     assert!(schema.custom_types.is_empty());
 }
 
-
 #[test]
 fn save_wiki_roundtrips() {
     let dir = tempfile::tempdir().unwrap();
@@ -183,7 +182,6 @@ fn set_global_config_value_sets_key() {
     assert_eq!(global.defaults.search_top_k, 30);
 }
 
-
 #[test]
 fn logging_config_defaults() {
     let cfg = LoggingConfig::default();
@@ -214,7 +212,6 @@ fn set_wiki_config_value_rejects_logging_keys() {
     assert!(result.unwrap_err().to_string().contains("global-only"));
 }
 
-
 #[test]
 fn set_global_config_value_sets_serve_restart_keys() {
     let mut global = GlobalConfig::default();
@@ -243,7 +240,6 @@ fn serve_config_defaults() {
     assert_eq!(cfg.restart_backoff, 1);
 }
 
-
 #[test]
 fn serve_config_heartbeat_default() {
     let cfg = ServeConfig::default();
@@ -265,7 +261,6 @@ fn set_wiki_config_value_rejects_heartbeat() {
     assert!(result.unwrap_err().to_string().contains("global-only"));
 }
 
-
 #[test]
 fn set_wiki_config_value_sets_read_no_frontmatter() {
     let mut cfg = WikiConfig::default();
@@ -276,11 +271,15 @@ fn set_wiki_config_value_sets_read_no_frontmatter() {
 #[test]
 fn resolve_per_wiki_overrides_read_no_frontmatter() {
     let global = GlobalConfig {
-        read: ReadConfig { no_frontmatter: false },
+        read: ReadConfig {
+            no_frontmatter: false,
+        },
         ..Default::default()
     };
     let per_wiki = WikiConfig {
-        read: Some(ReadConfig { no_frontmatter: true }),
+        read: Some(ReadConfig {
+            no_frontmatter: true,
+        }),
         ..Default::default()
     };
     let resolved = resolve(&global, &per_wiki);
@@ -290,14 +289,15 @@ fn resolve_per_wiki_overrides_read_no_frontmatter() {
 #[test]
 fn resolve_falls_back_to_global_read_when_per_wiki_absent() {
     let global = GlobalConfig {
-        read: ReadConfig { no_frontmatter: true },
+        read: ReadConfig {
+            no_frontmatter: true,
+        },
         ..Default::default()
     };
     let per_wiki = WikiConfig::default();
     let resolved = resolve(&global, &per_wiki);
     assert_eq!(resolved.read.no_frontmatter, true);
 }
-
 
 #[test]
 fn index_config_auto_recovery_defaults_true() {

@@ -573,7 +573,11 @@ pub fn search_all(
             Err(_) => continue, // skip wikis without index
         }
     }
-    all_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    all_results.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     all_results.truncate(options.top_k);
     Ok(all_results)
 }
@@ -607,8 +611,7 @@ pub fn index_check(wiki_name: &str, index_path: &Path, repo_root: &Path) -> Inde
         {
             Some(state) => {
                 let head = git::current_head(repo_root).unwrap_or_default();
-                let stale =
-                    state.commit != head || state.schema_version != CURRENT_SCHEMA_VERSION;
+                let stale = state.commit != head || state.schema_version != CURRENT_SCHEMA_VERSION;
                 (true, Some(state.schema_version), stale)
             }
             None => (false, None, true),
@@ -617,7 +620,9 @@ pub fn index_check(wiki_name: &str, index_path: &Path, repo_root: &Path) -> Inde
         (false, None, true)
     };
 
-    let schema_current = schema_version.map(|v| v == CURRENT_SCHEMA_VERSION).unwrap_or(false);
+    let schema_current = schema_version
+        .map(|v| v == CURRENT_SCHEMA_VERSION)
+        .unwrap_or(false);
 
     // Try opening the index
     if !search_dir.exists() {
@@ -641,7 +646,11 @@ pub fn index_check(wiki_name: &str, index_path: &Path, repo_root: &Path) -> Inde
         Ok(index) => {
             let queryable = index
                 .reader()
-                .map(|r| r.searcher().search(&AllQuery, &TopDocs::with_limit(1)).is_ok())
+                .map(|r| {
+                    r.searcher()
+                        .search(&AllQuery, &TopDocs::with_limit(1))
+                        .is_ok()
+                })
                 .unwrap_or(false);
             (true, queryable)
         }
