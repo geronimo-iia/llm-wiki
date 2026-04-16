@@ -6,6 +6,7 @@ use crate::config::{load_global, WikiEntry};
 use crate::git;
 use crate::spaces;
 
+#[derive(Debug)]
 pub struct InitReport {
     pub path: String,
     pub name: String,
@@ -22,9 +23,15 @@ pub fn init(
     set_default: bool,
     config_path: &Path,
 ) -> Result<InitReport> {
-    let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    // Create directory first so canonicalize always resolves symlinks
     let mut created = false;
+    if !path.exists() {
+        std::fs::create_dir_all(path)?;
+        created = true;
+    }
+    let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     let mut committed = false;
+
     // Check re-run conditions
     let global = load_global(config_path)?;
     if let Some(existing) = global
@@ -33,7 +40,6 @@ pub fn init(
         .find(|w| w.path == path.to_string_lossy())
     {
         if existing.name == name {
-            // Already initialized with same name — ensure structure exists
             ensure_structure(&path, name, description)?;
             return Ok(InitReport {
                 path: path.to_string_lossy().into(),
@@ -50,11 +56,7 @@ pub fn init(
         }
     }
 
-    // Create directory structure
-    if !path.exists() {
-        std::fs::create_dir_all(&path)?;
-        created = true;
-    }
+    // Ensure structure (directory already created above)
     ensure_structure(&path, name, description)?;
 
     // Git init if not already a repo
@@ -76,6 +78,14 @@ pub fn init(
         remote: None,
     };
     spaces::register(entry, force, config_path)?;
+
+    // Ensure global engine directories exist
+    if let Some(wiki_dir) = config_path.parent() {
+        let logs_dir = wiki_dir.join("logs");
+        if !logs_dir.exists() {
+            std::fs::create_dir_all(&logs_dir)?;
+        }
+    }
 
     if set_default {
         spaces::set_default(name, config_path)?;
