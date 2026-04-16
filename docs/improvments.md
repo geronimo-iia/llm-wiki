@@ -2,7 +2,7 @@
 
 ## FIX conformance
 
-@doc docs/conformance-report.md
+→ [conformance-report.md](conformance-report.md) · [conformance-tasks.md](conformance-tasks.md)
 
 
 ## ingest

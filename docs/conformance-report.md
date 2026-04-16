@@ -190,12 +190,14 @@ is always `false`.
 
 ### 6. Ingest — index update after commit (Low)
 
-**Spec** (ingest.md §2, pipelines/ingest.md): "The tantivy search index is
-updated after commit."
+**Spec** (ingest.md §2, pipelines/ingest.md): When `index.auto_rebuild` is
+`true`, the search index is rebuilt after commit. When `false`, a warning is
+emitted.
 
 **Implementation** (ingest.rs): Ingest validates and commits but does not
-call `rebuild_index`. The index becomes stale after ingest — the user must
-run `wiki index rebuild` or rely on `auto_rebuild` at next search.
+check `auto_rebuild`, does not call `rebuild_index`, and does not warn.
+The index becomes stale after ingest — the user must run
+`wiki index rebuild` or rely on `auto_rebuild` at next search.
 
 ### 7. MCP `wiki_search` — `all_wikis` parameter (Low)
 

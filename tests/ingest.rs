@@ -245,3 +245,70 @@ fn ingest_report_commit_matches_git_head() {
     let head = git::current_head(dir.path()).unwrap();
     assert_eq!(report.commit, head);
 }
+
+
+#[test]
+fn ingest_rebuilds_index_when_auto_rebuild_enabled() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    let index_path = dir.path().join("index-store");
+
+    // Build initial empty index
+    llm_wiki::search::rebuild_index(&wiki_root, &index_path, "test", dir.path()).unwrap();
+
+    // Write and ingest a new page
+    write_page(&wiki_root, "concepts/foo.md", VALID_PAGE);
+    let opts = IngestOptions { dry_run: false };
+    ingest(
+        Path::new("concepts/foo.md"),
+        &opts,
+        &wiki_root,
+        &default_schema(),
+        &default_validation(),
+    )
+    .unwrap();
+
+    // Simulate what the caller (main.rs) does when auto_rebuild is true
+    llm_wiki::search::rebuild_index(&wiki_root, &index_path, "test", dir.path()).unwrap();
+
+    let status = llm_wiki::search::index_status("test", &index_path, dir.path()).unwrap();
+    assert!(!status.stale);
+    assert_eq!(status.pages, 1);
+
+    // Search should find the page
+    let results = llm_wiki::search::search(
+        "Test Page",
+        &llm_wiki::search::SearchOptions::default(),
+        &index_path,
+        "test",
+    )
+    .unwrap();
+    assert!(!results.is_empty());
+    assert_eq!(results[0].slug, "concepts/foo");
+}
+
+#[test]
+fn ingest_leaves_index_stale_when_auto_rebuild_disabled() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    let index_path = dir.path().join("index-store");
+
+    // Build initial empty index
+    llm_wiki::search::rebuild_index(&wiki_root, &index_path, "test", dir.path()).unwrap();
+
+    // Write and ingest a new page (no rebuild — simulates auto_rebuild=false)
+    write_page(&wiki_root, "concepts/bar.md", VALID_PAGE);
+    let opts = IngestOptions { dry_run: false };
+    ingest(
+        Path::new("concepts/bar.md"),
+        &opts,
+        &wiki_root,
+        &default_schema(),
+        &default_validation(),
+    )
+    .unwrap();
+
+    // Index should be stale — ingest committed but caller did not rebuild
+    let status = llm_wiki::search::index_status("test", &index_path, dir.path()).unwrap();
+    assert!(status.stale);
+}

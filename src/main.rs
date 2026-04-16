@@ -174,6 +174,16 @@ fn main() -> Result<()> {
                 println!("(dry run — nothing committed)");
             } else {
                 println!("Commit: {}", report.commit);
+                if resolved.index.auto_rebuild {
+                    let index_path = index_path_for(wiki_name);
+                    let repo_root = PathBuf::from(&entry.path);
+                    match search::rebuild_index(&wiki_root, &index_path, wiki_name, &repo_root) {
+                        Ok(r) => println!("Index rebuilt: {} pages in {}ms", r.pages_indexed, r.duration_ms),
+                        Err(e) => eprintln!("warning: index rebuild failed: {e}"),
+                    }
+                } else {
+                    eprintln!("warning: search index is stale — run `wiki index rebuild`");
+                }
             }
         }
         Commands::New { action } => {

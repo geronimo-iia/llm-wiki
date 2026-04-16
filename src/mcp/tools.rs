@@ -415,7 +415,7 @@ fn handle_ingest(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerR
     let resolved = config::resolve(&global, &wiki_cfg);
     let schema_cfg = config::load_schema(&entry_path).unwrap_or_default();
     let opts = ingest::IngestOptions { dry_run };
-    let report = ingest::ingest(
+    let mut report = ingest::ingest(
         std::path::Path::new(&path),
         &opts,
         &wiki_root,
@@ -423,6 +423,20 @@ fn handle_ingest(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerR
         &resolved.validation,
     )
     .map_err(|e| format!("{e}"))?;
+
+    // Index update after ingest
+    if !dry_run {
+        if resolved.index.auto_rebuild {
+            let index_path = WikiServer::index_path_for(&entry.name);
+            let repo_root = PathBuf::from(&entry.path);
+            if let Err(e) = search::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root) {
+                report.warnings.push(format!("index rebuild failed: {e}"));
+            }
+        } else {
+            report.warnings.push("search index is stale \u{2014} run wiki_index_rebuild".into());
+        }
+    }
+
     let s = serde_json::to_string_pretty(&report).map_err(|e| format!("{e}"))?;
 
     // Collect URIs of ingested .md files for resource update notifications

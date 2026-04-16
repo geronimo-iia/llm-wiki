@@ -56,8 +56,12 @@ Every ingest produces a git commit:
 
 ### Index
 
-The tantivy search index is updated after commit. All frontmatter fields
-and body content are indexed.
+When `index.auto_rebuild` is `true`, the tantivy search index is rebuilt
+after commit. All frontmatter fields and body content are indexed.
+
+When `index.auto_rebuild` is `false` (the default), the engine emits a
+warning: `"search index is stale — run `wiki index rebuild`"`. The commit
+still succeeds — the index update is never a gate on ingest.
 
 ---
 
