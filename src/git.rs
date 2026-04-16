@@ -27,6 +27,29 @@ pub fn commit(repo_root: &Path, message: &str) -> Result<String> {
     Ok(oid.to_string())
 }
 
+pub fn commit_paths(repo_root: &Path, paths: &[&Path], message: &str) -> Result<String> {
+    let repo = Repository::open(repo_root)
+        .with_context(|| format!("failed to open repo at {}", repo_root.display()))?;
+
+    let sig = Signature::now("llm-wiki", "wiki@localhost")?;
+    let mut index = repo.index()?;
+    for path in paths {
+        let rel = path
+            .strip_prefix(repo_root)
+            .unwrap_or(path);
+        index.add_path(rel)?;
+    }
+    index.write()?;
+    let tree_oid = index.write_tree()?;
+    let tree = repo.find_tree(tree_oid)?;
+
+    let parent = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
+    let parents: Vec<&git2::Commit> = parent.iter().collect();
+
+    let oid = repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parents)?;
+    Ok(oid.to_string())
+}
+
 pub fn current_head(repo_root: &Path) -> Result<String> {
     let repo = Repository::open(repo_root)?;
     let head = repo.head()?.peel_to_commit()?;

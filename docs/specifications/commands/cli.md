@@ -61,7 +61,8 @@ See [page-creation.md](page-creation.md).
 
 ## `llm-wiki ingest`
 
-Validate, commit, and index files already in the wiki tree.
+Validate and index files already in the wiki tree. Commits only when
+`ingest.auto_commit` is `true` (the default).
 
 ```
 llm-wiki ingest <path>                    # file or folder, relative to wiki root
@@ -139,7 +140,7 @@ llm-wiki lint fix
              [--wiki <name>]
 ```
 
-Checks: orphan pages, missing stubs, empty sections. Writes and commits
+Checks: orphan pages, missing stubs, empty sections. Writes
 `LINT.md`. See [lint.md](lint.md).
 
 ---
@@ -240,7 +241,22 @@ Print embedded workflow instructions.
 
 ```
 llm-wiki instruct                       # all instructions
-llm-wiki instruct <workflow>            # help | ingest | research | lint | crystallize | frontmatter
+llm-wiki instruct <workflow>            # help | ingest | research | lint | crystallize | commit | frontmatter
 ```
 
 See [instruct.md](instruct.md).
+
+---
+
+## `llm-wiki commit`
+
+Commit pending changes to git.
+
+```
+llm-wiki commit [<slug>...]             # commit specific pages by slug
+            --all                   # commit all pending changes
+            [-m, --message <msg>]   # commit message
+            [--wiki <name>]
+```
+
+See [commit.md](commit.md).

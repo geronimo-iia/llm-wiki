@@ -31,7 +31,8 @@ llm-wiki/
     │   ├── new.md                   # /llm-wiki:new
     │   ├── ingest.md                # /llm-wiki:ingest
     │   ├── research.md              # /llm-wiki:research
-    │   └── lint.md                  # /llm-wiki:lint
+    │   ├── lint.md                  # /llm-wiki:lint
+    │   └── commit.md                # /llm-wiki:commit
     ├── hooks/
     │   └── hooks.json               # (reserved — no hooks in v0.1)
     └── skills/
@@ -155,7 +156,7 @@ Invoke the llm-wiki skill with the `new` command, then follow its instructions.
 
 ```markdown
 ---
-description: Ingest a file or folder into the wiki
+description: Validate and index a file or folder in the wiki
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep
 ---
 Invoke the llm-wiki skill with the `ingest` command, then follow its instructions.
@@ -181,6 +182,16 @@ allowed-tools: Bash, Read, Write, Edit
 Invoke the llm-wiki skill with the `lint` command, then follow its instructions.
 ```
 
+### `/llm-wiki:commit`
+
+```markdown
+---
+description: Commit pending changes to git
+allowed-tools: Bash, Read
+---
+Invoke the llm-wiki skill with the `commit` command, then follow its instructions.
+```
+
 ---
 
 ## `skills/llm-wiki/SKILL.md`
@@ -202,7 +213,7 @@ llm-wiki instruct <workflow>
 ```
 
 Where `<workflow>` is one of: `help`, `init`, `new`, `ingest`, `research`,
-`lint`, `crystallize`, `frontmatter`.
+`lint`, `crystallize`, `commit`, `frontmatter`.
 
 Run the appropriate instruct command, then follow the returned instructions
 step by step.

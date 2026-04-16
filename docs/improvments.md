@@ -1,33 +1,53 @@
 # Improvements
 
-## config
+## Roadmap
 
-parameter global only should not be updated locally
+### 2. ACP streaming
 
-## ACP streaming
+Implement streaming tool calls in ACP workflows (tasks D → A → B → C → E).
 
 → [acp-tasks.md](acp-tasks.md) · [ACP SDK reference](implementation/acp-sdk.md) · [ACP transport spec](specifications/integrations/acp-transport.md)
 
+### 3. Distribution channels
 
-## ingest
+Decide which channels to support. Chocolatey is too heavy to maintain —
+drop it. Evaluate: cargo install, cargo-binstall, homebrew, asdf.
 
-→ [ingest-auto-commit.md](ingest-auto-commit.md)
+- [ ] Fix `docs/release.md` — currently a verbatim copy of agentctl's; still says "agentctl"
+- [ ] Replace agentctl-specific post-release steps with llm-wiki equivalents
+- [ ] Decide final channel list and document only those
 
-## release
+---
 
-- [ ] Fix `docs/release.md` — currently a verbatim copy of agentctl's; still says "agentctl" in title and post-release sections
-- [ ] Replace agentctl-specific post-release steps (homebrew formula `agentctl.rb`, `agent-skills/agentctl`, `asdf-agentctl`, `chocolatey-agentctl`) with llm-wiki equivalents or remove if not applicable yet
-- [ ] Decide which distribution channels apply to llm-wiki (homebrew, asdf, chocolatey, cargo-binstall) and document only those
+## Other improvements
 
+### config
 
-### Distribution channels (new repos/configs needed)
-- [ ] Homebrew formula in `homebrew-agent` tap (`Formula/llm-wiki.rb` or `Formula/wiki.rb`)
-- [ ] asdf plugin (`asdf-llm-wiki`)
-- [ ] Chocolatey package (`chocolatey-llm-wiki`)
-- [ ] Verify `cargo-binstall` metadata works (already has `[package.metadata.binstall]`)
+Parameter global-only should not be updated locally.
 
+### graph
 
+`graph.type` — documented but not yet implemented in `set_global_config_value`.
 
-## Graph
+### init wiki
 
- graph.type — documented but not yet implemented in set_global_config_value. A
+- [ ] Generate a `.gitignore`
+- [ ] Prepare a `ci.yaml` template
+
+### Documentation
+
+**Implementation docs** — architecture overview, config system, server internals, logging:
+- [ ] Architecture overview (module map, data flow, key abstractions)
+- [ ] Config system (two-level resolution, adding new keys, serde patterns)
+- [ ] Server internals (MCP stdio/SSE, ACP, transport lifecycle)
+- [ ] Logging (rotation, format, file vs stderr, serve mode)
+
+**User-facing docs** — installation and integration guides:
+- [ ] Installation guide (cargo install, pre-built binaries, platform notes)
+- [ ] Windows installation and usage notes
+- [ ] IDE integration (VS Code, Cursor, Windsurf — beyond MCP config snippets)
+- [ ] CI/CD integration (using llm-wiki in automated pipelines)
+
+**Publishing** — use the wiki as a content source for static sites:
+- [ ] Hugo integration guide (wiki pages as Hugo content, frontmatter mapping, example site)
+- [ ] GitHub Pages deployment (CI workflow to build and publish from wiki repo)

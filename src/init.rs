@@ -106,6 +106,10 @@ fn ensure_structure(path: &Path, name: &str, description: Option<&str>) -> Resul
         if !d.exists() {
             std::fs::create_dir_all(&d)?;
         }
+        let gitkeep = d.join(".gitkeep");
+        if !gitkeep.exists() {
+            std::fs::write(&gitkeep, "")?;
+        }
     }
 
     let readme = path.join("README.md");

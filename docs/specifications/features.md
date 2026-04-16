@@ -42,14 +42,14 @@ tracked per-feature in the individual specification docs.
 
 ## Ingest
 
-- Validate, commit, and index files already in the wiki tree (`llm-wiki ingest <path>`)
+- Validate and index files already in the wiki tree (`llm-wiki ingest <path>`)
 - File ingest — single Markdown file
 - Folder ingest — recursive, all `.md` files and co-located assets
-- Engine validates frontmatter, `git add`, commits, indexes
+- Engine validates frontmatter, indexes; commits when `ingest.auto_commit` is `true`
 - LLM writes directly into the wiki tree via `wiki_write` MCP tool
 - Frontmatter preserved on ingest; minimal frontmatter generated if absent
-- Dry run mode — show what would be committed without committing (`--dry-run`)
-- All ingests produce a git commit
+- Dry run mode — validate only, no disk writes (`--dry-run`)
+- Explicit commit via `llm-wiki commit` when `auto_commit` is `false`
 
 ---
 
@@ -96,7 +96,7 @@ tracked per-feature in the individual specification docs.
 ## Lint
 
 - Structural audit: orphan pages, missing stubs, empty sections (`llm-wiki lint`)
-- `LINT.md` written and committed on every lint run
+- `LINT.md` written on every lint run
 - `LINT.md` has no frontmatter — excluded from indexing and orphan detection
 - Auto-fix missing stubs: create scaffold pages (`llm-wiki lint fix`)
 - Auto-fix empty sections: create `index.md` (`llm-wiki lint fix`)
@@ -111,7 +111,7 @@ tracked per-feature in the individual specification docs.
 - Mermaid output (default) or DOT
 - Full graph or subgraph from a root node with depth limit
 - Filter by page type
-- Output to stdout or file; auto-commit if file is inside wiki root
+- Output to stdout or file
 - Output file gets minimal frontmatter with `status: generated`
 - Configurable defaults: format, depth, type filter, output path
 
@@ -135,7 +135,7 @@ tracked per-feature in the individual specification docs.
 | Tool | Description |
 |------|-------------|
 | `wiki_write` | Write a file into the wiki tree |
-| `wiki_ingest` | Validate, commit, and index files in the wiki tree |
+| `wiki_ingest` | Validate and index files in the wiki tree |
 | `wiki_search` | Full-text search, returns `Vec<PageRef>` |
 | `wiki_read` | Read full content of a page by slug or URI |
 | `wiki_new_page` | Create a new page with scaffolded frontmatter |
@@ -151,6 +151,7 @@ tracked per-feature in the individual specification docs.
 | `wiki_spaces_remove` | Remove a wiki space |
 | `wiki_spaces_set_default` | Set the default wiki space |
 | `wiki_init` | Initialize a new wiki |
+| `wiki_commit` | Commit pending changes to git |
 
 ---
 
@@ -212,7 +213,7 @@ tracked per-feature in the individual specification docs.
 - Default `schema.md` suggests `concepts/`, `sources/`, `queries/` as conventions
 - Epistemic distinctions carried by `type` field, not by folder
 - User-defined sections created on demand via `llm-wiki new section`
-- `LINT.md` at repository root — committed by `llm-wiki lint`
+- `LINT.md` at repository root — written by `llm-wiki lint`
 - Indexes stored in `~/.llm-wiki/indexes/<name>/` — outside the repo
 
 ---

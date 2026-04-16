@@ -176,6 +176,18 @@ impl Default for LoggingConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IngestConfig {
+    #[serde(default = "default_true")]
+    pub auto_commit: bool,
+}
+
+impl Default for IngestConfig {
+    fn default() -> Self {
+        Self { auto_commit: true }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SchemaConfig {
     #[serde(default)]
@@ -205,6 +217,8 @@ pub struct GlobalConfig {
     #[serde(default)]
     pub lint: LintConfig,
     #[serde(default)]
+    pub ingest: IngestConfig,
+    #[serde(default)]
     pub logging: LoggingConfig,
 }
 
@@ -221,6 +235,8 @@ pub struct WikiConfig {
     #[serde(default)]
     pub validation: Option<ValidationConfig>,
     #[serde(default)]
+    pub ingest: Option<IngestConfig>,
+    #[serde(default)]
     pub lint: Option<LintConfig>,
 }
 
@@ -231,6 +247,7 @@ pub struct ResolvedConfig {
     pub index: IndexConfig,
     pub graph: GraphConfig,
     pub serve: ServeConfig,
+    pub ingest: IngestConfig,
     pub validation: ValidationConfig,
     pub lint: LintConfig,
 }
@@ -315,6 +332,12 @@ pub fn resolve(global: &GlobalConfig, per_wiki: &WikiConfig) -> ResolvedConfig {
         global.lint.clone()
     };
 
+    let ingest = if let Some(pw) = &per_wiki.ingest {
+        pw.clone()
+    } else {
+        global.ingest.clone()
+    };
+
     ResolvedConfig {
         defaults,
         read: if let Some(pw) = &per_wiki.read {
@@ -325,6 +348,7 @@ pub fn resolve(global: &GlobalConfig, per_wiki: &WikiConfig) -> ResolvedConfig {
         index: global.index.clone(),
         graph: global.graph.clone(),
         serve: global.serve.clone(),
+        ingest,
         validation,
         lint,
     }
@@ -426,6 +450,7 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "serve.max_restarts" => global.serve.max_restarts = value.parse()?,
         "serve.restart_backoff" => global.serve.restart_backoff = value.parse()?,
         "serve.heartbeat_secs" => global.serve.heartbeat_secs = value.parse()?,
+        "ingest.auto_commit" => global.ingest.auto_commit = value.parse()?,
         "validation.type_strictness" => global.validation.type_strictness = value.into(),
         "lint.fix_missing_stubs" => global.lint.fix_missing_stubs = value.parse()?,
         "lint.fix_empty_sections" => global.lint.fix_empty_sections = value.parse()?,
@@ -494,6 +519,12 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
                 .lint
                 .get_or_insert_with(LintConfig::default)
                 .fix_empty_sections = value.parse()?;
+        }
+        "ingest.auto_commit" => {
+            wiki_cfg
+                .ingest
+                .get_or_insert_with(IngestConfig::default)
+                .auto_commit = value.parse()?;
         }
         "global.default_wiki"
         | "index.auto_rebuild"

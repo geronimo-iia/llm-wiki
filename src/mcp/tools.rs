@@ -247,6 +247,18 @@ pub fn tool_list() -> Vec<Tool> {
                 &[],
             ),
         ),
+        Tool::new(
+            "wiki_commit",
+            "Commit pending changes to git",
+            schema(
+                json!({
+                    "slugs": opt_str("Comma-separated page slugs to commit (omit for all)"),
+                    "message": opt_str("Commit message"),
+                    "wiki": opt_str("Target wiki name"),
+                }),
+                &[],
+            ),
+        ),
     ]
 }
 
@@ -320,6 +332,7 @@ pub fn call(server: &WikiServer, name: &str, args: &Map<String, Value>) -> ToolR
         "wiki_index_check" => handle_index_check(server, args),
         "wiki_lint" => handle_lint(server, args),
         "wiki_graph" => handle_graph(server, args),
+        "wiki_commit" => handle_commit(server, args),
         _ => Err(format!("unknown tool: {name}")),
     }));
     match result {
@@ -459,7 +472,10 @@ fn handle_ingest(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerR
     let wiki_cfg = config::load_wiki(&entry_path).unwrap_or_default();
     let resolved = config::resolve(&global, &wiki_cfg);
     let schema_cfg = config::load_schema(&entry_path).unwrap_or_default();
-    let opts = ingest::IngestOptions { dry_run };
+    let opts = ingest::IngestOptions {
+        dry_run,
+        auto_commit: resolved.ingest.auto_commit,
+    };
     let mut report = ingest::ingest(
         std::path::Path::new(&path),
         &opts,
@@ -504,11 +520,7 @@ fn handle_new_page(server: &WikiServer, args: &Map<String, Value>) -> ToolHandle
     let global = config::load_global(server.config_path()).map_err(|e| format!("{e}"))?;
     let (entry, slug) = spaces::resolve_uri(&uri, &global).map_err(|e| format!("{e}"))?;
     let wiki_root = PathBuf::from(&entry.path).join("wiki");
-    let repo_root = PathBuf::from(&entry.path);
     markdown::create_page(&slug, bundle, &wiki_root).map_err(|e| format!("{e}"))?;
-    if let Err(e) = git::commit(&repo_root, &format!("new: {uri}")) {
-        tracing::warn!(error = %e, uri = %uri, "git commit failed for new page");
-    }
     ok_text(format!("wiki://{}/{slug}", entry.name))
 }
 
@@ -517,11 +529,7 @@ fn handle_new_section(server: &WikiServer, args: &Map<String, Value>) -> ToolHan
     let global = config::load_global(server.config_path()).map_err(|e| format!("{e}"))?;
     let (entry, slug) = spaces::resolve_uri(&uri, &global).map_err(|e| format!("{e}"))?;
     let wiki_root = PathBuf::from(&entry.path).join("wiki");
-    let repo_root = PathBuf::from(&entry.path);
     markdown::create_section(&slug, &wiki_root).map_err(|e| format!("{e}"))?;
-    if let Err(e) = git::commit(&repo_root, &format!("new: {uri}")) {
-        tracing::warn!(error = %e, uri = %uri, "git commit failed for new section");
-    }
     ok_text(format!("wiki://{}/{slug}", entry.name))
 }
 
@@ -721,9 +729,7 @@ fn handle_lint(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerRes
             report.missing_stubs.len(),
             report.empty_sections.len()
         );
-        if let Err(e) = git::commit(&entry_path, &msg) {
-            tracing::warn!(error = %e, "lint git commit failed");
-        }
+        tracing::info!("{msg}");
     }
 
     let s = serde_json::to_string_pretty(&report).map_err(|e| format!("{e}"))?;
@@ -860,4 +866,41 @@ fn get_value(
         "logging.log_format" => global.logging.log_format.clone(),
         _ => format!("unknown key: {key}"),
     }
+}
+
+fn handle_commit(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerResult {
+    let (entry, _global) = resolve_wiki(server, args)?;
+    let repo_root = PathBuf::from(&entry.path);
+    let wiki_root = repo_root.join("wiki");
+    let message = arg_str(args, "message");
+
+    let hash = if let Some(slugs_str) = arg_str(args, "slugs") {
+        let slugs: Vec<&str> = slugs_str.split(',').map(|s| s.trim()).collect();
+        let mut paths = Vec::new();
+        for slug in &slugs {
+            let resolved =
+                markdown::resolve_slug(slug, &wiki_root).map_err(|e| format!("{e}"))?;
+            if resolved.file_name() == Some(std::ffi::OsStr::new("index.md")) {
+                let bundle_dir = resolved.parent().unwrap();
+                for entry in walkdir::WalkDir::new(bundle_dir)
+                    .into_iter()
+                    .filter_map(|e| e.ok())
+                {
+                    if entry.path().is_file() {
+                        paths.push(entry.path().to_path_buf());
+                    }
+                }
+            } else {
+                paths.push(resolved);
+            }
+        }
+        let path_refs: Vec<&std::path::Path> = paths.iter().map(|p| p.as_path()).collect();
+        let msg = message.unwrap_or_else(|| format!("commit: {}", slugs.join(", ")));
+        git::commit_paths(&repo_root, &path_refs, &msg).map_err(|e| format!("{e}"))?
+    } else {
+        let msg = message.unwrap_or_else(|| "commit: all".into());
+        git::commit(&repo_root, &msg).map_err(|e| format!("{e}"))?
+    };
+
+    ok_text(hash)
 }

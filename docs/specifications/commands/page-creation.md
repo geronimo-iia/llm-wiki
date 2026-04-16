@@ -1,6 +1,6 @@
 ---
 title: "Page Creation"
-summary: "How to create new wiki pages and sections — llm-wiki new takes a wiki:// URI as target, scaffolds frontmatter, and commits."
+summary: "How to create new wiki pages and sections — llm-wiki new takes a wiki:// URI as target and scaffolds frontmatter."
 read_when:
   - Adding a new page, bundle, or section to the wiki
   - Implementing the llm-wiki new subcommand
@@ -28,7 +28,7 @@ llm-wiki new page wiki://research/concepts/mixture-of-experts          # flat pa
 llm-wiki new page wiki://research/concepts/mixture-of-experts --bundle # bundle
 ```
 
-Generates a minimal frontmatter scaffold and commits:
+Generates a minimal frontmatter scaffold:
 
 ```yaml
 ---
@@ -90,10 +90,9 @@ llm-wiki new page wiki://research/a/b/c
 # wiki://research/a       does not exist → create a/index.md
 # wiki://research/a/b     does not exist → create a/b/index.md
 # create a/b/c.md
-# single git commit: new: wiki://research/a/b/c
 ```
 
-All created files are included in the same commit.
+All created files are ready to commit via `llm-wiki commit`.
 
 ---
 
@@ -126,7 +125,8 @@ Errors:
 - URI already exists → error, no overwrite
 - Unknown wiki name in URI → error
 
-Git commit: `new: <wiki:// URI>`
+Neither `new page` nor `new section` commits. Use `llm-wiki commit` after
+writing content.
 
 ---
 
@@ -156,7 +156,7 @@ it directly for subsequent `wiki_read` or `wiki_ingest` calls.
 
 | | `llm-wiki new` | `llm-wiki ingest` |
 |---|---|---|
-| Purpose | Create an empty page or section | Validate, commit, and index files in the wiki tree |
+| Purpose | Create an empty page or section | Validate and index files in the wiki tree |
 | Input | A `wiki://` URI | A path relative to wiki root |
 | Frontmatter | Generated scaffold | Preserved if present, generated if absent |
 | Use when | Starting from scratch | Committing content already written into the wiki tree |

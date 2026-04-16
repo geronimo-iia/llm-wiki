@@ -22,7 +22,7 @@ Available tools:
 - `wiki_read(slug)` — read a page by slug
 - `wiki_list(type?, status?)` — list pages with optional filters
 - `wiki_write(path, content)` — write a file into the wiki tree
-- `wiki_ingest(path, dry_run?)` — validate, commit, and index
+- `wiki_ingest(path, dry_run?)` — validate and index
 - `wiki_new_page(uri, bundle?)` — create a scaffolded page
 - `wiki_new_section(uri)` — create a section index
 - `wiki_lint()` — run structural lint checks
@@ -31,8 +31,9 @@ Available tools:
 - `wiki_index_rebuild()` — rebuild the search index
 - `wiki_index_status()` — check if the index is stale
 - `wiki_index_check()` — run read-only integrity check
+- `wiki_commit(slugs?, message?)` — commit pending changes to git
 
-Workflows: `new`, `ingest`, `research`, `lint`, `crystallize`.
+Workflows: `new`, `ingest`, `research`, `lint`, `crystallize`, `commit`.
 
 ## new
 
@@ -41,13 +42,14 @@ Create a page or section in the wiki.
 1. Orient: `wiki_search("<topic>")` to check if the page already exists.
 2. Create: `wiki_new_page("wiki://<slug>")` or `wiki_new_section("wiki://<slug>")`.
 3. Edit: `wiki_read(<slug>)` the scaffold, write full content via `wiki_write`.
-4. Commit: `wiki_ingest(<path>)`.
+4. Validate: `wiki_ingest(<path>)`.
+5. Commit: `wiki_commit(<slugs>)` or `wiki_commit()` for all.
 
 Use `--bundle` for pages with co-located assets.
 
 ## ingest
 
-Validate and commit files already in the wiki tree.
+Validate and index files already in the wiki tree.
 
 1. Orient: `wiki_search("<topic>")` to find related existing pages.
 2. Read existing page if updating: `wiki_read(<slug>)`.
@@ -55,8 +57,12 @@ Validate and commit files already in the wiki tree.
    - Preserve existing list values (`tags`, `read_when`, `sources`, `concepts`, `claims`).
    - Set all required frontmatter fields (title, summary, read_when, status, type, last_updated).
    - Choose the correct `type` from the taxonomy (see `## frontmatter`).
-4. Commit: `wiki_ingest(<path>)`.
+4. Validate: `wiki_ingest(<path>)`.
 5. Review warnings in the `IngestReport`.
+6. Commit: `wiki_commit(<slugs>)` or `wiki_commit()` for all.
+
+When `ingest.auto_commit` is `true`, step 4 commits automatically and step 6
+can be skipped.
 
 Accumulation contract: read before writing. Never drop existing list values.
 
@@ -78,7 +84,8 @@ Run structural checks and fix issues.
 1. Run: `wiki_lint()` to get the `LintReport`.
 2. Review each section: orphans, missing stubs, empty sections, missing connections, untyped sources.
 3. Fix: address findings — add links to orphans, create stubs, set proper types.
-4. Commit fixes: `wiki_ingest(<path>)` for each changed file.
+4. Validate fixes: `wiki_ingest(<path>)` for each changed file.
+5. Commit: `wiki_commit()` to commit all fixes.
 
 Use `llm-wiki lint fix` to auto-create missing stubs and empty section indexes.
 
@@ -91,7 +98,8 @@ Distil a session's insights into wiki pages.
 3. Decide: update an existing page or create a new one.
 4. Write: complete file with full frontmatter. Preserve existing values if updating.
 5. Link: add `sources` and `concepts` slugs. Apply the linking policy test.
-6. Commit: `wiki_ingest(<path>)`.
+6. Validate: `wiki_ingest(<path>)`.
+7. Commit: `wiki_commit(<slugs>)` or `wiki_commit()` for all.
 
 Crystallize after every substantive session. The wiki is the accumulator.
 

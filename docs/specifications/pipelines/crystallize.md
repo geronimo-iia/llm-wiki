@@ -12,8 +12,8 @@ last_updated: "2025-07-15"
 # Crystallize
 
 Crystallize is an instruct workflow, not a separate engine command. The LLM
-writes directly into the wiki tree and runs `llm-wiki ingest` to validate,
-commit, and index. The workflow guides the LLM on *what to extract* from a
+writes directly into the wiki tree and runs `llm-wiki ingest` to validate
+and index. The workflow guides the LLM on *what to extract* from a
 session and *where to put it*.
 
 ---
@@ -29,8 +29,8 @@ Crystallize closes the loop: the wiki compounds from both sources and
 conversations.
 
 ```
-Sources  → LLM reads, writes pages into wiki tree  → llm-wiki ingest → committed pages
-Chats    → crystallize workflow (LLM writes pages)  → llm-wiki ingest → committed pages
+Sources  → LLM reads, writes pages into wiki tree  → llm-wiki ingest → validated pages
+Chats    → crystallize workflow (LLM writes pages)  → llm-wiki ingest → validated pages
 ```
 
 ---
@@ -185,7 +185,9 @@ reached, a pattern discovered, a question resolved, or a design settled.
    crystallizations. Structure the body with: Summary, Decisions, Findings,
    Open Questions as appropriate.
 
-4. **Ingest:** `wiki_ingest(path)` to validate, commit, and index.
+4. **Ingest:** `wiki_ingest(path)` to validate and index.
+5. **Commit:** `wiki_commit(slugs)` to commit, or skip if `auto_commit` is on.
+6. **Verify:** `wiki_read(<slug>)` to confirm.
 
 5. **Verify:** `wiki_read(<slug>)` to confirm.
 ```
@@ -214,7 +216,7 @@ The previous design had `llm-wiki crystallize` as a separate CLI command with a
 - A separate JSON schema adds complexity for no gain
 - The value of crystallize is the *workflow guidance* (what to extract, where
   to put it), not a distinct engine operation
-- `llm-wiki ingest` validates and commits whatever is on disk
+- `llm-wiki ingest` validates and indexes whatever is on disk
 
 Crystallize is a workflow, not a tool. The tools are `wiki_write` + `wiki_ingest`.
 
@@ -226,7 +228,7 @@ Crystallize and session bootstrap form a compounding loop:
 
 ```
 Session N:
-  bootstrap → read hub page → work → crystallize → ingest updated page → commit
+  bootstrap → read hub page → work → crystallize → ingest → commit
 
 Session N+1:
   bootstrap → read updated hub page → richer starting context → ...

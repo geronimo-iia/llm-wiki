@@ -40,11 +40,11 @@ pub enum Commands {
         #[command(subcommand)]
         action: SpacesAction,
     },
-    /// Validate, commit, and index files in the wiki tree
+    /// Validate and index files in the wiki tree
     Ingest {
         /// File or folder path, relative to wiki root
         path: String,
-        /// Show what would be committed without committing
+        /// Validate only, no disk writes
         #[arg(long)]
         dry_run: bool,
     },
@@ -108,7 +108,7 @@ pub enum Commands {
     Lint {
         #[command(subcommand)]
         action: Option<LintAction>,
-        /// Show what would be written, no commit
+        /// Show what would be written
         #[arg(long)]
         dry_run: bool,
     },
@@ -129,7 +129,7 @@ pub enum Commands {
         /// File path or wiki:// URI (default: stdout)
         #[arg(long)]
         output: Option<String>,
-        /// Print what would be written, no commit
+        /// Print what would be written
         #[arg(long)]
         dry_run: bool,
     },
@@ -149,6 +149,17 @@ pub enum Commands {
     Instruct {
         /// Workflow name: help, new, ingest, research, lint, crystallize, frontmatter
         workflow: Option<String>,
+    },
+    /// Commit pending changes to git
+    Commit {
+        /// Page slugs to commit (omit for --all)
+        slugs: Vec<String>,
+        /// Commit all pending changes
+        #[arg(long)]
+        all: bool,
+        /// Commit message
+        #[arg(long, short)]
+        message: Option<String>,
     },
 }
 
@@ -227,7 +238,7 @@ pub enum LintAction {
         /// Only fix: missing-stubs | empty-sections
         #[arg(long)]
         only: Option<String>,
-        /// Show what would be fixed, no commit
+        /// Show what would be fixed
         #[arg(long)]
         dry_run: bool,
     },

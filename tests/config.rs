@@ -128,6 +128,7 @@ fn save_wiki_roundtrips() {
             type_strictness: "strict".into(),
         }),
         lint: None,
+        ingest: None,
     };
     save_wiki(&cfg, dir.path()).unwrap();
 
@@ -322,4 +323,95 @@ fn set_wiki_config_value_rejects_index_keys() {
     let result = set_wiki_config_value(&mut cfg, "index.auto_rebuild", "true");
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("global-only"));
+}
+
+#[test]
+fn ingest_config_defaults_to_auto_commit_true() {
+    let cfg = IngestConfig::default();
+    assert!(cfg.auto_commit);
+}
+
+#[test]
+fn set_global_config_value_sets_ingest_auto_commit() {
+    let mut global = GlobalConfig::default();
+    set_global_config_value(&mut global, "ingest.auto_commit", "false").unwrap();
+    assert!(!global.ingest.auto_commit);
+}
+
+#[test]
+fn set_wiki_config_value_sets_ingest_auto_commit() {
+    let mut cfg = WikiConfig::default();
+    set_wiki_config_value(&mut cfg, "ingest.auto_commit", "false").unwrap();
+    assert_eq!(cfg.ingest.unwrap().auto_commit, false);
+}
+
+#[test]
+fn resolve_per_wiki_overrides_ingest_auto_commit() {
+    let global = GlobalConfig {
+        ingest: IngestConfig { auto_commit: true },
+        ..Default::default()
+    };
+    let per_wiki = WikiConfig {
+        ingest: Some(IngestConfig { auto_commit: false }),
+        ..Default::default()
+    };
+    let resolved = resolve(&global, &per_wiki);
+    assert!(!resolved.ingest.auto_commit);
+}
+
+#[test]
+fn resolve_falls_back_to_global_ingest_when_per_wiki_absent() {
+    let global = GlobalConfig {
+        ingest: IngestConfig { auto_commit: false },
+        ..Default::default()
+    };
+    let per_wiki = WikiConfig::default();
+    let resolved = resolve(&global, &per_wiki);
+    assert!(!resolved.ingest.auto_commit);
+}
+
+#[test]
+fn load_global_parses_ingest_auto_commit() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(
+        &path,
+        r#"
+[ingest]
+auto_commit = false
+"#,
+    )
+    .unwrap();
+
+    let config = load_global(&path).unwrap();
+    assert!(!config.ingest.auto_commit);
+}
+
+#[test]
+fn load_wiki_parses_ingest_auto_commit() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("wiki.toml");
+    fs::write(
+        &path,
+        r#"
+name = "test"
+
+[ingest]
+auto_commit = false
+"#,
+    )
+    .unwrap();
+
+    let config = load_wiki(dir.path()).unwrap();
+    assert_eq!(config.ingest.unwrap().auto_commit, false);
+}
+
+#[test]
+fn load_global_defaults_ingest_auto_commit_when_absent() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(&path, "[global]\ndefault_wiki = \"test\"\n").unwrap();
+
+    let config = load_global(&path).unwrap();
+    assert!(config.ingest.auto_commit);
 }

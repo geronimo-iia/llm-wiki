@@ -1,6 +1,6 @@
 ---
 title: "Ingest"
-summary: "How content enters the wiki — the engine validates files already in the wiki tree, commits to git, and updates the search index."
+summary: "How content enters the wiki — the engine validates files already in the wiki tree, updates the search index, and optionally commits to git."
 read_when:
   - Implementing or extending the ingest pipeline
   - Understanding what the engine validates vs what the author writes
@@ -11,21 +11,22 @@ last_updated: "2025-07-15"
 
 # Ingest
 
-`llm-wiki ingest` validates files already in the wiki tree, commits them to git,
-and updates the search index. It does not move, copy, or place files — the
-author (human or LLM) writes directly into the wiki.
+`llm-wiki ingest` validates files already in the wiki tree and updates the
+search index. When `ingest.auto_commit` is `true` (the default), it also
+commits to git. It does not move, copy, or place files — the author (human
+or LLM) writes directly into the wiki.
 
 ---
 
 ## 1. Core Principle
 
 The author writes files directly into the wiki tree. The engine validates
-what's on disk, stages it, commits, and indexes. No file movement. No
+what's on disk, indexes it, and optionally commits. No file movement. No
 source-to-destination copy. No slug derivation from external paths.
 
 ```
 Author writes:   wiki/concepts/mixture-of-experts.md  (frontmatter + body)
-Engine does:     validate → git add → commit → index
+Engine does:     validate → write frontmatter → index → commit (if auto_commit)
 ```
 
 ---
@@ -51,17 +52,16 @@ The engine does **not** modify frontmatter content except:
 
 ### Commit
 
-Every ingest produces a git commit:
+When `ingest.auto_commit` is `true` (the default), ingest produces a git commit:
 - `ingest: <path> — +N pages, +M assets`
+
+When `auto_commit` is `false`, no commit is made. The user reviews the
+changes and commits explicitly via `llm-wiki commit`.
 
 ### Index
 
-When `index.auto_rebuild` is `true`, the tantivy search index is rebuilt
-after commit. All frontmatter fields and body content are indexed.
-
-When `index.auto_rebuild` is `false` (the default), the engine emits a
-warning: `"search index is stale — run `llm-wiki index rebuild`"`. The commit
-still succeeds — the index update is never a gate on ingest.
+The tantivy search index is always updated after validation, regardless of
+`auto_commit`. The index reflects what's on disk.
 
 ---
 
@@ -70,7 +70,7 @@ still succeeds — the index update is never a gate on ingest.
 ### Workflow 1 — Human writes directly
 
 The human creates or edits files in the wiki tree, then runs ingest to
-validate and commit.
+validate and index.
 
 ```bash
 # human writes wiki/concepts/mixture-of-experts.md
@@ -96,7 +96,7 @@ The LLM writes directly into the wiki tree, then calls ingest.
    wiki_write("concepts/mixture-of-experts.md", content)
 
 3. wiki_ingest("concepts/mixture-of-experts.md")
-   → engine validates, git add, commits, indexes
+   → engine validates, indexes, commits (if auto_commit)
    → IngestReport returned
 ```
 
@@ -115,7 +115,7 @@ For updates to existing pages:
 
 When updating pages, the LLM must preserve existing list values (`tags`,
 `sources`, `claims`). The engine does not enforce this — the file on disk
-is what gets committed. The instruct workflow reminds the LLM to read
+is what gets ingested. The instruct workflow reminds the LLM to read
 before writing.
 
 ---
@@ -142,7 +142,7 @@ The body is preserved exactly as found.
 
 ```
 llm-wiki ingest <path>           # file or folder, relative to wiki root
-            [--dry-run]      # show what would be committed, no commit
+            [--dry-run]      # validate only, no disk writes
 ```
 
 `<path>` is relative to the wiki root. The file must already exist in the
@@ -171,7 +171,7 @@ async fn wiki_write(
 Validates, commits, and indexes files already in the wiki tree.
 
 ```rust
-#[tool(description = "Validate, commit, and index files in the wiki tree")]
+#[tool(description = "Validate and index files in the wiki tree")]
 async fn wiki_ingest(
     &self,
     #[tool(param)] path: String,      // relative to wiki root, file or folder
@@ -188,7 +188,7 @@ pub struct IngestReport {
     pub pages_validated: usize,
     pub assets_found:    usize,
     pub warnings:        Vec<String>,
-    pub commit:          String,   // git commit hash
+    pub commit:          String,   // git commit hash (empty if auto_commit = false)
 }
 ```
 
@@ -199,7 +199,7 @@ pub struct IngestReport {
 | Removed | Reason |
 |---------|--------|
 | `--target <name\|wiki:// URI>` flag | No destination — files are already in the wiki |
-| `--update` flag | No create/update distinction — file is on disk, ingest commits it |
+| `--update` flag | No create/update distinction — file is on disk, ingest validates it |
 | Source-to-destination placement | Author writes directly into the wiki tree |
 | Slug derivation from external paths | No external paths |
 | `wiki://` URI resolution in ingest | Ingest takes a path relative to wiki root |

@@ -20,6 +20,7 @@ pub fn normalize_line_endings(input: &str) -> String {
 #[derive(Debug, Clone, Default)]
 pub struct IngestOptions {
     pub dry_run: bool,
+    pub auto_commit: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -76,7 +77,7 @@ pub fn ingest(
         }
     }
 
-    if !options.dry_run {
+    if !options.dry_run && options.auto_commit {
         let msg = format!(
             "ingest: {} — +{} pages, +{} assets",
             path.display(),

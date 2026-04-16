@@ -47,6 +47,7 @@ One file per CLI command.
 | [index.md](commands/index.md) | `llm-wiki index` |
 | [serve.md](commands/serve.md) | `llm-wiki serve` |
 | [instruct.md](commands/instruct.md) | `llm-wiki instruct` |
+| [commit.md](commands/commit.md) | `llm-wiki commit` |
 
 ---
 
@@ -56,7 +57,7 @@ Data processing and ingestion flows.
 
 | Document | What it covers |
 |----------|---------------|
-| [ingest.md](pipelines/ingest.md) | Validate, commit, and index files in the wiki tree |
+| [ingest.md](pipelines/ingest.md) | Validate and index files in the wiki tree |
 | [asset-ingest.md](pipelines/asset-ingest.md) | Co-located assets and bundle promotion |
 | [crystallize.md](pipelines/crystallize.md) | Distilling chat sessions into wiki pages |
 

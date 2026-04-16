@@ -165,5 +165,5 @@ The previous version of this document described:
 - "The wiki owns frontmatter" principle
 
 These are replaced by the simpler model: the author writes files directly in
-the wiki tree, the engine validates and commits. See [ingest.md](ingest.md)
+the wiki tree, the engine validates and indexes. See [ingest.md](ingest.md)
 for the full ingest specification.

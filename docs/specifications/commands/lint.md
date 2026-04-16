@@ -1,6 +1,6 @@
 ---
 title: "Lint"
-summary: "Structural audit of the wiki — orphan pages, missing stubs, empty sections, missing connections, and untyped sources. Produces a LintReport and commits LINT.md."
+summary: "Structural audit of the wiki — orphan pages, missing stubs, empty sections, missing connections, and untyped sources. Produces a LintReport and writes LINT.md."
 read_when:
   - Implementing or extending the lint pipeline
   - Understanding what llm-wiki lint checks and reports
@@ -12,7 +12,7 @@ last_updated: "2025-07-15"
 # Lint
 
 `llm-wiki lint` is a structural audit. It walks the wiki, checks five things, and
-produces a `LintReport`. The report is written to `LINT.md` and committed. The
+produces a `LintReport`. The report is written to `LINT.md`. The
 wiki binary makes no content judgments — it surfaces structural problems and
 hands them to the LLM.
 
@@ -77,7 +77,7 @@ score. Score is always `0.0` for lint results (not a search ranking).
 
 ## 3. `LINT.md` Format Specification
 
-`llm-wiki lint` overwrites `LINT.md` at the repository root and commits it. Git history
+`llm-wiki lint` overwrites `LINT.md` at the repository root. Git history
 is the archive — no previous report is preserved in the file itself.
 
 ### Structure
@@ -218,7 +218,7 @@ When empty:
 _No untyped sources found._
 ```
 
-Git commit: `lint: <date> — N orphans, M stubs, K empty sections`
+Git message (when committed via `llm-wiki commit`): `lint: <date> — N orphans, M stubs, K empty sections`
 
 `LINT.md` is a generated operational artifact — it must not have frontmatter
 and is excluded from tantivy indexing, orphan detection, and graph traversal.
@@ -245,14 +245,14 @@ Five checks, always run:
 llm-wiki lint                          # audit + write LINT.md
 llm-wiki lint fix                      # run all enabled auto-fixes (from config)
              [--only <check>]      # missing-stubs | empty-sections
-             [--dry-run]           # show what would be fixed, no commit
+             [--dry-run]           # show what would be fixed
              [--wiki <name>]
 ```
 
 `llm-wiki lint fix` reads `[lint]` config to determine which fixes are enabled.
 CLI flags override config per-call.
 
-Git commit for fix: `lint(fix): <date> — +N stubs, +M sections`
+Neither `lint` nor `lint fix` commits. Use `llm-wiki commit` after reviewing.
 
 ---
 

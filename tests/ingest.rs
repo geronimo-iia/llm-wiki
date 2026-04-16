@@ -52,7 +52,7 @@ fn ingest_validates_a_valid_page_and_commits() {
     let wiki_root = setup_repo(dir.path());
     write_page(&wiki_root, "concepts/foo.md", VALID_PAGE);
 
-    let opts = IngestOptions { dry_run: false };
+    let opts = IngestOptions { dry_run: false, auto_commit: true };
     let report = ingest(
         Path::new("concepts/foo.md"),
         &opts,
@@ -77,7 +77,7 @@ fn ingest_rejects_page_with_no_title() {
         "---\ntitle: \"\"\nstatus: active\ntype: concept\n---\n\nBody\n",
     );
 
-    let opts = IngestOptions { dry_run: false };
+    let opts = IngestOptions { dry_run: false, ..Default::default() };
     let result = ingest(
         Path::new("concepts/bad.md"),
         &opts,
@@ -99,7 +99,7 @@ fn ingest_rejects_page_with_invalid_yaml() {
         "---\ntitle: [broken yaml {{\n---\n\nBody\n",
     );
 
-    let opts = IngestOptions { dry_run: false };
+    let opts = IngestOptions { dry_run: false, ..Default::default() };
     let result = ingest(
         Path::new("concepts/bad.md"),
         &opts,
@@ -120,7 +120,7 @@ fn ingest_generates_minimal_frontmatter_for_file_without_it() {
         "# My Bare Page\n\nJust content.\n",
     );
 
-    let opts = IngestOptions { dry_run: false };
+    let opts = IngestOptions { dry_run: false, ..Default::default() };
     let report = ingest(
         Path::new("concepts/bare.md"),
         &opts,
@@ -145,7 +145,7 @@ fn ingest_sets_last_updated_to_today() {
     let wiki_root = setup_repo(dir.path());
     write_page(&wiki_root, "concepts/foo.md", VALID_PAGE);
 
-    let opts = IngestOptions { dry_run: false };
+    let opts = IngestOptions { dry_run: false, ..Default::default() };
     ingest(
         Path::new("concepts/foo.md"),
         &opts,
@@ -169,7 +169,7 @@ fn ingest_dry_run_does_not_commit() {
 
     let head_before = git::current_head(dir.path()).unwrap();
 
-    let opts = IngestOptions { dry_run: true };
+    let opts = IngestOptions { dry_run: true, ..Default::default() };
     let report = ingest(
         Path::new("concepts/foo.md"),
         &opts,
@@ -193,7 +193,7 @@ fn ingest_folder_ingests_all_md_files_recursively() {
     write_page(&wiki_root, "concepts/a.md", VALID_PAGE);
     write_page(&wiki_root, "concepts/sub/b.md", VALID_PAGE);
 
-    let opts = IngestOptions { dry_run: false };
+    let opts = IngestOptions { dry_run: false, ..Default::default() };
     let report = ingest(
         Path::new("concepts"),
         &opts,
@@ -213,7 +213,7 @@ fn ingest_detects_colocated_assets() {
     fs::write(wiki_root.join("concepts/foo/diagram.png"), b"fake").unwrap();
     fs::write(wiki_root.join("concepts/foo/config.yaml"), b"key: val").unwrap();
 
-    let opts = IngestOptions { dry_run: false };
+    let opts = IngestOptions { dry_run: false, ..Default::default() };
     let report = ingest(
         Path::new("concepts/foo"),
         &opts,
@@ -232,7 +232,7 @@ fn ingest_report_commit_matches_git_head() {
     let wiki_root = setup_repo(dir.path());
     write_page(&wiki_root, "concepts/foo.md", VALID_PAGE);
 
-    let opts = IngestOptions { dry_run: false };
+    let opts = IngestOptions { dry_run: false, auto_commit: true };
     let report = ingest(
         Path::new("concepts/foo.md"),
         &opts,
@@ -257,7 +257,7 @@ fn ingest_rebuilds_index_when_auto_rebuild_enabled() {
 
     // Write and ingest a new page
     write_page(&wiki_root, "concepts/foo.md", VALID_PAGE);
-    let opts = IngestOptions { dry_run: false };
+    let opts = IngestOptions { dry_run: false, ..Default::default() };
     ingest(
         Path::new("concepts/foo.md"),
         &opts,
@@ -298,7 +298,7 @@ fn ingest_leaves_index_stale_when_auto_rebuild_disabled() {
 
     // Write and ingest a new page (no rebuild — simulates auto_rebuild=false)
     write_page(&wiki_root, "concepts/bar.md", VALID_PAGE);
-    let opts = IngestOptions { dry_run: false };
+    let opts = IngestOptions { dry_run: false, auto_commit: true };
     ingest(
         Path::new("concepts/bar.md"),
         &opts,
@@ -348,7 +348,7 @@ fn ingest_normalizes_crlf_to_lf() {
     std::fs::create_dir_all(page_path.parent().unwrap()).unwrap();
     std::fs::write(&page_path, crlf_content).unwrap();
 
-    let opts = IngestOptions { dry_run: false };
+    let opts = IngestOptions { dry_run: false, ..Default::default() };
     ingest(
         Path::new("concepts/crlf.md"),
         &opts,

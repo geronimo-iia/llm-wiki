@@ -83,11 +83,11 @@ Human drops file in inbox/       LLM processes it
 inbox/my-article.md         →   reads schema.md (knows this wiki's conventions)
                                  reads inbox file
                                  writes pages directly into wiki/ tree
-                                 llm-wiki ingest → validate, commit, index
+                                 llm-wiki ingest → validate, index, commit (if auto_commit)
 ```
 
 Authors (human or LLM) write directly into the wiki tree. The engine
-validates, commits to git, and indexes. The two are independent — the engine
+validates, indexes, and optionally commits to git. The two are independent — the engine
 works without an LLM, the LLM works through the engine's MCP interface.
 
 ---
@@ -96,7 +96,7 @@ works without an LLM, the LLM works through the engine's MCP interface.
 
 A Rust CLI and MCP/ACP server that manages a wiki repository:
 
-- **Ingest** — validate, commit, and index files already in the wiki tree
+- **Ingest** — validate and index files already in the wiki tree; commit when `auto_commit` is on
 - **Search** — full-text BM25 search across all pages
 - **Read** — fetch the full content of a single page by slug or `wiki://` URI
 - **List** — paginated enumeration of pages with type and status filters
@@ -138,7 +138,7 @@ either `concepts/mixture-of-experts.md` or `concepts/mixture-of-experts/index.md
 for the default wiki.
 
 **Write + Ingest** — the two-step pattern. The author writes a file into the
-wiki tree, then `llm-wiki ingest` validates, commits, and indexes it. No file
+wiki tree, then `llm-wiki ingest` validates and indexes it. No file
 movement — the file is already where it belongs.
 
 ---

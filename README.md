@@ -152,10 +152,12 @@ works without an LLM, the LLM works through the engine's MCP interface.
 flowchart LR
     A[Author writes file\ninto wiki/ tree] --> B{wiki ingest}
     B --> C[Validate frontmatter]
-    C -->|valid| D[git add + commit]
+    C -->|valid| D[Update tantivy index]
     C -->|invalid| E[Error — file rejected]
-    D --> F[Update tantivy index]
-    F --> G[IngestReport returned]
+    D --> F{auto_commit?}
+    F -->|yes| G[git add + commit]
+    F -->|no| H[IngestReport returned]
+    G --> H
 
     style E fill:#f8d7da
     style G fill:#d4edda
@@ -181,7 +183,7 @@ sequenceDiagram
     Engine-->>LLM: ok
 
     LLM->>Engine: wiki_ingest("concepts/topic.md")
-    Engine->>Repo: validate → git commit → index
+    Engine->>Repo: validate → index → commit (if auto_commit)
     Engine-->>LLM: IngestReport
 ```
 
@@ -226,7 +228,7 @@ Crystallize and bootstrap form a compounding loop:
 flowchart TD
     B["bootstrap\nread hub pages"] --> W["work\nsearch, read, write"]
     W --> C["crystallize\ndistil session into pages"]
-    C --> I["wiki ingest\nvalidate, commit, index"]
+    C --> I["wiki ingest\nvalidate, index"]
     I --> R["hub pages updated\nwiki is richer"]
     R -->|"next session"| B
 
@@ -265,7 +267,8 @@ accumulator. The LLM is stateless — the wiki is not.
 - **`wiki://` URI** — portable reference format. `wiki://research/concepts/moe`
   addresses a page in the `research` wiki. `wiki://concepts/moe` uses the
   default wiki.
-- **Ingest** — validate, commit, and index files already in the wiki tree.
+- **Ingest** — validate and index files already in the wiki tree.
+  Commits when `ingest.auto_commit` is `true` (the default).
   Authors write directly into `wiki/`, then run `llm-wiki ingest`.
 - **Search** — full-text BM25 search via tantivy, returning ranked results
   with `wiki://` URIs.
@@ -308,7 +311,7 @@ for the full command reference. Summary:
 llm-wiki init <path> --name <name>       Initialize a new wiki
 llm-wiki new page <uri> [--bundle]       Create a page with scaffolded frontmatter
 llm-wiki new section <uri>               Create a section
-llm-wiki ingest <path> [--dry-run]       Validate, commit, and index
+llm-wiki ingest <path> [--dry-run]       Validate and index
 llm-wiki search "<query>"                Full-text BM25 search
 llm-wiki read <slug|uri>                 Fetch page content
 llm-wiki list [--type] [--status]        Paginated page listing
@@ -322,6 +325,7 @@ llm-wiki config get|set|list             Read/write configuration
 llm-wiki spaces list|remove|set-default  Manage wiki spaces
 llm-wiki serve [--sse] [--acp]           Start MCP/ACP server
 llm-wiki instruct [<workflow>]           Print workflow instructions
+llm-wiki commit [<slug>...] [--all]      Commit pending changes to git
 ```
 
 ---

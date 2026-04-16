@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::Parser;
@@ -162,7 +162,10 @@ fn main() -> Result<()> {
             let resolved = config::resolve(&global, &wiki_cfg);
             let schema = config::load_schema(&PathBuf::from(&entry.path))?;
 
-            let opts = ingest::IngestOptions { dry_run };
+            let opts = ingest::IngestOptions {
+                dry_run,
+                auto_commit: resolved.ingest.auto_commit,
+            };
             let report = ingest::ingest(
                 std::path::Path::new(&path),
                 &opts,
@@ -209,27 +212,23 @@ fn main() -> Result<()> {
                 } => {
                     let (entry, slug) = spaces::resolve_uri(&uri, &global)?;
                     let wiki_root = PathBuf::from(&entry.path).join("wiki");
-                    let repo_root = PathBuf::from(&entry.path);
 
                     if dry_run {
                         let form = if bundle { "bundle" } else { "flat" };
                         println!("Would create {form} page at wiki://{}/{slug}", entry.name);
                     } else {
                         let path = markdown::create_page(&slug, bundle, &wiki_root)?;
-                        git::commit(&repo_root, &format!("new: {uri}"))?;
                         println!("Created: {}", path.display());
                     }
                 }
                 NewAction::Section { uri, dry_run } => {
                     let (entry, slug) = spaces::resolve_uri(&uri, &global)?;
                     let wiki_root = PathBuf::from(&entry.path).join("wiki");
-                    let repo_root = PathBuf::from(&entry.path);
 
                     if dry_run {
                         println!("Would create section at wiki://{}/{slug}", entry.name);
                     } else {
                         let path = markdown::create_section(&slug, &wiki_root)?;
-                        git::commit(&repo_root, &format!("new: {uri}"))?;
                         println!("Created: {}", path.display());
                     }
                 }
@@ -520,7 +519,6 @@ fn main() -> Result<()> {
                             report.missing_stubs.len(),
                             report.empty_sections.len()
                         );
-                        git::commit(&entry_path, &msg)?;
                         println!("Wrote LINT.md \u{2014} {msg}");
                     }
                 }
@@ -603,6 +601,50 @@ fn main() -> Result<()> {
             } else {
                 print!("{rendered}");
             }
+        }
+        Commands::Commit {
+            slugs,
+            all,
+            message,
+        } => {
+            let global = config::load_global(&config_path)?;
+            let wiki_name = cli.wiki.as_deref().unwrap_or(&global.global.default_wiki);
+            let entry = spaces::resolve_name(wiki_name, &global)?;
+            let repo_root = PathBuf::from(&entry.path);
+            let wiki_root = repo_root.join("wiki");
+
+            if slugs.is_empty() && !all {
+                anyhow::bail!("specify slugs or --all");
+            }
+
+            let hash = if all {
+                let msg = message.unwrap_or_else(|| "commit: all".into());
+                git::commit(&repo_root, &msg)?
+            } else {
+                let mut paths = Vec::new();
+                for slug in &slugs {
+                    let resolved = markdown::resolve_slug(slug, &wiki_root)?;
+                    if resolved.file_name() == Some(std::ffi::OsStr::new("index.md")) {
+                        // Bundle: stage all files in the folder
+                        let bundle_dir = resolved.parent().unwrap();
+                        for entry in walkdir::WalkDir::new(bundle_dir)
+                            .into_iter()
+                            .filter_map(|e| e.ok())
+                        {
+                            if entry.path().is_file() {
+                                paths.push(entry.path().to_path_buf());
+                            }
+                        }
+                    } else {
+                        paths.push(resolved);
+                    }
+                }
+                let path_refs: Vec<&Path> = paths.iter().map(|p| p.as_path()).collect();
+                let msg = message.unwrap_or_else(|| format!("commit: {}", slugs.join(", ")));
+                git::commit_paths(&repo_root, &path_refs, &msg)?
+            };
+
+            println!("{hash}");
         }
         Commands::Spaces { action } => match action {
             SpacesAction::List => {

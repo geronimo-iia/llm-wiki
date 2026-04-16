@@ -77,7 +77,7 @@ graph TD
 
 ## 3. Ingest Pipeline
 
-How content enters the wiki — from source to committed knowledge.
+How content enters the wiki — from source to validated, indexed knowledge.
 
 → [Ingest](specifications/pipelines/ingest.md)
 
@@ -85,13 +85,15 @@ How content enters the wiki — from source to committed knowledge.
 flowchart LR
     A[Author writes file\ninto wiki/ tree] --> B{wiki ingest}
     B --> C[Validate frontmatter]
-    C -->|valid| D[git add + commit]
+    C -->|valid| D[Update tantivy index]
     C -->|invalid| E[Error — file rejected]
-    D --> F[Update tantivy index]
-    F --> G[IngestReport returned]
+    D --> F{auto_commit?}
+    F -->|yes| G[git add + commit]
+    F -->|no| H[IngestReport returned]
+    G --> H
 
     style E fill:#f8d7da
-    style G fill:#d4edda
+    style H fill:#d4edda
 ```
 
 ---
@@ -120,7 +122,7 @@ sequenceDiagram
     Engine-->>LLM: ok
 
     LLM->>Engine: wiki_ingest("concepts/topic.md")
-    Engine->>Repo: validate → git commit → index
+    Engine->>Repo: validate → index → commit (if auto_commit)
     Engine-->>LLM: IngestReport
 ```
 
@@ -136,7 +138,7 @@ The compounding loop across sessions — each session starts richer than the las
 flowchart TD
     B["bootstrap\nread hub pages"] --> W["work\nsearch, read, write"]
     W --> C["crystallize\ndistil session into pages"]
-    C --> I["wiki ingest\nvalidate, commit, index"]
+    C --> I["wiki ingest\nvalidate, index"]
     I --> R["hub pages updated\nwiki is richer"]
     R -->|"next session"| B
 

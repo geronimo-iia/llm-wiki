@@ -71,6 +71,9 @@ max_restarts     = 10       # max transport restarts before exit; 0 = no restart
 restart_backoff  = 1        # initial backoff seconds; doubles each restart, cap 30s
 heartbeat_secs   = 60       # heartbeat log interval; 0 = disabled
 
+[ingest]
+auto_commit = true  # commit after ingest; false = validate + index only
+
 [validation]
 type_strictness = "loose"  # strict | loose
 
@@ -106,6 +109,9 @@ search_excerpt  = false  # refs only for this wiki
 search_sections = true   # this wiki uses sections as navigation, include them
 page_mode       = "flat"
 
+[ingest]
+auto_commit = false  # human reviews before committing
+
 [validation]
 type_strictness = "strict"  # override global loose default for this wiki
 
@@ -125,6 +131,7 @@ fix_missing_stubs  = false  # do not auto-create stubs for this wiki
 | `defaults.search_sections` | global / per-wiki | `false` | Include section index pages in results; `true` behaves like `--include-sections` |
 | `defaults.page_mode` | global / per-wiki | `flat` | Default page creation mode: `flat` or `bundle` |
 | `defaults.list_page_size` | global / per-wiki | `20` | Default page size for `llm-wiki list` pagination |
+| `ingest.auto_commit` | global / per-wiki | `true` | Commit automatically after ingest; `false` requires explicit `llm-wiki commit` |
 | `read.no_frontmatter` | global / per-wiki | `false` | Strip frontmatter from `llm-wiki read` output by default |
 | `index.auto_rebuild` | global only | `false` | Automatically rebuild stale index before search/list |
 | `index.auto_recovery` | global only | `true` | Automatically rebuild corrupt index on open failure |

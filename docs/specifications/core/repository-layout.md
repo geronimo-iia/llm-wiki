@@ -102,7 +102,7 @@ my-wiki/                            ← git repository root
 │   │   └── switch-transformer-2021.md  (type: paper)
 │   ├── queries/                    ← schema convention, not engine-enforced
 │   │   └── moe-routing-comparison.md   (type: query-result)
-├── LINT.md                         ← committed by llm-wiki lint
+├── LINT.md                         ← written by llm-wiki lint
 └── .gitignore                      ← empty or user-managed
 ```
 

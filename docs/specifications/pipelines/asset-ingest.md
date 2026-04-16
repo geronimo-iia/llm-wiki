@@ -85,7 +85,7 @@ wiki_write("concepts/mixture-of-experts/moe-routing.png", <base64 content>)
 ```
 
 Assets are always co-located with their page. The LLM writes the asset
-file, then runs `wiki_ingest` on the bundle folder to validate and commit.
+file, then runs `wiki_ingest` on the bundle folder to validate and index.
 
 ---
 
@@ -96,7 +96,8 @@ llm-wiki ingest <path>   (path is inside wiki tree)
   │
   ├─ validate .md files → frontmatter checks
   ├─ detect assets → non-.md files in bundle folders
-  ├─ git add + commit — +N pages, +M assets
+  ├─ index → update tantivy search index
+  ├─ git add + commit (if auto_commit = true)
   └─ return IngestReport { pages_validated, assets_found, warnings, commit }
 ```
 
