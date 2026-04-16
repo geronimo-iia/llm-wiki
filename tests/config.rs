@@ -297,3 +297,29 @@ fn resolve_falls_back_to_global_read_when_per_wiki_absent() {
     let resolved = resolve(&global, &per_wiki);
     assert_eq!(resolved.read.no_frontmatter, true);
 }
+
+
+#[test]
+fn index_config_auto_recovery_defaults_true() {
+    let cfg = IndexConfig::default();
+    assert!(cfg.auto_recovery);
+}
+
+#[test]
+fn set_global_config_value_sets_auto_recovery() {
+    let mut global = GlobalConfig::default();
+    set_global_config_value(&mut global, "index.auto_recovery", "false").unwrap();
+    assert!(!global.index.auto_recovery);
+}
+
+#[test]
+fn set_wiki_config_value_rejects_index_keys() {
+    let mut cfg = WikiConfig::default();
+    let result = set_wiki_config_value(&mut cfg, "index.auto_recovery", "false");
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("global-only"));
+
+    let result = set_wiki_config_value(&mut cfg, "index.auto_rebuild", "true");
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("global-only"));
+}

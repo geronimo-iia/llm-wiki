@@ -53,10 +53,21 @@ pub struct ReadConfig {
     pub no_frontmatter: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexConfig {
     #[serde(default)]
     pub auto_rebuild: bool,
+    #[serde(default = "default_true")]
+    pub auto_recovery: bool,
+}
+
+impl Default for IndexConfig {
+    fn default() -> Self {
+        Self {
+            auto_rebuild: false,
+            auto_recovery: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -405,6 +416,7 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "defaults.list_page_size" => global.defaults.list_page_size = value.parse()?,
         "read.no_frontmatter" => global.read.no_frontmatter = value.parse()?,
         "index.auto_rebuild" => global.index.auto_rebuild = value.parse()?,
+        "index.auto_recovery" => global.index.auto_recovery = value.parse()?,
         "graph.format" => global.graph.format = value.into(),
         "graph.depth" => global.graph.depth = value.parse()?,
         "graph.output" => global.graph.output = value.into(),
@@ -456,7 +468,7 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
         "lint.fix_empty_sections" => {
             wiki_cfg.lint.get_or_insert_with(LintConfig::default).fix_empty_sections = value.parse()?;
         }
-        "global.default_wiki" | "index.auto_rebuild"
+        "global.default_wiki" | "index.auto_rebuild" | "index.auto_recovery"
         | "graph.format" | "graph.depth" | "graph.output"
         | "serve.sse" | "serve.sse_port" | "serve.acp"
         | "serve.max_restarts" | "serve.restart_backoff" | "serve.heartbeat_secs"

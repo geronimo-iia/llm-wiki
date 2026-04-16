@@ -182,3 +182,17 @@ All recovery actions are logged:
 | Rebuild failed | `error` | wiki, error |
 | state.toml parse error | `warn` | wiki, error |
 | Schema version mismatch | `info` | wiki, stored, current |
+| Corrupt directory delete failed | `warn` | error |
+
+---
+
+## 8. Limitations
+
+| Limitation | Reason | Impact |
+|------------|--------|--------|
+| Partial corruption may not be detected | Tantivy can serve queries from remaining healthy segments. Detection depends on which files are damaged. | Silently wrong results possible. Use `wiki index check` to verify. |
+| Cross-wiki search (`--all`) does not attempt recovery | `search_all` skips broken wikis. Per-wiki `wiki_root`/`repo_root` not available in the cross-wiki path. | Broken wiki silently excluded from results. |
+| ACP research workflow does not attempt recovery | ACP workflow dispatch has no access to resolved config. | User gets "Search failed" message. Manual `wiki index rebuild` needed. |
+| No concurrent recovery protection | If two MCP calls detect corruption simultaneously, both may attempt delete + rebuild. | Unlikely with single-threaded MCP. Second rebuild is a no-op (fresh index). |
+| Recovery deletes the entire index directory | No incremental repair — full rebuild from wiki markdown. | Rebuild time proportional to wiki size. |
+| `remove_dir_all` failure is non-fatal | Logged at `warn` level. Rebuild proceeds but may fail if corrupt files remain. | Manual cleanup needed if permissions prevent deletion. |

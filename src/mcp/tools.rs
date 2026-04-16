@@ -549,7 +549,18 @@ fn handle_search(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerR
             }
         }
 
-        search::search(&query, &opts, &index_path, &entry.name).map_err(|e| format!("{e}"))?
+        let recovery = if resolved.index.auto_recovery {
+            let wiki_root_buf = repo_root.join("wiki");
+            Some((wiki_root_buf, repo_root.clone()))
+        } else {
+            None
+        };
+        let recovery_ctx = recovery.as_ref().map(|(wr, rr)| search::RecoveryContext {
+            wiki_root: wr,
+            repo_root: rr,
+        });
+
+        search::search(&query, &opts, &index_path, &entry.name, recovery_ctx.as_ref()).map_err(|e| format!("{e}"))?
     };
 
     let s = serde_json::to_string_pretty(&results).map_err(|e| format!("{e}"))?;
@@ -615,7 +626,17 @@ fn handle_list(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerRes
         page_size: arg_usize(args, "page_size")
             .unwrap_or(resolved.defaults.list_page_size as usize),
     };
-    let result = search::list(&opts, &index_path, &entry.name).map_err(|e| format!("{e}"))?;
+    let recovery = if resolved.index.auto_recovery {
+        let wiki_root_buf = repo_root.join("wiki");
+        Some((wiki_root_buf, repo_root.clone()))
+    } else {
+        None
+    };
+    let recovery_ctx = recovery.as_ref().map(|(wr, rr)| search::RecoveryContext {
+        wiki_root: wr,
+        repo_root: rr,
+    });
+    let result = search::list(&opts, &index_path, &entry.name, recovery_ctx.as_ref()).map_err(|e| format!("{e}"))?;
     let s = serde_json::to_string_pretty(&result).map_err(|e| format!("{e}"))?;
     ok_text(s)
 }
@@ -782,6 +803,7 @@ fn get_value(
         "defaults.list_page_size" => resolved.defaults.list_page_size.to_string(),
         "read.no_frontmatter" => resolved.read.no_frontmatter.to_string(),
         "index.auto_rebuild" => resolved.index.auto_rebuild.to_string(),
+        "index.auto_recovery" => global.index.auto_recovery.to_string(),
         "graph.format" => resolved.graph.format.clone(),
         "graph.depth" => resolved.graph.depth.to_string(),
         "graph.output" => resolved.graph.output.clone(),

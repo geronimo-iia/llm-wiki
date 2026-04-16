@@ -281,6 +281,7 @@ fn ingest_rebuilds_index_when_auto_rebuild_enabled() {
         &llm_wiki::search::SearchOptions::default(),
         &index_path,
         "test",
+        None,
     )
     .unwrap();
     assert!(!results.is_empty());

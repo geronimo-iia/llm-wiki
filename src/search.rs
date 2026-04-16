@@ -110,6 +110,14 @@ impl Default for ListOptions {
     }
 }
 
+// ── Recovery context ───────────────────────────────────────────────────────────
+
+/// Optional context for auto-recovery on corrupt index.
+pub struct RecoveryContext<'a> {
+    pub wiki_root: &'a Path,
+    pub repo_root: &'a Path,
+}
+
 // ── Tantivy schema ────────────────────────────────────────────────────────────
 
 fn build_schema() -> Schema {
@@ -130,6 +138,42 @@ fn build_schema() -> Schema {
     builder.add_text_field("status", STRING | STORED);
     builder.add_text_field("tags", text_opts);
     builder.build()
+}
+
+/// Try to open the tantivy index. If it fails and recovery context is provided,
+/// delete corrupt files, rebuild, and retry once.
+fn open_index(
+    search_dir: &Path,
+    index_path: &Path,
+    wiki_name: &str,
+    recovery: Option<&RecoveryContext<'_>>,
+) -> Result<Index> {
+    let try_open = || -> Result<Index> {
+        let dir = MmapDirectory::open(search_dir)?;
+        Ok(Index::open(dir)?)
+    };
+
+    match try_open() {
+        Ok(idx) => Ok(idx),
+        Err(e) => {
+            if let Some(ctx) = recovery {
+                tracing::warn!(
+                    wiki = %wiki_name,
+                    error = %e,
+                    "index corrupt, rebuilding",
+                );
+                if search_dir.exists() {
+                    if let Err(e) = std::fs::remove_dir_all(search_dir) {
+                        tracing::warn!(error = %e, "failed to delete corrupt index directory");
+                    }
+                }
+                rebuild_index(ctx.wiki_root, index_path, wiki_name, ctx.repo_root)?;
+                try_open().context("index still corrupt after rebuild")
+            } else {
+                Err(e)
+            }
+        }
+    }
 }
 
 // ── rebuild_index ─────────────────────────────────────────────────────────────
@@ -284,6 +328,7 @@ pub fn search(
     options: &SearchOptions,
     index_path: &Path,
     wiki_name: &str,
+    recovery: Option<&RecoveryContext<'_>>,
 ) -> Result<Vec<PageRef>> {
     let search_dir = index_path.join("search-index");
     if !search_dir.exists() {
@@ -291,8 +336,7 @@ pub fn search(
     }
 
     let schema = build_schema();
-    let dir = MmapDirectory::open(&search_dir)?;
-    let index = Index::open(dir)?;
+    let index = open_index(&search_dir, index_path, wiki_name, recovery)?;
     let reader = index.reader()?;
     let searcher = reader.searcher();
 
@@ -384,15 +428,19 @@ pub fn search(
 
 // ── list ──────────────────────────────────────────────────────────────────────
 
-pub fn list(options: &ListOptions, index_path: &Path, wiki_name: &str) -> Result<PageList> {
+pub fn list(
+    options: &ListOptions,
+    index_path: &Path,
+    wiki_name: &str,
+    recovery: Option<&RecoveryContext<'_>>,
+) -> Result<PageList> {
     let search_dir = index_path.join("search-index");
     if !search_dir.exists() {
         bail!("search index not found — run `wiki index rebuild`");
     }
 
     let schema = build_schema();
-    let dir = MmapDirectory::open(&search_dir)?;
-    let index = Index::open(dir)?;
+    let index = open_index(&search_dir, index_path, wiki_name, recovery)?;
     let reader = index.reader()?;
     let searcher = reader.searcher();
 
@@ -515,7 +563,7 @@ pub fn search_all(
 ) -> Result<Vec<PageRef>> {
     let mut all_results = Vec::new();
     for (name, index_path) in wikis {
-        match search(query_str, options, index_path, name) {
+        match search(query_str, options, index_path, name, None) {
             Ok(results) => all_results.extend(results),
             Err(_) => continue, // skip wikis without index
         }

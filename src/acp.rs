@@ -273,7 +273,7 @@ impl acp::Agent for WikiAgent {
                     if let Some(entry) = &wiki_entry {
                         let index_path = crate::server::WikiServer::index_path_for(&entry.name);
                         let opts = crate::search::SearchOptions::default();
-                        match crate::search::search(&text, &opts, &index_path, &entry.name) {
+                        match crate::search::search(&text, &opts, &index_path, &entry.name, None) {
                             Ok(results) if !results.is_empty() => {
                                 let hits: Vec<String> = results
                                     .iter()

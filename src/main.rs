@@ -286,7 +286,16 @@ fn main() -> Result<()> {
                     }
                 }
 
-                search::search(&query, &opts, &index_path, wiki_name)?
+                let recovery = if resolved.index.auto_recovery {
+                    Some(search::RecoveryContext {
+                        wiki_root: &repo_root.join("wiki"),
+                        repo_root: &repo_root,
+                    })
+                } else {
+                    None
+                };
+
+                search::search(&query, &opts, &index_path, wiki_name, recovery.as_ref())?
             };
             for r in &results {
                 println!("slug:  {}", r.slug);
@@ -366,7 +375,15 @@ fn main() -> Result<()> {
                 page,
                 page_size: page_size.unwrap_or(resolved.defaults.list_page_size as usize),
             };
-            let result = search::list(&opts, &index_path, wiki_name)?;
+            let recovery = if resolved.index.auto_recovery {
+                Some(search::RecoveryContext {
+                    wiki_root: &repo_root.join("wiki"),
+                    repo_root: &repo_root,
+                })
+            } else {
+                None
+            };
+            let result = search::list(&opts, &index_path, wiki_name, recovery.as_ref())?;
             for p in &result.pages {
                 println!(
                     "{:<40} {:<16} {:<8} {}",
@@ -602,6 +619,7 @@ fn get_config_value(
         "defaults.list_page_size" => resolved.defaults.list_page_size.to_string(),
         "read.no_frontmatter" => resolved.read.no_frontmatter.to_string(),
         "index.auto_rebuild" => resolved.index.auto_rebuild.to_string(),
+        "index.auto_recovery" => global.index.auto_recovery.to_string(),
         "graph.format" => resolved.graph.format.clone(),
         "graph.depth" => resolved.graph.depth.to_string(),
         "graph.output" => resolved.graph.output.clone(),

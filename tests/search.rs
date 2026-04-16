@@ -169,7 +169,7 @@ fn search_returns_results_ranked_by_bm25_score() {
     let index_path = build_index(dir.path(), &wiki_root);
 
     let opts = SearchOptions::default();
-    let results = search("MoE scaling", &opts, &index_path, "test").unwrap();
+    let results = search("MoE scaling", &opts, &index_path, "test", None).unwrap();
 
     assert!(!results.is_empty());
     // Results should be sorted by score descending (BM25)
@@ -200,7 +200,7 @@ fn search_with_no_excerpt_returns_pageref_with_excerpt_none() {
         no_excerpt: true,
         ..Default::default()
     };
-    let results = search("Foo", &opts, &index_path, "test").unwrap();
+    let results = search("Foo", &opts, &index_path, "test", None).unwrap();
     assert!(!results.is_empty());
     assert!(results[0].excerpt.is_none());
 }
@@ -222,7 +222,7 @@ fn search_with_include_sections_false_excludes_section_pages() {
         include_sections: false,
         ..Default::default()
     };
-    let results = search("Concepts", &opts, &index_path, "test").unwrap();
+    let results = search("Concepts", &opts, &index_path, "test", None).unwrap();
     for r in &results {
         assert_ne!(r.slug, "concepts", "section page should be excluded");
     }
@@ -245,7 +245,7 @@ fn search_with_include_sections_true_includes_section_pages() {
         include_sections: true,
         ..Default::default()
     };
-    let results = search("Concepts", &opts, &index_path, "test").unwrap();
+    let results = search("Concepts", &opts, &index_path, "test", None).unwrap();
     let slugs: Vec<&str> = results.iter().map(|r| r.slug.as_str()).collect();
     assert!(
         slugs.contains(&"concepts"),
@@ -274,7 +274,7 @@ fn search_type_filter_returns_only_matching_type() {
         r#type: Some("paper".into()),
         ..Default::default()
     };
-    let results = search("MoE scaling", &opts, &index_path, "test").unwrap();
+    let results = search("MoE scaling", &opts, &index_path, "test", None).unwrap();
     assert!(!results.is_empty());
     for r in &results {
         // All results should be from the paper page
@@ -295,7 +295,7 @@ fn list_returns_all_pages_ordered_by_slug() {
     let index_path = build_index(dir.path(), &wiki_root);
 
     let opts = ListOptions::default();
-    let result = list(&opts, &index_path, "test").unwrap();
+    let result = list(&opts, &index_path, "test", None).unwrap();
     assert_eq!(result.total, 3);
     let slugs: Vec<&str> = result.pages.iter().map(|p| p.slug.as_str()).collect();
     assert_eq!(
@@ -317,7 +317,7 @@ fn list_with_type_concept_returns_only_concept_pages() {
         r#type: Some("concept".into()),
         ..Default::default()
     };
-    let result = list(&opts, &index_path, "test").unwrap();
+    let result = list(&opts, &index_path, "test", None).unwrap();
     assert_eq!(result.total, 1);
     assert_eq!(result.pages[0].r#type, "concept");
     assert_eq!(result.pages[0].slug, "concepts/foo");
@@ -340,7 +340,7 @@ fn list_with_status_draft_returns_only_draft_pages() {
         status: Some("draft".into()),
         ..Default::default()
     };
-    let result = list(&opts, &index_path, "test").unwrap();
+    let result = list(&opts, &index_path, "test", None).unwrap();
     assert_eq!(result.total, 1);
     assert_eq!(result.pages[0].status, "draft");
 }
@@ -365,7 +365,7 @@ fn list_pagination_returns_correct_page_and_total() {
         page_size: 2,
         ..Default::default()
     };
-    let result = list(&opts, &index_path, "test").unwrap();
+    let result = list(&opts, &index_path, "test", None).unwrap();
     assert_eq!(result.total, 5);
     assert_eq!(result.page, 1);
     assert_eq!(result.page_size, 2);
@@ -377,7 +377,7 @@ fn list_pagination_returns_correct_page_and_total() {
         page_size: 2,
         ..Default::default()
     };
-    let result = list(&opts, &index_path, "test").unwrap();
+    let result = list(&opts, &index_path, "test", None).unwrap();
     assert_eq!(result.total, 5);
     assert_eq!(result.page, 3);
     assert_eq!(result.pages.len(), 1);
@@ -388,7 +388,7 @@ fn list_pagination_returns_correct_page_and_total() {
         page_size: 2,
         ..Default::default()
     };
-    let result = list(&opts, &index_path, "test").unwrap();
+    let result = list(&opts, &index_path, "test", None).unwrap();
     assert_eq!(result.total, 5);
     assert!(result.pages.is_empty());
 }
@@ -534,4 +534,61 @@ fn index_status_returns_stale_on_malformed_state_toml() {
     assert!(status.stale);
     assert!(status.built.is_none());
     assert_eq!(status.pages, 0);
+}
+
+
+#[test]
+fn search_recovers_from_corrupt_index() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        &concept_page("Foo", "Foo body text"),
+    );
+    let index_path = build_index(dir.path(), &wiki_root);
+
+    // Corrupt the index by overwriting ALL files
+    let search_dir = index_path.join("search-index");
+    for entry in fs::read_dir(&search_dir).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_type().unwrap().is_file() {
+            fs::write(entry.path(), b"corrupted").unwrap();
+        }
+    }
+
+    // Search with recovery should rebuild and succeed
+    let recovery = RecoveryContext {
+        wiki_root: &wiki_root,
+        repo_root: dir.path(),
+    };
+    let opts = SearchOptions::default();
+    let results = search("Foo", &opts, &index_path, "test", Some(&recovery)).unwrap();
+    assert!(!results.is_empty(), "should find results after recovery");
+}
+
+#[test]
+fn search_errors_on_corrupt_index_without_recovery() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        &concept_page("Foo", "Foo body text"),
+    );
+    let index_path = build_index(dir.path(), &wiki_root);
+
+    // Corrupt the index by overwriting ALL files
+    let search_dir = index_path.join("search-index");
+    for entry in fs::read_dir(&search_dir).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_type().unwrap().is_file() {
+            fs::write(entry.path(), b"corrupted").unwrap();
+        }
+    }
+
+    // Search without recovery should error
+    let opts = SearchOptions::default();
+    let result = search("Foo", &opts, &index_path, "test", None);
+    assert!(result.is_err());
 }
