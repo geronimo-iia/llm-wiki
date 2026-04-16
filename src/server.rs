@@ -110,15 +110,39 @@ pub async fn serve_stdio(server: WikiServer) -> Result<()> {
     Ok(())
 }
 
-pub async fn serve_sse(server: WikiServer, port: u16) -> Result<()> {
+pub async fn serve_sse(server: WikiServer, port: u16, serve_cfg: &config::ServeConfig) -> Result<()> {
     let addr: SocketAddr = ([0, 0, 0, 0], port).into();
-    let sse_server = SseServer::serve(addr)
-        .await
-        .map_err(|e| anyhow::anyhow!("failed to start SSE server on {addr}: {e}"))?;
-    tracing::info!(%addr, "SSE server listening");
-    let _ct = sse_server.with_service(move || server.clone());
-    tokio::signal::ctrl_c().await?;
-    Ok(())
+    let max_attempts = if serve_cfg.max_restarts == 0 { 1 } else { serve_cfg.max_restarts };
+    let mut backoff = std::time::Duration::from_secs(serve_cfg.restart_backoff as u64);
+    let max_backoff = std::time::Duration::from_secs(30);
+
+    for attempt in 1..=max_attempts {
+        match SseServer::serve(addr).await {
+            Ok(sse_server) => {
+                tracing::info!(%addr, "SSE server listening");
+                let _ct = sse_server.with_service(move || server.clone());
+                tokio::signal::ctrl_c().await?;
+                return Ok(());
+            }
+            Err(e) => {
+                if attempt == max_attempts {
+                    return Err(anyhow::anyhow!(
+                        "SSE bind failed after {max_attempts} attempts: {e}"
+                    ));
+                }
+                tracing::warn!(
+                    %addr,
+                    error = %e,
+                    attempt,
+                    max = max_attempts,
+                    "SSE bind failed, retrying",
+                );
+                tokio::time::sleep(backoff).await;
+                backoff = (backoff * 2).min(max_backoff);
+            }
+        }
+    }
+    unreachable!()
 }
 
 pub async fn serve(
@@ -231,7 +255,7 @@ pub async fn serve(
         });
 
         if sse {
-            serve_sse(server, sse_port).await?;
+            serve_sse(server, sse_port, &global.serve).await?;
         } else {
             serve_stdio(server).await?;
         }
@@ -241,7 +265,7 @@ pub async fn serve(
             .map_err(|_| anyhow::anyhow!("ACP thread panicked"))??;
         Ok(())
     } else if sse {
-        serve_sse(server, sse_port).await
+        serve_sse(server, sse_port, &global.serve).await
     } else {
         serve_stdio(server).await
     }

@@ -98,10 +98,12 @@ attempt 3: 2s delay
 attempt 5: give up with error
 ```
 
-Max attempts: 5 (hardcoded). This handles the common case of a previous
-process still holding the port during development. Uses the same backoff
-cap (30s) but is not configurable — SSE bind failure is a startup issue,
-not a runtime supervision concern.
+Max attempts: from `serve.max_restarts` (default 10). When
+`max_restarts = 0`, a single bind failure exits immediately. Uses
+`serve.restart_backoff` for initial delay, same 30s cap.
+
+This handles the common case of a previous process still holding the
+port during development.
 
 Once bound successfully, the SSE server runs until `ctrl_c`. A runtime
 error after successful bind is not retried (the server exits).
