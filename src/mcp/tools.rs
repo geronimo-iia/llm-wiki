@@ -291,6 +291,7 @@ pub struct ToolResult {
 }
 
 pub fn call(server: &WikiServer, name: &str, args: &Map<String, Value>) -> ToolResult {
+    let _span = tracing::info_span!("tool_call", tool = name).entered();
     let result = match name {
         "wiki_init" => handle_init(server, args),
         "wiki_config" => handle_config(server, args),
@@ -311,16 +312,22 @@ pub fn call(server: &WikiServer, name: &str, args: &Map<String, Value>) -> ToolR
         _ => Err(format!("unknown tool: {name}")),
     };
     match result {
-        Ok((content, notify_uris)) => ToolResult {
-            content,
-            is_error: false,
-            notify_uris,
-        },
-        Err(msg) => ToolResult {
-            content: err_text(msg),
-            is_error: true,
-            notify_uris: vec![],
-        },
+        Ok((content, notify_uris)) => {
+            tracing::debug!(tool = name, "tool call ok");
+            ToolResult {
+                content,
+                is_error: false,
+                notify_uris,
+            }
+        }
+        Err(msg) => {
+            tracing::warn!(tool = name, error = %msg, "tool call failed");
+            ToolResult {
+                content: err_text(msg),
+                is_error: true,
+                notify_uris: vec![],
+            }
+        }
     }
 }
 
@@ -475,7 +482,9 @@ fn handle_new_page(server: &WikiServer, args: &Map<String, Value>) -> ToolHandle
     let wiki_root = PathBuf::from(&entry.path).join("wiki");
     let repo_root = PathBuf::from(&entry.path);
     markdown::create_page(&slug, bundle, &wiki_root).map_err(|e| format!("{e}"))?;
-    let _ = git::commit(&repo_root, &format!("new: {uri}"));
+    if let Err(e) = git::commit(&repo_root, &format!("new: {uri}")) {
+        tracing::warn!(error = %e, uri = %uri, "git commit failed for new page");
+    }
     ok_text(format!("wiki://{}/{slug}", entry.name))
 }
 
@@ -486,7 +495,9 @@ fn handle_new_section(server: &WikiServer, args: &Map<String, Value>) -> ToolHan
     let wiki_root = PathBuf::from(&entry.path).join("wiki");
     let repo_root = PathBuf::from(&entry.path);
     markdown::create_section(&slug, &wiki_root).map_err(|e| format!("{e}"))?;
-    let _ = git::commit(&repo_root, &format!("new: {uri}"));
+    if let Err(e) = git::commit(&repo_root, &format!("new: {uri}")) {
+        tracing::warn!(error = %e, uri = %uri, "git commit failed for new section");
+    }
     ok_text(format!("wiki://{}/{slug}", entry.name))
 }
 
@@ -522,7 +533,9 @@ fn handle_search(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerR
         if let Ok(status) = search::index_status(&entry.name, &index_path, &repo_root) {
             if status.stale && resolved.index.auto_rebuild {
                 let wiki_root = repo_root.join("wiki");
-                let _ = search::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root);
+                if let Err(e) = search::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root) {
+                    tracing::warn!(wiki = %entry.name, error = %e, "search index rebuild failed");
+                }
             }
         }
 
@@ -579,7 +592,9 @@ fn handle_list(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerRes
     if let Ok(st) = search::index_status(&entry.name, &index_path, &repo_root) {
         if st.stale && resolved.index.auto_rebuild {
             let wiki_root = repo_root.join("wiki");
-            let _ = search::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root);
+            if let Err(e) = search::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root) {
+                tracing::warn!(wiki = %entry.name, error = %e, "search index rebuild failed");
+            }
         }
     }
 
@@ -627,7 +642,9 @@ fn handle_lint(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerRes
     let report = lint::lint(&wiki_root, &resolved, &entry.name).map_err(|e| format!("{e}"))?;
 
     if !dry_run {
-        let _ = lint::write_lint_md(&report, &entry_path);
+        if let Err(e) = lint::write_lint_md(&report, &entry_path) {
+            tracing::warn!(error = %e, "failed to write LINT.md");
+        }
         let date = &report.date;
         let msg = format!(
             "lint: {date} \u{2014} {} orphans, {} stubs, {} empty sections",
@@ -635,7 +652,9 @@ fn handle_lint(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerRes
             report.missing_stubs.len(),
             report.empty_sections.len()
         );
-        let _ = git::commit(&entry_path, &msg);
+        if let Err(e) = git::commit(&entry_path, &msg) {
+            tracing::warn!(error = %e, "lint git commit failed");
+        }
     }
 
     let s = serde_json::to_string_pretty(&report).map_err(|e| format!("{e}"))?;
@@ -672,7 +691,9 @@ fn handle_graph(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerRe
         } else {
             rendered
         };
-        let _ = std::fs::write(&out_path, &content);
+        if let Err(e) = std::fs::write(&out_path, &content) {
+            tracing::warn!(path = %out_path, error = %e, "graph output write failed");
+        }
 
         // Auto-commit if inside repo root
         let out_canonical = std::fs::canonicalize(&out_path).ok();

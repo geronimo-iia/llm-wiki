@@ -115,7 +115,7 @@ pub async fn serve_sse(server: WikiServer, port: u16) -> Result<()> {
     let sse_server = SseServer::serve(addr)
         .await
         .map_err(|e| anyhow::anyhow!("failed to start SSE server on {addr}: {e}"))?;
-    eprintln!("SSE server listening on {addr}");
+    tracing::info!(%addr, "SSE server listening");
     let _ct = sse_server.with_service(move || server.clone());
     tokio::signal::ctrl_c().await?;
     Ok(())
@@ -151,12 +151,13 @@ pub async fn serve(
                 if let Err(e) =
                     search::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root)
                 {
-                    eprintln!("warning: failed to rebuild index for {}: {e}", entry.name);
+                    tracing::warn!(wiki = %entry.name, error = %e, "index rebuild failed");
                 }
             } else if status.stale {
-                eprintln!(
-                    "warning: index for \"{}\" is stale — run `wiki index rebuild --wiki {}`",
-                    entry.name, entry.name
+                tracing::warn!(
+                    wiki = %entry.name,
+                    "index stale — run `wiki index rebuild --wiki {}`",
+                    entry.name,
                 );
             }
         }
@@ -170,9 +171,10 @@ pub async fn serve(
         transports.push("acp".to_string());
     }
 
-    eprintln!(
-        "wiki serve — {wiki_count} wikis mounted [{}]",
-        transports.join("] [")
+    tracing::info!(
+        wikis = wiki_count,
+        transports = %transports.join("] ["),
+        "server started",
     );
 
     if dry_run {

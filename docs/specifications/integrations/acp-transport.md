@@ -114,7 +114,91 @@ A `prompt` triggers a wiki workflow. Dispatch is determined by session
 | "crystallize", "distil", "capture" | crystallize workflow |
 | anything else | research workflow (default) |
 
-### 3.4 Workflow Streaming Examples
+### 3.4 Workflow Streaming
+
+Each workflow streams intermediate events to the client using the ACP
+`SessionUpdate` primitives. The agent sends three types of events:
+
+| Event | SDK type | Purpose |
+|-------|----------|--------|
+| Progress message | `AgentMessageChunk` | Human-readable status text |
+| Tool call start | `ToolCall` | Announce tool invocation (visible in IDE) |
+| Tool call result | `ToolCallUpdate` | Report tool completion or failure |
+
+#### Streaming helpers
+
+The `WikiAgent` exposes two helpers alongside the existing `send_message`:
+
+```rust
+async fn send_tool_call(
+    &self,
+    session_id: &SessionId,
+    id: &str,
+    title: &str,
+    kind: ToolKind,
+) -> Result<(), Error>;
+
+async fn send_tool_result(
+    &self,
+    session_id: &SessionId,
+    id: &str,
+    status: ToolCallStatus,
+    content: &str,
+) -> Result<(), Error>;
+```
+
+#### Tool call ID convention
+
+`{workflow}-{step}-{timestamp_ms}` — e.g. `research-search-1721234567890`.
+Unique within the session.
+
+#### Research workflow streaming
+
+```
+prompt: "what do we know about MoE scaling?"
+
+→ AgentMessageChunk: "Searching for: MoE scaling..."
+→ ToolCall:          id=research-search-*, title="wiki_search: MoE scaling", kind=Search
+   ... search::search() executes ...
+→ ToolCallUpdate:    id=research-search-*, status=Completed, content="3 results"
+→ ToolCall:          id=research-read-*, title="wiki_read: concepts/moe", kind=Read
+   ... markdown::read_page() executes ...
+→ ToolCallUpdate:    id=research-read-*, status=Completed
+→ AgentMessageChunk: "Based on 2 pages: MoE reduces compute 8x..."
+```
+
+If search returns no results, skip the read step and send a final message.
+If search fails, send `ToolCallUpdate` with `status=Failed` and a final
+error message.
+
+#### Lint workflow streaming
+
+```
+prompt: "run lint on research wiki"
+
+→ AgentMessageChunk: "Running lint..."
+→ ToolCall:          id=lint-run-*, title="wiki_lint: research", kind=Execute
+   ... lint::lint() executes ...
+→ ToolCallUpdate:    id=lint-run-*, status=Completed, content="2 orphans, 1 stub"
+→ AgentMessageChunk: "Lint report for research: 2 orphans, 1 missing stub, ..."
+```
+
+#### Ingest and crystallize workflows
+
+Currently placeholder — single `AgentMessageChunk` with dispatch
+confirmation. Streaming will be added when these workflows have real
+multi-step logic.
+
+#### Error handling
+
+If a step fails mid-workflow:
+1. Send `ToolCallUpdate` with `status=Failed` for the active tool call
+2. Send a final `AgentMessageChunk` with the error message
+3. Return `PromptResponse` with `StopReason::EndTurn`
+
+The workflow never panics — all errors are surfaced as streaming events.
+
+#### Examples
 
 **Ingest workflow:**
 

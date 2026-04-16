@@ -151,11 +151,14 @@ impl ServerHandler for WikiServer {
                 let uris = result.notify_uris.clone();
                 tokio::spawn(async move {
                     for uri in uris {
-                        let _ = peer
+                        if let Err(e) = peer
                             .notify_resource_updated(
-                                rmcp::model::ResourceUpdatedNotificationParam { uri },
+                                rmcp::model::ResourceUpdatedNotificationParam { uri: uri.clone() },
                             )
-                            .await;
+                            .await
+                        {
+                            tracing::warn!(error = %e, uri = %uri, "resource notification failed");
+                        }
                     }
                 });
             }

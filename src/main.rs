@@ -34,6 +34,14 @@ fn index_path_for(wiki_name: &str) -> PathBuf {
 }
 
 fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "llm_wiki=info,warn".into()),
+        )
+        .with_writer(std::io::stderr)
+        .init();
+
     let cli = Cli::parse();
     let config_path = global_config_path();
 

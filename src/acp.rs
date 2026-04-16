@@ -145,6 +145,7 @@ impl acp::Agent for WikiAgent {
         req: acp::NewSessionRequest,
     ) -> std::result::Result<acp::NewSessionResponse, acp::Error> {
         let id = format!("session-{}", chrono::Utc::now().timestamp_millis());
+        let _span = tracing::info_span!("acp_new_session", session = %id).entered();
         let wiki = req
             .meta
             .as_ref()
@@ -161,6 +162,7 @@ impl acp::Agent for WikiAgent {
         if let Ok(mut sessions) = self.sessions.lock() {
             sessions.insert(id.clone(), session);
         }
+        tracing::info!(session = %id, "session created");
         Ok(acp::NewSessionResponse::new(id))
     }
 
@@ -211,6 +213,12 @@ impl acp::Agent for WikiAgent {
         let text = Self::extract_prompt_text(&req);
         let workflow = Self::dispatch_workflow(&text);
         let session_id_str = req.session_id.to_string();
+        let _span = tracing::info_span!(
+            "acp_prompt",
+            session = %session_id_str,
+            workflow = %workflow,
+        )
+        .entered();
 
         let wiki_name = self
             .sessions
@@ -298,6 +306,7 @@ impl acp::Agent for WikiAgent {
             }
         }
 
+        tracing::debug!(session = %session_id_str, workflow = %workflow, "prompt complete");
         Ok(acp::PromptResponse::new(acp::StopReason::EndTurn))
     }
 
@@ -330,7 +339,7 @@ pub async fn serve_acp(global: Arc<GlobalConfig>) -> Result<()> {
             tokio::task::spawn_local(async move {
                 while let Some((notif, tx)) = rx.recv().await {
                     if let Err(e) = conn.session_notification(notif).await {
-                        eprintln!("ACP notification error: {e}");
+                        tracing::error!(error = %e, "ACP notification failed");
                         break;
                     }
                     tx.send(()).ok();

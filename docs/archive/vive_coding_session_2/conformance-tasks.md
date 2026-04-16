@@ -289,25 +289,8 @@ here for traceability.
 **Gap:** acp-transport.md §3.4 says workflows should stream intermediate
 `tool_call` and `message` events. Currently sends a single final message.
 
-### Code changes
-
-- `src/acp.rs` — in the `prompt()` method, for the research workflow: send
-  intermediate messages via `self.send_message()` before and after each step
-  (search, read). E.g. "Searching for: {query}..." → results → "Reading
-  top result..." → content.
-- Same pattern for lint and ingest workflows.
-
-### Tests
-
-- `tests/acp.rs` — verify that the prompt handler sends multiple messages
-  (requires capturing the `update_tx` channel output). Assert message count > 1
-  for a research workflow.
-
-### Exit criteria
-
-- ACP research workflow sends intermediate streaming messages visible to the
-  client.
-- `cargo test` passes.
+**Note:** This task has been expanded into a dedicated task list with
+per-workflow analysis. See [acp-tasks.md](acp-tasks.md).
 
 ---
 

@@ -1,8 +1,9 @@
 # Improvements
 
-## FIX conformance
 
-→ [conformance-report.md](conformance-report.md) · [conformance-tasks.md](conformance-tasks.md)
+## ACP streaming
+
+→ [acp-tasks.md](acp-tasks.md) · [ACP SDK reference](implementation/acp-sdk.md) · [ACP transport spec](specifications/integrations/acp-transport.md)
 
 
 ## ingest
@@ -12,7 +13,7 @@
 
 ## monitoring
 
-- log → [logging.md](logging.md)
+- log → [logging.md](logging.md) · [logging-tasks.md](logging-tasks.md)
 - server thread auto restart → [server-resilience.md](server-resilience.md)
 - index corruption detection / rebuild → [index-corruption.md](index-corruption.md)
 
