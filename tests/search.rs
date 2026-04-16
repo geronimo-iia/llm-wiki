@@ -592,3 +592,25 @@ fn search_errors_on_corrupt_index_without_recovery() {
     let result = search("Foo", &opts, &index_path, "test", None);
     assert!(result.is_err());
 }
+
+
+#[test]
+fn index_status_returns_stale_on_schema_version_mismatch() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+    let index_path = build_index(dir.path(), &wiki_root);
+
+    // Verify fresh index is not stale
+    let status = index_status("test", &index_path, dir.path()).unwrap();
+    assert!(!status.stale);
+
+    // Manually set schema_version to 0 (simulating pre-versioning or old version)
+    let state_path = index_path.join("state.toml");
+    let content = fs::read_to_string(&state_path).unwrap();
+    let updated = content.replace("schema_version = 1", "schema_version = 0");
+    fs::write(&state_path, updated).unwrap();
+
+    let status = index_status("test", &index_path, dir.path()).unwrap();
+    assert!(status.stale, "schema version mismatch should be stale");
+}

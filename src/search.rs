@@ -64,8 +64,12 @@ pub struct IndexReport {
 
 // ── state.toml ────────────────────────────────────────────────────────────────
 
+const CURRENT_SCHEMA_VERSION: u32 = 1;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct IndexState {
+    #[serde(default)]
+    schema_version: u32,
     built: String,
     pages: usize,
     sections: usize,
@@ -247,6 +251,7 @@ pub fn rebuild_index(
 
     let commit = git::current_head(repo_root).unwrap_or_default();
     let state = IndexState {
+        schema_version: CURRENT_SCHEMA_VERSION,
         built: Utc::now().to_rfc3339(),
         pages,
         sections,
@@ -309,7 +314,7 @@ pub fn index_status(wiki_name: &str, index_path: &Path, repo_root: &Path) -> Res
     };
 
     let head = git::current_head(repo_root).unwrap_or_default();
-    let stale = state.commit != head;
+    let stale = state.commit != head || state.schema_version != CURRENT_SCHEMA_VERSION;
 
     Ok(IndexStatus {
         wiki: wiki_name.to_string(),

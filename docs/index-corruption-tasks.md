@@ -176,23 +176,42 @@ If `build_schema()` changes (e.g. adding a field), the existing index
 becomes incompatible. Currently there's no detection — queries may
 silently return wrong results or fail.
 
+Schema version is a constant in the code (`CURRENT_SCHEMA_VERSION`),
+bumped manually when `build_schema()` changes. Written to `state.toml`
+on rebuild, checked in `index_status`.
+
+Schema mismatch sets `stale: true` in `index_status`. This triggers:
+- `auto_rebuild = true` → rebuild before search/list (staleness path)
+- `auto_recovery = true` → rebuild on open failure (recovery path, if
+  the schema change also makes `Index::open` fail)
+- Both false → stale warning, may produce wrong results
+
+No new fields on `IndexStatus`, no new caller logic. The existing
+rebuild/recovery paths handle everything.
+
 #### Code changes
 
-- `src/search.rs` — add `CURRENT_SCHEMA_VERSION: u32 = 1` constant.
-  Add `schema_version: u32` to `IndexState`. Write version on rebuild.
-- `src/search.rs` — in `index_status`, compare stored version against
-  `CURRENT_SCHEMA_VERSION`. Treat mismatch as `stale: true`.
-- Bump `CURRENT_SCHEMA_VERSION` whenever `build_schema()` changes.
+- `src/search.rs` — add `const CURRENT_SCHEMA_VERSION: u32 = 1`.
+- `src/search.rs` — add `schema_version: u32` to `IndexState` with
+  `#[serde(default)]` (so pre-versioning state.toml files parse as 0).
+- `src/search.rs` — in `rebuild_index`, write `CURRENT_SCHEMA_VERSION`
+  to `IndexState`.
+- `src/search.rs` — in `index_status`, after parsing `state.toml`,
+  treat `state.schema_version != CURRENT_SCHEMA_VERSION` as `stale: true`.
 
 #### Tests
 
-- `tests/search.rs` — new test: `index_status_returns_stale_on_schema_version_mismatch`
-  — write `state.toml` with `schema_version = 0`, assert `stale: true`.
+- `tests/search.rs` — new test:
+  `index_status_returns_stale_on_schema_version_mismatch` — build index,
+  manually edit `state.toml` to set `schema_version = 0`, assert
+  `stale: true`.
 
 #### Exit criteria
 
 - Schema version mismatch → `stale: true`.
 - `wiki index status` shows stale after schema change.
+- Pre-versioning `state.toml` (no `schema_version` field) → version 0
+  → mismatch → stale.
 - `cargo test` passes.
 
 ---

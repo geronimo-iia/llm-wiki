@@ -47,37 +47,71 @@ commit = "a3f9c12"
 
 ### Fields
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `schema_version` | u32 | Tantivy schema version. Mismatch → stale. |
-| `built` | string | ISO 8601 datetime of last rebuild |
-| `pages` | usize | Total pages indexed |
-| `sections` | usize | Section pages indexed |
-| `commit` | string | Git HEAD at time of rebuild |
+| Field | Type | Default | Purpose |
+|-------|------|---------|--------|
+| `schema_version` | u32 | `0` (absent) | Tantivy schema version. Mismatch → stale. |
+| `built` | string | — | ISO 8601 datetime of last rebuild |
+| `pages` | usize | — | Total pages indexed |
+| `sections` | usize | — | Section pages indexed |
+| `commit` | string | — | Git HEAD at time of rebuild |
 
 ### Parsing rules
 
 - Missing file → `stale: true`, `built: None`, `pages: 0`, `sections: 0`
 - Malformed file (parse error) → same as missing, no error propagated
-- Missing `schema_version` field → treated as version 0 (pre-versioning)
+- Missing `schema_version` field → deserializes as `0` via `#[serde(default)]`
+  → mismatch with `CURRENT_SCHEMA_VERSION` → `stale: true`
 
 ---
 
 ## 3. Schema Versioning
 
-The engine defines a `CURRENT_SCHEMA_VERSION` constant. It is bumped
-whenever `build_schema()` changes (adding/removing/renaming fields).
+The engine defines a `CURRENT_SCHEMA_VERSION` constant in `search.rs`.
+It is bumped manually whenever `build_schema()` changes
+(adding/removing/renaming indexed fields, changing tokenizers).
 
 ```rust
 const CURRENT_SCHEMA_VERSION: u32 = 1;
 ```
 
-`index_status` compares the stored version against the constant:
+### Detection
+
+`index_status` compares the stored `schema_version` in `state.toml`
+against the constant:
 - Match → schema is compatible
-- Mismatch → `stale: true` (triggers auto-rebuild if enabled)
+- Mismatch → `stale: true`
 
 This prevents silent query failures after a version upgrade that changes
 the indexed fields.
+
+### Pre-versioning state.toml
+
+`schema_version` uses `#[serde(default)]` — if the field is absent
+(state.toml written by a pre-versioning build), it deserializes as `0`.
+Since `CURRENT_SCHEMA_VERSION >= 1`, this triggers a mismatch →
+`stale: true` → rebuild on next search/list.
+
+### Recovery path
+
+Schema mismatch sets `stale: true`, which flows through the existing
+paths:
+- `auto_rebuild = true` → rebuild before search/list (staleness check)
+- `auto_recovery = true` → rebuild if `Index::open` also fails
+  (schema change may make the index structurally incompatible)
+- Both false → stale warning, queries may return wrong results
+
+### When to bump
+
+Bump `CURRENT_SCHEMA_VERSION` when:
+- A new field is added to `build_schema()` (e.g. `confidence`)
+- A field is removed or renamed
+- A field's indexing options change (e.g. `STRING` → tokenized text)
+- The tokenizer is changed
+
+Do NOT bump for:
+- Changes to `IndexState` fields (state.toml format, not tantivy schema)
+- Changes to search logic (query parsing, scoring)
+- Changes to `IngestReport` or other non-index types
 
 ---
 
