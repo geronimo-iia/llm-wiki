@@ -52,7 +52,7 @@ chrono     = { version = "0.4", default-features = false, features = ["clock", "
 git2       = "0.19"
 
 # MCP server
-rmcp       = { version = "0.1", features = ["server", "transport-io", "transport-sse-server", "macros"] }
+rmcp       = { version = "0.1", features = ["server", "transport-io", "transport-sse-server"] }
 
 [dev-dependencies]
 tempfile   = "3"

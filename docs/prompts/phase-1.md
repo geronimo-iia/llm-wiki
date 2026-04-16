@@ -89,10 +89,10 @@ Phase 1.
 
 Before marking Phase 1 complete:
 
-- [ ] `cargo fmt -- --check` passes
-- [ ] `cargo clippy -- -D warnings` passes
-- [ ] `cargo test` passes
-- [ ] `wiki init ~/wikis/test --name test` creates the directory structure
+- [x] `cargo fmt -- --check` passes
+- [x] `cargo clippy -- -D warnings` passes
+- [x] `cargo test` passes
+- [x] `wiki init ~/wikis/test --name test` creates the directory structure
       and registers the wiki in `~/.wiki/config.toml`
-- [ ] `wiki config list` prints resolved config
-- [ ] `wiki spaces list` lists registered wikis
+- [x] `wiki config list` prints resolved config
+- [x] `wiki spaces list` lists registered wikis

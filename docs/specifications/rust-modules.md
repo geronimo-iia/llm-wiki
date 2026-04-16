@@ -38,7 +38,9 @@ src/
 ├── graph.rs      # build_graph(), render_mermaid(), render_dot(),
 │                 # subgraph(), GraphReport, in_degree()
 ├── server.rs     # WikiServer, startup, stdio + SSE transport wiring
-├── mcp.rs        # all MCP tools, resources, prompts
+├── mcp/          # all MCP tools, resources, prompts
+│   ├── mod.rs    #   ServerHandler impl, prompts, resources
+│   └── tools.rs  #   tool definitions, param extraction, handler functions
 └── acp.rs        # WikiAgent, AcpSession, workflow dispatch
 ```
 

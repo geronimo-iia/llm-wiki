@@ -124,7 +124,12 @@ Implement Phase 5 following the prompt and task list above. Start with src/links
 @docs/specifications/llm/backlink-quality.md
 @docs/specifications/integrations/acp-transport.md
 
-Implement Phase 6 following the prompt and task list above. Start with src/server.rs.
+Phase 6 Implementation have been started, but mcp implementation rely on use of macro.
+
+First, rewrite mcp.rs with manual ServerHandler impl — match-based call_tool dispatch, no macros, tool descriptions as a static list.
+From docs/tasks.md, you could retreive also previous implementation.
+
+After, implement Phase 6 following the prompt and task list above.
 ```
 
 ---

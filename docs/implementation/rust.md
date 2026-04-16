@@ -65,7 +65,9 @@ llm-wiki/
 │   ├── lint.rs
 │   ├── graph.rs
 │   ├── server.rs
-│   ├── mcp.rs
+│   ├── mcp/            # MCP tools, resources, prompts
+│   │   ├── mod.rs      #   ServerHandler impl
+│   │   └── tools.rs    #   tool definitions + handlers
 │   ├── acp.rs
 │   └── instructions.md  # embedded at compile time
 ├── src-beta/            # archived prior implementation

@@ -1,0 +1,15 @@
+pub mod acp;
+pub mod cli;
+pub mod config;
+pub mod frontmatter;
+pub mod git;
+pub mod graph;
+pub mod ingest;
+pub mod init;
+pub mod links;
+pub mod lint;
+pub mod markdown;
+pub mod mcp;
+pub mod search;
+pub mod server;
+pub mod spaces;
