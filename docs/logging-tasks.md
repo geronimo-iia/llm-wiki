@@ -289,3 +289,20 @@ JSON log output is now part of Task L6 via the `log_format` config key.
 
 Phase 1 (L1–L5) is done. L6 adds a dependency (`tracing-appender`),
 config surface (`[logging]`), and init changes (`~/.wiki/logs/`).
+
+---
+
+## Known issue — init path canonicalization (FIXED)
+
+Discovered during L6 testing. `init()` used `path.canonicalize()` before
+creating the directory. On macOS, `tempdir()` returns `/var/folders/...`
+which canonicalizes to `/private/var/folders/...` — but only after the
+path exists.
+
+The first call stored the non-canonical path (canonicalize failed, fell
+back to raw path). The second call canonicalized successfully to a
+different string. The re-run comparison `w.path == path.to_string_lossy()`
+failed.
+
+**Fix:** create the directory *before* canonicalizing. Both the stored
+path and future comparisons now use the same canonical form.

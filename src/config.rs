@@ -133,6 +133,29 @@ impl Default for ValidationConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoggingConfig {
+    #[serde(default = "default_log_path")]
+    pub log_path: String,
+    #[serde(default = "default_log_rotation")]
+    pub log_rotation: String,
+    #[serde(default = "default_log_max_files")]
+    pub log_max_files: u32,
+    #[serde(default = "default_log_format")]
+    pub log_format: String,
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self {
+            log_path: default_log_path(),
+            log_rotation: "daily".into(),
+            log_max_files: 7,
+            log_format: "text".into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SchemaConfig {
     #[serde(default)]
@@ -161,6 +184,8 @@ pub struct GlobalConfig {
     pub validation: ValidationConfig,
     #[serde(default)]
     pub lint: LintConfig,
+    #[serde(default)]
+    pub logging: LoggingConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -213,6 +238,23 @@ fn default_sse_port() -> u16 {
 }
 fn default_type_strictness() -> String {
     "loose".into()
+}
+fn default_log_path() -> String {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+    std::path::PathBuf::from(home)
+        .join(".wiki")
+        .join("logs")
+        .to_string_lossy()
+        .into()
+}
+fn default_log_rotation() -> String {
+    "daily".into()
+}
+fn default_log_max_files() -> u32 {
+    7
+}
+fn default_log_format() -> String {
+    "text".into()
 }
 
 // ── Functions ─────────────────────────────────────────────────────────────────
@@ -348,6 +390,10 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "validation.type_strictness" => global.validation.type_strictness = value.into(),
         "lint.fix_missing_stubs" => global.lint.fix_missing_stubs = value.parse()?,
         "lint.fix_empty_sections" => global.lint.fix_empty_sections = value.parse()?,
+        "logging.log_path" => global.logging.log_path = value.into(),
+        "logging.log_rotation" => global.logging.log_rotation = value.into(),
+        "logging.log_max_files" => global.logging.log_max_files = value.parse()?,
+        "logging.log_format" => global.logging.log_format = value.into(),
         _ => anyhow::bail!("unknown key: {key}"),
     }
     Ok(())
@@ -382,7 +428,9 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
         }
         "global.default_wiki" | "read.no_frontmatter" | "index.auto_rebuild"
         | "graph.format" | "graph.depth" | "graph.output"
-        | "serve.sse" | "serve.sse_port" | "serve.acp" => {
+        | "serve.sse" | "serve.sse_port" | "serve.acp"
+        | "logging.log_path" | "logging.log_rotation" | "logging.log_max_files"
+        | "logging.log_format" => {
             anyhow::bail!("{key} is a global-only key \u{2014} use --global");
         }
         _ => anyhow::bail!("unknown key: {key}"),

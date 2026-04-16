@@ -781,6 +781,10 @@ fn get_value(
         "validation.type_strictness" => resolved.validation.type_strictness.clone(),
         "lint.fix_missing_stubs" => resolved.lint.fix_missing_stubs.to_string(),
         "lint.fix_empty_sections" => resolved.lint.fix_empty_sections.to_string(),
+        "logging.log_path" => global.logging.log_path.clone(),
+        "logging.log_rotation" => global.logging.log_rotation.clone(),
+        "logging.log_max_files" => global.logging.log_max_files.to_string(),
+        "logging.log_format" => global.logging.log_format.clone(),
         _ => format!("unknown key: {key}"),
     }
 }

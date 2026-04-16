@@ -34,17 +34,11 @@ fn index_path_for(wiki_name: &str) -> PathBuf {
 }
 
 fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .compact()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "llm_wiki=info,warn".into()),
-        )
-        .with_writer(std::io::stderr)
-        .init();
-
     let cli = Cli::parse();
     let config_path = global_config_path();
+
+    // Initialize logging — serve mode may add file output
+    let _log_guard = init_logging(&cli.command, &config_path);
 
     match cli.command {
         Commands::Serve { sse, acp, dry_run } => {
@@ -617,8 +611,132 @@ fn get_config_value(
         "validation.type_strictness" => resolved.validation.type_strictness.clone(),
         "lint.fix_missing_stubs" => resolved.lint.fix_missing_stubs.to_string(),
         "lint.fix_empty_sections" => resolved.lint.fix_empty_sections.to_string(),
+        "logging.log_path" => global.logging.log_path.clone(),
+        "logging.log_rotation" => global.logging.log_rotation.clone(),
+        "logging.log_max_files" => global.logging.log_max_files.to_string(),
+        "logging.log_format" => global.logging.log_format.clone(),
         _ => format!("unknown key: {key}"),
     }
 }
 
 
+
+/// Initialize tracing subscriber. Returns a guard that must be held for the
+/// process lifetime (flushes non-blocking file writer on drop).
+fn init_logging(
+    command: &Commands,
+    config_path: &std::path::Path,
+) -> Option<tracing_appender::non_blocking::WorkerGuard> {
+    use tracing_subscriber::prelude::*;
+
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "llm_wiki=info,warn".into());
+
+    // Only serve mode gets file logging
+    let is_serve = matches!(command, Commands::Serve { .. });
+
+    if !is_serve {
+        // CLI commands: stderr only, compact text
+        tracing_subscriber::fmt()
+            .compact()
+            .with_env_filter(env_filter)
+            .with_writer(std::io::stderr)
+            .init();
+        return None;
+    }
+
+    // Serve mode: read logging config
+    let logging_cfg = config::load_global(config_path)
+        .map(|g| g.logging)
+        .unwrap_or_default();
+
+    if logging_cfg.log_path.is_empty() {
+        // File logging disabled: stderr only
+        if logging_cfg.log_format == "json" {
+            tracing_subscriber::fmt()
+                .json()
+                .with_env_filter(env_filter)
+                .with_writer(std::io::stderr)
+                .init();
+        } else {
+            tracing_subscriber::fmt()
+                .compact()
+                .with_env_filter(env_filter)
+                .with_writer(std::io::stderr)
+                .init();
+        }
+        return None;
+    }
+
+    // File logging enabled: dual output (stderr + file)
+    let log_path = std::path::PathBuf::from(&logging_cfg.log_path);
+    if let Err(e) = std::fs::create_dir_all(&log_path) {
+        eprintln!("warning: failed to create log directory {}: {e}", log_path.display());
+        // Fall back to stderr only
+        tracing_subscriber::fmt()
+            .compact()
+            .with_env_filter(env_filter)
+            .with_writer(std::io::stderr)
+            .init();
+        return None;
+    }
+
+    let rotation = match logging_cfg.log_rotation.as_str() {
+        "hourly" => tracing_appender::rolling::Rotation::HOURLY,
+        "never" => tracing_appender::rolling::Rotation::NEVER,
+        _ => tracing_appender::rolling::Rotation::DAILY,
+    };
+
+    let mut builder = tracing_appender::rolling::RollingFileAppender::builder()
+        .rotation(rotation)
+        .filename_prefix("wiki")
+        .filename_suffix("log");
+
+    if logging_cfg.log_max_files > 0 {
+        builder = builder.max_log_files(logging_cfg.log_max_files as usize);
+    }
+
+    let file_appender = match builder.build(&log_path) {
+        Ok(appender) => appender,
+        Err(e) => {
+            eprintln!("warning: failed to create log file in {}: {e}", log_path.display());
+            tracing_subscriber::fmt()
+                .compact()
+                .with_env_filter(env_filter)
+                .with_writer(std::io::stderr)
+                .init();
+            return None;
+        }
+    };
+
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
+    // Dual output: stderr + file, same format for both
+    if logging_cfg.log_format == "json" {
+        let stderr_layer = tracing_subscriber::fmt::layer()
+            .json()
+            .with_writer(std::io::stderr);
+        let file_layer = tracing_subscriber::fmt::layer()
+            .json()
+            .with_writer(non_blocking);
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(stderr_layer)
+            .with(file_layer)
+            .init();
+    } else {
+        let stderr_layer = tracing_subscriber::fmt::layer()
+            .compact()
+            .with_writer(std::io::stderr);
+        let file_layer = tracing_subscriber::fmt::layer()
+            .compact()
+            .with_writer(non_blocking);
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(stderr_layer)
+            .with(file_layer)
+            .init();
+    }
+
+    Some(guard)
+}

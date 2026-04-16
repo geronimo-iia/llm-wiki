@@ -181,3 +181,34 @@ fn set_global_config_value_sets_key() {
     set_global_config_value(&mut global, "defaults.search_top_k", "30").unwrap();
     assert_eq!(global.defaults.search_top_k, 30);
 }
+
+
+#[test]
+fn logging_config_defaults() {
+    let cfg = LoggingConfig::default();
+    assert!(cfg.log_path.ends_with(".wiki/logs"));
+    assert_eq!(cfg.log_rotation, "daily");
+    assert_eq!(cfg.log_max_files, 7);
+    assert_eq!(cfg.log_format, "text");
+}
+
+#[test]
+fn set_global_config_value_sets_logging_keys() {
+    let mut global = GlobalConfig::default();
+    set_global_config_value(&mut global, "logging.log_path", "/tmp/logs").unwrap();
+    set_global_config_value(&mut global, "logging.log_rotation", "hourly").unwrap();
+    set_global_config_value(&mut global, "logging.log_max_files", "14").unwrap();
+    set_global_config_value(&mut global, "logging.log_format", "json").unwrap();
+    assert_eq!(global.logging.log_path, "/tmp/logs");
+    assert_eq!(global.logging.log_rotation, "hourly");
+    assert_eq!(global.logging.log_max_files, 14);
+    assert_eq!(global.logging.log_format, "json");
+}
+
+#[test]
+fn set_wiki_config_value_rejects_logging_keys() {
+    let mut cfg = WikiConfig::default();
+    let result = set_wiki_config_value(&mut cfg, "logging.log_path", "/tmp");
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("global-only"));
+}

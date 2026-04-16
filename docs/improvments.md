@@ -1,5 +1,8 @@
 # Improvements
 
+## config
+
+parameter global only should not be updated locally
 
 ## ACP streaming
 
@@ -9,6 +12,13 @@
 ## ingest
 
 → [ingest-auto-commit.md](ingest-auto-commit.md)
+
+
+## bugs
+
+- [x] `wiki init` path canonicalization — re-run detection failed on macOS
+  when symlinks resolved differently between calls. Fixed: create directory
+  before canonicalize.
 
 
 ## monitoring
