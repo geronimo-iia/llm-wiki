@@ -515,3 +515,23 @@ fn search_all_respects_top_k() {
     let results = search_all("scaling", &opts, &wikis).unwrap();
     assert!(results.len() <= 2, "expected at most 2 results, got {}", results.len());
 }
+
+
+#[test]
+fn index_status_returns_stale_on_malformed_state_toml() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    let index_path = dir.path().join("index-store");
+
+    // Build a valid index first
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+    let _ = build_index(dir.path(), &wiki_root);
+
+    // Corrupt state.toml
+    fs::write(index_path.join("state.toml"), "this is not valid toml {{{").unwrap();
+
+    let status = index_status("test", &index_path, dir.path()).unwrap();
+    assert!(status.stale);
+    assert!(status.built.is_none());
+    assert_eq!(status.pages, 0);
+}

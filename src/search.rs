@@ -235,8 +235,34 @@ pub fn index_status(wiki_name: &str, index_path: &Path, repo_root: &Path) -> Res
         });
     }
 
-    let content = std::fs::read_to_string(&state_path)?;
-    let state: IndexState = toml::from_str(&content)?;
+    let content = match std::fs::read_to_string(&state_path) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!(wiki = %wiki_name, error = %e, "failed to read state.toml");
+            return Ok(IndexStatus {
+                wiki: wiki_name.to_string(),
+                path: index_path.join("search-index").to_string_lossy().into(),
+                built: None,
+                pages: 0,
+                sections: 0,
+                stale: true,
+            });
+        }
+    };
+    let state: IndexState = match toml::from_str(&content) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(wiki = %wiki_name, error = %e, "malformed state.toml");
+            return Ok(IndexStatus {
+                wiki: wiki_name.to_string(),
+                path: index_path.join("search-index").to_string_lossy().into(),
+                built: None,
+                pages: 0,
+                sections: 0,
+                stale: true,
+            });
+        }
+    };
 
     let head = git::current_head(repo_root).unwrap_or_default();
     let stale = state.commit != head;
