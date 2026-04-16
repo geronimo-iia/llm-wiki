@@ -410,43 +410,43 @@ When all tasks in a phase are done, archive the phase to `docs/archive/`.
 ## Phase 7 — ACP Transport
 
 ### `acp.rs`
-- [ ] Add `agent-client-protocol = "0.10"` and `agent-client-protocol-tokio = "0.1"` to `Cargo.toml`
-- [ ] Define `AcpSession { id, label, wiki, created_at, active_run }`
-- [ ] Define `WikiAgent { spaces, sessions }`
-- [ ] Implement `Agent::initialize` — inject `instructions.md` as system context
-- [ ] Implement `Agent::new_session`
-- [ ] Implement `Agent::load_session`
-- [ ] Implement `Agent::list_sessions`
-- [ ] Implement `Agent::prompt` — workflow dispatch (ingest, research, lint, crystallize)
-- [ ] Implement `Agent::cancel`
-- [ ] Implement `serve_acp(spaces) -> Result<()>`
+- [x] Add `agent-client-protocol = "0.10"` and `agent-client-protocol-tokio = "0.1"` to `Cargo.toml`
+- [x] Define `AcpSession { id, label, wiki, created_at, active_run }`
+- [x] Define `WikiAgent { spaces, sessions }`
+- [x] Implement `Agent::initialize` — inject `instructions.md` as system context
+- [x] Implement `Agent::new_session`
+- [x] Implement `Agent::load_session`
+- [x] Implement `Agent::list_sessions`
+- [x] Implement `Agent::prompt` — workflow dispatch (ingest, research, lint, crystallize)
+- [x] Implement `Agent::cancel`
+- [x] Implement `serve_acp(spaces) -> Result<()>`
 
 ### `server.rs`
-- [ ] Start ACP stdio server alongside MCP when `--acp`
+- [x] Start ACP stdio server alongside MCP when `--acp`
 
 ### Exit criteria
-- [ ] `wiki serve --acp` starts without error
+- [x] `wiki serve --acp` starts without error
 - [ ] Zed agent panel connects and lists sessions
-- [ ] `ingest` workflow streams tool calls visibly
-- [ ] `research` workflow streams answer
+- [x] `ingest` workflow streams tool calls visibly
+- [x] `research` workflow streams answer
 
 ---
 
 ## Phase 8 — Claude Plugin
 
 ### `.claude-plugin/`
-- [ ] Update `plugin.json` to spec
-- [ ] Update `marketplace.json` to spec
-- [ ] Update `.mcp.json` to spec
-- [ ] Write `commands/help.md`
-- [ ] Write `commands/init.md`
-- [ ] Write `commands/new.md`
-- [ ] Write `commands/ingest.md`
-- [ ] Write `commands/research.md`
-- [ ] Write `commands/crystallize.md`
-- [ ] Write `commands/lint.md`
-- [ ] Update `skills/llm-wiki/SKILL.md` — remove contradiction workflow
-- [ ] Verify `wiki instruct <workflow>` returns correct instructions for all 7 workflows
+- [x] Update `plugin.json` to spec
+- [x] Update `marketplace.json` to spec
+- [x] Update `.mcp.json` to spec
+- [x] Write `commands/help.md`
+- [x] Write `commands/init.md`
+- [x] Write `commands/new.md`
+- [x] Write `commands/ingest.md`
+- [x] Write `commands/research.md`
+- [x] Write `commands/crystallize.md`
+- [x] Write `commands/lint.md`
+- [x] Update `skills/llm-wiki/SKILL.md` — remove contradiction workflow
+- [x] Verify `wiki instruct <workflow>` returns correct instructions for all 7 workflows
 
 ### Exit criteria
 - [ ] `claude plugin add /path/to/llm-wiki` succeeds
@@ -457,11 +457,11 @@ When all tasks in a phase are done, archive the phase to `docs/archive/`.
 
 ## Phase 9 — Documentation
 
-- [ ] Rewrite `README.md` — features, workflows, quick start, MCP client setup
-- [ ] Rewrite `CONTRIBUTING.md` — module architecture, dev setup, test patterns, release process
-- [ ] Rewrite `CHANGELOG.md` — feature-oriented, not a git log
+- [x] Rewrite `README.md` — features, workflows, quick start, MCP client setup
+- [x] Rewrite `CONTRIBUTING.md` — module architecture, dev setup, test patterns, release process
+- [x] Rewrite `CHANGELOG.md` — feature-oriented, not a git log
 
 ### Exit criteria
-- [ ] A new contributor can read `README.md` and run `wiki init` within 5 minutes
-- [ ] `CONTRIBUTING.md` references `docs/implementation/rust.md` for dev standards
-- [ ] `CHANGELOG.md` describes what the tool can do at each version
+- [x] A new contributor can read `README.md` and run `wiki init` within 5 minutes
+- [x] `CONTRIBUTING.md` references `docs/implementation/rust.md` for dev standards
+- [x] `CHANGELOG.md` describes what the tool can do at each version

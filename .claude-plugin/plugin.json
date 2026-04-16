@@ -1,51 +1,16 @@
 {
   "name": "llm-wiki",
   "version": "0.1.0",
-  "description": "Git-backed wiki engine — ingest structured knowledge, search it, surface contradictions. MCP tools + slash commands for external-LLM workflows.",
-  "author": {
-    "name": "geronimo-iia"
-  },
+  "description": "Git-backed wiki engine — ingest structured knowledge, search it, enrich with LLM metadata.",
+  "author": { "name": "geronimo-iia" },
   "license": "MIT OR Apache-2.0",
-  "commands": [
-    {
-      "name": "help",
-      "description": "List all llm-wiki slash commands, MCP tools, and workflow links"
-    },
-    {
-      "name": "init",
-      "description": "Set up llm-wiki — verify install, initialise a wiki repo, configure MCP"
-    },
-    {
-      "name": "ingest",
-      "description": "Ingest a source into the wiki — two-step: wiki_context then wiki_ingest"
-    },
-    {
-      "name": "research",
-      "description": "Answer a question from the wiki using wiki_context"
-    },
-    {
-      "name": "lint",
-      "description": "Run wiki_lint, fix orphans, enrich contradictions, re-run lint"
-    },
-    {
-      "name": "contradiction",
-      "description": "Analyse and enrich contradiction pages using wiki_context and wiki_ingest"
-    }
-  ],
+  "commands": [],
   "mcpServers": {
     "wiki": {
       "command": "wiki",
       "args": ["serve"]
     }
   },
-  "keywords": [
-    "wiki",
-    "knowledge-base",
-    "mcp",
-    "git",
-    "contradictions",
-    "rag",
-    "research"
-  ],
+  "keywords": ["wiki", "knowledge-base", "mcp", "git", "research"],
   "repository": "https://github.com/geronimo-iia/llm-wiki"
 }

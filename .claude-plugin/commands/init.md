@@ -1,7 +1,5 @@
 ---
-description: Set up llm-wiki — verify install, initialize a wiki repo, configure MCP
+description: Initialize a new wiki repo and register it
 allowed-tools: Bash, Read, Write, Edit
 ---
-
-Invoke the llm-wiki skill (using the Skill tool) with the `init` command,
-then follow its instructions.
+Invoke the llm-wiki skill with the `init` command, then follow its instructions.

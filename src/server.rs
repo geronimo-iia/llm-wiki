@@ -179,13 +179,30 @@ pub async fn serve(
         return Ok(());
     }
 
+    let server = WikiServer::new(global.clone(), config_path)?;
+
     if acp {
-        eprintln!("ACP transport not yet implemented — use Phase 7");
-    }
+        let global_arc = Arc::new((*server.global).clone());
+        // ACP uses LocalSet (not Send), so run it on a dedicated thread
+        let acp_thread = std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("failed to build ACP runtime");
+            rt.block_on(crate::acp::serve_acp(global_arc))
+        });
 
-    let server = WikiServer::new(global, config_path)?;
+        if sse {
+            serve_sse(server, sse_port).await?;
+        } else {
+            serve_stdio(server).await?;
+        }
 
-    if sse {
+        acp_thread
+            .join()
+            .map_err(|_| anyhow::anyhow!("ACP thread panicked"))??;
+        Ok(())
+    } else if sse {
         serve_sse(server, sse_port).await
     } else {
         serve_stdio(server).await

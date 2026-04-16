@@ -2,113 +2,74 @@
 
 ## Prerequisites
 
-- Rust stable (minimum version: 1.75) — install via [rustup](https://rustup.rs/)
-- `cargo`
+- Rust 1.93.0 — pinned in `.tool-versions`. Install via [asdf](https://asdf-vm.com/) or [rustup](https://rustup.rs/).
 - `git`
 
-## Build
+## Build and Test
 
 ```bash
-cargo build
-cargo check          # faster: type-checks without linking
+cargo build                      # debug build
+cargo build --release            # release build
+cargo test                       # all tests
+cargo clippy -- -D warnings      # lint — must pass with zero warnings
+cargo fmt -- --check             # check formatting
+cargo fmt                        # auto-format
 ```
 
-## Test
-
-```bash
-cargo test                            # all unit tests
-cargo test --test integration_test    # integration tests only
-```
-
-## Lint
-
-```bash
-cargo clippy -- -D warnings    # must pass with zero warnings
-cargo fmt --check               # verify formatting matches rustfmt.toml
-cargo fmt                       # auto-format
-```
-
-## Run locally
-
-```bash
-cargo run -- ingest analysis.json    # ingest an analysis document
-cargo run -- ingest -                # read analysis JSON from stdin
-cargo run -- search "scaling laws"   # full-text search
-cargo run -- context "how does MoE scaling work?"
-cargo run -- serve                   # start MCP server (stdio)
-cargo run -- serve --sse :8080       # start MCP server (SSE)
-```
-
-## Project structure
+## Module Architecture
 
 ```
 src/
-├── main.rs         CLI entry point
-├── cli.rs          clap Command enum — all subcommands
-├── analysis.rs     Analysis JSON schema (primary LLM↔wiki interface)
-├── markdown.rs     PageFrontmatter schema
-├── config.rs       Per-wiki WikiConfig (.wiki/config.toml)
-├── ingest.rs       Deserialise Analysis JSON → integrate
-├── integrate.rs    Write pages + contradictions, git commit
-├── search.rs       tantivy index build + query
-├── context.rs      Assemble top-K pages as Markdown context
-├── lint.rs         Structural audit: orphans, stubs, contradictions
-├── graph.rs        petgraph concept graph → DOT/Mermaid
-├── contradiction.rs Contradiction page read/list/filter
-├── git.rs          commit, diff, log via git2
-├── server.rs       rmcp WikiServer (Phase 4)
-└── registry.rs     Multi-wiki registry (Phase 6)
+├── main.rs          dispatch only — no logic
+├── lib.rs           module declarations
+├── cli.rs           clap Command enum — all subcommands and flags
+├── config.rs        GlobalConfig, WikiConfig, two-level config resolution
+├── spaces.rs        multi-wiki management, wiki:// URI resolution
+├── git.rs           init, commit, head, diff via git2
+├── frontmatter.rs   parse/write YAML frontmatter, validation, scaffolding
+├── markdown.rs      page read/write, slug resolution, bundle promotion
+├── links.rs         extract links from frontmatter and [[wikilinks]]
+├── ingest.rs        validate → git add → commit → index pipeline
+├── search.rs        tantivy index, BM25 search, paginated list
+├── lint.rs          orphan/stub/section/connection detection, LINT.md
+├── graph.rs         petgraph concept graph, Mermaid/DOT rendering
+├── server.rs        WikiServer startup, stdio + SSE transport
+├── mcp/             MCP tools, resources, prompts
+│   ├── mod.rs         ServerHandler impl
+│   └── tools.rs       tool definitions and handlers
+└── acp.rs           ACP agent, session management, workflow dispatch
 ```
 
-See [`docs/dev/architecture.md`](docs/dev/architecture.md) for the full module dependency graph and design principles.
+See [docs/specifications/rust-modules.md](docs/specifications/rust-modules.md)
+for the full module responsibility table.
 
-## Commit message format
+## Adding a Feature
 
-```
-<type>: <short description>
+1. Read the relevant spec in `docs/specifications/`.
+2. Implement in the correct module per the module map.
+3. Write tests in `tests/<module>.rs` using `tempfile::tempdir()` for all
+   filesystem operations.
+4. Check exit criteria in [docs/tasks.md](docs/tasks.md).
+5. Run `cargo test`, `cargo clippy -- -D warnings`, `cargo fmt -- --check`.
 
-[optional body]
-```
+## No LLM Dependency Rule
 
-Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
+The wiki engine makes zero LLM calls. All intelligence is supplied by an
+external LLM that calls the wiki via CLI or MCP. Do not add any LLM client
+crate as a dependency.
 
-Examples:
-- `feat: implement wiki ingest write loop`
-- `fix: handle append action on missing slug`
-- `test: add PageFrontmatter serde round-trip`
-- `chore: update tantivy to 0.23`
+## Dev Standards
 
-## Branch naming
+See [docs/implementation/rust.md](docs/implementation/rust.md) for toolchain
+details, error handling conventions, testing patterns, and code quality rules.
 
-```
-phase-<N>/<short-description>
-```
+## Release Process
 
-Examples: `phase-1/ingest-write-loop`, `phase-2/tantivy-search`
+1. Bump `version` in `Cargo.toml`.
+2. Update `CHANGELOG.md`.
+3. Commit: `chore: bump version to x.y.z`.
+4. Tag: `git tag vx.y.z && git push origin vx.y.z`.
 
-## Pull request process
-
-1. One phase per PR.
-2. CI must pass (check, clippy, fmt, tests).
-3. Add a `CHANGELOG.md` entry under `[Unreleased]`.
-4. Reference the relevant phase task file in the PR description.
-
-## Changelog
-
-All changes go in `CHANGELOG.md` under `[Unreleased]` using [Keep a Changelog](https://keepachangelog.com/) format.
-
-Sections: `Added`, `Changed`, `Fixed`, `Removed`.
-
-## Code style
-
-`rustfmt.toml` is authoritative. Run `cargo fmt` before committing.
-Do not manually format code — let rustfmt decide.
-
-## No LLM dependency rule
-
-PRs **must not** add `rig-core` or any other LLM client crate as a dependency.
-The wiki engine has zero LLM calls. The `wiki` binary is a pure Rust tool that
-manages Markdown files, git history, and tantivy search indexes. All intelligence
-is supplied by an external LLM that calls the wiki via CLI or MCP.
-
-This is a hard rule — PRs that add an LLM dependency will not be merged.
+Tagging triggers the release workflow — builds binaries for Linux x86_64,
+macOS Intel, and macOS Apple Silicon, creates a GitHub release, and publishes
+to crates.io.

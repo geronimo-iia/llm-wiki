@@ -1,18 +1,13 @@
 {
   "name": "llm-wiki",
-  "owner": {
-    "name": "geronimo-iia",
-    "url": "https://github.com/geronimo-iia"
-  },
+  "owner": { "name": "geronimo-iia", "url": "https://github.com/geronimo-iia" },
   "plugins": [
     {
       "name": "llm-wiki",
       "source": "./.claude-plugin",
-      "description": "Git-backed wiki engine — ingest structured knowledge, search it, surface contradictions. MCP tools + slash commands for external-LLM workflows.",
+      "description": "Git-backed wiki engine — ingest structured knowledge, search it, enrich with LLM metadata.",
       "version": "0.1.0",
-      "author": {
-        "name": "geronimo-iia"
-      }
+      "author": { "name": "geronimo-iia" }
     }
   ]
 }

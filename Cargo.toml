@@ -54,6 +54,10 @@ git2       = "0.19"
 # MCP server
 rmcp       = { version = "0.1", features = ["server", "transport-io", "transport-sse-server"] }
 
+# ACP server
+agent-client-protocol = "0.10"
+tokio-util = { version = "0.7", features = ["compat"] }
+
 [dev-dependencies]
 tempfile   = "3"
 

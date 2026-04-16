@@ -63,7 +63,12 @@ fn tool_list_all_have_object_schema() {
 fn tool_schemas_have_required_params() {
     let tools = tools::tool_list();
     let init = tools.iter().find(|t| t.name == "wiki_init").unwrap();
-    let required = init.input_schema.get("required").unwrap().as_array().unwrap();
+    let required = init
+        .input_schema
+        .get("required")
+        .unwrap()
+        .as_array()
+        .unwrap();
     let req_strs: Vec<&str> = required.iter().map(|v| v.as_str().unwrap()).collect();
     assert!(req_strs.contains(&"path"));
     assert!(req_strs.contains(&"name"));
