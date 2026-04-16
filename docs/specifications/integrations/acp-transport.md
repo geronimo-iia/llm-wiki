@@ -189,6 +189,12 @@ Currently placeholder — single `AgentMessageChunk` with dispatch
 confirmation. Streaming will be added when these workflows have real
 multi-step logic.
 
+Note: with the commit model change, ingest no longer commits automatically
+unless `ingest.auto_commit` is `true`. When streaming is added, the ingest
+workflow should inform the user whether changes were committed or are
+pending `wiki_commit`. The crystallize workflow should follow the same
+pattern after writing pages.
+
 #### Error handling
 
 If a step fails mid-workflow:

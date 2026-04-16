@@ -51,20 +51,45 @@ fn make_agent(
     (agent, rx)
 }
 
-/// Collect all streamed text messages from the notification channel.
-async fn drain_messages(
-    mut rx: mpsc::UnboundedReceiver<(acp::SessionNotification, oneshot::Sender<()>)>,
-) -> Vec<String> {
-    let mut messages = Vec::new();
-    while let Some((notif, tx)) = rx.recv().await {
-        if let acp::SessionUpdate::AgentMessageChunk(chunk) = &notif.update {
-            if let acp::ContentBlock::Text(t) = &chunk.content {
-                messages.push(t.text.clone());
+/// Extract text messages from a list of SessionUpdate.
+fn extract_messages(updates: &[acp::SessionUpdate]) -> Vec<String> {
+    updates
+        .iter()
+        .filter_map(|u| match u {
+            acp::SessionUpdate::AgentMessageChunk(chunk) => {
+                if let acp::ContentBlock::Text(t) = &chunk.content {
+                    Some(t.text.clone())
+                } else {
+                    None
+                }
             }
-        }
-        tx.send(()).ok();
-    }
-    messages
+            _ => None,
+        })
+        .collect()
+}
+
+/// Extract ToolCall events from a list of SessionUpdate.
+#[allow(dead_code)]
+fn extract_tool_calls(updates: &[acp::SessionUpdate]) -> Vec<&acp::ToolCall> {
+    updates
+        .iter()
+        .filter_map(|u| match u {
+            acp::SessionUpdate::ToolCall(tc) => Some(tc),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Extract ToolCallUpdate events from a list of SessionUpdate.
+#[allow(dead_code)]
+fn extract_tool_updates(updates: &[acp::SessionUpdate]) -> Vec<&acp::ToolCallUpdate> {
+    updates
+        .iter()
+        .filter_map(|u| match u {
+            acp::SessionUpdate::ToolCallUpdate(tcu) => Some(tcu),
+            _ => None,
+        })
+        .collect()
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -134,6 +159,12 @@ async fn load_session_missing_fails() {
 async fn prompt_research_workflow_streams_answer() {
     let dir = tempfile::tempdir().unwrap();
     let global = setup_wiki(dir.path());
+
+    // Build index so search works
+    let wiki_root = dir.path().join("wiki");
+    let index_path = dir.path().join("index-store");
+    llm_wiki::search::rebuild_index(&wiki_root, &index_path, "test", dir.path()).unwrap();
+
     let (agent, rx) = make_agent(global);
 
     let session = acp::Agent::new_session(&agent, acp::NewSessionRequest::new("."))
@@ -143,7 +174,7 @@ async fn prompt_research_workflow_streams_answer() {
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
-            let drain = tokio::task::spawn_local(drain_messages(rx));
+            let drain = tokio::task::spawn_local(drain_updates(rx));
 
             let prompt = vec![acp::ContentBlock::Text(acp::TextContent::new(
                 "what do you know about MoE scaling?",
@@ -153,17 +184,37 @@ async fn prompt_research_workflow_streams_answer() {
             assert_eq!(resp.stop_reason, acp::StopReason::EndTurn);
 
             drop(agent);
-            let messages = drain.await.unwrap();
+            let updates = drain.await.unwrap();
+
+            // Should have multiple streaming events
             assert!(
-                !messages.is_empty(),
-                "research workflow should stream a message"
+                updates.len() >= 2,
+                "research workflow should stream multiple events, got {}",
+                updates.len()
             );
-            let msg = &messages[0];
+
+            // First should be a message ("Searching for...")
             assert!(
-                msg.contains("results")
-                    || msg.contains("Search failed")
-                    || msg.contains("No results"),
-                "research response should mention results: {msg}"
+                matches!(&updates[0], acp::SessionUpdate::AgentMessageChunk(_)),
+                "first event should be a progress message"
+            );
+
+            // Should contain at least one ToolCall
+            assert!(
+                updates.iter().any(|u| matches!(u, acp::SessionUpdate::ToolCall(_))),
+                "should contain at least one ToolCall"
+            );
+
+            // Should contain at least one ToolCallUpdate
+            assert!(
+                updates.iter().any(|u| matches!(u, acp::SessionUpdate::ToolCallUpdate(_))),
+                "should contain at least one ToolCallUpdate"
+            );
+
+            // Last should be a message (summary or no results)
+            assert!(
+                matches!(updates.last().unwrap(), acp::SessionUpdate::AgentMessageChunk(_)),
+                "last event should be a message"
             );
         })
         .await;
@@ -182,7 +233,7 @@ async fn prompt_ingest_workflow_dispatches_on_keyword() {
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
-            let drain = tokio::task::spawn_local(drain_messages(rx));
+            let drain = tokio::task::spawn_local(drain_updates(rx));
 
             let prompt = vec![acp::ContentBlock::Text(acp::TextContent::new(
                 "ingest the semantic-commit skill",
@@ -192,7 +243,8 @@ async fn prompt_ingest_workflow_dispatches_on_keyword() {
             assert_eq!(resp.stop_reason, acp::StopReason::EndTurn);
 
             drop(agent);
-            let messages = drain.await.unwrap();
+            let updates = drain.await.unwrap();
+            let messages = extract_messages(&updates);
             assert!(
                 !messages.is_empty(),
                 "ingest workflow should stream a message"
@@ -207,7 +259,7 @@ async fn prompt_ingest_workflow_dispatches_on_keyword() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn prompt_lint_workflow_dispatches_on_keyword() {
+async fn prompt_lint_workflow_streams_tool_calls() {
     let dir = tempfile::tempdir().unwrap();
     let global = setup_wiki(dir.path());
     let (agent, rx) = make_agent(global);
@@ -219,7 +271,7 @@ async fn prompt_lint_workflow_dispatches_on_keyword() {
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
-            let drain = tokio::task::spawn_local(drain_messages(rx));
+            let drain = tokio::task::spawn_local(drain_updates(rx));
 
             let prompt = vec![acp::ContentBlock::Text(acp::TextContent::new(
                 "run lint on research wiki",
@@ -229,16 +281,43 @@ async fn prompt_lint_workflow_dispatches_on_keyword() {
             assert_eq!(resp.stop_reason, acp::StopReason::EndTurn);
 
             drop(agent);
-            let messages = drain.await.unwrap();
+            let updates = drain.await.unwrap();
+
+            // Should have: message + ToolCall + ToolCallUpdate + message = 4
             assert!(
-                !messages.is_empty(),
-                "lint workflow should stream a message"
+                updates.len() >= 3,
+                "lint workflow should stream multiple events, got {}",
+                updates.len()
             );
+
+            // First is a progress message
             assert!(
-                messages[0].contains("Lint report") || messages[0].contains("Lint failed"),
-                "should dispatch to lint: {}",
-                messages[0]
+                matches!(&updates[0], acp::SessionUpdate::AgentMessageChunk(_)),
+                "first event should be a progress message"
             );
+
+            // Should contain a ToolCall
+            assert!(
+                updates.iter().any(|u| matches!(u, acp::SessionUpdate::ToolCall(_))),
+                "should contain a ToolCall"
+            );
+
+            // Should contain a ToolCallUpdate
+            assert!(
+                updates.iter().any(|u| matches!(u, acp::SessionUpdate::ToolCallUpdate(_))),
+                "should contain a ToolCallUpdate"
+            );
+
+            // Last is the report message
+            if let acp::SessionUpdate::AgentMessageChunk(chunk) = updates.last().unwrap() {
+                if let acp::ContentBlock::Text(t) = &chunk.content {
+                    assert!(
+                        t.text.contains("Lint report") || t.text.contains("Lint failed"),
+                        "last message should be lint report: {}",
+                        t.text
+                    );
+                }
+            }
         })
         .await;
 }
@@ -256,7 +335,7 @@ async fn prompt_crystallize_workflow_dispatches_on_keyword() {
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
-            let drain = tokio::task::spawn_local(drain_messages(rx));
+            let drain = tokio::task::spawn_local(drain_updates(rx));
 
             let prompt = vec![acp::ContentBlock::Text(acp::TextContent::new(
                 "crystallize session insights",
@@ -266,7 +345,8 @@ async fn prompt_crystallize_workflow_dispatches_on_keyword() {
             assert_eq!(resp.stop_reason, acp::StopReason::EndTurn);
 
             drop(agent);
-            let messages = drain.await.unwrap();
+            let updates = drain.await.unwrap();
+            let messages = extract_messages(&updates);
             assert!(
                 !messages.is_empty(),
                 "crystallize workflow should stream a message"
@@ -293,4 +373,103 @@ async fn cancel_clears_active_run() {
     let cancel = acp::CancelNotification::new(session.session_id.clone());
     let result = acp::Agent::cancel(&agent, cancel).await;
     assert!(result.is_ok());
+}
+
+/// Collect all SessionUpdate variants from the notification channel.
+async fn drain_updates(
+    mut rx: mpsc::UnboundedReceiver<(acp::SessionNotification, oneshot::Sender<()>)>,
+) -> Vec<acp::SessionUpdate> {
+    let mut updates = Vec::new();
+    while let Some((notif, tx)) = rx.recv().await {
+        updates.push(notif.update);
+        tx.send(()).ok();
+    }
+    updates
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn send_tool_call_and_result_appear_in_channel() {
+    let dir = tempfile::tempdir().unwrap();
+    let global = setup_wiki(dir.path());
+    let (agent, rx) = make_agent(global);
+
+    let session = acp::Agent::new_session(&agent, acp::NewSessionRequest::new("."))
+        .await
+        .unwrap();
+
+    let local = tokio::task::LocalSet::new();
+    local
+        .run_until(async {
+            let drain = tokio::task::spawn_local(drain_updates(rx));
+
+            let tool_id = WikiAgent::make_tool_id("test", "search");
+
+            agent
+                .send_tool_call(
+                    &session.session_id,
+                    &tool_id,
+                    "wiki_search: MoE",
+                    acp::ToolKind::Search,
+                )
+                .await
+                .unwrap();
+
+            agent
+                .send_tool_result(
+                    &session.session_id,
+                    &tool_id,
+                    acp::ToolCallStatus::Completed,
+                    "3 results",
+                )
+                .await
+                .unwrap();
+
+            agent
+                .send_message(&session.session_id, "Done")
+                .await
+                .unwrap();
+
+            drop(agent);
+            let updates = drain.await.unwrap();
+
+            assert_eq!(updates.len(), 3);
+
+            assert!(
+                matches!(&updates[0], acp::SessionUpdate::ToolCall(_)),
+                "first update should be ToolCall"
+            );
+            assert!(
+                matches!(&updates[1], acp::SessionUpdate::ToolCallUpdate(_)),
+                "second update should be ToolCallUpdate"
+            );
+            assert!(
+                matches!(&updates[2], acp::SessionUpdate::AgentMessageChunk(_)),
+                "third update should be AgentMessageChunk"
+            );
+
+            // Verify ToolCall fields
+            if let acp::SessionUpdate::ToolCall(tc) = &updates[0] {
+                assert!(tc.tool_call_id.to_string().starts_with("test-search-"));
+                assert_eq!(tc.title, "wiki_search: MoE");
+            }
+
+            // Verify ToolCallUpdate fields
+            if let acp::SessionUpdate::ToolCallUpdate(tcu) = &updates[1] {
+                assert_eq!(
+                    tcu.fields.status,
+                    Some(acp::ToolCallStatus::Completed)
+                );
+            }
+        })
+        .await;
+}
+
+#[test]
+fn make_tool_id_has_correct_format() {
+    let id = WikiAgent::make_tool_id("research", "search");
+    assert!(id.starts_with("research-search-"));
+    // Timestamp part should be numeric
+    let parts: Vec<&str> = id.splitn(3, '-').collect();
+    assert_eq!(parts.len(), 3);
+    assert!(parts[2].parse::<u64>().is_ok());
 }

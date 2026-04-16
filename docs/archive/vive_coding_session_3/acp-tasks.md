@@ -108,6 +108,9 @@ Target streaming sequence:
    `send_tool_result(Failed, error)`
 5. `send_message("Lint report for {wiki}: ...")`
 
+Note: lint no longer commits. The streaming sequence does not include any
+commit step. If the user wants to commit lint output, they use `wiki_commit`.
+
 ### Code changes
 
 - `src/acp.rs` — in `prompt()`, replace the `"lint"` match arm with the
@@ -164,6 +167,12 @@ single-message until they have real multi-step logic.
 
 Both workflows currently return a placeholder string. Adding streaming
 would be artificial — there are no real intermediate steps to stream.
+
+Note: with the new commit model, ingest no longer always commits.
+When `auto_commit` is off, the ACP workflow should mention that the user
+can run `wiki_commit` to commit pending changes. This is a message-level
+change, not a streaming change — handle it when the workflows get real
+implementation.
 
 ### Code changes
 

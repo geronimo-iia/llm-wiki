@@ -87,7 +87,7 @@ impl WikiAgent {
             .unwrap_or_else(|| PathBuf::from("."))
     }
 
-    async fn send_message(
+    pub async fn send_message(
         &self,
         session_id: &acp::SessionId,
         text: &str,
@@ -98,11 +98,277 @@ impl WikiAgent {
                 acp::TextContent::new(text),
             ))),
         );
+        self.send_notification(notif).await
+    }
+
+    pub async fn send_tool_call(
+        &self,
+        session_id: &acp::SessionId,
+        id: &str,
+        title: &str,
+        kind: acp::ToolKind,
+    ) -> std::result::Result<(), acp::Error> {
+        let notif = acp::SessionNotification::new(
+            session_id.clone(),
+            acp::SessionUpdate::ToolCall(
+                acp::ToolCall::new(acp::ToolCallId::new(id), title)
+                    .kind(kind)
+                    .status(acp::ToolCallStatus::InProgress),
+            ),
+        );
+        self.send_notification(notif).await
+    }
+
+    pub async fn send_tool_result(
+        &self,
+        session_id: &acp::SessionId,
+        id: &str,
+        status: acp::ToolCallStatus,
+        content: &str,
+    ) -> std::result::Result<(), acp::Error> {
+        let notif = acp::SessionNotification::new(
+            session_id.clone(),
+            acp::SessionUpdate::ToolCallUpdate(acp::ToolCallUpdate::new(
+                acp::ToolCallId::new(id),
+                acp::ToolCallUpdateFields::new()
+                    .status(status)
+                    .content(vec![content.into()]),
+            )),
+        );
+        self.send_notification(notif).await
+    }
+
+    pub fn make_tool_id(workflow: &str, step: &str) -> String {
+        format!(
+            "{workflow}-{step}-{}",
+            chrono::Utc::now().timestamp_millis()
+        )
+    }
+
+    async fn send_notification(
+        &self,
+        notif: acp::SessionNotification,
+    ) -> std::result::Result<(), acp::Error> {
         let (tx, rx) = oneshot::channel();
         self.update_tx
             .send((notif, tx))
             .map_err(|_| acp::Error::internal_error())?;
         rx.await.map_err(|_| acp::Error::internal_error())
+    }
+
+    fn clear_active_run(&self, session_id: &str) {
+        if let Ok(mut sessions) = self.sessions.lock() {
+            if let Some(sess) = sessions.get_mut(session_id) {
+                sess.active_run = None;
+            }
+        }
+    }
+
+    async fn run_research(
+        &self,
+        session_id: &acp::SessionId,
+        query: &str,
+        wiki_entry: Option<&WikiEntry>,
+        wiki_name: &str,
+    ) -> std::result::Result<acp::PromptResponse, acp::Error> {
+        let entry = match wiki_entry {
+            Some(e) => e,
+            None => {
+                self.send_message(session_id, "No wiki configured. Register a wiki with `wiki spaces add`.")
+                    .await?;
+                self.clear_active_run(&session_id.to_string());
+                return Ok(acp::PromptResponse::new(acp::StopReason::EndTurn));
+            }
+        };
+
+        // Step 1: announce search
+        self.send_message(session_id, &format!("Searching for: {query}..."))
+            .await?;
+
+        // Step 2: tool call — search
+        let search_id = Self::make_tool_id("research", "search");
+        self.send_tool_call(
+            session_id,
+            &search_id,
+            &format!("wiki_search: {query}"),
+            acp::ToolKind::Search,
+        )
+        .await?;
+
+        // Step 3: execute search
+        let index_path = crate::server::WikiServer::index_path_for(&entry.name);
+        let opts = crate::search::SearchOptions::default();
+        let results = crate::search::search(query, &opts, &index_path, &entry.name, None);
+
+        match results {
+            Ok(results) if !results.is_empty() => {
+                self.send_tool_result(
+                    session_id,
+                    &search_id,
+                    acp::ToolCallStatus::Completed,
+                    &format!("{} results", results.len()),
+                )
+                .await?;
+
+                // Step 4: read top result
+                let top = &results[0];
+                let read_id = Self::make_tool_id("research", "read");
+                self.send_tool_call(
+                    session_id,
+                    &read_id,
+                    &format!("wiki_read: {}", top.slug),
+                    acp::ToolKind::Read,
+                )
+                .await?;
+
+                let wiki_root = PathBuf::from(&entry.path).join("wiki");
+                let read_result =
+                    crate::markdown::read_page(&top.slug, &wiki_root, false);
+                match read_result {
+                    Ok(_) => {
+                        self.send_tool_result(
+                            session_id,
+                            &read_id,
+                            acp::ToolCallStatus::Completed,
+                            "",
+                        )
+                        .await?;
+                    }
+                    Err(e) => {
+                        self.send_tool_result(
+                            session_id,
+                            &read_id,
+                            acp::ToolCallStatus::Failed,
+                            &format!("{e}"),
+                        )
+                        .await?;
+                    }
+                }
+
+                // Step 5: summary message
+                let hits: Vec<String> = results
+                    .iter()
+                    .take(5)
+                    .map(|r| format!("- {} (score: {:.2})", r.uri, r.score))
+                    .collect();
+                self.send_message(
+                    session_id,
+                    &format!(
+                        "Based on {} pages in \"{}\":\n{}",
+                        results.len(),
+                        wiki_name,
+                        hits.join("\n")
+                    ),
+                )
+                .await?;
+            }
+            Ok(_) => {
+                self.send_tool_result(
+                    session_id,
+                    &search_id,
+                    acp::ToolCallStatus::Completed,
+                    "0 results",
+                )
+                .await?;
+                self.send_message(
+                    session_id,
+                    &format!("No results found for \"{query}\" in wiki \"{wiki_name}\"."),
+                )
+                .await?;
+            }
+            Err(e) => {
+                self.send_tool_result(
+                    session_id,
+                    &search_id,
+                    acp::ToolCallStatus::Failed,
+                    &format!("{e}"),
+                )
+                .await?;
+                self.send_message(session_id, &format!("Search failed: {e}"))
+                    .await?;
+            }
+        }
+
+        self.clear_active_run(&session_id.to_string());
+        Ok(acp::PromptResponse::new(acp::StopReason::EndTurn))
+    }
+
+    async fn run_lint(
+        &self,
+        session_id: &acp::SessionId,
+        wiki_entry: Option<&WikiEntry>,
+        wiki_name: &str,
+    ) -> std::result::Result<acp::PromptResponse, acp::Error> {
+        let entry = match wiki_entry {
+            Some(e) => e,
+            None => {
+                self.send_message(session_id, "No wiki found for lint workflow.")
+                    .await?;
+                self.clear_active_run(&session_id.to_string());
+                return Ok(acp::PromptResponse::new(acp::StopReason::EndTurn));
+            }
+        };
+
+        // Step 1: announce
+        self.send_message(session_id, "Running lint...").await?;
+
+        // Step 2: tool call
+        let lint_id = Self::make_tool_id("lint", "run");
+        self.send_tool_call(
+            session_id,
+            &lint_id,
+            &format!("wiki_lint: {wiki_name}"),
+            acp::ToolKind::Execute,
+        )
+        .await?;
+
+        // Step 3: execute
+        let wiki_root = PathBuf::from(&entry.path).join("wiki");
+        let wiki_cfg =
+            crate::config::load_wiki(&PathBuf::from(&entry.path)).unwrap_or_default();
+        let resolved = crate::config::resolve(&self.global, &wiki_cfg);
+
+        match crate::lint::lint(&wiki_root, &resolved, &entry.name) {
+            Ok(report) => {
+                let summary = format!(
+                    "{} orphans, {} stubs, {} empty sections",
+                    report.orphans.len(),
+                    report.missing_stubs.len(),
+                    report.empty_sections.len(),
+                );
+                self.send_tool_result(
+                    session_id,
+                    &lint_id,
+                    acp::ToolCallStatus::Completed,
+                    &summary,
+                )
+                .await?;
+                self.send_message(
+                    session_id,
+                    &format!(
+                        "Lint report for \"{wiki_name}\": {summary}, \
+                         {} missing connections, {} untyped sources.",
+                        report.missing_connections.len(),
+                        report.untyped_sources.len(),
+                    ),
+                )
+                .await?;
+            }
+            Err(e) => {
+                self.send_tool_result(
+                    session_id,
+                    &lint_id,
+                    acp::ToolCallStatus::Failed,
+                    &format!("{e}"),
+                )
+                .await?;
+                self.send_message(session_id, &format!("Lint failed: {e}"))
+                    .await?;
+            }
+        }
+
+        self.clear_active_run(&session_id.to_string());
+        Ok(acp::PromptResponse::new(acp::StopReason::EndTurn))
     }
 }
 
@@ -239,67 +505,31 @@ impl acp::Agent for WikiAgent {
             .map(|e| e.name.as_str())
             .unwrap_or("default");
 
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            match workflow {
-                "ingest" => {
-                    format!("Ingest workflow triggered for wiki \"{name}\". Prompt: {text}")
-                }
-                "lint" => {
-                    if let Some(entry) = &wiki_entry {
-                        let wiki_root = PathBuf::from(&entry.path).join("wiki");
-                        let wiki_cfg = crate::config::load_wiki(&PathBuf::from(&entry.path))
-                            .unwrap_or_default();
-                        let resolved = crate::config::resolve(&self.global, &wiki_cfg);
-                        match crate::lint::lint(&wiki_root, &resolved, &entry.name) {
-                            Ok(report) => format!(
-                                "Lint report for \"{}\": {} orphans, {} missing stubs, \
-                                 {} empty sections, {} missing connections, {} untyped sources.",
-                                name,
-                                report.orphans.len(),
-                                report.missing_stubs.len(),
-                                report.empty_sections.len(),
-                                report.missing_connections.len(),
-                                report.untyped_sources.len(),
-                            ),
-                            Err(e) => format!("Lint failed: {e}"),
-                        }
-                    } else {
-                        "No wiki found for lint workflow.".to_string()
-                    }
-                }
-                "crystallize" => {
-                    format!("Crystallize workflow triggered for wiki \"{name}\". Prompt: {text}")
-                }
-                _ => {
-                    // research workflow
-                    if let Some(entry) = &wiki_entry {
-                        let index_path = crate::server::WikiServer::index_path_for(&entry.name);
-                        let opts = crate::search::SearchOptions::default();
-                        match crate::search::search(&text, &opts, &index_path, &entry.name, None) {
-                            Ok(results) if !results.is_empty() => {
-                                let hits: Vec<String> = results
-                                    .iter()
-                                    .take(5)
-                                    .map(|r| format!("- {} (score: {:.2})", r.uri, r.score))
-                                    .collect();
-                                format!(
-                                    "Found {} results in \"{}\":\n{}",
-                                    results.len(),
-                                    name,
-                                    hits.join("\n")
-                                )
-                            }
-                            Ok(_) => {
-                                format!("No results found for \"{text}\" in wiki \"{name}\".")
-                            }
-                            Err(e) => format!("Search failed: {e}"),
-                        }
-                    } else {
-                        "No wiki configured. Register a wiki with `wiki spaces add`.".to_string()
-                    }
-                }
+        let result = match workflow {
+            "research" => {
+                return self
+                    .run_research(&req.session_id, &text, wiki_entry.as_ref(), name)
+                    .await;
             }
-        }));
+            "lint" => {
+                return self
+                    .run_lint(&req.session_id, wiki_entry.as_ref(), name)
+                    .await;
+            }
+            _ => std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                match workflow {
+                    "ingest" => {
+                        format!("Ingest workflow triggered for wiki \"{name}\". Prompt: {text}")
+                    }
+                    "crystallize" => {
+                        format!(
+                            "Crystallize workflow triggered for wiki \"{name}\". Prompt: {text}"
+                        )
+                    }
+                    _ => unreachable!(),
+                }
+            })),
+        };
         let result = match result {
             Ok(r) => r,
             Err(_) => {
@@ -310,12 +540,7 @@ impl acp::Agent for WikiAgent {
 
         self.send_message(&req.session_id, &result).await?;
 
-        // Clear active run
-        if let Ok(mut sessions) = self.sessions.lock() {
-            if let Some(sess) = sessions.get_mut(&session_id_str) {
-                sess.active_run = None;
-            }
-        }
+        self.clear_active_run(&session_id_str);
 
         tracing::debug!(session = %session_id_str, workflow = %workflow, "prompt complete");
         Ok(acp::PromptResponse::new(acp::StopReason::EndTurn))
