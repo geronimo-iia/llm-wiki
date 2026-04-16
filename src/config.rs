@@ -90,6 +90,10 @@ pub struct ServeConfig {
     pub sse_port: u16,
     #[serde(default)]
     pub acp: bool,
+    #[serde(default = "default_max_restarts")]
+    pub max_restarts: u32,
+    #[serde(default = "default_restart_backoff")]
+    pub restart_backoff: u32,
 }
 
 impl Default for ServeConfig {
@@ -98,6 +102,8 @@ impl Default for ServeConfig {
             sse: false,
             sse_port: 8080,
             acp: false,
+            max_restarts: 10,
+            restart_backoff: 1,
         }
     }
 }
@@ -235,6 +241,12 @@ fn default_graph_depth() -> u32 {
 }
 fn default_sse_port() -> u16 {
     8080
+}
+fn default_max_restarts() -> u32 {
+    10
+}
+fn default_restart_backoff() -> u32 {
+    1
 }
 fn default_type_strictness() -> String {
     "loose".into()
@@ -387,6 +399,8 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "serve.sse" => global.serve.sse = value.parse()?,
         "serve.sse_port" => global.serve.sse_port = value.parse()?,
         "serve.acp" => global.serve.acp = value.parse()?,
+        "serve.max_restarts" => global.serve.max_restarts = value.parse()?,
+        "serve.restart_backoff" => global.serve.restart_backoff = value.parse()?,
         "validation.type_strictness" => global.validation.type_strictness = value.into(),
         "lint.fix_missing_stubs" => global.lint.fix_missing_stubs = value.parse()?,
         "lint.fix_empty_sections" => global.lint.fix_empty_sections = value.parse()?,
@@ -429,6 +443,7 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
         "global.default_wiki" | "read.no_frontmatter" | "index.auto_rebuild"
         | "graph.format" | "graph.depth" | "graph.output"
         | "serve.sse" | "serve.sse_port" | "serve.acp"
+        | "serve.max_restarts" | "serve.restart_backoff"
         | "logging.log_path" | "logging.log_rotation" | "logging.log_max_files"
         | "logging.log_format" => {
             anyhow::bail!("{key} is a global-only key \u{2014} use --global");

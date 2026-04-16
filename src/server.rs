@@ -185,13 +185,49 @@ pub async fn serve(
 
     if acp {
         let global_arc = Arc::new((*server.global).clone());
-        // ACP uses LocalSet (not Send), so run it on a dedicated thread
+        let max_restarts = global.serve.max_restarts;
+        let initial_backoff_secs = global.serve.restart_backoff;
+
         let acp_thread = std::thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("failed to build ACP runtime");
-            rt.block_on(crate::acp::serve_acp(global_arc))
+            if max_restarts == 0 {
+                // No restart — run once, exit on failure
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("failed to build ACP runtime");
+                return rt.block_on(crate::acp::serve_acp(global_arc));
+            }
+
+            let max_backoff = std::time::Duration::from_secs(30);
+            let mut backoff = std::time::Duration::from_secs(initial_backoff_secs as u64);
+            let mut restarts = 0u32;
+
+            loop {
+                let global = global_arc.clone();
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("failed to build ACP runtime");
+                match rt.block_on(crate::acp::serve_acp(global)) {
+                    Ok(()) => break Ok(()),
+                    Err(e) => {
+                        restarts += 1;
+                        tracing::error!(
+                            transport = "acp",
+                            error = %e,
+                            restart = restarts,
+                            max = max_restarts,
+                            "transport crashed",
+                        );
+                        if restarts >= max_restarts {
+                            tracing::error!("ACP max restarts reached, giving up");
+                            break Err(e);
+                        }
+                        std::thread::sleep(backoff);
+                        backoff = (backoff * 2).min(max_backoff);
+                    }
+                }
+            }
         });
 
         if sse {

@@ -212,3 +212,32 @@ fn set_wiki_config_value_rejects_logging_keys() {
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("global-only"));
 }
+
+
+#[test]
+fn set_global_config_value_sets_serve_restart_keys() {
+    let mut global = GlobalConfig::default();
+    set_global_config_value(&mut global, "serve.max_restarts", "5").unwrap();
+    set_global_config_value(&mut global, "serve.restart_backoff", "3").unwrap();
+    assert_eq!(global.serve.max_restarts, 5);
+    assert_eq!(global.serve.restart_backoff, 3);
+}
+
+#[test]
+fn set_wiki_config_value_rejects_serve_restart_keys() {
+    let mut cfg = WikiConfig::default();
+    let result = set_wiki_config_value(&mut cfg, "serve.max_restarts", "5");
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("global-only"));
+
+    let result = set_wiki_config_value(&mut cfg, "serve.restart_backoff", "3");
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("global-only"));
+}
+
+#[test]
+fn serve_config_defaults() {
+    let cfg = ServeConfig::default();
+    assert_eq!(cfg.max_restarts, 10);
+    assert_eq!(cfg.restart_backoff, 1);
+}

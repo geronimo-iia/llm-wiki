@@ -608,6 +608,8 @@ fn get_config_value(
         "serve.sse" => resolved.serve.sse.to_string(),
         "serve.sse_port" => resolved.serve.sse_port.to_string(),
         "serve.acp" => resolved.serve.acp.to_string(),
+        "serve.max_restarts" => global.serve.max_restarts.to_string(),
+        "serve.restart_backoff" => global.serve.restart_backoff.to_string(),
         "validation.type_strictness" => resolved.validation.type_strictness.clone(),
         "lint.fix_missing_stubs" => resolved.lint.fix_missing_stubs.to_string(),
         "lint.fix_empty_sections" => resolved.lint.fix_empty_sections.to_string(),
