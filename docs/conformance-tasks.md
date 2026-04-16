@@ -198,6 +198,9 @@ Why this is solid:
 with `status: generated`. If inside wiki root, auto-commit. Currently writes
 raw output, no frontmatter, `committed` always false.
 
+Auto-commit follows the spec as-is: always commit when output is inside the
+wiki root. A future improvement may add a config flag to gate this.
+
 ### Code changes
 
 - `src/graph.rs` — add `wrap_graph_md(rendered: &str, format: &str, filter: &GraphFilter) -> String`.

@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 
+use chrono::Utc;
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::Direction;
 use serde::{Deserialize, Serialize};
@@ -135,6 +136,35 @@ pub fn render_dot(graph: &DiGraph<PageNode, ()>) -> String {
         out.push_str(&format!("  \"{from_slug}\" -> \"{to_slug}\";\n"));
     }
     out.push_str("}\n");
+    out
+}
+
+// ── wrap_graph_md ─────────────────────────────────────────────────────────────
+
+/// Wrap rendered graph output in a `.md` file with frontmatter (graph.md §3).
+pub fn wrap_graph_md(rendered: &str, format: &str, filter: &GraphFilter) -> String {
+    let now = Utc::now().to_rfc3339();
+    let root = filter.root.as_deref().unwrap_or("");
+    let depth = filter.depth.unwrap_or(0);
+    let types = if filter.types.is_empty() {
+        "[]".to_string()
+    } else {
+        format!("[{}]", filter.types.join(", "))
+    };
+
+    let mut out = String::new();
+    out.push_str("---\n");
+    out.push_str("title: \"Wiki Graph\"\n");
+    out.push_str(&format!("generated: \"{now}\"\n"));
+    out.push_str(&format!("format: {format}\n"));
+    out.push_str(&format!("root: {root}\n"));
+    out.push_str(&format!("depth: {depth}\n"));
+    out.push_str(&format!("types: {types}\n"));
+    out.push_str("status: generated\n");
+    out.push_str("---\n\n");
+    out.push_str(&format!("```{format}\n"));
+    out.push_str(rendered);
+    out.push_str("```\n");
     out
 }
 

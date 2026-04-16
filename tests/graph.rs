@@ -292,3 +292,73 @@ fn subgraph_with_depth_0_returns_only_root_node() {
     assert_eq!(sub.node_count(), 1);
     assert_eq!(sub[sub.node_indices().next().unwrap()].slug, "concepts/a");
 }
+
+
+// ── wrap_graph_md ─────────────────────────────────────────────────────────────
+
+#[test]
+fn wrap_graph_md_prepends_frontmatter_with_status_generated() {
+    let filter = GraphFilter {
+        root: Some("concepts/moe".into()),
+        depth: Some(3),
+        types: vec!["concept".into(), "paper".into()],
+    };
+    let rendered = "graph TD\n  concepts/moe --> sources/switch\n";
+    let output = wrap_graph_md(rendered, "mermaid", &filter);
+
+    assert!(output.starts_with("---\n"));
+    assert!(output.contains("title: \"Wiki Graph\""));
+    assert!(output.contains("status: generated"));
+    assert!(output.contains("format: mermaid"));
+    assert!(output.contains("root: concepts/moe"));
+    assert!(output.contains("depth: 3"));
+    assert!(output.contains("types: [concept, paper]"));
+    assert!(output.contains("generated:"));
+    assert!(output.contains("```mermaid\n"));
+    assert!(output.contains("concepts/moe --> sources/switch"));
+    assert!(output.ends_with("```\n"));
+}
+
+#[test]
+fn wrap_graph_md_handles_empty_filter() {
+    let filter = GraphFilter::default();
+    let rendered = "graph TD\n";
+    let output = wrap_graph_md(rendered, "mermaid", &filter);
+
+    assert!(output.contains("root: \n"));
+    assert!(output.contains("depth: 0"));
+    assert!(output.contains("types: []"));
+}
+
+// ── graph output auto-commit ──────────────────────────────────────────────────
+
+#[test]
+fn graph_output_md_inside_wiki_root_commits() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    write_page(
+        &wiki_root,
+        "concepts/a.md",
+        &page_with_concepts("A", &["concepts/b"]),
+    );
+    write_page(&wiki_root, "concepts/b.md", &simple_page("B", "concept"));
+
+    let head_before = git::current_head(dir.path()).unwrap();
+
+    let filter = default_filter();
+    let g = build_graph(&wiki_root, &filter);
+    let rendered = render_mermaid(&g);
+    let content = wrap_graph_md(&rendered, "mermaid", &filter);
+
+    let out_path = wiki_root.join("graph.md");
+    fs::write(&out_path, &content).unwrap();
+    git::commit(dir.path(), "graph: test").unwrap();
+
+    let head_after = git::current_head(dir.path()).unwrap();
+    assert_ne!(head_before, head_after);
+
+    // Verify the file has frontmatter
+    let written = fs::read_to_string(&out_path).unwrap();
+    assert!(written.contains("status: generated"));
+}

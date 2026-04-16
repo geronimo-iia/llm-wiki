@@ -666,18 +666,43 @@ fn handle_graph(server: &WikiServer, args: &Map<String, Value>) -> ToolHandlerRe
         _ => graph::render_mermaid(&g),
     };
 
-    let out = if let Some(out_path) = arg_str(args, "output") {
-        let _ = std::fs::write(&out_path, &rendered);
-        out_path
+    let (out, committed) = if let Some(out_path) = arg_str(args, "output") {
+        let content = if out_path.ends_with(".md") {
+            graph::wrap_graph_md(&rendered, &fmt, &filter)
+        } else {
+            rendered
+        };
+        let _ = std::fs::write(&out_path, &content);
+
+        // Auto-commit if inside repo root
+        let out_canonical = std::fs::canonicalize(&out_path).ok();
+        let repo_canonical = entry_path.canonicalize().ok();
+        let did_commit = if let (Some(out_c), Some(repo_c)) = (out_canonical, repo_canonical) {
+            if out_c.starts_with(&repo_c) {
+                let date = chrono::Local::now().format("%Y-%m-%d");
+                let msg = format!(
+                    "graph: {date} \u{2014} {} nodes, {} edges",
+                    g.node_count(),
+                    g.edge_count()
+                );
+                git::commit(&entry_path, &msg).is_ok()
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        (out_path, did_commit)
     } else {
-        "stdout".to_string()
+        ("stdout".to_string(), false)
     };
 
     let report = graph::GraphReport {
         nodes: g.node_count(),
         edges: g.edge_count(),
         output: out,
-        committed: false,
+        committed,
     };
     let s = serde_json::to_string_pretty(&report).map_err(|e| format!("{e}"))?;
     ok_text(s)

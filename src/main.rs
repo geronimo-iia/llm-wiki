@@ -515,8 +515,36 @@ fn main() -> Result<()> {
             }
 
             if let Some(ref out_path) = output {
-                std::fs::write(out_path, &rendered)?;
+                let content = if out_path.ends_with(".md") {
+                    graph::wrap_graph_md(&rendered, &fmt, &filter)
+                } else {
+                    rendered
+                };
+                std::fs::write(out_path, &content)?;
+
+                // Auto-commit if inside repo root
+                let out_canonical = std::fs::canonicalize(out_path).ok();
+                let repo_canonical = entry_path.canonicalize().ok();
+                let committed = if let (Some(out_c), Some(repo_c)) = (out_canonical, repo_canonical) {
+                    if out_c.starts_with(&repo_c) {
+                        let date = chrono::Local::now().format("%Y-%m-%d");
+                        let msg = format!(
+                            "graph: {date} \u{2014} {} nodes, {} edges",
+                            g.node_count(),
+                            g.edge_count()
+                        );
+                        git::commit(&entry_path, &msg).is_ok()
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+
                 println!("Wrote graph to {out_path}");
+                if committed {
+                    println!("Committed.");
+                }
             } else {
                 print!("{rendered}");
             }
