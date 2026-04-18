@@ -11,4 +11,7 @@ Architectural decisions and their rationale.
 | [three-repositories](three-repositories.md)         | Engine, skills, hugo-cms as independent repos                              |
 | [json-schema-validation](json-schema-validation.md) | JSON Schema for per-type validation, x- extensions for engine behavior     |
 | [typed-graph-edges](typed-graph-edges.md)           | x-graph-edges in JSON Schema for labeled directed edges                    |
-| [rationalize-specs](rationalize-specs.md)           | How the specifications were rationalized — layout, decisions, rules        |
+| [dynamic-index-schema](dynamic-index-schema.md)     | Tantivy schema computed from type registry, not hardcoded                  |
+| [untyped-frontmatter](untyped-frontmatter.md)       | BTreeMap instead of fixed struct, type registry validates                  |
+| [engine-manager](engine-manager.md)                 | Centralized mutation handling with cascade reports                         |
+| [rationalize-specs](rationalize-specs.md)           | How the specifications were rationalized                                   |

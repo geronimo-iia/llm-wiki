@@ -115,6 +115,8 @@ These keys can appear in both `config.toml` (global) and `wiki.toml`
 | `graph.depth`                | `3`       | Default hop limit when `--root` is set            |
 | `graph.type`                 | `[]`      | Page types to include; empty = all                |
 | `graph.output`               | `""`      | Default output path; empty = stdout               |
+| `index.memory_budget_mb`     | `50`      | Tantivy writer memory budget in MB                |
+| `index.tokenizer`            | `en_stem` | Tantivy tokenizer for text fields                 |
 
 ### Global-only settings
 

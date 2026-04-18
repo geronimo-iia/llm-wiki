@@ -12,35 +12,6 @@ last_updated: "2025-07-15"
 
 # Rust Implementation Guide
 
----
-
-## Toolchain
-
-```
-rust 1.93.0   (pinned in .tool-versions)
-edition 2021
-```
-
-Always use the pinned version. Update deliberately — check for breaking
-changes in tantivy, rmcp, and git2 before bumping.
-
----
-
-## Supported Targets
-
-| Target | Platform | Release binary |
-|--------|----------|----------------|
-| `x86_64-unknown-linux-gnu` | Linux x86_64 | yes |
-| `x86_64-apple-darwin` | macOS Intel | yes |
-| `aarch64-apple-darwin` | macOS Apple Silicon | yes |
-| `x86_64-pc-windows-msvc` | Windows x86_64 | planned |
-
-Windows support is planned but not yet in the release matrix. CI runs on
-`ubuntu-latest` only. Cross-platform issues surface at release time via the
-matrix build.
-
----
-
 ## Project Layout
 
 ```
@@ -51,69 +22,96 @@ llm-wiki/
 ├── rustfmt.toml
 ├── .tool-versions
 ├── src/
-│   ├── main.rs         # dispatch only
-│   ├── lib.rs          # module declarations
-│   ├── cli.rs          # clap Command enum
-│   ├── config.rs
-│   ├── spaces.rs
-│   ├── git.rs
-│   ├── frontmatter.rs
-│   ├── markdown.rs
-│   ├── links.rs
-│   ├── ingest.rs
-│   ├── search.rs
-│   ├── lint.rs
-│   ├── graph.rs
-│   ├── server.rs
-│   ├── mcp/            # MCP tools, resources, prompts
-│   │   ├── mod.rs      #   ServerHandler impl
-│   │   └── tools.rs    #   tool definitions + handlers
-│   ├── acp.rs
-│   └── instructions.md  # embedded at compile time
-├── src-beta/            # archived prior implementation
-├── tests/               # integration tests
-├── tests-beta/          # archived prior tests
+│   ├── main.rs              # CLI dispatch only
+│   ├── lib.rs               # module declarations
+│   ├── cli.rs               # clap subcommand hierarchy
+│   ├── engine.rs            # Engine, EngineManager
+│   ├── config.rs            # GlobalConfig, WikiConfig, resolution
+│   ├── slug.rs              # Slug, WikiUri types and resolution
+│   ├── frontmatter.rs       # YAML extraction, BTreeMap parsing
+│   ├── type_registry.rs     # SpaceTypeRegistry, GlobalTypeRegistry
+│   ├── index_manager.rs     # SpaceIndexManager, IndexRegistry
+│   ├── index_schema.rs      # IndexSchema from type registry
+│   ├── search.rs            # tantivy search + list queries
+│   ├── ingest.rs            # ingest pipeline
+│   ├── graph.rs             # petgraph builder + Mermaid/DOT rendering
+│   ├── links.rs             # [[wiki-link]] extraction
+│   ├── markdown.rs          # page I/O (read, write, create)
+│   ├── spaces.rs            # space management (register, remove)
+│   ├── git.rs               # git2 wrappers (init, commit, diff)
+│   ├── server.rs            # serve command, transport startup
+│   ├── mcp/
+│   │   ├── mod.rs           # ServerHandler impl
+│   │   └── tools.rs         # tool definitions + handlers
+│   └── acp.rs               # WikiAgent, session management
+├── tests/                   # integration tests
+├── code-ref/                # previous implementation (reference)
 └── docs/
 ```
 
----
+See [implementation/](../implementation/README.md) for per-module
+design docs.
+
+```
+rust 1.93.0   (pinned in .tool-versions)
+edition 2021
+```
+
+Always use the pinned version. Update deliberately — check for breaking
+changes in tantivy, rmcp, and git2 before bumping.
+
+
+## Supported Targets
+
+| Target                     | Platform            | Release binary |
+| -------------------------- | ------------------- | -------------- |
+| `x86_64-unknown-linux-gnu` | Linux x86_64        | yes            |
+| `x86_64-apple-darwin`      | macOS Intel         | yes            |
+| `aarch64-apple-darwin`     | macOS Apple Silicon | yes            |
+| `x86_64-pc-windows-msvc`   | Windows x86_64      | planned        |
+
+Windows support is planned but not yet in the release matrix. CI runs on
+`ubuntu-latest` only. Cross-platform issues surface at release time via the
+matrix build.
+
 
 ## Dependencies
 
 ### Runtime
 
-| Crate | Version | Purpose |
-|-------|---------|---------|
-| `clap` | 4 (derive) | CLI argument parsing |
-| `anyhow` | 1 | Application-level error handling |
-| `tracing` + `tracing-subscriber` | 0.1 / 0.3 | Structured logging |
-| `tokio` | 1 (full) | Async runtime |
-| `async-trait` | 0.1 | Async trait support |
-| `serde` + `serde_json` + `serde_yaml` | 1 / 1 / 0.9 | Serialization |
-| `toml` | 0.8 | Config file parsing |
-| `comrak` | 0.28 | Markdown parsing |
-| `tantivy` | 0.22 | Full-text search index |
-| `petgraph` | 0.6 | Concept graph |
-| `walkdir` | 2 | Filesystem traversal |
-| `chrono` | 0.4 (clock, std) | Date/time |
-| `git2` | 0.19 | Git operations |
-| `rmcp` | 0.1 (server, transport-io, transport-sse-server, macros) | MCP server |
+| Crate                                 | Version                                                  | Purpose                          |
+| ------------------------------------- | -------------------------------------------------------- | -------------------------------- |
+| `clap`                                | 4 (derive)                                               | CLI argument parsing             |
+| `anyhow`                              | 1                                                        | Application-level error handling |
+| `tracing` + `tracing-subscriber`      | 0.1 / 0.3                                                | Structured logging               |
+| `tokio`                               | 1 (full)                                                 | Async runtime                    |
+| `async-trait`                         | 0.1                                                      | Async trait support              |
+| `serde` + `serde_json` + `serde_yaml` | 1 / 1 / 0.9                                              | Serialization                    |
+| `toml`                                | 0.8                                                      | Config file parsing              |
+| `comrak`                              | 0.28                                                     | Markdown parsing                 |
+| `tantivy`                             | 0.22                                                     | Full-text search index           |
+| `petgraph`                            | 0.6                                                      | Concept graph                    |
+| `walkdir`                             | 2                                                        | Filesystem traversal             |
+| `chrono`                              | 0.4 (clock, std)                                         | Date/time                        |
+| `git2`                                | 0.19                                                     | Git operations                   |
+| `rmcp`                                | 0.1 (server, transport-io, transport-sse-server, macros) | MCP server                       |
+| `agent-client-protocol`               | 0.10                                                     | ACP agent                        |
+| `agent-client-protocol-tokio`         | 0.1                                                      | ACP stdio transport              |
+| `jsonschema`                          | 0.28                                                     | JSON Schema validation           |
+| `frontmatter`                         | 0.4                                                      | YAML frontmatter extraction      |
 
 ### Dev
 
-| Crate | Version | Purpose |
-|-------|---------|---------|
-| `tempfile` | 3 | Isolated filesystem tests |
+| Crate      | Version | Purpose                   |
+| ---------- | ------- | ------------------------- |
+| `tempfile` | 3       | Isolated filesystem tests |
 
 ### Adding dependencies
 
 - Prefer the crates already in use for similar concerns
-- Minimise transitive dependencies — check `cargo tree` before adding
+- Minimise transitive dependencies -- check `cargo tree` before adding
 - Never add a dependency for something in std or already covered above
-- `agent-client-protocol` and `agent-client-protocol-tokio` will be added
-  when ACP transport is implemented (Phase 7)
 
----
 
 ## Code Quality
 
@@ -148,7 +146,6 @@ cargo test <name>                # specific test
 cargo test -- --nocapture        # with stdout
 ```
 
----
 
 ## Error Handling
 
@@ -158,7 +155,6 @@ cargo test -- --nocapture        # with stdout
 - `panic!` only for programmer errors (invariant violations), never for
   user input or I/O failures
 
----
 
 ## Testing
 
@@ -202,7 +198,6 @@ pub fn load(url: &str, fetch: Fetcher) -> anyhow::Result<String> {
 }
 ```
 
----
 
 ## Release Process
 
@@ -255,7 +250,6 @@ Triggered by `v*` tags. Builds release binaries for:
 Packages each as `<target>.tar.gz`, creates a GitHub release, then
 publishes to crates.io via `CARGO_REGISTRY_TOKEN`.
 
----
 
 ## Windows
 
@@ -264,7 +258,6 @@ Windows (`x86_64-pc-windows-msvc`) is a planned target. Known concerns:
 - `git2` links against `libgit2` — verify static linking on MSVC
 - Path separators — use `std::path::Path` throughout, never string
   concatenation for paths
-- Line endings — the engine normalises CRLF to LF on write (specified in
-  `core/page-content.md`)
+- Line endings -- the engine normalises CRLF to LF on write
 
 Add to the release matrix when the above are verified.
