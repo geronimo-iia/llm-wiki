@@ -248,7 +248,7 @@ Changes from code-ref:
 - `create_page` accepts optional `--name` and `--type` overrides
 - `read_page` adds supersession notice when `superseded_by` is set
 
-### Step 11: spaces.rs — Space management
+### Step 11: spaces.rs — Space management ✓
 
 Modules: `src/spaces.rs`, `src/lib.rs`
 Pulls from: `code-ref/src/spaces.rs` (resolve_name, register, remove,

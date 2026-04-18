@@ -11,4 +11,5 @@ pub mod links;
 pub mod markdown;
 pub mod search;
 pub mod slug;
+pub mod spaces;
 pub mod type_registry;
