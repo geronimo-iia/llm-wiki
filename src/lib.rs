@@ -4,4 +4,5 @@
 pub mod config;
 pub mod frontmatter;
 pub mod git;
+pub mod links;
 pub mod slug;
