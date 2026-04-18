@@ -64,7 +64,7 @@ Changes from code-ref:
 - `Slug::title` replaces `title_case` (same logic)
 - Pure data transformation — only I/O is `is_file`/`is_dir` checks
 
-### Step 2: config.rs — Two-level config loading
+### Step 2: config.rs — Two-level config loading ✓
 
 Modules: `src/config.rs`, `src/lib.rs`
 Pulls from: `code-ref/src/config.rs` (almost entirely)
@@ -82,7 +82,7 @@ Changes from code-ref:
 - Remove lint keys from set_wiki_config_value
 - Add new keys to get/set dispatchers
 
-### Step 3: frontmatter.rs — Untyped frontmatter parsing
+### Step 3: frontmatter.rs — Untyped frontmatter parsing ✓
 
 Modules: `src/frontmatter.rs`, `src/lib.rs`
 Pulls from: `code-ref/src/frontmatter.rs` (parse_frontmatter split
