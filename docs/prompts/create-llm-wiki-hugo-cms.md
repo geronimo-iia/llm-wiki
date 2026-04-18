@@ -41,6 +41,11 @@ wiki is the CMS — Hugo is the renderer. The project provides:
 2. Hugo configuration that maps wiki frontmatter to Hugo conventions
 3. A GitHub Actions CI pipeline that builds and deploys to GitHub Pages
 
+This prompt creates the *scaffold project*. Configuring a specific wiki
+to use it (generating type-specific cascades, layouts, and frontmatter
+mapping from the wiki's registered types) is handled by the
+`configure-hugo` skill in `llm-wiki-skills`.
+
 ## Design documents to read first
 
 - `docs/focused-llm-wiki-design.md` — the engine design, tool surface

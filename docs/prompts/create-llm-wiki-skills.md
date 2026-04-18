@@ -57,7 +57,11 @@ llm-wiki-skills/
 │   │   ├── SKILL.md
 │   │   └── references/
 │   │       └── type-taxonomy.md
-│   └── skill/
+│   ├── skill/
+│   │   └── SKILL.md
+│   ├── write-page/
+│   │   └── SKILL.md
+│   └── configure-hugo/
 │       └── SKILL.md
 ├── settings.json
 ├── README.md
@@ -116,7 +120,7 @@ Write a README that covers:
 
 ### CHANGELOG.md
 
-Initial entry for v0.1.0 with the 8 skills listed.
+Initial entry for v0.1.0 with the 10 skills listed.
 
 ## Skill specifications
 
@@ -351,6 +355,98 @@ description: >
 ---
 ```
 
+### write-page
+
+**Invocation**: Manual (`/llm-wiki:write-page`)
+**Purpose**: Create a wiki page of any type with correct frontmatter
+and structure.
+
+This is the skill for deliberate page creation — when the user wants
+to write a page that isn't driven by source ingestion or session
+crystallization. It reads the wiki's type registry, selects the right
+template, and guides the agent through type-specific fields.
+
+Steps:
+1. Determine the target type from the user's intent (concept, doc,
+   section, source, skill, or custom)
+2. `wiki_config list` — read registered types and their schemas
+3. `wiki_search` for existing pages on the same topic — avoid
+   duplicates, find pages to link
+4. Determine the slug — ask the user or derive from the title
+5. `wiki_content_new <slug> --type <type>` — scaffold the page
+   (add `--section` for sections, `--bundle` for pages with assets)
+6. Fill in type-specific fields:
+   - **section**: title, summary only — no additional fields
+   - **concept**: sources, concepts, confidence, claims if known
+   - **doc**: sources (informed-by), read_when
+   - **source types** (paper, article, etc.): tldr, sources (cites),
+     concepts (informs), confidence, claims
+   - **skill**: name, description, allowed-tools, disable-model-invocation
+7. Write the body content
+8. `wiki_content_write <slug>` — save the page
+9. `wiki_ingest <slug>` — validate, index, commit
+10. If the page should link to/from existing pages, update those pages
+    (read before write, preserve existing list values)
+
+Frontmatter:
+```yaml
+---
+name: write-page
+description: >
+  Create a wiki page of any type. Scaffold frontmatter from the
+  type registry, fill in type-specific fields, validate and commit.
+  Use when the user says "create a page", "write a doc",
+  "add a concept", "new section", or wants to create a page
+  outside of ingest or crystallize workflows.
+disable-model-invocation: true
+argument-hint: "[slug] [--type concept|doc|section|skill|paper|...]"
+---
+```
+
+### configure-hugo
+
+**Invocation**: Manual (`/llm-wiki:configure-hugo`)
+**Purpose**: Configure a wiki for Hugo rendering using the
+llm-wiki-hugo-cms scaffold.
+
+The llm-wiki-hugo-cms project provides the base Hugo scaffold (layouts,
+shortcodes, CI). This skill configures a *specific wiki* to use it —
+reading the wiki's registered types and generating matching Hugo
+configuration.
+
+Steps:
+1. `wiki_config list` — read wiki name, description, registered types
+2. Check if Hugo scaffold exists (hugo.toml, layouts/)
+3. If not present, instruct the user to clone/copy llm-wiki-hugo-cms
+   into the wiki repo first
+4. Generate `hugo.toml` with:
+   - `contentDir` pointing to `wiki/`
+   - `title` from wiki name
+   - `[[cascade]]` rules for each registered type
+   - Taxonomy mappings for tags, owner, type
+   - `ignoreFiles` for inbox/, raw/, schemas/
+5. For each registered type, generate a type-specific layout in
+   `layouts/<section>/single.html` if one doesn't exist
+6. Generate frontmatter mapping based on type fields (including
+   aliases — e.g. skill's `name` → `title`)
+7. Validate with `hugo --printUnusedTemplates` if Hugo is installed
+8. Report what was generated and what the user should review
+
+Frontmatter:
+```yaml
+---
+name: configure-hugo
+description: >
+  Configure a wiki for Hugo rendering. Read the wiki's registered
+  types, generate Hugo configuration with type-specific cascades
+  and layouts, set up frontmatter mapping. Use when the user says
+  "set up Hugo", "configure Hugo", "make this wiki publishable",
+  or "add Hugo to this wiki". Requires the llm-wiki-hugo-cms
+  scaffold to be present in the wiki repo.
+disable-model-invocation: true
+---
+```
+
 ## Quality checklist
 
 After creating all files, verify:
@@ -365,6 +461,9 @@ After creating all files, verify:
 - [ ] `frontmatter` skill content matches
   `docs/specifications/core/frontmatter-authoring.md`
 - [ ] `references/type-taxonomy.md` lists all 15 default types
+- [ ] `write-page` skill covers all built-in types
+- [ ] `write-page` skill references `frontmatter` skill for field details
+- [ ] `configure-hugo` skill references llm-wiki-hugo-cms scaffold
 - [ ] README includes installation instructions for all channels
 - [ ] Plugin structure matches Claude Code plugin conventions
 - [ ] Skills follow agentskills.io compatible format where possible

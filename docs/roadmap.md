@@ -59,7 +59,7 @@ complete modules from `code-ref/` where they still apply.
 
 - [ ] Create the `llm-wiki-skills` git repository
 - [ ] Set up Claude Code plugin structure
-- [ ] Write the 8 initial skills:
+- [ ] Write the 10 initial skills:
   - `bootstrap` — session orientation
   - `ingest` — source processing workflow
   - `crystallize` — distil session into wiki pages
@@ -68,11 +68,13 @@ complete modules from `code-ref/` where they still apply.
   - `graph` — generate and interpret concept graph
   - `frontmatter` — frontmatter authoring reference
   - `skill` — find and activate wiki skills
+  - `write-page` — create page of any type
+  - `configure-hugo` — configure wiki for Hugo rendering
 - [ ] Test with `claude --plugin-dir ./llm-wiki-skills`
 
 ### Milestone
 
-Engine binary with 15 tools. Skills repo with 8 skills. Claude Code
+Engine binary with 15 tools. Skills repo with 10 skills. Claude Code
 plugin installable. `llm-wiki serve` + plugin = working system.
 
 ## Phase 2 — Type System
