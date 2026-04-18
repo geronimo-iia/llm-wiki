@@ -145,6 +145,43 @@ impl WikiUri {
             })
         }
     }
+
+    /// Resolve a URI or bare slug against the global config.
+    ///
+    /// - `wiki://` URIs: try candidate wiki name, fall back to default wiki
+    /// - Bare slugs: use `wiki_flag` or default wiki
+    ///
+    /// Returns `(WikiEntry, Slug)`.
+    pub fn resolve(
+        input: &str,
+        wiki_flag: Option<&str>,
+        global: &crate::config::GlobalConfig,
+    ) -> Result<(crate::config::WikiEntry, Slug)> {
+        use crate::spaces;
+
+        if input.starts_with("wiki://") {
+            let parsed = Self::parse(input)?;
+            if let Some(ref name) = parsed.wiki {
+                if let Ok(entry) = spaces::resolve_name(name, global) {
+                    return Ok((entry, parsed.slug));
+                }
+                // Not a wiki name — treat as slug segment
+                let full_slug = format!("{name}/{}", parsed.slug);
+                let slug = Slug::try_from(full_slug.as_str())?;
+                let default = &global.global.default_wiki;
+                let entry = spaces::resolve_name(default, global)?;
+                return Ok((entry, slug));
+            }
+            let default = &global.global.default_wiki;
+            let entry = spaces::resolve_name(default, global)?;
+            Ok((entry, parsed.slug))
+        } else {
+            let wiki_name = wiki_flag.unwrap_or(&global.global.default_wiki);
+            let entry = spaces::resolve_name(wiki_name, global)?;
+            let slug = Slug::try_from(input)?;
+            Ok((entry, slug))
+        }
+    }
 }
 
 /// Result of slug vs asset resolution for wiki_content_read.

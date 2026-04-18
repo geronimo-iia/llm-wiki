@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock};
 
 use anyhow::{bail, Result};
 
-use crate::config::{self, GlobalConfig, ResolvedConfig, WikiEntry};
+use crate::config::{self, GlobalConfig, ResolvedConfig};
 use crate::index_schema::IndexSchema;
 use crate::search;
 use crate::type_registry::TypeRegistry;
@@ -50,15 +50,6 @@ impl Engine {
 
     pub fn resolve_wiki_name<'a>(&'a self, explicit: Option<&'a str>) -> &'a str {
         explicit.unwrap_or(self.default_wiki_name())
-    }
-
-    pub fn entry(&self, name: &str) -> Result<WikiEntry> {
-        self.config
-            .wikis
-            .iter()
-            .find(|w| w.name == name)
-            .cloned()
-            .ok_or_else(|| anyhow::anyhow!("wiki \"{name}\" is not registered"))
     }
 
     /// Index storage path for a wiki, relative to state_dir.

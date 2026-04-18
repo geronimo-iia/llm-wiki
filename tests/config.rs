@@ -385,3 +385,76 @@ fn serve_config_defaults() {
 fn ingest_config_defaults() {
     assert!(IngestConfig::default().auto_commit);
 }
+
+// ── get_config_value ──────────────────────────────────────────────────────────
+
+#[test]
+fn get_config_value_reads_resolved_keys() {
+    let global = GlobalConfig {
+        defaults: Defaults {
+            search_top_k: 42,
+            output_format: "json".into(),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let resolved = resolve(&global, &WikiConfig::default());
+
+    assert_eq!(get_config_value(&resolved, &global, "defaults.search_top_k"), "42");
+    assert_eq!(get_config_value(&resolved, &global, "defaults.output_format"), "json");
+}
+
+#[test]
+fn get_config_value_reads_global_only_keys() {
+    let global = GlobalConfig {
+        index: IndexConfig {
+            memory_budget_mb: 100,
+            tokenizer: "default".into(),
+            ..Default::default()
+        },
+        serve: ServeConfig {
+            sse_port: 9090,
+            ..Default::default()
+        },
+        logging: LoggingConfig {
+            log_format: "json".into(),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let resolved = resolve(&global, &WikiConfig::default());
+
+    assert_eq!(get_config_value(&resolved, &global, "index.memory_budget_mb"), "100");
+    assert_eq!(get_config_value(&resolved, &global, "index.tokenizer"), "default");
+    assert_eq!(get_config_value(&resolved, &global, "serve.sse_port"), "9090");
+    assert_eq!(get_config_value(&resolved, &global, "logging.log_format"), "json");
+}
+
+#[test]
+fn get_config_value_returns_per_wiki_override() {
+    let global = GlobalConfig {
+        defaults: Defaults {
+            search_top_k: 10,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let per_wiki = WikiConfig {
+        defaults: Some(Defaults {
+            search_top_k: 25,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let resolved = resolve(&global, &per_wiki);
+
+    assert_eq!(get_config_value(&resolved, &global, "defaults.search_top_k"), "25");
+}
+
+#[test]
+fn get_config_value_unknown_key() {
+    let global = GlobalConfig::default();
+    let resolved = resolve(&global, &WikiConfig::default());
+
+    assert!(get_config_value(&resolved, &global, "nonexistent.key").contains("unknown"));
+}

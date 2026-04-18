@@ -387,6 +387,43 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
     Ok(())
 }
 
+pub fn get_config_value(
+    resolved: &ResolvedConfig,
+    global: &GlobalConfig,
+    key: &str,
+) -> String {
+    match key {
+        "global.default_wiki" => global.global.default_wiki.clone(),
+        "defaults.search_top_k" => resolved.defaults.search_top_k.to_string(),
+        "defaults.search_excerpt" => resolved.defaults.search_excerpt.to_string(),
+        "defaults.search_sections" => resolved.defaults.search_sections.to_string(),
+        "defaults.page_mode" => resolved.defaults.page_mode.clone(),
+        "defaults.list_page_size" => resolved.defaults.list_page_size.to_string(),
+        "defaults.output_format" => resolved.defaults.output_format.clone(),
+        "read.no_frontmatter" => resolved.read.no_frontmatter.to_string(),
+        "index.auto_rebuild" => resolved.index.auto_rebuild.to_string(),
+        "index.auto_recovery" => global.index.auto_recovery.to_string(),
+        "index.memory_budget_mb" => global.index.memory_budget_mb.to_string(),
+        "index.tokenizer" => global.index.tokenizer.clone(),
+        "graph.format" => resolved.graph.format.clone(),
+        "graph.depth" => resolved.graph.depth.to_string(),
+        "graph.output" => resolved.graph.output.clone(),
+        "serve.sse" => resolved.serve.sse.to_string(),
+        "serve.sse_port" => resolved.serve.sse_port.to_string(),
+        "serve.acp" => resolved.serve.acp.to_string(),
+        "serve.max_restarts" => global.serve.max_restarts.to_string(),
+        "serve.restart_backoff" => global.serve.restart_backoff.to_string(),
+        "serve.heartbeat_secs" => global.serve.heartbeat_secs.to_string(),
+        "validation.type_strictness" => resolved.validation.type_strictness.clone(),
+        "logging.log_path" => global.logging.log_path.clone(),
+        "logging.log_rotation" => global.logging.log_rotation.clone(),
+        "logging.log_max_files" => global.logging.log_max_files.to_string(),
+        "logging.log_format" => global.logging.log_format.clone(),
+        "ingest.auto_commit" => resolved.ingest.auto_commit.to_string(),
+        _ => format!("unknown key: {key}"),
+    }
+}
+
 pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) -> Result<()> {
     match key {
         "defaults.search_top_k" => {

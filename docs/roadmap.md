@@ -311,7 +311,7 @@ EngineManager methods:
 - `on_wiki_added/removed` — stub returning "restart required"
 - `on_config_change` — stub returning "restart required"
 
-### Step 13: cli.rs — Clap subcommand hierarchy
+### Step 13: cli.rs — Clap subcommand hierarchy ✓
 
 Modules: `src/cli.rs`, `src/main.rs`, `src/lib.rs`
 Pulls from: `code-ref/src/cli.rs` (structure pattern),

@@ -215,3 +215,86 @@ fn slug_as_ref() {
     let r: &str = s.as_ref();
     assert_eq!(r, "concepts/moe");
 }
+
+// ── WikiUri::resolve ────────────────────────────────────────────────────
+
+use llm_wiki::config::{GlobalConfig, GlobalSection, WikiEntry};
+
+fn make_global(wikis: Vec<WikiEntry>, default: &str) -> GlobalConfig {
+    GlobalConfig {
+        global: GlobalSection {
+            default_wiki: default.into(),
+        },
+        wikis,
+        ..Default::default()
+    }
+}
+
+fn make_entry(name: &str, path: &str) -> WikiEntry {
+    WikiEntry {
+        name: name.into(),
+        path: path.into(),
+        description: None,
+        remote: None,
+    }
+}
+
+#[test]
+fn resolve_full_uri() {
+    let global = make_global(vec![make_entry("research", "/tmp/research")], "research");
+    let (entry, slug) = WikiUri::resolve("wiki://research/concepts/moe", None, &global).unwrap();
+    assert_eq!(entry.name, "research");
+    assert_eq!(slug.as_str(), "concepts/moe");
+}
+
+#[test]
+fn resolve_uri_falls_back_to_default() {
+    let global = make_global(vec![make_entry("research", "/tmp/research")], "research");
+    // "concepts" is not a wiki name → treat as slug segment under default wiki
+    let (entry, slug) = WikiUri::resolve("wiki://concepts/moe", None, &global).unwrap();
+    assert_eq!(entry.name, "research");
+    assert_eq!(slug.as_str(), "concepts/moe");
+}
+
+#[test]
+fn resolve_bare_slug_uses_default() {
+    let global = make_global(vec![make_entry("research", "/tmp/research")], "research");
+    let (entry, slug) = WikiUri::resolve("concepts/moe", None, &global).unwrap();
+    assert_eq!(entry.name, "research");
+    assert_eq!(slug.as_str(), "concepts/moe");
+}
+
+#[test]
+fn resolve_bare_slug_uses_wiki_flag() {
+    let global = make_global(
+        vec![
+            make_entry("research", "/tmp/research"),
+            make_entry("work", "/tmp/work"),
+        ],
+        "research",
+    );
+    let (entry, slug) = WikiUri::resolve("concepts/moe", Some("work"), &global).unwrap();
+    assert_eq!(entry.name, "work");
+    assert_eq!(slug.as_str(), "concepts/moe");
+}
+
+#[test]
+fn resolve_uri_ignores_wiki_flag() {
+    let global = make_global(
+        vec![
+            make_entry("research", "/tmp/research"),
+            make_entry("work", "/tmp/work"),
+        ],
+        "research",
+    );
+    // wiki:// URI specifies "research" explicitly — wiki_flag "work" is ignored
+    let (entry, slug) = WikiUri::resolve("wiki://research/concepts/moe", Some("work"), &global).unwrap();
+    assert_eq!(entry.name, "research");
+    assert_eq!(slug.as_str(), "concepts/moe");
+}
+
+#[test]
+fn resolve_unknown_wiki_errors() {
+    let global = make_global(vec![], "");
+    assert!(WikiUri::resolve("concepts/moe", None, &global).is_err());
+}
