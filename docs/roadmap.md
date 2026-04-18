@@ -121,7 +121,7 @@ Changes from code-ref:
 - Add default signature fallback: try git config first, fall back
   to `llm-wiki <llm-wiki@localhost>`
 
-### Step 5: links.rs — Wiki-link extraction
+### Step 5: links.rs — Wiki-link extraction ✓
 
 Modules: `src/links.rs`, `src/lib.rs`
 Pulls from: `code-ref/src/links.rs` (extract_wikilinks)
@@ -134,7 +134,7 @@ Changes from code-ref:
   `PageFrontmatter` — read `sources` and `concepts` from BTreeMap
 - Used at ingest time to populate `body_links` index field
 
-### Step 6: type_registry.rs — Hardcoded base type registry
+### Step 6: type_registry.rs — Hardcoded base type registry ✓
 
 Modules: `src/type_registry.rs`, `src/lib.rs`
 Pulls from: nothing (new module, Phase 1 is hardcoded)
@@ -160,7 +160,7 @@ impl TypeRegistry {
 Validation: title required, type defaults to "page" if missing,
 unknown types produce warnings (not errors) in loose mode.
 
-### Step 7: index_schema.rs + search.rs — Tantivy schema and search
+### Step 7: index_schema.rs + search.rs — Tantivy schema and search ✓
 
 Modules: `src/index_schema.rs`, `src/search.rs`, `src/lib.rs`
 Pulls from: `code-ref/src/search.rs` (build_schema, build_document,
