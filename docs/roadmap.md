@@ -208,7 +208,7 @@ Changes from code-ref:
 - Accept slug or URI as input (not just path) — resolve via
   `WikiUri::parse` + `Slug::resolve`
 
-### Step 9: graph.rs — Concept graph from index
+### Step 9: graph.rs — Concept graph from index ✓
 
 Modules: `src/graph.rs`, `src/lib.rs`
 Pulls from: `code-ref/src/graph.rs` (PageNode, GraphFilter,

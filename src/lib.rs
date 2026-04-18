@@ -4,6 +4,7 @@
 pub mod config;
 pub mod frontmatter;
 pub mod git;
+pub mod graph;
 pub mod index_schema;
 pub mod ingest;
 pub mod links;
