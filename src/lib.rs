@@ -4,6 +4,7 @@
 pub mod acp;
 pub mod cli;
 pub mod config;
+pub mod default_schemas;
 pub mod engine;
 pub mod frontmatter;
 pub mod git;

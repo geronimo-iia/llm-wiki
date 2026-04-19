@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/geronimo-iia/llm-wiki/schemas/v0.1.0/base.json",
+  "title": "Base page type",
+  "description": "Shared fields for all page types. Default fallback for unrecognized types.",
+  "type": "object",
+  "required": ["title", "type"],
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Display name"
+    },
+    "type": {
+      "type": "string",
+      "description": "Page type from registry"
+    },
+    "summary": {
+      "type": "string",
+      "description": "One-line scope"
+    },
+    "status": {
+      "type": "string",
+      "description": "Lifecycle state",
+      "enum": ["active", "draft", "stub", "generated"]
+    },
+    "last_updated": {
+      "type": "string",
+      "description": "ISO 8601 date"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Lowercase hyphenated search terms"
+    },
+    "owner": {
+      "type": "string",
+      "description": "Person, team, or agent responsible"
+    },
+    "superseded_by": {
+      "type": "string",
+      "description": "Slug of replacement page"
+    }
+  },
+  "additionalProperties": true
+}
