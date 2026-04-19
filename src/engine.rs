@@ -6,7 +6,7 @@ use anyhow::{bail, Result};
 
 use crate::config::{self, GlobalConfig, ResolvedConfig};
 use crate::index_schema::IndexSchema;
-use crate::search;
+use crate::indexing;
 use crate::type_registry::SpaceTypeRegistry;
 
 // ── SpaceState ────────────────────────────────────────────────────────────────
@@ -86,20 +86,20 @@ impl EngineManager {
             std::fs::create_dir_all(&search_dir)?;
 
             // Check staleness and rebuild if needed
-            let status = search::index_status(&entry.name, &index_path, &repo_root);
+            let status = indexing::index_status(&entry.name, &index_path, &repo_root);
             let needs_first_build = status.as_ref().map(|s| s.built.is_none()).unwrap_or(true);
 
             if needs_first_build {
                 tracing::info!(wiki = %entry.name, "building index for the first time");
                 if let Err(e) =
-                    search::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root, &schema)
+                    indexing::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root, &schema)
                 {
                     tracing::warn!(wiki = %entry.name, error = %e, "initial index build failed");
                 }
             } else if let Ok(ref s) = status {
                 if s.stale && config.index.auto_rebuild {
                     tracing::info!(wiki = %entry.name, "index stale, rebuilding");
-                    if let Err(e) = search::rebuild_index(
+                    if let Err(e) = indexing::rebuild_index(
                         &wiki_root,
                         &index_path,
                         &entry.name,
@@ -143,14 +143,14 @@ impl EngineManager {
     }
 
     /// Incremental index update after ingest.
-    pub fn on_ingest(&self, wiki_name: &str) -> Result<search::UpdateReport> {
+    pub fn on_ingest(&self, wiki_name: &str) -> Result<indexing::UpdateReport> {
         let engine = self
             .engine
             .read()
             .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
         let space = engine.space(wiki_name)?;
-        let last_commit = search::last_indexed_commit(&space.index_path);
-        search::update_index(
+        let last_commit = indexing::last_indexed_commit(&space.index_path);
+        indexing::update_index(
             &space.wiki_root,
             &space.index_path,
             &space.repo_root,
@@ -161,13 +161,13 @@ impl EngineManager {
     }
 
     /// Rebuild index from scratch.
-    pub fn rebuild_index(&self, wiki_name: &str) -> Result<search::IndexReport> {
+    pub fn rebuild_index(&self, wiki_name: &str) -> Result<indexing::IndexReport> {
         let engine = self
             .engine
             .read()
             .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
         let space = engine.space(wiki_name)?;
-        search::rebuild_index(
+        indexing::rebuild_index(
             &space.wiki_root,
             &space.index_path,
             wiki_name,

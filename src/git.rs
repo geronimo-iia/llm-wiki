@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -146,4 +147,35 @@ fn collect_md_changes(diff: &git2::Diff, wiki_prefix: &Path) -> Vec<ChangedFile>
     )
     .ok();
     changes
+}
+
+/// Collect all changed `.md` files by merging two git diffs:
+/// - Working tree vs HEAD (uncommitted changes)
+/// - `last_indexed_commit` vs HEAD (commits since last index update)
+///
+/// Working tree changes overwrite commit-based changes on duplicates.
+pub fn collect_changed_files(
+    repo_root: &Path,
+    wiki_root: &Path,
+    last_indexed_commit: Option<&str>,
+) -> Result<HashMap<PathBuf, Delta>> {
+    let mut changes = HashMap::new();
+
+    // B: last indexed commit vs HEAD (insert first so A wins on duplicates)
+    if let Some(from_hash) = last_indexed_commit {
+        if let Ok(files) = changed_since_commit(repo_root, wiki_root, from_hash) {
+            for f in files {
+                changes.insert(f.path, f.status);
+            }
+        }
+    }
+
+    // A: working tree vs HEAD (overwrites B on duplicates)
+    if let Ok(files) = changed_wiki_files(repo_root, wiki_root) {
+        for f in files {
+            changes.insert(f.path, f.status);
+        }
+    }
+
+    Ok(changes)
 }

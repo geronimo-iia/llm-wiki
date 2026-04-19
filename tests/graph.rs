@@ -4,6 +4,7 @@ use std::path::Path;
 use llm_wiki::git;
 use llm_wiki::graph::*;
 use llm_wiki::index_schema::IndexSchema;
+use llm_wiki::indexing;
 use llm_wiki::search;
 
 fn schema() -> IndexSchema {
@@ -32,7 +33,7 @@ fn write_page(wiki_root: &Path, rel_path: &str, content: &str) {
 fn build_index(dir: &Path, wiki_root: &Path) -> std::path::PathBuf {
     let index_path = dir.join("index-store");
     git::commit(dir, "index pages").unwrap();
-    search::rebuild_index(wiki_root, &index_path, "test", dir, &schema()).unwrap();
+    indexing::rebuild_index(wiki_root, &index_path, "test", dir, &schema()).unwrap();
     index_path
 }
 

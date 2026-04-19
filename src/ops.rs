@@ -8,6 +8,7 @@ use crate::git;
 use crate::graph;
 use crate::ingest;
 use crate::markdown;
+use crate::indexing;
 use crate::search;
 use crate::slug::{resolve_read_target, ReadTarget, Slug, WikiUri};
 use crate::spaces;
@@ -245,7 +246,7 @@ pub fn search(
     } else {
         None
     };
-    let recovery_ctx = recovery.as_ref().map(|(wr, rr)| search::RecoveryContext {
+    let recovery_ctx = recovery.as_ref().map(|(wr, rr)| indexing::RecoveryContext {
         wiki_root: wr,
         repo_root: rr,
     });
@@ -283,7 +284,7 @@ pub fn list(
     } else {
         None
     };
-    let recovery_ctx = recovery.as_ref().map(|(wr, rr)| search::RecoveryContext {
+    let recovery_ctx = recovery.as_ref().map(|(wr, rr)| indexing::RecoveryContext {
         wiki_root: wr,
         repo_root: rr,
     });
@@ -331,13 +332,13 @@ pub fn ingest(
 
 // ── Index ─────────────────────────────────────────────────────────────────────
 
-pub fn index_rebuild(manager: &EngineManager, wiki_name: &str) -> Result<search::IndexReport> {
+pub fn index_rebuild(manager: &EngineManager, wiki_name: &str) -> Result<indexing::IndexReport> {
     manager.rebuild_index(wiki_name)
 }
 
-pub fn index_status(engine: &Engine, wiki_name: &str) -> Result<search::IndexStatus> {
+pub fn index_status(engine: &Engine, wiki_name: &str) -> Result<indexing::IndexStatus> {
     let space = engine.space(wiki_name)?;
-    search::index_status(wiki_name, &space.index_path, &space.repo_root)
+    indexing::index_status(wiki_name, &space.index_path, &space.repo_root)
 }
 
 // ── Graph ─────────────────────────────────────────────────────────────────────

@@ -67,8 +67,9 @@ To resume after a break, say "Continue from Step N".
 | 4 | `spaces create` writes schemas | `src/spaces.rs`, `src/default_schemas.rs` |
 | 5 | Dynamic `SpaceTypeRegistry` | `src/type_registry.rs`, `docs/implementation/type-registry.md` |
 | 6 | Dynamic `IndexSchema` | `src/index_schema.rs`, `docs/implementation/tantivy.md` |
-| 7 | Validation on ingest | `src/ingest.rs`, `docs/specifications/engine/ingest-pipeline.md` |
-| 8 | Schema change detection | `src/engine.rs`, `src/search.rs`, `docs/implementation/index-manager.md` |
+| 7a | Extract `indexing.rs` | `src/search.rs`, `src/engine.rs`, `src/ops.rs` |
+| 7b | Alias resolution in `build_document` | `src/indexing.rs`, `src/index_schema.rs`, `docs/implementation/ingest-validation.md` |
+| 8 | Schema change detection | `src/engine.rs`, `src/indexing.rs`, `docs/implementation/index-manager.md` |
 | 9 | `schema` CLI + MCP tool | `src/cli.rs`, `src/ops.rs`, `src/mcp/tools.rs` |
 | 10 | Integration tests | All source files from steps 1–9 |
 

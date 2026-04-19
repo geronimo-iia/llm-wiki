@@ -198,21 +198,48 @@ Replace the hardcoded field list with dynamic derivation:
 
 The `IndexSchema` struct gains `aliases` and keeps `fields`.
 
-### Step 7: Validation on ingest
+### Step 7a: Extract `indexing.rs` module
 
-Modules: `src/ingest.rs`
-Tests: valid frontmatter passes, invalid rejected, alias resolution
-applied before indexing, unknown type uses default schema
-Commit: `ingest: JSON Schema validation + alias resolution`
+Modules: `src/indexing.rs` (new), `src/search.rs` (shrink),
+`src/engine.rs`, `src/ops.rs`, `src/lib.rs`
+Tests: all existing search/index tests still pass, no behavior change
+Commit: `refactor: extract indexing.rs from search.rs`
 
-Update the ingest pipeline:
-1. Read page `type` → look up in `SpaceTypeRegistry`
-2. Fall back to `default` if not found
-3. Validate frontmatter against the type's compiled JSON Schema
-4. Apply `x-index-aliases` before indexing
-5. Index all canonical fields
+Mechanical refactor — split `search.rs` into read and write:
 
-Strict vs loose controlled by `validation.type_strictness`.
+**`indexing.rs`** (write path):
+- `build_document()` — build tantivy doc from frontmatter
+- `rebuild_index()` — full rebuild from wiki tree
+- `update_index()` — incremental update from git diff
+- `collect_changed_files()` — git diff helper
+- `save_state()` / `last_indexed_commit()` — state.toml management
+- `IndexReport`, `UpdateReport`, `IndexState` — write-side types
+
+**`search.rs`** (read path, stays):
+- `search()` / `search_all()` — BM25 query
+- `list()` — paginated listing
+- `index_status()` — health check
+- `open_index()` — open with recovery
+- Read-side types
+
+No behavior change. All callers updated to import from the new module.
+
+### Step 7b: Alias resolution in `build_document`
+
+Modules: `src/indexing.rs`, `src/index_schema.rs`, `src/engine.rs`
+Tests: skill page indexed as title/summary, concept fields indexed,
+unrecognized fields in body text, existing tests pass
+Commit: `ingest: dynamic field indexing with alias resolution`
+
+Update the indexing pipeline:
+1. `build_document` gains a `&SpaceTypeRegistry` parameter
+2. Dynamic field iteration replaces hardcoded field extraction
+3. Alias resolution: `name` → `title`, `description` → `summary`
+4. `IndexSchema` gains `keyword_fields: HashSet<String>` to
+   distinguish text vs keyword indexing for array values
+5. Unrecognized fields appended to body text
+6. `rebuild_index` and `update_index` pass registry through
+7. `Engine` propagates registry to index operations
 
 ### Step 8: Schema change detection
 

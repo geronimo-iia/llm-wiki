@@ -197,3 +197,34 @@ fn changed_since_commit_detects_gap() {
     assert!(changes.iter().any(|c| c.path.ends_with("page-b.md")));
     assert!(!changes.iter().any(|c| c.path.ends_with("page-a.md")));
 }
+
+// ── collect_changed_files ─────────────────────────────────────────────────────
+
+#[test]
+fn collect_changed_files_detects_new_file() {
+    let dir = tempfile::tempdir().unwrap();
+    git::init_repo(dir.path()).unwrap();
+    let wiki = dir.path().join("wiki");
+    fs::create_dir_all(&wiki).unwrap();
+    fs::write(dir.path().join("README.md"), "# test\n").unwrap();
+    git::commit(dir.path(), "init").unwrap();
+
+    fs::write(wiki.join("new.md"), "---\ntitle: New\n---\n").unwrap();
+
+    let changes = git::collect_changed_files(dir.path(), &wiki, None).unwrap();
+    assert!(!changes.is_empty());
+}
+
+#[test]
+fn collect_changed_files_empty_when_clean() {
+    let dir = tempfile::tempdir().unwrap();
+    git::init_repo(dir.path()).unwrap();
+    let wiki = dir.path().join("wiki");
+    fs::create_dir_all(&wiki).unwrap();
+    fs::write(wiki.join("foo.md"), "---\ntitle: Foo\n---\n").unwrap();
+    git::commit(dir.path(), "add foo").unwrap();
+    let head = git::current_head(dir.path()).unwrap();
+
+    let changes = git::collect_changed_files(dir.path(), &wiki, Some(&head)).unwrap();
+    assert!(changes.is_empty());
+}
