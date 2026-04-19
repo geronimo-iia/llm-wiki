@@ -479,3 +479,77 @@ fn get_config_value_unknown_key() {
 
     assert!(get_config_value(&resolved, &global, "nonexistent.key").contains("unknown"));
 }
+
+// ── types registry in wiki.toml ──────────────────────────────────────────────
+
+#[test]
+fn load_wiki_parses_types() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("wiki.toml"),
+        r#"
+name = "research"
+description = "ML research"
+
+[types.default]
+schema = "schemas/base.json"
+description = "Fallback for unrecognized types"
+
+[types.concept]
+schema = "schemas/concept.json"
+description = "Synthesized knowledge"
+
+[types.paper]
+schema = "schemas/paper.json"
+description = "Academic source"
+"#,
+    )
+    .unwrap();
+
+    let config = load_wiki(dir.path()).unwrap();
+    assert_eq!(config.name, "research");
+    assert_eq!(config.types.len(), 3);
+    assert_eq!(config.types["default"].schema, "schemas/base.json");
+    assert_eq!(config.types["concept"].schema, "schemas/concept.json");
+    assert_eq!(
+        config.types["concept"].description,
+        "Synthesized knowledge"
+    );
+    assert_eq!(config.types["paper"].schema, "schemas/paper.json");
+}
+
+#[test]
+fn load_wiki_empty_types_when_absent() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
+
+    let config = load_wiki(dir.path()).unwrap();
+    assert!(config.types.is_empty());
+}
+
+#[test]
+fn save_wiki_roundtrips_types() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut types = std::collections::HashMap::new();
+    types.insert(
+        "concept".into(),
+        TypeEntry {
+            schema: "schemas/concept.json".into(),
+            description: "Synthesized knowledge".into(),
+        },
+    );
+    let cfg = WikiConfig {
+        name: "test".into(),
+        types,
+        ..Default::default()
+    };
+    save_wiki(&cfg, dir.path()).unwrap();
+
+    let loaded = load_wiki(dir.path()).unwrap();
+    assert_eq!(loaded.types.len(), 1);
+    assert_eq!(loaded.types["concept"].schema, "schemas/concept.json");
+    assert_eq!(
+        loaded.types["concept"].description,
+        "Synthesized knowledge"
+    );
+}

@@ -206,12 +206,21 @@ pub struct GlobalConfig {
     pub logging: LoggingConfig,
 }
 
+/// A type entry in `[types.<name>]` of `wiki.toml`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypeEntry {
+    pub schema: String,
+    pub description: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WikiConfig {
     #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub description: String,
+    #[serde(default)]
+    pub types: std::collections::HashMap<String, TypeEntry>,
     #[serde(default)]
     pub defaults: Option<Defaults>,
     #[serde(default)]
