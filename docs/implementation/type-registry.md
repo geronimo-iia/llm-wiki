@@ -83,6 +83,21 @@ pub struct EdgeDecl {
   unrecognized or missing `type` field
 - If no `default` type is discovered → use embedded `base.json`
 
+### Base schema invariant
+
+The `default` type is critical — every unknown type falls back to it.
+The engine enforces at `build()` time:
+
+1. A `default` type must exist after discovery + overrides. If no
+   schema declares it, the embedded `base.json` is injected.
+2. If a custom `base.json` exists on disk, it must:
+   - Declare `default` in `x-wiki-types`
+   - Require at least `title` and `type` in its `required` array
+3. Violation → `build()` returns an error with a clear message.
+
+This prevents a wiki from accidentally breaking all validation by
+shipping an incompatible base schema.
+
 ### Validator sharing
 
 Multiple types can share a single compiled validator (e.g., `paper`,

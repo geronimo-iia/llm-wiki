@@ -14,6 +14,7 @@ struct RegisteredType {
     description: String,
     validator: Validator,
     aliases: HashMap<String, String>,
+    required_fields: Vec<String>,
 }
 
 /// Per-wiki type registry — discovers types from `schemas/*.json` via
@@ -22,6 +23,15 @@ pub struct SpaceTypeRegistry {
     types: HashMap<String, RegisteredType>,
     schema_hash: String,
     type_hashes: HashMap<String, String>,
+}
+
+impl std::fmt::Debug for SpaceTypeRegistry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SpaceTypeRegistry")
+            .field("types", &self.types.keys().collect::<Vec<_>>())
+            .field("schema_hash", &self.schema_hash)
+            .finish()
+    }
 }
 
 impl SpaceTypeRegistry {
@@ -44,6 +54,17 @@ impl SpaceTypeRegistry {
             let content = std::fs::read_to_string(&schema_path)?;
             let registered = compile_schema(&entry.schema, &entry.description, &content)?;
             types.insert(type_name.clone(), registered);
+        }
+
+        // Enforce base schema invariant
+        if !types.contains_key("default") {
+            // Inject embedded base.json as fallback
+            let schemas = default_schemas::default_schemas();
+            let base = schemas["base.json"];
+            let registered = compile_schema("schemas/base.json", "Fallback for unrecognized types", base)?;
+            types.insert("default".to_string(), registered);
+        } else {
+            validate_base_invariant(&types["default"])?;
         }
 
         let (schema_hash, type_hashes) = compute_hashes(&types);
@@ -188,25 +209,24 @@ fn discover_from_dir(schemas_dir: &Path, types: &mut HashMap<String, RegisteredT
         let schema_rel = format!("schemas/{filename}");
 
         if let Some(wiki_types) = schema_value.get("x-wiki-types").and_then(|v| v.as_object()) {
-            // Extract aliases once per schema file
             let aliases = extract_aliases(&schema_value);
-            let validator = Validator::new(&schema_value)
-                .map_err(|e| anyhow::anyhow!("invalid schema {filename}: {e}"))?;
+            let required_fields = extract_required(&schema_value);
 
             for (type_name, desc) in wiki_types {
                 let description = desc.as_str().unwrap_or("").to_string();
+                let validator = Validator::new(&schema_value)
+                    .map_err(|e| anyhow::anyhow!("invalid schema {filename}: {e}"))?;
                 types.insert(
                     type_name.clone(),
                     RegisteredType {
                         schema_path: schema_rel.clone(),
                         description,
-                        validator: Validator::new(&schema_value).unwrap(),
+                        validator,
                         aliases: aliases.clone(),
+                        required_fields: required_fields.clone(),
                     },
                 );
             }
-            // Drop the first validator — we cloned per type above
-            drop(validator);
         }
     }
 
@@ -234,12 +254,14 @@ fn compile_schema(schema_path: &str, description: &str, content: &str) -> Result
     let validator = Validator::new(&schema_value)
         .map_err(|e| anyhow::anyhow!("invalid schema {schema_path}: {e}"))?;
     let aliases = extract_aliases(&schema_value);
+    let required_fields = extract_required(&schema_value);
 
     Ok(RegisteredType {
         schema_path: schema_path.to_string(),
         description: description.to_string(),
         validator,
         aliases,
+        required_fields,
     })
 }
 
@@ -253,6 +275,37 @@ fn extract_aliases(schema: &serde_json::Value) -> HashMap<String, String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn extract_required(schema: &serde_json::Value) -> Vec<String> {
+    schema
+        .get("required")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Validate that a custom default type requires at least `title` and `type`.
+fn validate_base_invariant(rt: &RegisteredType) -> Result<()> {
+    if !rt.required_fields.contains(&"title".to_string()) {
+        bail!(
+            "base schema '{}' must require 'title' — \
+             the default type is the fallback for all unknown types",
+            rt.schema_path
+        );
+    }
+    if !rt.required_fields.contains(&"type".to_string()) {
+        bail!(
+            "base schema '{}' must require 'type' — \
+             the default type is the fallback for all unknown types",
+            rt.schema_path
+        );
+    }
+    Ok(())
 }
 
 // ── Hashing ───────────────────────────────────────────────────────────────────

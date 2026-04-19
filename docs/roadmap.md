@@ -160,7 +160,28 @@ Replace the hardcoded `TypeRegistry` with `SpaceTypeRegistry`:
 - `aliases(type) -> HashMap<String, String>`
 - `schema_hash() -> String` (SHA-256 of all inputs)
 - `type_hashes() -> HashMap<String, String>` (per-type)
-- Multiple types sharing a schema share the compiled validator
+- Multiple types sharing a schema each compile their own validator
+  (negligible cost, simpler code)
+
+### Step 5bis: Base schema invariant
+
+Modules: `src/type_registry.rs`
+Tests: missing base.json uses embedded fallback, custom base.json
+must declare `default` in `x-wiki-types`, custom base.json must
+require `title` and `type` fields, incompatible base.json rejected
+at build time
+Commit: `type_registry: enforce base schema invariant`
+
+The `default` type (from `base.json`) is the fallback for every
+unknown type. The registry must guarantee:
+
+1. A `default` type always exists — if no schema declares it, the
+   embedded `base.json` is used as fallback
+2. A custom `base.json` must declare `default` in `x-wiki-types`
+3. A custom `base.json` must require at least `title` and `type`
+   (superset of the embedded base is fine, subset is not)
+4. If validation of these invariants fails, `build()` returns an
+   error with a clear message
 
 ### Step 6: Dynamic `IndexSchema`
 

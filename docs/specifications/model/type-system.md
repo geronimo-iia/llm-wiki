@@ -185,3 +185,18 @@ against the schema and indexes using the alias mapping.
 - Pages with an unregistered type are validated against `[types.default]`
 - Wikis with no `schemas/` directory use a built-in base schema
 - No frontmatter rewriting — existing files are untouched
+
+## Base Schema Invariant
+
+The `default` type (from `base.json`) is the fallback for every
+unknown or missing type. The engine enforces:
+
+1. A `default` type always exists in the registry. If no schema on
+   disk declares it via `x-wiki-types`, the embedded `base.json` is
+   used as fallback.
+2. A custom `base.json` must declare `default` in `x-wiki-types`.
+3. A custom `base.json` must require at least `title` and `type`
+   fields. It may add additional required or optional fields
+   (superset is fine), but it cannot drop `title` or `type`.
+4. If these invariants are violated, `SpaceTypeRegistry::build()`
+   returns an error.

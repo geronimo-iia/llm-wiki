@@ -231,3 +231,121 @@ fn validate_base_type_accepts_minimal() {
     // But no schema validation error (default/base accepts title+type)
     assert!(!warnings.iter().any(|w| w.contains("schema validation")));
 }
+
+// ── base schema invariant ─────────────────────────────────────────────────────
+
+#[test]
+fn build_injects_embedded_default_when_no_base_json() {
+    let dir = tempfile::tempdir().unwrap();
+    let schemas_dir = dir.path().join("schemas");
+    fs::create_dir_all(&schemas_dir).unwrap();
+
+    // Only a custom type, no base.json
+    fs::write(
+        schemas_dir.join("custom.json"),
+        r#"{
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "x-wiki-types": {"custom": "A custom type"},
+            "type": "object",
+            "required": ["title", "type"],
+            "properties": {
+                "title": {"type": "string"},
+                "type": {"type": "string"}
+            },
+            "additionalProperties": true
+        }"#,
+    )
+    .unwrap();
+    fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
+
+    let reg = SpaceTypeRegistry::build(dir.path()).unwrap();
+    assert!(reg.is_known("default"), "default type should be injected from embedded");
+    assert!(reg.is_known("custom"));
+}
+
+#[test]
+fn build_accepts_valid_custom_base() {
+    let dir = tempfile::tempdir().unwrap();
+    let schemas_dir = dir.path().join("schemas");
+    fs::create_dir_all(&schemas_dir).unwrap();
+
+    // Custom base.json that requires title + type + an extra field
+    fs::write(
+        schemas_dir.join("base.json"),
+        r#"{
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "x-wiki-types": {"default": "Custom fallback"},
+            "type": "object",
+            "required": ["title", "type", "owner"],
+            "properties": {
+                "title": {"type": "string"},
+                "type": {"type": "string"},
+                "owner": {"type": "string"}
+            },
+            "additionalProperties": true
+        }"#,
+    )
+    .unwrap();
+    fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
+
+    let reg = SpaceTypeRegistry::build(dir.path()).unwrap();
+    assert!(reg.is_known("default"));
+}
+
+#[test]
+fn build_rejects_base_missing_title_requirement() {
+    let dir = tempfile::tempdir().unwrap();
+    let schemas_dir = dir.path().join("schemas");
+    fs::create_dir_all(&schemas_dir).unwrap();
+
+    // base.json that only requires "type" — missing "title"
+    fs::write(
+        schemas_dir.join("base.json"),
+        r#"{
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "x-wiki-types": {"default": "Bad fallback"},
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+                "type": {"type": "string"}
+            },
+            "additionalProperties": true
+        }"#,
+    )
+    .unwrap();
+    fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
+
+    let result = SpaceTypeRegistry::build(dir.path());
+    assert!(result.is_err());
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("title"), "error should mention title: {msg}");
+}
+
+#[test]
+fn build_rejects_base_missing_type_requirement() {
+    let dir = tempfile::tempdir().unwrap();
+    let schemas_dir = dir.path().join("schemas");
+    fs::create_dir_all(&schemas_dir).unwrap();
+
+    // base.json that only requires "title" — missing "type"
+    fs::write(
+        schemas_dir.join("base.json"),
+        r#"{
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "x-wiki-types": {"default": "Bad fallback"},
+            "type": "object",
+            "required": ["title"],
+            "properties": {
+                "title": {"type": "string"}
+            },
+            "additionalProperties": true
+        }"#,
+    )
+    .unwrap();
+    fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
+
+    let result = SpaceTypeRegistry::build(dir.path());
+    assert!(result.is_err());
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("type"), "error should mention type: {msg}");
+}
