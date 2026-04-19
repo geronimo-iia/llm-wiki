@@ -98,35 +98,41 @@ fn build_document(
     let empty_aliases = std::collections::HashMap::new();
     let aliases = registry.aliases(page_type).unwrap_or(&empty_aliases);
 
-    // Dynamic frontmatter indexing
+    // Dynamic frontmatter indexing with alias resolution.
+    // Spec: "if source field exists and canonical field does not,
+    // index source value under the canonical name. If both exist,
+    // the canonical field wins."
+    let mut indexed: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut extra_text = String::new();
-    for (field_name, value) in &page.frontmatter {
-        // Resolve alias: e.g. "name" → "title"
-        let canonical = aliases
-            .get(field_name.as_str())
-            .map(|s| s.as_str())
-            .unwrap_or(field_name.as_str());
 
-        if let Some(field_handle) = is.try_field(canonical) {
-            if is.is_keyword(canonical) {
-                // Keyword: index each value separately for multi-valued fields
-                for s in yaml_to_strings(value) {
-                    doc.add_text(field_handle, &s);
-                }
-            } else {
-                // Text: join all values for BM25
-                let text = yaml_to_text(value);
-                if !text.is_empty() {
-                    doc.add_text(field_handle, &text);
-                }
-            }
-        } else {
-            // Unrecognized field → append to extra text for body search
-            let text = yaml_to_text(value);
-            if !text.is_empty() {
-                extra_text.push(' ');
-                extra_text.push_str(&text);
-            }
+    for (field_name, value) in &page.frontmatter {
+        // Skip source fields that have an alias — they're handled
+        // when we encounter the canonical field (or at the end if
+        // the canonical field is absent)
+        if aliases.contains_key(field_name.as_str()) {
+            continue;
+        }
+
+        let canonical = field_name.as_str();
+
+        // If this canonical field has an aliased source and the
+        // frontmatter doesn't have the canonical field, the source
+        // value would be used. But we're iterating the canonical
+        // field here, so it wins.
+        indexed.insert(canonical.to_string());
+        index_value(&mut doc, &mut extra_text, is, canonical, value);
+    }
+
+    // Now handle aliased source fields whose canonical target was
+    // NOT present in frontmatter
+    for (source_field, canonical) in aliases {
+        if indexed.contains(canonical.as_str()) {
+            // Canonical field was present — it already won
+            continue;
+        }
+        if let Some(value) = page.frontmatter.get(source_field.as_str()) {
+            indexed.insert(canonical.clone());
+            index_value(&mut doc, &mut extra_text, is, canonical, value);
         }
     }
 
@@ -143,6 +149,34 @@ fn build_document(
     }
 
     doc
+}
+
+/// Index a single value under a canonical field name.
+fn index_value(
+    doc: &mut tantivy::TantivyDocument,
+    extra_text: &mut String,
+    is: &IndexSchema,
+    canonical: &str,
+    value: &serde_yaml::Value,
+) {
+    if let Some(field_handle) = is.try_field(canonical) {
+        if is.is_keyword(canonical) {
+            for s in yaml_to_strings(value) {
+                doc.add_text(field_handle, &s);
+            }
+        } else {
+            let text = yaml_to_text(value);
+            if !text.is_empty() {
+                doc.add_text(field_handle, &text);
+            }
+        }
+    } else {
+        let text = yaml_to_text(value);
+        if !text.is_empty() {
+            extra_text.push(' ');
+            extra_text.push_str(&text);
+        }
+    }
 }
 
 /// Convert a YAML value to a single text string (for TEXT fields).

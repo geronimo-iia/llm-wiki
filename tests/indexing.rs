@@ -274,3 +274,209 @@ fn recovers_from_corrupt_index() {
     .unwrap();
     assert!(!results.is_empty());
 }
+
+// ── alias resolution edge cases ───────────────────────────────────────────────
+
+fn skill_page(name: &str, description: &str, body: &str) -> String {
+    format!(
+        "---\nname: \"{name}\"\ndescription: \"{description}\"\nstatus: active\ntype: skill\ntags:\n  - workflow\n---\n\n{body}\n"
+    )
+}
+
+fn skill_page_with_title(name: &str, title: &str, description: &str, body: &str) -> String {
+    format!(
+        "---\nname: \"{name}\"\ntitle: \"{title}\"\ndescription: \"{description}\"\nstatus: active\ntype: skill\ntags:\n  - workflow\n---\n\n{body}\n"
+    )
+}
+
+#[test]
+fn alias_name_indexed_as_title() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "skills/ingest.md",
+        &skill_page("ingest", "Process source files", "skill body"),
+    );
+
+    let index_path = build_index(dir.path(), &wiki_root);
+    let is = schema();
+
+    // Search by the aliased value — should find it via "title" field
+    let results = search::search(
+        "ingest",
+        &search::SearchOptions::default(),
+        &index_path,
+        "test",
+        &is,
+        None,
+    )
+    .unwrap();
+    assert!(
+        results.iter().any(|r| r.title == "ingest"),
+        "skill name should be searchable as title"
+    );
+}
+
+#[test]
+fn alias_description_indexed_as_summary() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "skills/ingest.md",
+        &skill_page("ingest", "Process source files into wiki", "body"),
+    );
+
+    let index_path = build_index(dir.path(), &wiki_root);
+    let is = schema();
+
+    // Search by description content — should match via "summary" field
+    let results = search::search(
+        "Process source files",
+        &search::SearchOptions::default(),
+        &index_path,
+        "test",
+        &is,
+        None,
+    )
+    .unwrap();
+    assert!(
+        !results.is_empty(),
+        "skill description should be searchable as summary"
+    );
+}
+
+#[test]
+fn alias_canonical_wins_when_both_exist() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    // Page has both "name" (aliased) and "title" (canonical)
+    write_page(
+        &wiki_root,
+        "skills/dual.md",
+        &skill_page_with_title("aliased-name", "canonical-title", "desc", "body"),
+    );
+
+    let index_path = build_index(dir.path(), &wiki_root);
+    let is = schema();
+
+    // Search for the canonical value — should find it
+    let results = search::search(
+        "canonical-title",
+        &search::SearchOptions::default(),
+        &index_path,
+        "test",
+        &is,
+        None,
+    )
+    .unwrap();
+    assert!(
+        results.iter().any(|r| r.title == "canonical-title"),
+        "canonical title should win"
+    );
+
+    // Search for the aliased value — should NOT be indexed as title
+    let results = search::search(
+        "aliased-name",
+        &search::SearchOptions {
+            top_k: 10,
+            ..Default::default()
+        },
+        &index_path,
+        "test",
+        &is,
+        None,
+    )
+    .unwrap();
+    // The aliased name might still match via body text (unrecognized field),
+    // but the title field should be "canonical-title", not "aliased-name"
+    for r in &results {
+        if r.slug == "skills/dual" {
+            assert_eq!(r.title, "canonical-title", "canonical should win over alias");
+        }
+    }
+}
+
+#[test]
+fn alias_source_field_not_double_indexed() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "skills/single.md",
+        &skill_page("my-skill", "A skill", "body"),
+    );
+
+    let index_path = build_index(dir.path(), &wiki_root);
+    let is = schema();
+
+    // List should show the skill with title = "my-skill" (from alias)
+    let result = search::list(
+        &search::ListOptions {
+            r#type: Some("skill".into()),
+            ..Default::default()
+        },
+        &index_path,
+        "test",
+        &is,
+        None,
+    )
+    .unwrap();
+    assert_eq!(result.total, 1);
+    assert_eq!(result.pages[0].title, "my-skill");
+}
+
+#[test]
+fn non_aliased_type_indexes_normally() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/moe.md",
+        &concept_page("Mixture of Experts", "MoE body"),
+    );
+
+    let index_path = build_index(dir.path(), &wiki_root);
+    let is = schema();
+
+    let results = search::search(
+        "Mixture of Experts",
+        &search::SearchOptions::default(),
+        &index_path,
+        "test",
+        &is,
+        None,
+    )
+    .unwrap();
+    assert!(results.iter().any(|r| r.title == "Mixture of Experts"));
+}
+
+#[test]
+fn unrecognized_field_indexed_as_body_text() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/custom.md",
+        "---\ntitle: \"Custom\"\ntype: concept\nmy_custom_field: \"unicorn rainbow\"\n---\n\nBody.\n",
+    );
+
+    let index_path = build_index(dir.path(), &wiki_root);
+    let is = schema();
+
+    // The custom field value should be searchable via body text
+    let results = search::search(
+        "unicorn rainbow",
+        &search::SearchOptions::default(),
+        &index_path,
+        "test",
+        &is,
+        None,
+    )
+    .unwrap();
+    assert!(
+        results.iter().any(|r| r.slug == "concepts/custom"),
+        "unrecognized field should be searchable as body text"
+    );
+}
