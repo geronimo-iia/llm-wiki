@@ -15,8 +15,9 @@ the design.
 
 | Document                                       | Description                                              |
 | ---------------------------------------------- | -------------------------------------------------------- |
-| [type-registry.md](type-registry.md)           | SpaceTypeRegistry, validators, caching, change detection |
-| [index-manager.md](index-manager.md)           | SpaceIndexManager, rebuild, staleness, recovery          |
+| [type-registry.md](type-registry.md)                     | SpaceTypeRegistry, validators, caching, change detection |
+| [index-schema-building.md](index-schema-building.md)     | Deriving tantivy schema from type schemas                |
+| [index-manager.md](index-manager.md)                     | SpaceIndexManager, rebuild, staleness, recovery          |
 | [tantivy.md](tantivy.md)                       | Dynamic schema, TopDocs, index writer, tokenizer         |
 | [graph-builder.md](graph-builder.md)           | Petgraph from index, typed edges, Mermaid/DOT rendering  |
 | [frontmatter-parser.md](frontmatter-parser.md) | YAML extraction, untyped parsing, body splitting         |
