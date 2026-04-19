@@ -91,7 +91,6 @@ matrix build.
 | `async-trait`                         | 0.1                                                      | Async trait support              |
 | `serde` + `serde_json` + `serde_yaml` | 1 / 1 / 0.9                                              | Serialization                    |
 | `toml`                                | 0.8                                                      | Config file parsing              |
-| `comrak`                              | 0.28                                                     | Markdown parsing                 |
 | `tantivy`                             | 0.22                                                     | Full-text search index           |
 | `petgraph`                            | 0.6                                                      | Concept graph                    |
 | `walkdir`                             | 2                                                        | Filesystem traversal             |
@@ -99,8 +98,6 @@ matrix build.
 | `git2`                                | 0.19                                                     | Git operations                   |
 | `rmcp`                                | 0.1 (server, transport-io, transport-sse-server, macros) | MCP server                       |
 | `agent-client-protocol`               | 0.10                                                     | ACP agent                        |
-| `agent-client-protocol-tokio`         | 0.1                                                      | ACP stdio transport              |
-| `jsonschema`                          | 0.28                                                     | JSON Schema validation           |
 | `frontmatter`                         | 0.4                                                      | YAML frontmatter extraction      |
 
 ### Dev
@@ -125,9 +122,10 @@ edition = "2021"
 max_width = 100
 tab_spaces = 4
 use_small_heuristics = "Default"
-imports_granularity = "Crate"
-group_imports = "StdExternalCrate"
 ```
+
+Note: `imports_granularity = "Crate"` and `group_imports = "StdExternalCrate"`
+require nightly rustfmt. Omitted for stable toolchain compatibility.
 
 ### clippy.toml
 
