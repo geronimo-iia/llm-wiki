@@ -1,61 +1,40 @@
 ---
 title: "wiki.toml"
-summary: "wiki.toml reference — identity, type registry, per-wiki settings."
+summary: "wiki.toml reference — identity, type overrides, per-wiki settings."
 read_when:
   - Understanding what wiki.toml contains
-  - Adding or modifying types in a wiki
+  - Overriding a type's schema mapping
   - Overriding engine defaults for a specific wiki
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2025-07-18"
 ---
 
 # wiki.toml
 
-`wiki.toml` is the single configuration file for a wiki repository. It
-lives at the repo root, is committed to git, and is shared across all
-users of the wiki.
+`wiki.toml` is the configuration file for a wiki repository. It lives
+at the repo root, is committed to git, and is shared across all users
+of the wiki.
 
 
 ## Complete Example
 
 ```toml
-# ── Identity ───────────────────────────────────────────────────────────────────
-
-[wiki]
+# Identity
 name        = "research"
 description = "ML research knowledge base"
 
-# ── Type registry ──────────────────────────────────────────────────────────────
+# Type overrides (optional)
+# Only needed to remap a type to a different schema file.
+# Types are normally discovered from schemas/*.json via x-wiki-types.
 
-[types.default]
-schema      = "schemas/base.json"
-description = "Fallback for unrecognized types"
+# [types.paper]
+# schema      = "schemas/my-custom-paper.json"
+# description = "Custom paper schema with extra fields"
 
-[types.concept]
-schema      = "schemas/concept.json"
-description = "Synthesized knowledge — one concept per page"
-
-[types.paper]
-schema      = "schemas/paper.json"
-description = "Academic source — research papers, preprints"
-
-[types.section]
-schema      = "schemas/section.json"
-description = "Section index grouping related pages"
-
-[types.skill]
-schema      = "schemas/skill.json"
-description = "Agent skill with workflow instructions"
-
-# ... more types — see type-system.md for the full default list
-
-# ── Per-wiki settings (override global defaults) ──────────────────────────────
+# Per-wiki settings (override global defaults)
 
 [ingest]
 auto_commit = true
-
-[search]
-top_k = 10
 
 [validation]
 type_strictness = "loose"
@@ -64,33 +43,38 @@ type_strictness = "loose"
 
 ## Sections
 
-### `[wiki]` — Identity
+### Identity
 
 | Field         | Required | Description                                               |
 | ------------- | -------- | --------------------------------------------------------- |
 | `name`        | yes      | Wiki name — used in `wiki://` URIs and the space registry |
 | `description` | no       | One-line description — shown in `wiki_spaces_list`        |
 
-### `[types.*]` — Type Registry
+### `[types.*]` — Type Overrides (optional)
 
-Each `[types.<name>]` entry registers a page type. The engine uses it
-on ingest to find the right JSON Schema for validation.
+Types are discovered automatically from `schemas/*.json` via
+`x-wiki-types` (see [type-system.md](type-system.md)). Most wikis
+need no `[types.*]` entries at all.
+
+Use `[types.*]` only to override the discovered mapping — for example,
+to point a type at a different schema file:
+
+```toml
+[types.paper]
+schema      = "schemas/my-custom-paper.json"
+description = "Custom paper schema with extra fields"
+```
 
 | Field         | Required | Description                                     |
 | ------------- | -------- | ----------------------------------------------- |
 | `schema`      | yes      | Path to JSON Schema file, relative to repo root |
 | `description` | yes      | What this type is — readable by LLM and human   |
 
-`[types.default]` is the fallback for pages with an unrecognized or
-missing `type` field.
-
-For the full type system — schemas, field aliasing, graph edges — see
-[type-system.md](type-system.md).
+A `[types.*]` entry takes precedence over the same type discovered
+from `x-wiki-types` in a schema file.
 
 ### Per-wiki settings
 
 Any key from the global config that is not global-only can be overridden
 here. See [global-config.md](global-config.md) for the full key
 reference.
-
-

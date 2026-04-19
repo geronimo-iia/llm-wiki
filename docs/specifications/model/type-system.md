@@ -1,13 +1,14 @@
 ---
 title: "Type System"
-summary: "What a type is, how types are managed, base schema, field aliasing, and graph edges."
+summary: "What a type is, how types are discovered from schemas, field aliasing, and graph edges."
 read_when:
   - Understanding how per-type validation works
   - Adding a custom type to a wiki
   - Understanding field aliasing
   - Understanding typed graph edges
+  - Understanding type discovery from schemas
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2025-07-18"
 ---
 
 # Type System
@@ -15,16 +16,17 @@ last_updated: "2025-07-17"
 Every page has a `type` field. The type determines which JSON Schema
 validates the frontmatter and how fields are indexed.
 
-Types are defined by the wiki owner in `wiki.toml` and `schemas/`, not
-hardcoded in the engine. See [wiki-toml.md](wiki-toml.md) for the type
-registry format.
+Types are discovered automatically from `schemas/*.json` files in the
+wiki repository. Each schema declares which types it serves via
+`x-wiki-types`. Optional `[types.*]` entries in `wiki.toml` override
+the discovered mapping.
 
 For the epistemic rationale behind types, see
 [epistemic-model.md](epistemic-model.md).
 
 ## Built-in Types
 
-Registered in `wiki.toml` by `llm-wiki spaces create`:
+Shipped as default schema files by `llm-wiki spaces create`:
 
 | Type                                      | Schema         | Description                                                  |
 | ----------------------------------------- | -------------- | ------------------------------------------------------------ |
@@ -37,11 +39,52 @@ Registered in `wiki.toml` by `llm-wiki spaces create`:
 
 ## How It Works
 
-1. `wiki.toml` registers types — each type has a description and a
-   path to its JSON Schema file
-2. On `wiki_ingest`, the engine validates frontmatter against the
-   type's JSON Schema
-3. Field aliases map type-specific names to canonical index roles
+1. The engine scans `schemas/*.json` in the wiki repository
+2. For each schema, it reads `x-wiki-types` to discover which page
+   types the schema serves
+3. If `wiki.toml` has a `[types.<name>]` entry for a type, that
+   override takes precedence over the discovered mapping
+4. On `wiki_ingest`, the engine validates frontmatter against the
+   type’s JSON Schema
+5. Field aliases map type-specific names to canonical index roles
+
+## Type Discovery — `x-wiki-types`
+
+Each JSON Schema declares which page types it serves:
+
+```json
+"x-wiki-types": {
+  "paper": "Academic source — research papers, preprints",
+  "article": "Editorial source — blog posts, news, essays",
+  "documentation": "Reference source — product docs, API references"
+}
+```
+
+- **Key** = type name (used in frontmatter `type` field)
+- **Value** = human-readable description
+
+One schema can serve multiple types (e.g., `paper.json` serves all 9
+source types). The engine iterates all `schemas/*.json` files, collects
+`x-wiki-types` entries, and builds the type registry.
+
+The type named `default` (from `base.json`) is the fallback for pages
+with an unrecognized or missing `type` field.
+
+### Resolution order
+
+1. Scan `schemas/*.json` → collect all `x-wiki-types` entries
+2. Read `[types.*]` from `wiki.toml` (if any)
+3. For each type: `wiki.toml` entry wins over discovered entry
+4. Result = merged type registry
+
+This means:
+- **Common case**: no `[types.*]` in `wiki.toml` — types are fully
+  discovered from schema files. `wiki.toml` stays clean.
+- **Override case**: a `[types.*]` entry remaps a type to a different
+  schema (e.g., `paper` → `schemas/my-paper.json`).
+- **Custom type**: drop a schema with `x-wiki-types` into `schemas/`
+  — the engine discovers it automatically. Or add a `[types.*]` entry
+  in `wiki.toml` pointing to any schema file.
 
 ## Field Aliasing — `x-index-aliases`
 
@@ -102,7 +145,29 @@ the graph.
 
 ## Custom Types
 
-Add a schema file and register in `wiki.toml`:
+Drop a schema file into `schemas/` with `x-wiki-types` — the engine
+discovers it automatically:
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-wiki-types": {
+    "meeting-notes": "Meeting notes with attendees and action items"
+  },
+  "type": "object",
+  "required": ["title", "type"],
+  "properties": {
+    "title": { "type": "string" },
+    "type": { "type": "string" },
+    "attendees": { "type": "array", "items": { "type": "string" } },
+    "action_items": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}
+```
+
+Alternatively, add a `[types.*]` entry in `wiki.toml` pointing to any
+schema file:
 
 ```toml
 [types.meeting-notes]
@@ -110,7 +175,7 @@ schema = "schemas/meeting-notes.json"
 description = "Meeting notes with attendees and action items"
 ```
 
-The engine doesn't need to know what "meeting-notes" means. It validates
+The engine doesn’t need to know what “meeting-notes” means. It validates
 against the schema and indexes using the alias mapping.
 
 ## Backward Compatibility

@@ -16,3 +16,4 @@ Architectural decisions and their rationale.
 | [engine-manager](engine-manager.md)                 | Centralized mutation handling with cascade reports                         |
 | [ops-module](ops-module.md)                         | Extract duplicated CLI/MCP business logic into src/ops.rs                  |
 | [rationalize-specs](rationalize-specs.md)           | How the specifications were rationalized                                   |
+| [schema-driven-types](schema-driven-types.md)       | Types discovered from schemas via x-wiki-types, wiki.toml as overrides     |

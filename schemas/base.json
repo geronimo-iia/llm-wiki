@@ -41,5 +41,8 @@
       "description": "Slug of replacement page"
     }
   },
+  "x-wiki-types": {
+    "default": "Fallback for unrecognized types"
+  },
   "additionalProperties": true
 }

@@ -36,11 +36,13 @@ type registry. See [type-system.md](type-system.md).
 
 ## Top-Level Files and Directories
 
-**`wiki.toml`** — wiki identity, engine configuration, and type
-registry. The LLM reads it via `wiki_config`.
+**`wiki.toml`** — wiki identity, engine configuration, and optional
+type overrides. The LLM reads it via `wiki_config`.
 
 **`schemas/`** — JSON Schema files (Draft 2020-12) that define
-frontmatter per page type. The engine validates on ingest.
+frontmatter per page type. Each schema declares which types it serves
+via `x-wiki-types`. The engine discovers types by scanning this
+directory — no registration in `wiki.toml` needed for the common case.
 
 **`inbox/`** — human interface. Drop files here for the LLM to process.
 

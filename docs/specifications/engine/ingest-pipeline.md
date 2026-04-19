@@ -30,8 +30,9 @@ The engine walks `wiki/` recursively. No exclusions needed — `raw/` and
 ```
 1. Parse YAML frontmatter
 2. Read `type` field (default: "page" if missing)
-3. Look up type in wiki.toml [types.<type>] → get schema path
-4. Fall back to [types.default] if type not registered
+3. Look up type in discovered registry (schemas/*.json x-wiki-types,
+   overridden by wiki.toml [types.<type>] if present)
+4. Fall back to [types.default] / base.json if type not found
 5. Load JSON Schema from schemas/
 6. Validate frontmatter against schema → reject if invalid
 7. Read x-index-aliases from schema → apply aliases

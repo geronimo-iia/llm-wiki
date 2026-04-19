@@ -157,12 +157,53 @@ fn skill_accepts_full_template() {
 }
 
 #[test]
-fn skill_has_index_aliases() {
-    let schema: Value = serde_json::from_str(default_schemas()["skill.json"]).unwrap();
-    let aliases = schema.get("x-index-aliases").expect("missing x-index-aliases");
-    assert_eq!(aliases["name"], "title");
-    assert_eq!(aliases["description"], "summary");
-    assert_eq!(aliases["when_to_use"], "read_when");
+fn all_schemas_have_x_wiki_types() {
+    for (name, content) in default_schemas() {
+        let schema: Value = serde_json::from_str(content).unwrap();
+        assert!(
+            schema.get("x-wiki-types").is_some(),
+            "{name} missing x-wiki-types"
+        );
+        let types = schema["x-wiki-types"].as_object().unwrap();
+        assert!(!types.is_empty(), "{name} has empty x-wiki-types");
+    }
+}
+
+#[test]
+fn default_type_entries_discovers_all_15_types() {
+    let entries = llm_wiki::default_schemas::default_type_entries();
+    assert_eq!(entries.len(), 15);
+
+    let names: Vec<&str> = entries.iter().map(|e| e.type_name.as_str()).collect();
+    assert!(names.contains(&"default"));
+    assert!(names.contains(&"concept"));
+    assert!(names.contains(&"query-result"));
+    assert!(names.contains(&"paper"));
+    assert!(names.contains(&"article"));
+    assert!(names.contains(&"documentation"));
+    assert!(names.contains(&"clipping"));
+    assert!(names.contains(&"transcript"));
+    assert!(names.contains(&"note"));
+    assert!(names.contains(&"data"));
+    assert!(names.contains(&"book-chapter"));
+    assert!(names.contains(&"thread"));
+    assert!(names.contains(&"skill"));
+    assert!(names.contains(&"doc"));
+    assert!(names.contains(&"section"));
+}
+
+#[test]
+fn default_type_entries_schema_paths_are_correct() {
+    let entries = llm_wiki::default_schemas::default_type_entries();
+    for entry in &entries {
+        let filename = entry.schema_file.strip_prefix("schemas/").unwrap();
+        assert!(
+            default_schemas().contains_key(filename),
+            "type '{}' references unknown schema '{}'",
+            entry.type_name,
+            entry.schema_file
+        );
+    }
 }
 
 // ── doc.json ─────────────────────────────────────────────────────────────────
@@ -203,4 +244,13 @@ fn section_accepts_template() {
 fn section_rejects_missing_title() {
     let v = compile("section.json");
     assert!(!v.is_valid(&json!({"type": "section"})));
+}
+
+#[test]
+fn skill_has_index_aliases() {
+    let schema: Value = serde_json::from_str(default_schemas()["skill.json"]).unwrap();
+    let aliases = schema.get("x-index-aliases").expect("missing x-index-aliases");
+    assert_eq!(aliases["name"], "title");
+    assert_eq!(aliases["description"], "summary");
+    assert_eq!(aliases["when_to_use"], "read_when");
 }

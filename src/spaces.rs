@@ -4,6 +4,7 @@ use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::config::{load_global, save_global, GlobalConfig, WikiEntry};
+use crate::default_schemas::default_schemas;
 use crate::git;
 
 // ── CreateReport ──────────────────────────────────────────────────────────────
@@ -116,6 +117,15 @@ fn ensure_structure(path: &Path, name: &str, description: Option<&str>) -> Resul
         }
     }
 
+    // Write embedded default schemas
+    let schemas_dir = path.join("schemas");
+    for (filename, content) in default_schemas() {
+        let dest = schemas_dir.join(filename);
+        if !dest.exists() {
+            std::fs::write(&dest, content)?;
+        }
+    }
+
     let readme = path.join("README.md");
     if !readme.exists() {
         let desc_line = description.map(|d| format!("\n{d}\n")).unwrap_or_default();
@@ -127,14 +137,18 @@ fn ensure_structure(path: &Path, name: &str, description: Option<&str>) -> Resul
 
     let wiki_toml = path.join("wiki.toml");
     if !wiki_toml.exists() {
-        let mut content = format!("name = \"{name}\"\n");
-        if let Some(desc) = description {
-            content.push_str(&format!("description = \"{desc}\"\n"));
-        }
-        std::fs::write(&wiki_toml, content)?;
+        std::fs::write(&wiki_toml, generate_wiki_toml(name, description))?;
     }
 
     Ok(())
+}
+
+fn generate_wiki_toml(name: &str, description: Option<&str>) -> String {
+    let mut s = format!("name = \"{name}\"\n");
+    if let Some(desc) = description {
+        s.push_str(&format!("description = \"{desc}\"\n"));
+    }
+    s
 }
 
 // ── Space management ──────────────────────────────────────────────────────────

@@ -92,5 +92,9 @@
       }
     }
   },
+  "x-wiki-types": {
+    "concept": "Synthesized knowledge — one concept per page",
+    "query-result": "Saved conclusion — crystallized sessions, comparisons"
+  },
   "additionalProperties": true
 }

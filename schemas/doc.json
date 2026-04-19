@@ -51,5 +51,8 @@
       "description": "Slugs of source pages that informed this doc"
     }
   },
+  "x-wiki-types": {
+    "doc": "Reference document — specifications, guides, standards"
+  },
   "additionalProperties": true
 }

@@ -121,5 +121,8 @@
       "description": "Publishing metadata (author, version, homepage)"
     }
   },
+  "x-wiki-types": {
+    "skill": "Agent skill with workflow instructions"
+  },
   "additionalProperties": true
 }

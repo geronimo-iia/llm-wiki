@@ -92,5 +92,16 @@
       }
     }
   },
+  "x-wiki-types": {
+    "paper": "Academic source — research papers, preprints",
+    "article": "Editorial source — blog posts, news, essays",
+    "documentation": "Reference source — product docs, API references",
+    "clipping": "Web capture — browser clips, bookmarks",
+    "transcript": "Spoken source — meeting transcripts, podcasts",
+    "note": "Informal source — freeform drafts, quick captures",
+    "data": "Structured source — CSV, JSON, datasets",
+    "book-chapter": "Published source — book excerpts",
+    "thread": "Discussion source — forum threads, social media"
+  },
   "additionalProperties": true
 }

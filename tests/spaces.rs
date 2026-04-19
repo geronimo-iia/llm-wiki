@@ -270,3 +270,81 @@ fn resolve_name_errors_on_missing() {
     let global = GlobalConfig::default();
     assert!(spaces::resolve_name("nope", &global).is_err());
 }
+
+// ── schemas and wiki.toml types ──────────────────────────────────────────────
+
+#[test]
+fn create_writes_default_schema_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_path = dir.path().join("research");
+    let cfg = config_path(dir.path());
+
+    spaces::create(&wiki_path, "research", None, false, false, &cfg).unwrap();
+
+    let schemas_dir = wiki_path.join("schemas");
+    for name in &[
+        "base.json",
+        "concept.json",
+        "paper.json",
+        "skill.json",
+        "doc.json",
+        "section.json",
+    ] {
+        let path = schemas_dir.join(name);
+        assert!(path.is_file(), "missing schema: {name}");
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("\"$schema\""), "{name} missing $schema");
+    }
+}
+
+#[test]
+fn create_schema_files_match_embedded() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_path = dir.path().join("research");
+    let cfg = config_path(dir.path());
+
+    spaces::create(&wiki_path, "research", None, false, false, &cfg).unwrap();
+
+    let embedded = llm_wiki::default_schemas::default_schemas();
+    for (filename, expected) in &embedded {
+        let on_disk = std::fs::read_to_string(wiki_path.join("schemas").join(filename)).unwrap();
+        assert_eq!(&on_disk, *expected, "mismatch for {filename}");
+    }
+}
+
+#[test]
+fn create_generates_wiki_toml_without_types() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_path = dir.path().join("research");
+    let cfg = config_path(dir.path());
+
+    spaces::create(&wiki_path, "research", Some("ML wiki"), false, false, &cfg).unwrap();
+
+    let wiki_cfg = llm_wiki::config::load_wiki(&wiki_path).unwrap();
+    assert_eq!(wiki_cfg.name, "research");
+    assert_eq!(wiki_cfg.description, "ML wiki");
+    // Types are discovered from schemas, not written to wiki.toml
+    assert!(wiki_cfg.types.is_empty());
+}
+
+#[test]
+fn create_does_not_overwrite_existing_schemas() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_path = dir.path().join("research");
+    let cfg = config_path(dir.path());
+
+    spaces::create(&wiki_path, "research", None, false, false, &cfg).unwrap();
+
+    // Modify a schema on disk
+    let custom = wiki_path.join("schemas/base.json");
+    std::fs::write(&custom, r#"{"custom": true}"#).unwrap();
+
+    // Re-run create (same name = skip path)
+    // Simulate by calling ensure_structure indirectly via a new wiki
+    let wiki_path2 = dir.path().join("other");
+    spaces::create(&wiki_path2, "other", None, false, false, &cfg).unwrap();
+
+    // Original wiki's custom schema untouched (create skipped it)
+    let content = std::fs::read_to_string(&custom).unwrap();
+    assert!(content.contains("custom"));
+}

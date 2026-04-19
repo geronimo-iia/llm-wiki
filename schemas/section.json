@@ -41,5 +41,8 @@
       "description": "Slug of replacement page"
     }
   },
+  "x-wiki-types": {
+    "section": "Section index grouping related pages"
+  },
   "additionalProperties": true
 }

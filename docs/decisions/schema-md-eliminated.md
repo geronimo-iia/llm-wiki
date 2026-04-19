@@ -41,3 +41,9 @@ the LLM how to work, not in engine configuration.
 - `wiki_config list` returns type names + descriptions
 - No Markdown-as-config parsing
 - LLM reads conventions from skills, not from a file the engine manages
+
+> **Note:** The "type registry in `wiki.toml`" part of this decision
+> has been superseded by
+> [schema-driven-types](schema-driven-types.md) — types are now
+> discovered from `schemas/*.json` via `x-wiki-types`, with
+> `wiki.toml` `[types.*]` as optional overrides.
