@@ -241,15 +241,11 @@ pub fn search(
         return search::search_all(params.query, &opts, &wikis, &space.schema);
     }
 
-    let recovery = if engine.config.index.auto_recovery {
-        Some((space.wiki_root.clone(), space.repo_root.clone()))
+    let recovery_ctx = if engine.config.index.auto_recovery {
+        Some(indexing::RecoveryContext { wiki_root: &space.wiki_root, repo_root: &space.repo_root, registry: &engine.type_registry })
     } else {
         None
     };
-    let recovery_ctx = recovery.as_ref().map(|(wr, rr)| indexing::RecoveryContext {
-        wiki_root: wr,
-        repo_root: rr,
-    });
     search::search(
         params.query,
         &opts,
@@ -279,15 +275,11 @@ pub fn list(
         page,
         page_size: page_size.unwrap_or(resolved.defaults.list_page_size as usize),
     };
-    let recovery = if engine.config.index.auto_recovery {
-        Some((space.wiki_root.clone(), space.repo_root.clone()))
+    let recovery_ctx = if engine.config.index.auto_recovery {
+        Some(indexing::RecoveryContext { wiki_root: &space.wiki_root, repo_root: &space.repo_root, registry: &engine.type_registry })
     } else {
         None
     };
-    let recovery_ctx = recovery.as_ref().map(|(wr, rr)| indexing::RecoveryContext {
-        wiki_root: wr,
-        repo_root: rr,
-    });
     search::list(
         &opts,
         &space.index_path,

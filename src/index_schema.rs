@@ -17,6 +17,7 @@ use crate::default_schemas;
 pub struct IndexSchema {
     pub schema: Schema,
     pub fields: HashMap<String, Field>,
+    keyword_fields: HashSet<String>,
 }
 
 impl IndexSchema {
@@ -86,6 +87,10 @@ impl IndexSchema {
         }
 
         Ok(builder.finish())
+    }
+
+    pub fn is_keyword(&self, name: &str) -> bool {
+        self.keyword_fields.contains(name)
     }
 
     pub fn field(&self, name: &str) -> Field {
@@ -245,6 +250,7 @@ fn extract_schema_source(content: &str) -> Result<SchemaSource> {
 struct SchemaBuilder {
     builder: tantivy::schema::SchemaBuilder,
     fields: HashMap<String, Field>,
+    keyword_fields: HashSet<String>,
     text_opts: TextOptions,
 }
 
@@ -260,6 +266,7 @@ impl SchemaBuilder {
         Self {
             builder: Schema::builder(),
             fields: HashMap::new(),
+            keyword_fields: HashSet::new(),
             text_opts,
         }
     }
@@ -282,6 +289,7 @@ impl SchemaBuilder {
         if !self.fields.contains_key(name) {
             let field = self.builder.add_text_field(name, STRING | STORED);
             self.fields.insert(name.to_string(), field);
+            self.keyword_fields.insert(name.to_string());
         }
     }
 
@@ -289,6 +297,7 @@ impl SchemaBuilder {
         IndexSchema {
             schema: self.builder.build(),
             fields: self.fields,
+            keyword_fields: self.keyword_fields,
         }
     }
 }

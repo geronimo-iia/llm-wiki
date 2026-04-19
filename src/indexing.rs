@@ -17,6 +17,7 @@ use crate::git;
 use crate::index_schema::IndexSchema;
 use crate::links;
 use crate::slug::Slug;
+use crate::type_registry::SpaceTypeRegistry;
 
 // ── Return types ──────────────────────────────────────────────────────────────
 
@@ -49,6 +50,7 @@ pub struct IndexStatus {
 pub struct RecoveryContext<'a> {
     pub wiki_root: &'a Path,
     pub repo_root: &'a Path,
+    pub registry: &'a SpaceTypeRegistry,
 }
 
 // ── state.toml ────────────────────────────────────────────────────────────────
@@ -80,31 +82,107 @@ pub fn last_indexed_commit(index_path: &Path) -> Option<String> {
 
 fn build_document(
     is: &IndexSchema,
+    registry: &SpaceTypeRegistry,
     slug: &str,
     uri: &str,
     page: &frontmatter::ParsedPage,
 ) -> tantivy::TantivyDocument {
     let mut doc = tantivy::TantivyDocument::default();
+
+    // Fixed fields
     doc.add_text(is.field("slug"), slug);
     doc.add_text(is.field("uri"), uri);
-    doc.add_text(is.field("title"), page.title().unwrap_or(""));
-    doc.add_text(
-        is.field("summary"),
-        page.frontmatter
-            .get("summary")
-            .and_then(|v| v.as_str())
-            .unwrap_or(""),
-    );
-    doc.add_text(is.field("body"), &page.body);
-    doc.add_text(is.field("type"), page.page_type().unwrap_or("page"));
-    doc.add_text(is.field("status"), page.status().unwrap_or("active"));
-    doc.add_text(is.field("tags"), page.tags().join(" "));
 
+    // Get aliases for this page's type
+    let page_type = page.page_type().unwrap_or("page");
+    let empty_aliases = std::collections::HashMap::new();
+    let aliases = registry.aliases(page_type).unwrap_or(&empty_aliases);
+
+    // Dynamic frontmatter indexing
+    let mut extra_text = String::new();
+    for (field_name, value) in &page.frontmatter {
+        // Resolve alias: e.g. "name" → "title"
+        let canonical = aliases
+            .get(field_name.as_str())
+            .map(|s| s.as_str())
+            .unwrap_or(field_name.as_str());
+
+        if let Some(field_handle) = is.try_field(canonical) {
+            if is.is_keyword(canonical) {
+                // Keyword: index each value separately for multi-valued fields
+                for s in yaml_to_strings(value) {
+                    doc.add_text(field_handle, &s);
+                }
+            } else {
+                // Text: join all values for BM25
+                let text = yaml_to_text(value);
+                if !text.is_empty() {
+                    doc.add_text(field_handle, &text);
+                }
+            }
+        } else {
+            // Unrecognized field → append to extra text for body search
+            let text = yaml_to_text(value);
+            if !text.is_empty() {
+                extra_text.push(' ');
+                extra_text.push_str(&text);
+            }
+        }
+    }
+
+    // Body + unrecognized fields
+    if extra_text.is_empty() {
+        doc.add_text(is.field("body"), &page.body);
+    } else {
+        doc.add_text(is.field("body"), format!("{}\n{}", page.body, extra_text.trim()));
+    }
+
+    // Body wiki-links
     for link in links::extract_body_wikilinks(&page.body) {
         doc.add_text(is.field("body_links"), &link);
     }
 
     doc
+}
+
+/// Convert a YAML value to a single text string (for TEXT fields).
+fn yaml_to_text(value: &serde_yaml::Value) -> String {
+    match value {
+        serde_yaml::Value::String(s) => s.clone(),
+        serde_yaml::Value::Bool(b) => b.to_string(),
+        serde_yaml::Value::Number(n) => n.to_string(),
+        serde_yaml::Value::Sequence(seq) => seq
+            .iter()
+            .filter_map(|v| match v {
+                serde_yaml::Value::String(s) => Some(s.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join(" "),
+        serde_yaml::Value::Mapping(_) => {
+            serde_json::to_string(value).unwrap_or_default()
+        }
+        serde_yaml::Value::Null => String::new(),
+        _ => String::new(),
+    }
+}
+
+/// Convert a YAML value to individual strings (for KEYWORD fields).
+fn yaml_to_strings(value: &serde_yaml::Value) -> Vec<String> {
+    match value {
+        serde_yaml::Value::String(s) => vec![s.clone()],
+        serde_yaml::Value::Bool(b) => vec![b.to_string()],
+        serde_yaml::Value::Number(n) => vec![n.to_string()],
+        serde_yaml::Value::Sequence(seq) => seq
+            .iter()
+            .filter_map(|v| match v {
+                serde_yaml::Value::String(s) => Some(s.clone()),
+                _ => None,
+            })
+            .collect(),
+        serde_yaml::Value::Null => vec![],
+        _ => vec![yaml_to_text(value)],
+    }
 }
 
 // ── rebuild_index ─────────────────────────────────────────────────────────────
@@ -115,6 +193,7 @@ pub fn rebuild_index(
     wiki_name: &str,
     repo_root: &Path,
     is: &IndexSchema,
+    registry: &SpaceTypeRegistry,
 ) -> Result<IndexReport> {
     let start = std::time::Instant::now();
 
@@ -148,7 +227,7 @@ pub fn rebuild_index(
         let uri = format!("wiki://{wiki_name}/{slug}");
         let page = frontmatter::parse(&content);
 
-        writer.add_document(build_document(is, slug.as_str(), &uri, &page))?;
+        writer.add_document(build_document(is, registry, slug.as_str(), &uri, &page))?;
 
         if page.page_type() == Some("section") {
             sections += 1;
@@ -187,6 +266,7 @@ pub fn update_index(
     last_indexed_commit: Option<&str>,
     is: &IndexSchema,
     wiki_name: &str,
+    registry: &SpaceTypeRegistry,
 ) -> Result<UpdateReport> {
     let changes = git::collect_changed_files(repo_root, wiki_root, last_indexed_commit)?;
     if changes.is_empty() {
@@ -221,7 +301,7 @@ pub fn update_index(
             if let Ok(content) = std::fs::read_to_string(&full_path) {
                 let page = frontmatter::parse(&content);
                 let uri = format!("wiki://{wiki_name}/{slug}");
-                writer.add_document(build_document(is, slug.as_str(), &uri, &page))?;
+                writer.add_document(build_document(is, registry, slug.as_str(), &uri, &page))?;
                 updated += 1;
             }
         }
@@ -257,7 +337,7 @@ pub fn open_index(
                 if search_dir.exists() {
                     let _ = std::fs::remove_dir_all(search_dir);
                 }
-                rebuild_index(ctx.wiki_root, index_path, wiki_name, ctx.repo_root, is)?;
+                rebuild_index(ctx.wiki_root, index_path, wiki_name, ctx.repo_root, is, ctx.registry)?;
                 try_open().context("index still corrupt after rebuild")
             } else {
                 Err(e)

@@ -5,9 +5,14 @@ use llm_wiki::git;
 use llm_wiki::index_schema::IndexSchema;
 use llm_wiki::indexing::*;
 use llm_wiki::search;
+use llm_wiki::type_registry::SpaceTypeRegistry;
 
 fn schema() -> IndexSchema {
     IndexSchema::build("en_stem")
+}
+
+fn registry() -> SpaceTypeRegistry {
+    SpaceTypeRegistry::from_embedded()
 }
 
 fn setup_repo(dir: &Path) -> std::path::PathBuf {
@@ -38,7 +43,7 @@ fn concept_page(title: &str, body: &str) -> String {
 fn build_index(dir: &Path, wiki_root: &Path) -> std::path::PathBuf {
     let index_path = dir.join("index-store");
     git::commit(dir, "index pages").unwrap();
-    rebuild_index(wiki_root, &index_path, "test", dir, &schema()).unwrap();
+    rebuild_index(wiki_root, &index_path, "test", dir, &schema(), &registry()).unwrap();
     index_path
 }
 
@@ -126,7 +131,7 @@ fn update_adds_new_page() {
     let index_path = dir.path().join("index-store");
     let is = schema();
 
-    rebuild_index(&wiki_root, &index_path, "test", dir.path(), &is).unwrap();
+    rebuild_index(&wiki_root, &index_path, "test", dir.path(), &is, &registry()).unwrap();
 
     write_page(
         &wiki_root,
@@ -134,7 +139,7 @@ fn update_adds_new_page() {
         &concept_page("NewPage", "new body"),
     );
 
-    let report = update_index(&wiki_root, &index_path, dir.path(), None, &is, "test").unwrap();
+    let report = update_index(&wiki_root, &index_path, dir.path(), None, &is, "test", &registry()).unwrap();
     assert_eq!(report.updated, 1);
 
     let results = search::search(
@@ -157,7 +162,7 @@ fn update_noop_when_no_changes() {
     let index_path = build_index(dir.path(), &wiki_root);
     let is = schema();
 
-    let report = update_index(&wiki_root, &index_path, dir.path(), None, &is, "test").unwrap();
+    let report = update_index(&wiki_root, &index_path, dir.path(), None, &is, "test", &registry()).unwrap();
     assert_eq!(report.updated, 0);
     assert_eq!(report.deleted, 0);
 }
@@ -186,7 +191,7 @@ fn update_deletes_removed_page() {
     assert!(!results.is_empty());
 
     fs::remove_file(wiki_root.join("concepts/gone.md")).unwrap();
-    let report = update_index(&wiki_root, &index_path, dir.path(), None, &is, "test").unwrap();
+    let report = update_index(&wiki_root, &index_path, dir.path(), None, &is, "test", &registry()).unwrap();
     assert_eq!(report.deleted, 1);
 
     let results = search::search(
@@ -218,7 +223,7 @@ fn update_modifies_existing_page() {
         "concepts/evolve.md",
         &concept_page("Evolve", "updated body with unicorn"),
     );
-    let report = update_index(&wiki_root, &index_path, dir.path(), None, &is, "test").unwrap();
+    let report = update_index(&wiki_root, &index_path, dir.path(), None, &is, "test", &registry()).unwrap();
     assert_eq!(report.updated, 1);
 
     let results = search::search(
@@ -252,9 +257,11 @@ fn recovers_from_corrupt_index() {
         }
     }
 
+    let reg = registry();
     let recovery = RecoveryContext {
         wiki_root: &wiki_root,
         repo_root: dir.path(),
+        registry: &reg,
     };
     let results = search::search(
         "Foo",

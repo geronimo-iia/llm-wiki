@@ -92,7 +92,7 @@ impl EngineManager {
             if needs_first_build {
                 tracing::info!(wiki = %entry.name, "building index for the first time");
                 if let Err(e) =
-                    indexing::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root, &schema)
+                    indexing::rebuild_index(&wiki_root, &index_path, &entry.name, &repo_root, &schema, &type_registry)
                 {
                     tracing::warn!(wiki = %entry.name, error = %e, "initial index build failed");
                 }
@@ -105,6 +105,7 @@ impl EngineManager {
                         &entry.name,
                         &repo_root,
                         &schema,
+                        &type_registry,
                     ) {
                         tracing::warn!(wiki = %entry.name, error = %e, "index rebuild failed");
                     }
@@ -157,6 +158,7 @@ impl EngineManager {
             last_commit.as_deref(),
             &space.schema,
             wiki_name,
+            &engine.type_registry,
         )
     }
 
@@ -173,6 +175,7 @@ impl EngineManager {
             wiki_name,
             &space.repo_root,
             &space.schema,
+            &engine.type_registry,
         )
     }
 
