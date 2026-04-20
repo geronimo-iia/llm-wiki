@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use clap::Parser;
 
-use llm_wiki::cli::{Cli, Commands, ConfigAction, ContentAction, IndexAction, SchemaAction, SpacesAction};
+use llm_wiki::cli::{Cli, Commands, ConfigAction, ContentAction, IndexAction, LogsAction, SchemaAction, SpacesAction};
 use llm_wiki::config;
 use llm_wiki::engine::EngineManager;
 use llm_wiki::ops;
@@ -506,6 +506,27 @@ fn main() -> Result<()> {
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(llm_wiki::server::serve(&config_path, sse_port, acp))?;
         }
+
+        Commands::Logs { action } => match action {
+            LogsAction::Tail { lines } => {
+                let output = ops::logs_tail(&config_path, lines)?;
+                println!("{output}");
+            }
+            LogsAction::List => {
+                let files = ops::logs_list(&config_path)?;
+                if files.is_empty() {
+                    println!("no log files");
+                } else {
+                    for f in &files {
+                        println!("{f}");
+                    }
+                }
+            }
+            LogsAction::Clear => {
+                let removed = ops::logs_clear(&config_path)?;
+                println!("removed {removed} log file(s)");
+            }
+        },
     }
 
     Ok(())
