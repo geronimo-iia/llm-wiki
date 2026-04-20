@@ -114,10 +114,10 @@ fn index_path_derived_from_state_dir() {
     assert!(idx_path.ends_with("indexes/test"));
 }
 
-// ── on_ingest ─────────────────────────────────────────────────────────────────
+// ── refresh_index ─────────────────────────────────────────────────────────────
 
 #[test]
-fn on_ingest_updates_index() {
+fn refresh_index_updates_index() {
     let dir = tempfile::tempdir().unwrap();
     let (config_path, wiki_path) = setup_wiki(dir.path(), "test");
 
@@ -131,7 +131,7 @@ fn on_ingest_updates_index() {
     )
     .unwrap();
 
-    let report = manager.on_ingest("test").unwrap();
+    let report = manager.refresh_index("test").unwrap();
     assert_eq!(report.updated, 1);
 }
 
@@ -148,36 +148,4 @@ fn rebuild_index_works() {
     assert!(report.pages_indexed >= 1);
 }
 
-// ── stubs ─────────────────────────────────────────────────────────────────────
 
-#[test]
-fn on_wiki_added_returns_restart_required() {
-    let dir = tempfile::tempdir().unwrap();
-    let (config_path, _) = setup_wiki(dir.path(), "test");
-
-    let manager = EngineManager::build(&config_path).unwrap();
-    let result = manager.on_wiki_added("new", Path::new("/tmp/new"));
-
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("restart"));
-}
-
-#[test]
-fn on_wiki_removed_returns_restart_required() {
-    let dir = tempfile::tempdir().unwrap();
-    let (config_path, _) = setup_wiki(dir.path(), "test");
-
-    let manager = EngineManager::build(&config_path).unwrap();
-    assert!(manager.on_wiki_removed("test").is_err());
-}
-
-#[test]
-fn on_config_change_returns_restart_required() {
-    let dir = tempfile::tempdir().unwrap();
-    let (config_path, _) = setup_wiki(dir.path(), "test");
-
-    let manager = EngineManager::build(&config_path).unwrap();
-    assert!(manager
-        .on_config_change("defaults.search_top_k", "20")
-        .is_err());
-}

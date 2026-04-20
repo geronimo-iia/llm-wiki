@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 
 use crate::config::{self, GlobalConfig, ResolvedConfig, WikiEntry};
 use crate::index_manager::{IndexReport, SpaceIndexManager, StalenessKind, UpdateReport};
@@ -94,7 +94,7 @@ impl EngineManager {
         })
     }
 
-    pub fn on_ingest(&self, wiki_name: &str) -> Result<UpdateReport> {
+    pub fn refresh_index(&self, wiki_name: &str) -> Result<UpdateReport> {
         let engine = self
             .engine
             .read()
@@ -140,17 +140,7 @@ impl EngineManager {
         Ok(report)
     }
 
-    pub fn on_wiki_added(&self, _name: &str, _path: &Path) -> Result<()> {
-        bail!("wiki added — restart required")
-    }
 
-    pub fn on_wiki_removed(&self, _name: &str) -> Result<()> {
-        bail!("wiki removed — restart required")
-    }
-
-    pub fn on_config_change(&self, _key: &str, _value: &str) -> Result<()> {
-        bail!("config changed — restart required")
-    }
 }
 
 // ── mount_wiki ────────────────────────────────────────────────────────────────

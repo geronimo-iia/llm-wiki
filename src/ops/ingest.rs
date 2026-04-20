@@ -28,7 +28,7 @@ pub fn ingest(
     )?;
 
     if !dry_run {
-        if let Err(e) = manager.on_ingest(wiki_name) {
+        if let Err(e) = manager.refresh_index(wiki_name) {
             tracing::warn!(error = %e, "incremental index update failed after ingest");
         }
     }
