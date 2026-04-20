@@ -1,8 +1,8 @@
 ---
 title: "Interlude — Pre-Phase 3 Improvements"
 summary: "Engineering improvements to tackle between Phase 2 and Phase 3."
-status: ready
-last_updated: "2025-07-18"
+status: in-progress
+last_updated: "2025-07-19"
 ---
 
 # Interlude — Pre-Phase 3 Improvements
@@ -10,181 +10,215 @@ last_updated: "2025-07-18"
 Improvements to address before starting Phase 3 (Typed Graph). Ordered
 by priority — correctness first, then simplification, then quality.
 
-## 1. Schema file content in hash
+## 1. Schema file content in hash ✅
 
-**Priority:** Must fix — blocks Phase 3.
+Done. `compute_hashes` now includes SHA-256 of schema file content.
+`compute_disk_hashes(repo_root)` reads files from disk for staleness
+checks without building a full registry. `DefaultHasher` replaced by
+SHA-256 throughout.
 
-**Problem:** `schema_hash` is computed from `schema_path` + `aliases`
-per type (in-memory metadata). It does not hash the actual schema file
-content. If a schema file is modified without changing aliases (e.g.
-adding `x-graph-edges` in Phase 3), the hash doesn't change and the
-index isn't rebuilt.
+## 2. Remove hardcoded `IndexSchema::build()` ✅
 
-**Current code:** `type_registry::compute_hashes(&types)` hashes
-`RegisteredType.schema_path` and `RegisteredType.aliases` — both are
-metadata extracted at build time, not file content. Uses
-`std::collections::hash_map::DefaultHasher` which is not stable
-across Rust versions or binary rebuilds.
+Done. Removed the hardcoded constructor. Tests migrated to
+`build_space_from_embedded`. Fixed non-deterministic field ordering
+in `parse_from_embedded` (HashMap iteration → sorted).
+
+## 3. Introduce `SpaceIndexManager`
+
+**Priority:** Structural — prerequisite for index lifetime (§4).
+
+**Problem:** Index operations are free functions in `src/indexing.rs`
+that take `index_path`, `wiki_name`, `repo_root`, `wiki_root`, `is`,
+and `registry` as parameters on every call. There's no single owner
+of per-wiki index state. The parameters are threaded through from
+`engine.rs` → `ops/` → `indexing.rs` on every operation.
 
 **Design:**
 
-Two changes:
-
-**A. Fix `compute_hashes` to include file content and use SHA-256.**
-
-Add `sha2` crate to `Cargo.toml`. Replace `DefaultHasher` with
-SHA-256 throughout hash computation. This makes hashes stable across
-binary rebuilds and Rust version upgrades.
-
-The existing `compute_hashes(&types)` in `type_registry.rs` runs at
-build time. Fix it to include `rt.content_hash` (a SHA-256 hex string
-of the schema file bytes, computed once at parse time and stored in
-`RegisteredType`).
-
-`SpaceTypeRegistry::schema_hash()` then reflects the actual file
-content at the time the registry was built. It's written to
-`state.toml` after rebuild.
-
-**B. Add `compute_disk_hashes(repo_root)` for staleness checks.**
-
-A standalone function that reads schema files from disk and computes
-hashes without building a full registry:
+A `SpaceIndexManager` struct that owns the per-wiki index context.
+The logic lives in the methods directly — not a wrapper over free
+functions.
 
 ```rust
-pub fn compute_disk_hashes(repo_root: &Path) -> Result<(String, HashMap<String, String>)>
+pub struct SpaceIndexManager {
+    wiki_name: String,
+    index_path: PathBuf,
+}
+
+impl SpaceIndexManager {
+    pub fn new(wiki_name: &str, index_path: PathBuf) -> Self;
+
+    pub fn rebuild(
+        &self,
+        wiki_root: &Path,
+        repo_root: &Path,
+        is: &IndexSchema,
+        registry: &SpaceTypeRegistry,
+    ) -> Result<IndexReport>;
+
+    pub fn update(
+        &self,
+        wiki_root: &Path,
+        repo_root: &Path,
+        is: &IndexSchema,
+        wiki_name: &str,
+        registry: &SpaceTypeRegistry,
+    ) -> Result<UpdateReport>;
+
+    pub fn status(&self, repo_root: &Path) -> Result<IndexStatus>;
+
+    pub fn last_commit(&self) -> Option<String>;
+
+    pub fn delete_by_type(&self, is: &IndexSchema, type_name: &str) -> Result<()>;
+
+    pub fn open_or_recover(
+        &self,
+        is: &IndexSchema,
+        recovery: Option<&RecoveryContext<'_>>,
+    ) -> Result<Index>;
+}
 ```
 
-Algorithm:
-1. Scan `schemas/*.json` (sorted by filename)
-2. For each file: read bytes, compute SHA-256 of content
-3. Read `x-wiki-types` from each file to map type_name to file
-   content hash
-4. Read `wiki.toml` `[types.*]` overrides: for each override, hash
-   the referenced schema file content
-5. Per-type hash = SHA-256 of the schema file content that serves
-   that type
-6. Global hash = SHA-256 of all per-type hashes combined (sorted by
-   type name)
+The document-building helpers (`build_document`, `yaml_to_text`,
+`index_value`, etc.) stay as private functions in the same module —
+they're implementation details, not part of the public API.
 
-For embedded defaults (no `schemas/` dir): hash the embedded strings.
+Data types (`IndexReport`, `UpdateReport`, `IndexStatus`, `IndexState`,
+`RecoveryContext`) stay public in the same module.
 
-This function is called:
-- At startup: `compute_disk_hashes` vs `state.toml` to check stale
-- By `index_status`: same comparison
+`SpaceState` holds the manager:
 
-After rebuild, `state.toml` is written with
-`registry.schema_hash()` (from build time) — which equals
-`compute_disk_hashes()` since nothing changed between build and write.
-
-**Where it lives:** `src/type_registry.rs` — alongside the existing
-`compute_hashes`.
-
-**Dependencies:**
-
-```toml
-sha2 = "0.10"
+```rust
+pub struct SpaceState {
+    pub name: String,
+    pub wiki_root: PathBuf,
+    pub repo_root: PathBuf,
+    pub type_registry: SpaceTypeRegistry,
+    pub index_schema: IndexSchema,
+    pub index_manager: SpaceIndexManager,
+}
 ```
 
-Used for all hash computation (content hashes, per-type hashes,
-global hash). Replaces `DefaultHasher` entirely in hash-related code.
+**Migration strategy (incremental, never breaks tests):**
 
-**Impact on existing code:**
+1. Copy `src/indexing.rs` → `src/index_manager.rs`
+2. Add `pub mod index_manager` to `lib.rs` (both modules coexist)
+3. In `index_manager.rs`: introduce the `SpaceIndexManager` struct,
+   convert free functions to methods. Keep the public free functions
+   as `#[deprecated]` thin wrappers that delegate to the struct
+   (so existing callers still compile).
+4. Migrate callers one at a time:
+   a. `src/engine.rs` — use `SpaceIndexManager` in `SpaceState`
+   b. `src/ops/index.rs` — call `space.index_manager.rebuild()` etc.
+   c. `src/ops/search.rs` — use `space.index_manager.index_path()`
+   d. `src/search.rs` — unchanged (still takes `index_path`)
+   e. `src/graph.rs` — unchanged (still takes `index_path`)
+   f. Tests — migrate imports from `indexing::*` to `index_manager::*`
+5. Once no caller uses `indexing::*`, remove `src/indexing.rs` and
+   the deprecated wrappers from `index_manager.rs`
 
-- `Cargo.toml` — add `sha2 = "0.10"`
-- `RegisteredType` — add `content_hash: String` field (SHA-256 hex
-  of schema file bytes, computed at parse time)
-- `compile_schema` in `type_registry.rs` — accept content hash
-  parameter (or compute from content string passed in)
-- `compute_hashes` — replace `DefaultHasher` with SHA-256, include
-  `rt.content_hash` in the per-type hash
-- `space_builder.rs` — compute SHA-256 of file content when parsing
-  each schema file, pass into `RegisteredType`
-- `discover_from_dir` in `type_registry.rs` — same: compute content
-  hash, pass to `RegisteredType`
-- `discover_from_embedded` in `type_registry.rs` — hash embedded
-  string content
-- `indexing::index_status` — use `compute_disk_hashes(repo_root)`
-  instead of receiving `current_schema_hash` parameter
-- `engine.rs` — startup uses `compute_disk_hashes` for staleness
-  check instead of `type_registry.schema_hash()`
-- `ops/index.rs` — `index_status` no longer passes `schema_hash`
-  parameter
-- `SpaceTypeRegistry::schema_hash()` — stays, now reflects content
-- All tests that pass `schema_hash` to `index_status` — update
-  (function signature changes)
-- `tests/indexing.rs` — `status_stale_on_schema_hash_mismatch` test
-  now works by modifying a file on disk instead of passing a fake hash
+Each step compiles and all tests pass.
 
-**Migration from DefaultHasher:**
+**What this is NOT:**
 
-Existing `state.toml` files have hashes computed with `DefaultHasher`.
-After this change, the new SHA-256 hashes won't match. This is treated
-as stale, triggering a full rebuild on first run. Correct and expected.
+- Not a wrapper/delegation layer that lives permanently alongside
+  `indexing.rs` — the deprecated wrappers are temporary scaffolding
+- Not a big-bang rename — callers migrate incrementally
 
-**Tests:**
+**Why before §4:** Section 4 adds `Index` + `IndexReader` fields.
+  They belong inside the manager that already owns `index_path` and
+  the rebuild/update logic. Without the struct, those fields land in
+  `SpaceState` — mixing concerns.
 
-- Modify a schema file on disk: `compute_disk_hashes` returns
-  different global hash
-- Add a property to a schema (no alias change): hash changes
-- Add `x-graph-edges` to a schema: hash changes
-- Two wikis with identical schemas: same hash
-- Embedded fallback: stable hash across calls
-- `index_status` reports stale after schema file modification
-- `rebuild_index` writes correct hash to `state.toml`
-- Round-trip: rebuild then no modification then not stale
-- Hash is deterministic (same input, same output)
-- Hash is stable across process restarts (SHA-256, not DefaultHasher)
+**Scope:** new `src/index_manager.rs`, then incremental migration of
+`src/engine.rs`, `src/ops/index.rs`, `src/ops/search.rs`, `src/lib.rs`,
+all tests. Finally remove `src/indexing.rs`.
 
-## 2. Remove hardcoded `IndexSchema::build()`
-
-**Priority:** Simplifies Phase 3 work.
-
-**Problem:** `IndexSchema::build(tokenizer)` is a hardcoded constructor
-with a fixed field set (title, summary, type, status, tags). It does
-not reflect actual schema files and will drift further as Phase 3 adds
-fields via `x-graph-edges`. Three test files still use it.
-
-**What stays:**
-
-- `IndexSchema::build_from_schemas(repo_root, tokenizer)` — standalone
-  constructor that reads schema files and classifies fields. This is
-  the unit-testable entry point for `IndexSchema` in isolation (no
-  registry needed). Used by 14 tests in `tests/index_schema.rs`.
-- `space_builder::build_space()` — production path that builds both
-  `SpaceTypeRegistry` + `IndexSchema` in one pass.
-
-These two are not duplicates: `build_from_schemas` tests index field
-classification without coupling to the registry; `build_space` is the
-full production build.
-
-**Fix:** Remove `IndexSchema::build()`. Migrate its 3 test callers
-(`tests/indexing.rs`, `tests/search.rs`, `tests/graph.rs`) to use the
-`IndexSchema` returned by `build_space_from_embedded()`.
-
-**Why before Phase 3:** Phase 3 adds new field classifications. The
-hardcoded `build()` would silently miss them, causing test/production
-divergence.
-
-**Scope:** `src/index_schema.rs`, `tests/indexing.rs`,
-`tests/search.rs`, `tests/graph.rs`.
-
-## 3. Index lifetime in MCP server
+## 4. Index lifetime in MCP server
 
 **Priority:** Performance — noticeable on large wikis.
 
 **Problem:** Every tool call that touches the tantivy index opens it
-from disk (`Index::open()`, `reader()`, `searcher()`). For the MCP
-server (long-running, many calls), this is wasteful.
+from disk (`MmapDirectory::open` + `Index::open` + `reader()`).
+For the MCP server (long-running, many calls per session), this adds
+measurable latency on large wikis.
 
-**Fix:** Store `tantivy::Index` in `SpaceState`, opened once at
-startup. `IndexReader` auto-reloads after commits. Search/list get a
-`Searcher` from the reader (cheap). Write operations get a writer
-from the index.
+**Design:**
 
-**Scope:** `src/engine.rs` (`SpaceState`), `src/indexing.rs`,
-`src/search.rs`.
+Add `Index` + `IndexReader` fields to `SpaceIndexManager` (from §3).
+The manager opens the index once at startup and exposes `searcher()`:
 
-## 4. Partial index rebuild
+```rust
+pub struct SpaceIndexManager {
+    wiki_name: String,
+    index_path: PathBuf,
+    tantivy_index: Option<Index>,
+    index_reader: Option<IndexReader>,
+}
+
+impl SpaceIndexManager {
+    /// Get a searcher (cheap — arc clone of current segment set)
+    pub fn searcher(&self) -> Result<Searcher>;
+
+    /// Get a writer for mutations (rebuild, update, delete_by_type)
+    fn writer(&self) -> Result<IndexWriter>;
+
+    // rebuild, update, status, etc. now use self.writer() internally
+}
+```
+
+The reader uses `ReloadPolicy::OnCommitWithDelay` so it automatically
+picks up new segments after `writer.commit()`.
+
+The ops layer obtains the searcher from the manager and passes it to
+the lower-level modules. `search.rs` and `graph.rs` become pure
+functions that accept `&Searcher` — they never open an index.
+
+**Changes:**
+
+- `src/index_manager.rs` — add `tantivy_index`, `index_reader` fields.
+  Add `searcher()` method. `rebuild()` and `update()` use internal
+  `writer()` instead of opening from disk. Open index at startup.
+
+- `src/search.rs` — change `search()` and `list()` to accept
+  `&Searcher` + `&IndexSchema`. Remove all index-opening code.
+
+- `src/graph.rs` — change `build_graph()` to accept `&Searcher` +
+  `&IndexSchema`. Remove direct index opening.
+
+- `src/ops/search.rs` — call `space.index_manager.searcher()`, pass
+  to `search::search()` / `search::list()`.
+
+- `src/ops/graph.rs` — same: pass searcher to `graph::build_graph()`.
+
+**Lifecycle:**
+
+```
+startup:
+  index_manager.rebuild() if needed (uses internal writer)
+  index_manager.open() → store Index + IndexReader
+
+tool call (search/list/graph):
+  ops: space.index_manager.searcher() → pass to search/graph
+
+tool call (ingest/rebuild):
+  index_manager.update() / rebuild() → internal writer → commit
+  (reader auto-reloads on next searcher() call)
+```
+
+**Edge cases:**
+
+- Index doesn't exist at startup: fields are `None`, `searcher()`
+  returns error "index not available"
+- Index rebuilt externally (CLI while server runs): reader won't see
+  it until server restart
+- Concurrent reads: `IndexReader::searcher()` is thread-safe (arc)
+- Concurrent writes: `RwLock<Engine>` serializes writes
+
+**Scope:** `src/index_manager.rs`, `src/search.rs`, `src/graph.rs`,
+`src/ops/search.rs`, `src/ops/graph.rs`.
+
+## 5. Partial index rebuild
 
 **Priority:** Optimization — not blocking.
 
@@ -193,11 +227,11 @@ only one type's schema changed, all pages are re-indexed.
 
 **Fix:** Compare per-type hashes (already stored in `state.toml`).
 If only some types changed, re-index only pages of those types via
-`indexing::rebuild_types(types: &[String])`.
+`index_manager.rebuild_types(types: &[String])`.
 
-**Scope:** `src/indexing.rs`, `src/engine.rs`.
+**Scope:** `src/index_manager.rs`.
 
-## 5. ops module test coverage
+## 6. ops module test coverage
 
 **Priority:** Quality — do whenever.
 
@@ -212,7 +246,7 @@ tests the new ones).
 
 **Scope:** `tests/ops.rs`.
 
-## 6. Wiki logs
+## 7. Wiki logs
 
 **Priority:** Operational — independent of everything.
 

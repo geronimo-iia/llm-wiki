@@ -29,7 +29,7 @@ impl SpaceIndexManager {
              schema: &IndexSchema) -> Result<Self>;
 
     /// Check if index is stale (commit or schema_hash mismatch)
-    fn has_changed(&self, repo_root: &Path, schema_hash: &str) -> Result<bool>;
+    fn has_changed(&self, repo_root: &Path) -> Result<bool>;
 
     /// Incremental update from git diffs
     fn update(&mut self, registry: &SpaceTypeRegistry) -> Result<UpdateReport>;
@@ -135,11 +135,12 @@ Recovery is attempted once.
 ## Staleness Check
 
 ```rust
-fn has_changed(&self, repo_root: &Path, schema_hash: &str) -> Result<bool> {
+fn has_changed(&self, repo_root: &Path) -> Result<bool> {
     // 1. Read state.toml
     // 2. Compare commit against git HEAD
-    // 3. Compare schema_hash against current
-    // 4. Either mismatch -> true
+    // 3. Call compute_disk_hashes(repo_root) to get current schema_hash
+    // 4. Compare against stored schema_hash
+    // 5. Either mismatch -> true
 }
 ```
 
