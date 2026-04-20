@@ -401,7 +401,7 @@ pub fn open_index(
 
 // ── index_status ──────────────────────────────────────────────────────────────
 
-pub fn index_status(wiki_name: &str, index_path: &Path, repo_root: &Path, current_schema_hash: &str) -> Result<IndexStatus> {
+pub fn index_status(wiki_name: &str, index_path: &Path, repo_root: &Path) -> Result<IndexStatus> {
     let state_path = index_path.join("state.toml");
     let search_dir = index_path.join("search-index");
 
@@ -412,6 +412,8 @@ pub fn index_status(wiki_name: &str, index_path: &Path, repo_root: &Path, curren
         {
             Some(state) => {
                 let head = git::current_head(repo_root).unwrap_or_default();
+                let (current_schema_hash, _) =
+                    crate::type_registry::compute_disk_hashes(repo_root).unwrap_or_default();
                 let stale =
                     state.commit != head || state.schema_hash != current_schema_hash;
                 (Some(state.built), state.pages, state.sections, stale)

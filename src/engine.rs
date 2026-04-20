@@ -91,8 +91,7 @@ impl EngineManager {
             std::fs::create_dir_all(&search_dir)?;
 
             // Check staleness and rebuild if needed
-            let current_hash = type_registry.schema_hash();
-            let status = indexing::index_status(&entry.name, &index_path, &repo_root, current_hash);
+            let status = indexing::index_status(&entry.name, &index_path, &repo_root);
             let needs_first_build = status.as_ref().map(|s| s.built.is_none()).unwrap_or(true);
 
             if needs_first_build {

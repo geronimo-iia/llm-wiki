@@ -286,7 +286,6 @@ fn schema_change_makes_index_stale() {
             "test",
             &space.index_path,
             &space.repo_root,
-            space.type_registry.schema_hash(),
         )
         .unwrap();
         assert!(!status.stale, "index should not be stale after build");
@@ -317,7 +316,6 @@ fn schema_change_makes_index_stale() {
         "test",
         &space2.index_path,
         &space2.repo_root,
-        "completely_wrong_hash",
     )
     .unwrap();
     assert!(status.stale, "index should be stale with wrong hash");

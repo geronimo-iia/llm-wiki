@@ -73,7 +73,7 @@ fn status_not_stale_after_rebuild() {
     write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
     let index_path = build_index(dir.path(), &wiki_root);
 
-    let status = index_status("test", &index_path, dir.path(), registry().schema_hash()).unwrap();
+    let status = index_status("test", &index_path, dir.path()).unwrap();
     assert!(!status.stale);
     assert!(status.openable);
     assert!(status.queryable);
@@ -90,7 +90,7 @@ fn status_stale_after_new_commit() {
     write_page(&wiki_root, "concepts/bar.md", &concept_page("Bar", "body"));
     git::commit(dir.path(), "add bar").unwrap();
 
-    let status = index_status("test", &index_path, dir.path(), registry().schema_hash()).unwrap();
+    let status = index_status("test", &index_path, dir.path()).unwrap();
     assert!(status.stale);
 }
 
@@ -100,7 +100,7 @@ fn status_when_no_index() {
     setup_repo(dir.path());
     let index_path = dir.path().join("nonexistent");
 
-    let status = index_status("test", &index_path, dir.path(), registry().schema_hash()).unwrap();
+    let status = index_status("test", &index_path, dir.path()).unwrap();
     assert!(status.stale);
     assert!(!status.openable);
     assert!(status.built.is_none());
@@ -110,12 +110,136 @@ fn status_when_no_index() {
 fn status_stale_on_schema_hash_mismatch() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
+
+    // Copy embedded schemas to disk so we can modify them
+    let schemas_dir = dir.path().join("schemas");
+    std::fs::create_dir_all(&schemas_dir).unwrap();
+    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+        std::fs::write(schemas_dir.join(filename), content).unwrap();
+    }
+    // Write minimal wiki.toml
+    std::fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
+
     write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
     let index_path = build_index(dir.path(), &wiki_root);
 
-    // Pass a different hash than what's stored
-    let status = index_status("test", &index_path, dir.path(), "different_hash").unwrap();
+    // Verify not stale initially
+    let status = index_status("test", &index_path, dir.path()).unwrap();
+    assert!(!status.stale);
+
+    // Modify a schema file on disk (add x-graph-edges)
+    let concept_schema = schemas_dir.join("concept.json");
+    let mut content = std::fs::read_to_string(&concept_schema).unwrap();
+    content = content.replace(
+        "\"x-wiki-types\"",
+        "\"x-graph-edges\": {\"related\": {}}, \"x-wiki-types\"",
+    );
+    std::fs::write(&concept_schema, content).unwrap();
+
+    // Now index_status should report stale
+    let status = index_status("test", &index_path, dir.path()).unwrap();
     assert!(status.stale);
+}
+
+// ── compute_disk_hashes tests ─────────────────────────────────────────────────
+
+use llm_wiki::type_registry::compute_disk_hashes;
+
+#[test]
+fn disk_hashes_change_on_schema_file_modification() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_repo(dir.path());
+
+    let schemas_dir = dir.path().join("schemas");
+    std::fs::create_dir_all(&schemas_dir).unwrap();
+    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+        std::fs::write(schemas_dir.join(filename), content).unwrap();
+    }
+    std::fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
+
+    let (hash1, _) = compute_disk_hashes(dir.path()).unwrap();
+
+    // Add a property (no alias change)
+    let concept_schema = schemas_dir.join("concept.json");
+    let mut content = std::fs::read_to_string(&concept_schema).unwrap();
+    content = content.replace(
+        "\"x-wiki-types\"",
+        "\"x-graph-edges\": {\"related\": {}}, \"x-wiki-types\"",
+    );
+    std::fs::write(&concept_schema, content).unwrap();
+
+    let (hash2, _) = compute_disk_hashes(dir.path()).unwrap();
+    assert_ne!(hash1, hash2, "hash should change when schema file is modified");
+}
+
+#[test]
+fn disk_hashes_identical_schemas_same_hash() {
+    let dir1 = tempfile::tempdir().unwrap();
+    let dir2 = tempfile::tempdir().unwrap();
+
+    for dir in [dir1.path(), dir2.path()] {
+        setup_repo(dir);
+        let schemas_dir = dir.join("schemas");
+        std::fs::create_dir_all(&schemas_dir).unwrap();
+        for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+            std::fs::write(schemas_dir.join(filename), content).unwrap();
+        }
+        std::fs::write(dir.join("wiki.toml"), "[types]\n").unwrap();
+    }
+
+    let (hash1, types1) = compute_disk_hashes(dir1.path()).unwrap();
+    let (hash2, types2) = compute_disk_hashes(dir2.path()).unwrap();
+    assert_eq!(hash1, hash2);
+    assert_eq!(types1, types2);
+}
+
+#[test]
+fn disk_hashes_embedded_fallback_stable() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_repo(dir.path());
+    // No schemas/ dir — uses embedded fallback
+    std::fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
+
+    let (hash1, _) = compute_disk_hashes(dir.path()).unwrap();
+    let (hash2, _) = compute_disk_hashes(dir.path()).unwrap();
+    assert_eq!(hash1, hash2, "embedded fallback hash should be stable");
+}
+
+#[test]
+fn disk_hashes_deterministic() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_repo(dir.path());
+
+    let schemas_dir = dir.path().join("schemas");
+    std::fs::create_dir_all(&schemas_dir).unwrap();
+    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+        std::fs::write(schemas_dir.join(filename), content).unwrap();
+    }
+    std::fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
+
+    let (hash1, types1) = compute_disk_hashes(dir.path()).unwrap();
+    let (hash2, types2) = compute_disk_hashes(dir.path()).unwrap();
+    assert_eq!(hash1, hash2);
+    assert_eq!(types1, types2);
+}
+
+#[test]
+fn round_trip_rebuild_then_not_stale() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    let schemas_dir = dir.path().join("schemas");
+    std::fs::create_dir_all(&schemas_dir).unwrap();
+    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+        std::fs::write(schemas_dir.join(filename), content).unwrap();
+    }
+    std::fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
+
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+    let index_path = build_index(dir.path(), &wiki_root);
+
+    let status = index_status("test", &index_path, dir.path()).unwrap();
+    assert!(!status.stale, "should not be stale right after rebuild");
 }
 
 // ── update_index ──────────────────────────────────────────────────────────────

@@ -43,6 +43,9 @@ toml       = "0.8"
 # JSON Schema validation
 jsonschema = "0.28"
 
+# Hashing
+sha2       = "0.10"
+
 # Markdown / frontmatter
 frontmatter = "0.4"
 

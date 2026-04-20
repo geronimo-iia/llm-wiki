@@ -8,7 +8,7 @@ use crate::config;
 use crate::default_schemas;
 use crate::index_schema::{classify_field, FieldClass, IndexSchema, SchemaBuilder};
 use crate::type_registry::{
-    self, compute_hashes, extract_aliases, extract_required, validate_base_invariant,
+    self, compute_hashes, extract_aliases, extract_required, sha256_hex, validate_base_invariant,
     RegisteredType, SpaceTypeRegistry,
 };
 
@@ -44,6 +44,7 @@ struct ParsedSchemaFile {
     required_fields: Vec<String>,
     properties: Vec<(String, serde_json::Value)>,
     edge_fields: HashSet<String>,
+    content_hash: String,
 }
 
 // ── Parsing ───────────────────────────────────────────────────────────────────
@@ -96,6 +97,7 @@ fn parse_from_embedded() -> Result<Vec<ParsedSchemaFile>> {
 }
 
 fn parse_schema_file(schema_rel: &str, content: &str) -> Result<ParsedSchemaFile> {
+    let content_hash = sha256_hex(content.as_bytes());
     let schema_json: serde_json::Value = serde_json::from_str(content)?;
 
     let wiki_types = schema_json
@@ -131,6 +133,7 @@ fn parse_schema_file(schema_rel: &str, content: &str) -> Result<ParsedSchemaFile
         required_fields,
         properties,
         edge_fields,
+        content_hash,
     })
 }
 
@@ -160,6 +163,7 @@ fn assemble(
                     validator,
                     aliases: pf.aliases.clone(),
                     required_fields: pf.required_fields.clone(),
+                    content_hash: pf.content_hash.clone(),
                 },
             );
         }
@@ -232,6 +236,7 @@ fn assemble_without_overrides(
                     validator,
                     aliases: pf.aliases.clone(),
                     required_fields: pf.required_fields.clone(),
+                    content_hash: pf.content_hash.clone(),
                 },
             );
         }
