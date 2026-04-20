@@ -1,7 +1,7 @@
 ---
 title: "Graph Builder Implementation"
 summary: "Petgraph construction from tantivy index, typed edges via registry, Mermaid/DOT rendering."
-status: draft
+status: ready
 last_updated: "2025-07-17"
 ---
 

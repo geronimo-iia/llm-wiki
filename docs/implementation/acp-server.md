@@ -1,7 +1,7 @@
 ---
 title: "ACP Server Implementation"
 summary: "WikiAgent, session management, streaming helpers, and prompt dispatch."
-status: draft
+status: ready
 last_updated: "2025-07-17"
 ---
 

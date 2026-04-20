@@ -1,7 +1,7 @@
 ---
 title: "Type Registry Implementation"
 summary: "How types are discovered from schemas, compiled, cached, and invalidated at runtime."
-status: draft
+status: ready
 last_updated: "2025-07-18"
 ---
 

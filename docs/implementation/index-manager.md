@@ -1,7 +1,7 @@
 ---
 title: "Index Manager Implementation"
 summary: "SpaceIndexManager — incremental update, full rebuild, staleness detection, corruption recovery."
-status: draft
+status: ready
 last_updated: "2025-07-17"
 ---
 

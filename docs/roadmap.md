@@ -1,8 +1,8 @@
 ---
 title: "Roadmap"
 summary: "Development roadmap for llm-wiki — from focused engine to skill registry."
-status: draft
-last_updated: "2025-07-17"
+status: ready
+last_updated: "2025-07-18"
 ---
 
 # Roadmap

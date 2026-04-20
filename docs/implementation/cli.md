@@ -1,7 +1,7 @@
 ---
 title: "CLI Implementation"
 summary: "Clap derive structure, subcommand hierarchy, mapping from old to new."
-status: draft
+status: ready
 last_updated: "2025-07-17"
 ---
 

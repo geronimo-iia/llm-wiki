@@ -1,7 +1,7 @@
 ---
 title: "Schema Change Detection"
 summary: "How the engine detects type registry changes and triggers index rebuilds."
-status: draft
+status: ready
 last_updated: "2025-07-18"
 ---
 

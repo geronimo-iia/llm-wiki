@@ -1,7 +1,7 @@
 ---
 title: "Ingest Validation and Alias Resolution"
 summary: "How frontmatter is validated against JSON Schema and aliases are resolved at indexing time."
-status: draft
+status: ready
 last_updated: "2025-07-18"
 ---
 

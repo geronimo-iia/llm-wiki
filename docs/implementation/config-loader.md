@@ -1,7 +1,7 @@
 ---
 title: "Config Loader Implementation"
 summary: "Two-level config loading — GlobalConfig, WikiConfig, resolution order, get/set by key."
-status: draft
+status: ready
 last_updated: "2025-07-17"
 ---
 

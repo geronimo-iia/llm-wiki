@@ -1,7 +1,7 @@
 ---
 title: "Index Schema Building"
 summary: "How the tantivy schema is derived from type schemas — field collection, classification, and document building."
-status: draft
+status: ready
 last_updated: "2025-07-18"
 ---
 
@@ -91,18 +91,18 @@ ingest time: when indexing a skill page, the registry maps `name` →
 Each collected field is classified into a tantivy field type based on
 its JSON Schema definition:
 
-| JSON Schema pattern | Tantivy type | Role |
-|---|---|---|
-| `{"type": "string"}` | `TEXT \| STORED` | BM25 searchable text |
-| `{"type": "string", "enum": [...]}` | `STRING \| STORED` | Keyword filter (type, status, confidence) |
-| `{"type": "string", "const": ...}` | `STRING \| STORED` | Keyword filter |
-| `{"type": "string"}` + in `x-graph-edges` | `STRING \| STORED` | Slug keyword (superseded_by) |
-| `{"type": "array", "items": {"type": "string"}}` | `TEXT \| STORED` | Tokenized list (tags, read_when) |
-| `{"type": "array", ...}` + in `x-graph-edges` | `STRING \| STORED` | Slug keyword per entry (sources, concepts) |
-| `{"type": "boolean"}` | `STRING \| STORED` | Keyword ("true"/"false") |
-| `{"type": "object"}` | `TEXT \| STORED` | Serialized as JSON string |
-| `{"type": "array", "items": {"type": "object"}}` | `TEXT \| STORED` | Serialized as JSON string (claims) |
-| `{"oneOf": [...]}` | `TEXT \| STORED` | Polymorphic, treat as text |
+| JSON Schema pattern                              | Tantivy type       | Role                                       |
+| ------------------------------------------------ | ------------------ | ------------------------------------------ |
+| `{"type": "string"}`                             | `TEXT \| STORED`   | BM25 searchable text                       |
+| `{"type": "string", "enum": [...]}`              | `STRING \| STORED` | Keyword filter (type, status, confidence)  |
+| `{"type": "string", "const": ...}`               | `STRING \| STORED` | Keyword filter                             |
+| `{"type": "string"}` + in `x-graph-edges`        | `STRING \| STORED` | Slug keyword (superseded_by)               |
+| `{"type": "array", "items": {"type": "string"}}` | `TEXT \| STORED`   | Tokenized list (tags, read_when)           |
+| `{"type": "array", ...}` + in `x-graph-edges`    | `STRING \| STORED` | Slug keyword per entry (sources, concepts) |
+| `{"type": "boolean"}`                            | `STRING \| STORED` | Keyword ("true"/"false")                   |
+| `{"type": "object"}`                             | `TEXT \| STORED`   | Serialized as JSON string                  |
+| `{"type": "array", "items": {"type": "object"}}` | `TEXT \| STORED`   | Serialized as JSON string (claims)         |
+| `{"oneOf": [...]}`                               | `TEXT \| STORED`   | Polymorphic, treat as text                 |
 
 The `x-graph-edges` check is the key distinction between text arrays
 (tags, read_when) and slug arrays (sources, concepts). Without it,
@@ -114,17 +114,97 @@ classification only does not implement graph edge building (Phase 3)
 
 Always added regardless of schema content:
 
-| Field | Tantivy type | Purpose |
-|---|---|---|
-| `slug` | `STRING \| STORED` | Unique key for delete+insert |
-| `uri` | `STRING \| STORED` | wiki:// URI for results |
-| `body` | `TEXT \| STORED` | Page body, BM25 searchable |
+| Field        | Tantivy type       | Purpose                                   |
+| ------------ | ------------------ | ----------------------------------------- |
+| `slug`       | `STRING \| STORED` | Unique key for delete+insert              |
+| `uri`        | `STRING \| STORED` | wiki:// URI for results                   |
+| `body`       | `TEXT \| STORED`   | Page body, BM25 searchable                |
 | `body_links` | `STRING \| STORED` | Multi-valued keyword for `[[wiki-links]]` |
 
 ### Step 5: Build tantivy schema
 
 Feed all classified fields into `tantivy::Schema::builder()`. Store
 the resulting `Schema` and `HashMap<String, Field>` in `IndexSchema`.
+
+## Default Field Mapping
+
+The following table shows how fields from the embedded schemas map to
+tantivy index fields. This is the result of running the classification
+algorithm on the 6 default schema files.
+
+### Fixed fields (always present)
+
+| Field        | Tantivy type | Source                     |
+| ------------ | ------------ | -------------------------- |
+| `slug`       | KEYWORD      | Engine-generated           |
+| `uri`        | KEYWORD      | Engine-generated           |
+| `body`       | TEXT         | Page body content          |
+| `body_links` | KEYWORD      | Extracted `[[wiki-links]]` |
+
+### From base.json (shared by all types)
+
+| Field           | Tantivy type | Rationale                                                                      |
+| --------------- | ------------ | ------------------------------------------------------------------------------ |
+| `title`         | TEXT         | BM25 searchable                                                                |
+| `type`          | KEYWORD      | `enum` → filterable                                                            |
+| `summary`       | TEXT         | BM25 searchable                                                                |
+| `status`        | KEYWORD      | `enum` → filterable                                                            |
+| `last_updated`  | TEXT         | String without enum                                                            |
+| `tags`          | TEXT         | Array of strings, no edges → tokenized                                         |
+| `owner`         | TEXT         | String without enum                                                            |
+| `superseded_by` | TEXT         | String without enum (becomes KEYWORD when `x-graph-edges` is added in Phase 3) |
+
+### From concept.json (concept, query-result)
+
+| Field        | Tantivy type | Rationale                                                   |
+| ------------ | ------------ | ----------------------------------------------------------- |
+| `read_when`  | TEXT         | Array of strings, no edges → tokenized                      |
+| `tldr`       | TEXT         | String without enum                                         |
+| `sources`    | TEXT         | Array of strings, no edges yet (becomes KEYWORD in Phase 3) |
+| `concepts`   | TEXT         | Array of strings, no edges yet (becomes KEYWORD in Phase 3) |
+| `confidence` | KEYWORD      | `enum: [high, medium, low]`                                 |
+| `claims`     | TEXT         | Array of objects → serialized as JSON                       |
+
+### From skill.json
+
+| Field                      | Tantivy type | Rationale                      |
+| -------------------------- | ------------ | ------------------------------ |
+| `argument-hint`            | TEXT         | String                         |
+| `paths`                    | TEXT         | oneOf (polymorphic)            |
+| `disable-model-invocation` | KEYWORD      | Boolean                        |
+| `user-invocable`           | KEYWORD      | Boolean                        |
+| `allowed-tools`            | TEXT         | oneOf (polymorphic)            |
+| `context`                  | TEXT         | String                         |
+| `agent`                    | TEXT         | String                         |
+| `model`                    | TEXT         | String                         |
+| `effort`                   | KEYWORD      | `enum`                         |
+| `shell`                    | KEYWORD      | `enum`                         |
+| `hooks`                    | TEXT         | Object → serialized            |
+| `document_refs`            | TEXT         | Array of strings, no edges yet |
+| `compatibility`            | TEXT         | String                         |
+| `license`                  | TEXT         | String                         |
+| `metadata`                 | TEXT         | Object → serialized            |
+
+Note: `name`, `description`, `when_to_use` from skill.json are
+**skipped** (aliased to `title`, `summary`, `read_when`).
+
+### From doc.json
+
+No additional fields beyond base.json — `read_when` and `sources`
+already collected from concept.json.
+
+### From section.json
+
+No additional fields beyond base.json.
+
+### Phase 3 changes
+
+When `x-graph-edges` is added to the schemas, the following fields
+will change from TEXT to KEYWORD:
+- `sources` → KEYWORD (slug per entry, `fed-by`/`cites` edges)
+- `concepts` → KEYWORD (slug per entry, `depends-on`/`informs` edges)
+- `superseded_by` → KEYWORD (slug, `superseded-by` edge)
+- `document_refs` → KEYWORD (slug per entry, `documented-by` edge)
 
 ## The IndexSchema struct
 

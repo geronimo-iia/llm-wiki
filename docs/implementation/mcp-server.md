@@ -1,7 +1,7 @@
 ---
 title: "MCP Server Implementation"
 summary: "rmcp setup, tool registration, resource namespacing, stdio + SSE transport wiring."
-status: draft
+status: ready
 last_updated: "2025-07-17"
 ---
 

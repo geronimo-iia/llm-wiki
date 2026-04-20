@@ -1,7 +1,7 @@
 ---
 title: "Engine Implementation"
 summary: "Top-level engine struct, change manager, and how registries and indexes compose at runtime."
-status: draft
+status: ready
 last_updated: "2025-07-17"
 ---
 

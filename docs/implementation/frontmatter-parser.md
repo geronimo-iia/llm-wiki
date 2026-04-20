@@ -1,7 +1,7 @@
 ---
 title: "Frontmatter Parser Implementation"
 summary: "YAML parsing, frontmatter extraction, body splitting, and how validation moves to the type registry."
-status: draft
+status: ready
 last_updated: "2025-07-17"
 ---
 

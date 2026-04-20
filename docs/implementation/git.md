@@ -1,7 +1,7 @@
 ---
 title: "Git Implementation"
 summary: "How the engine uses git2 — repo init, commit, diff, HEAD resolution."
-status: draft
+status: ready
 last_updated: "2025-07-17"
 ---
 

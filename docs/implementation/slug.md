@@ -1,7 +1,7 @@
 ---
 title: "Slug Implementation"
 summary: "Slug and WikiUri types, resolution, parsing, flat vs bundle detection."
-status: draft
+status: ready
 last_updated: "2025-07-17"
 ---
 
