@@ -26,6 +26,7 @@ use crate::type_registry::SpaceTypeRegistry;
 pub struct IndexReport {
     pub wiki: String,
     pub pages_indexed: usize,
+    pub skipped: usize,
     pub duration_ms: u64,
 }
 
@@ -200,6 +201,7 @@ impl SpaceIndexManager {
 
         let mut pages = 0usize;
         let mut sections = 0usize;
+        let mut skipped = 0usize;
 
         for entry in WalkDir::new(wiki_root).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
@@ -209,12 +211,20 @@ impl SpaceIndexManager {
 
             let content = match std::fs::read_to_string(path) {
                 Ok(c) => c,
-                Err(_) => continue,
+                Err(e) => {
+                    tracing::warn!(path = %path.display(), error = %e, "skipping unreadable file");
+                    skipped += 1;
+                    continue;
+                }
             };
 
             let slug = match Slug::from_path(path, wiki_root) {
                 Ok(s) => s,
-                Err(_) => continue,
+                Err(e) => {
+                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path");
+                    skipped += 1;
+                    continue;
+                }
             };
             let uri = format!("wiki://{}/{slug}", self.wiki_name);
             let page = frontmatter::parse(&content);
@@ -246,6 +256,7 @@ impl SpaceIndexManager {
         Ok(IndexReport {
             wiki: self.wiki_name.clone(),
             pages_indexed: pages,
+            skipped,
             duration_ms: start.elapsed().as_millis() as u64,
         })
     }
@@ -275,7 +286,10 @@ impl SpaceIndexManager {
         for (path, status) in &changes {
             let slug = match Slug::from_path(path, wiki_prefix) {
                 Ok(s) => s,
-                Err(_) => continue,
+                Err(e) => {
+                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path in update");
+                    continue;
+                }
             };
 
             writer.delete_term(Term::from_field_text(f_slug, slug.as_str()));
@@ -464,6 +478,7 @@ impl SpaceIndexManager {
         let type_set: std::collections::HashSet<&str> =
             types.iter().map(|s| s.as_str()).collect();
         let mut pages = 0usize;
+        let mut skipped = 0usize;
 
         for entry in WalkDir::new(wiki_root).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
@@ -472,7 +487,11 @@ impl SpaceIndexManager {
             }
             let content = match std::fs::read_to_string(path) {
                 Ok(c) => c,
-                Err(_) => continue,
+                Err(e) => {
+                    tracing::warn!(path = %path.display(), error = %e, "skipping unreadable file");
+                    skipped += 1;
+                    continue;
+                }
             };
             let page = frontmatter::parse(&content);
             let page_type = page.page_type().unwrap_or("page");
@@ -481,7 +500,11 @@ impl SpaceIndexManager {
             }
             let slug = match Slug::from_path(path, wiki_root) {
                 Ok(s) => s,
-                Err(_) => continue,
+                Err(e) => {
+                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path");
+                    skipped += 1;
+                    continue;
+                }
             };
             let uri = format!("wiki://{}/{slug}", self.wiki_name);
             writer.add_document(build_document(is, registry, slug.as_str(), &uri, &page))?;
@@ -508,6 +531,7 @@ impl SpaceIndexManager {
         Ok(IndexReport {
             wiki: self.wiki_name.clone(),
             pages_indexed: pages,
+            skipped,
             duration_ms: start.elapsed().as_millis() as u64,
         })
     }
