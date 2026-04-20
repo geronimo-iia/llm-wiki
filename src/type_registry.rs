@@ -203,8 +203,6 @@ impl Default for SpaceTypeRegistry {
     }
 }
 
-// Keep backward-compatible alias
-pub type TypeRegistry = SpaceTypeRegistry;
 
 // ── Discovery ─────────────────────────────────────────────────────────────────
 
