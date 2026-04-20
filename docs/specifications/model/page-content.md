@@ -94,6 +94,18 @@ See [[concepts/scaling-laws]] for background.
 Wiki links create graph edges (generic `links-to` relation). See
 [graph.md](../engine/graph.md).
 
+**Extraction rules:**
+
+- Pattern: `[[` + content + `]]`
+- Content is trimmed of leading/trailing whitespace
+- Empty content is ignored
+- No escaping — `\[[` is not supported
+- No link-with-title — `[[slug|title]]` is not supported
+- Nested brackets are not handled — first `]]` closes the link
+- Deduplicated per page — each slug appears once in the link list
+- Extracted from body text only (frontmatter slug-list fields like
+  `sources` and `concepts` are handled separately)
+
 ### Headings
 
 Start body content at `##` level. `#` is reserved for the page title
