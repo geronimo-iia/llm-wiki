@@ -33,9 +33,9 @@ pub fn search(
         let mut wikis = Vec::new();
         for s in engine.spaces.values() {
             let searcher = s.index_manager.searcher()?;
-            wikis.push((s.name.clone(), searcher));
+            wikis.push((s.name.clone(), searcher, &s.index_schema));
         }
-        return search::search_all(params.query, &opts, &wikis, &space.index_schema);
+        return search::search_all(params.query, &opts, &wikis);
     }
 
     let searcher = space.index_manager.searcher()?;

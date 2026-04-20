@@ -302,10 +302,10 @@ fn search_all_merges_wikis() {
 
     let is = schema();
     let wikis = vec![
-        ("a".into(), mgr_a.searcher().unwrap()),
-        ("b".into(), mgr_b.searcher().unwrap()),
+        ("a".into(), mgr_a.searcher().unwrap(), &is),
+        ("b".into(), mgr_b.searcher().unwrap(), &is),
     ];
-    let results = search_all("MoE", &SearchOptions::default(), &wikis, &is).unwrap();
+    let results = search_all("MoE", &SearchOptions::default(), &wikis).unwrap();
 
     assert!(results.len() >= 2);
     assert!(results.iter().any(|r| r.uri.starts_with("wiki://a/")));
@@ -330,8 +330,8 @@ fn search_all_respects_top_k() {
         top_k: 2,
         ..Default::default()
     };
-    let wikis = vec![("test".into(), mgr.searcher().unwrap())];
-    let results = search_all("keyword", &opts, &wikis, &is).unwrap();
+    let wikis = vec![("test".into(), mgr.searcher().unwrap(), &is)];
+    let results = search_all("keyword", &opts, &wikis).unwrap();
     assert!(results.len() <= 2);
 }
 
@@ -344,7 +344,7 @@ fn search_all_skips_missing_index() {
     let is = schema();
 
     // search_all with only the good wiki — bad wiki can't produce a Searcher
-    let wikis = vec![("good".into(), mgr.searcher().unwrap())];
-    let results = search_all("Foo", &SearchOptions::default(), &wikis, &is).unwrap();
+    let wikis = vec![("good".into(), mgr.searcher().unwrap(), &is)];
+    let results = search_all("Foo", &SearchOptions::default(), &wikis).unwrap();
     assert!(!results.is_empty());
 }

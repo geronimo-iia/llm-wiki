@@ -283,11 +283,10 @@ pub fn list(
 pub fn search_all(
     query_str: &str,
     options: &SearchOptions,
-    wikis: &[(String, Searcher)],
-    is: &IndexSchema,
+    wikis: &[(String, Searcher, &IndexSchema)],
 ) -> Result<Vec<PageRef>> {
     let mut all_results = Vec::new();
-    for (name, searcher) in wikis {
+    for (name, searcher, is) in wikis {
         match search(query_str, options, searcher, name, is) {
             Ok(results) => all_results.extend(results),
             Err(_) => continue,
