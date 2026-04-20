@@ -15,11 +15,11 @@ client configuration.
 ## Architecture
 
 The MCP server implements rmcp's `ServerHandler` trait on a struct that
-holds a reference to the shared `Engine`:
+holds a reference to the shared `EngineState`:
 
 ```rust
 struct McpServer {
-    engine: Arc<RwLock<Engine>>,
+    engine: Arc<RwLock<EngineState>>,
     peer: Mutex<Option<Peer<RoleServer>>>,
 }
 ```
@@ -57,7 +57,7 @@ A single `call` function matches on tool name and dispatches to
 handler functions. Wrapped in `catch_unwind` for panic isolation.
 
 ```rust
-fn call(engine: &Engine, name: &str, args: &Map<String, Value>) -> ToolResult
+fn call(engine: &EngineState, name: &str, args: &Map<String, Value>) -> ToolResult
 ```
 
 Each handler:
@@ -114,7 +114,7 @@ until shutdown.
 ### Both simultaneously
 
 When `--sse` is passed, the server clones and runs both transports.
-Both share the same `Arc<RwLock<Engine>>`.
+Both share the same `Arc<RwLock<EngineState>>`.
 
 ## Prompts
 
@@ -129,7 +129,7 @@ instructions from the engine binary.
 
 | Component                     | Reusable | Notes                                                           |
 | ----------------------------- | -------- | --------------------------------------------------------------- |
-| `WikiServer` struct           | rewrite  | Replace with `McpServer` holding `Arc<RwLock<Engine>>`          |
+| `WikiServer` struct           | rewrite  | Replace with `McpServer` holding `Arc<RwLock<EngineState>>`          |
 | `ServerHandler` impl          | mostly   | Update tool names, remove prompts                               |
 | `tool_list()`                 | rewrite  | New tool names, new parameters (`--format`, `--type` on search) |
 | `call()` dispatch             | mostly   | Update handler names, remove lint/index_check                   |
@@ -144,7 +144,7 @@ instructions from the engine binary.
 
 ### Changes needed
 
-- Replace `WikiServer` with `McpServer` backed by `Engine`
+- Replace `WikiServer` with `McpServer` backed by `EngineState`
 - Rename all tools to new names
 - Add `wiki_content_new` (merged page + section with `--section` flag)
 - Add `wiki_content_write` with `--file` support

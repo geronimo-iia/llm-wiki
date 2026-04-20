@@ -106,7 +106,7 @@ brief and infrequent.
 
 ## Initial Scope
 
-- `EngineManager` with `on_ingest` (incremental index update)
+- `WikiEngine` with `refresh_index` (incremental index update)
 - `SpaceTypeRegistryManager` with `build` and `has_changed`
 - `refresh` returns "restart required" for type changes
 

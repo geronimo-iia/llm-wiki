@@ -351,13 +351,3 @@ pub fn subgraph(graph: &WikiGraph, root_slug: &str, depth: usize) -> WikiGraph {
 
     new_graph
 }
-
-// ── in_degree ─────────────────────────────────────────────────────────────────
-
-pub fn in_degree(graph: &WikiGraph, slug: &str) -> usize {
-    graph
-        .node_indices()
-        .find(|&idx| graph[idx].slug == slug)
-        .map(|idx| graph.neighbors_directed(idx, Direction::Incoming).count())
-        .unwrap_or(0)
-}

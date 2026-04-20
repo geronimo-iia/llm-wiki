@@ -2,7 +2,7 @@
 title: "Roadmap"
 summary: "Development roadmap for llm-wiki — from focused engine to skill registry."
 status: ready
-last_updated: "2025-07-18"
+last_updated: "2025-07-20"
 ---
 
 # Roadmap
@@ -21,70 +21,53 @@ for the full record of what was done.
 
 ## Phase 1 — Focused Engine ✓
 
-Fresh implementation from the specifications. 260 integration tests,
-15 MCP tools, ACP agent, stdio + SSE transport. Single Rust binary,
+Fresh implementation from the specifications. 354 integration tests,
+16 MCP tools, ACP agent, stdio + SSE transport. Single Rust binary,
 no runtime dependencies.
 
+- tantivy 0.25 for full-text search
+- `WikiEngine` / `EngineState` architecture with `mount_wiki` per space
+- Interior mutability in `SpaceIndexManager` (`RwLock<IndexInner>`)
+- Graceful shutdown via `watch` channel + `AtomicBool`
+- `_slug_ord` u64 FAST field for sorted list pagination
+- Reusable ACP workflow steps (`step_search`, `step_read`, `step_report_results`)
+- Per-wiki `IndexSchema` in cross-wiki search
 
 ### Skills (llm-wiki-skills) ✓
 
 - [x] Create the `llm-wiki-skills` git repository
 - [x] Set up Claude Code plugin structure
-- [x] Write the 11 initial skills:
-  - `setup` — install llm-wiki, create and manage wiki spaces
-  - `bootstrap` — session orientation
-  - `ingest` — source processing workflow
-  - `crystallize` — distil session into wiki pages
-  - `research` — search, read, synthesize
-  - `lint` — structural audit + fix
-  - `graph` — generate and interpret concept graph
-  - `frontmatter` — frontmatter authoring reference
-  - `skill` — find and activate wiki skills
-  - `write-page` — create page of any type
-  - `configure-hugo` — configure wiki for Hugo rendering
+- [x] Write the 11 initial skills
 - [ ] Test with `claude --plugin-dir ./llm-wiki-skills`
 
-### Milestone
+### Milestone ✓
 
-Engine binary with 15 tools. Skills repo with 11 skills. Claude Code
+Engine binary with 16 tools. Skills repo with 11 skills. Claude Code
 plugin installable. `llm-wiki serve` + plugin = working system.
 
-## Phase 2 — Type System
+## Phase 2 — Type System ✓
 
-JSON Schema validation per type. Type registry in `wiki.toml`.
-`schema.md` eliminated.
+JSON Schema validation per type. Type registry discovered from
+`schemas/*.json` via `x-wiki-types`. `schema.md` eliminated.
 
-Dependencies to re-add:
-- `jsonschema = "0.28"` — JSON Schema validation on ingest
-- `comrak = "0.28"` — Markdown parsing (if needed for content processing)
+- [x] JSON Schema validation on ingest (`jsonschema` crate)
+- [x] Schema discovery from `schemas/*.json` via `x-wiki-types`
+- [x] `wiki.toml` `[types.*]` overrides
+- [x] Field aliasing via `x-index-aliases`
+- [x] `wiki_schema` tool (list/show/add/remove/validate)
+- [x] Frontmatter template generation (`--template`)
+- [x] Schema change detection (per-type hashes, shared `hash_type_entries`)
+- [x] Embedded default schemas via `include_str!()`
+- [x] Base schema invariant enforcement
 
-### Schema storage
+### Skills (llm-wiki-skills) ✓
 
-The 6 default JSON Schema files live at the engine repo root in
-`schemas/` and are committed to git:
+- [x] Update `frontmatter` skill with type-specific guidance
+- [x] Update `bootstrap` skill to read types from `wiki_config`
+- [x] Update `ingest` skill to reference type validation
+- [x] Update `write-page` skill to use `wiki_schema show --template`
 
-```
-schemas/
-  base.json
-  concept.json
-  paper.json
-  skill.json
-  doc.json
-  section.json
-```
-
-Embedded in the Rust binary via `include_str!()`. On `spaces create`,
-the engine writes the embedded strings to `<wiki>/schemas/`. After
-that, the wiki's copy is independent — users can modify or add schemas.
-
-### Skills (llm-wiki-skills)
-
-- [X] Update `frontmatter` skill with type-specific guidance
-- [X] Update `bootstrap` skill to read types from `wiki_config`
-- [X] Update `ingest` skill to reference type validation
-- [X] Update `write-page` skill to use `wiki_schema show --template`
-
-### Milestone
+### Milestone ✓
 
 Type-specific JSON Schema validation on ingest. Field aliasing for
 skill and doc pages. Schema introspection via CLI and MCP. Custom
@@ -95,17 +78,17 @@ types addable via `wiki.toml` + schema file.
 `x-graph-edges` in type schemas. Typed nodes and labeled edges.
 `wiki_graph` filters by relation.
 
-Did `graph.type` — documented but not yet implemented in `set_global_config_value`. ?
-
-
 ### Engine (llm-wiki)
 
+- [ ] Index `sources` and `concepts` frontmatter fields as keyword
+  fields (currently only `body_links` produces edges)
 - [ ] Implement `x-graph-edges` parsing from JSON Schema files
 - [ ] At ingest: read edge declarations, index edges with relation labels
-- [ ] At graph build: petgraph nodes get `type` label, edges get
-  `relation` label
+- [ ] At graph build: read edge fields from index (not hardcoded empty
+  vectors)
 - [ ] `wiki_graph --relation <label>` — filter edges by relation
-- [ ] Mermaid and DOT output include relation labels
+- [ ] Mermaid and DOT output include relation labels (already renders,
+  but no data flows through)
 - [ ] Warn on ingest when edge target has wrong type
 
 ### Default edge declarations
@@ -123,7 +106,8 @@ Did `graph.type` — documented but not yet implemented in `set_global_config_va
 | `doc.json` | `sources` | `informed-by` | All source types |
 | `doc.json` | `superseded_by` | `superseded-by` | Any |
 
-Body `[[wiki-links]]` get a generic `links-to` relation.
+Body `[[wiki-links]]` get a generic `links-to` relation (already
+implemented).
 
 ### Skills (llm-wiki-skills)
 
@@ -132,8 +116,8 @@ Body `[[wiki-links]]` get a generic `links-to` relation.
 
 ### Milestone
 
-Labeled graph edges. Relation-filtered graph output. Type constraint
-warnings on ingest.
+Labeled graph edges from frontmatter fields. Relation-filtered graph
+output. Type constraint warnings on ingest.
 
 ## Phase 4 — Skill Registry
 
@@ -145,7 +129,7 @@ The wiki becomes a full skill registry.
   `x-index-aliases`
 - [ ] Verify `wiki_list --type skill` returns skill-specific metadata
 - [ ] Verify `wiki_graph` renders skill edges correctly
-- [ ] Cross-wiki skill discovery: `wiki_search --type skill --all`
+- [ ] Cross-wiki skill discovery: `wiki_search --type skill --cross-wiki`
 
 ### Skills (llm-wiki-skills)
 
@@ -173,11 +157,9 @@ Ideas that don't fit in the four phases:
 - Skill composition — `extends` field for wiki skills
 - Confidence propagation — compute concept confidence from source graph
 - Persistent graph index — avoid rebuilding petgraph on every call
-- Partial Rebuild - Per-type hashes are stored in `state.toml` but not compared yet. Any
-`schema_hash` mismatch triggers a full rebuild.
-- Hot reload / file watcher (future)
-- Custom tokenizer registration (future)
-- implement wiki logs 
+- Hot reload — add/remove wikis without restart
+- Custom tokenizer registration
+- ACP workflows beyond `research` (ingest, explore, summarize)
 
 ## Related: llm-wiki-hugo-cms
 

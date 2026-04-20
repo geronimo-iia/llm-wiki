@@ -118,7 +118,7 @@ This function is shared with the CLI — same code, different entry
 point.
 
 ```rust
-pub fn my_operation(engine: &Engine, wiki_name: &str, param: &str) -> Result<MyResult> {
+pub fn my_operation(engine: &EngineState, wiki_name: &str, param: &str) -> Result<MyResult> {
     let space = engine.space(wiki_name)?;
     // ... business logic using space.type_registry, space.index_schema, etc.
     Ok(result)

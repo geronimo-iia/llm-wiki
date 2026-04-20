@@ -17,7 +17,7 @@ builds a `SpaceTypeRegistry` and `IndexSchema` per wiki via
 `build_space()` in `space_builder.rs`.
 
 ```
-Engine {
+EngineState {
     spaces: { name → SpaceState {
         type_registry: SpaceTypeRegistry,
         index_schema: IndexSchema,
