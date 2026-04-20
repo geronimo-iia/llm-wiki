@@ -489,3 +489,132 @@ fn round_trip_rebuild_then_not_stale() {
     let status = mgr.status(dir.path()).unwrap();
     assert!(!status.stale, "should not be stale right after rebuild");
 }
+
+
+// ── staleness_kind + partial rebuild ──────────────────────────────────────────
+
+use llm_wiki::index_manager::StalenessKind;
+
+#[test]
+fn staleness_kind_current_after_rebuild() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+    let mgr = build_index(dir.path(), &wiki_root);
+
+    let kind = mgr.staleness_kind(dir.path()).unwrap();
+    assert_eq!(kind, StalenessKind::Current);
+}
+
+#[test]
+fn staleness_kind_commit_changed() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+    let mgr = build_index(dir.path(), &wiki_root);
+
+    write_page(&wiki_root, "concepts/bar.md", &concept_page("Bar", "body"));
+    git::commit(dir.path(), "add bar").unwrap();
+
+    let kind = mgr.staleness_kind(dir.path()).unwrap();
+    assert_eq!(kind, StalenessKind::CommitChanged);
+}
+
+#[test]
+fn staleness_kind_types_changed() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    let schemas_dir = dir.path().join("schemas");
+    std::fs::create_dir_all(&schemas_dir).unwrap();
+    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+        std::fs::write(schemas_dir.join(filename), content).unwrap();
+    }
+    std::fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
+
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+    let mgr = build_index(dir.path(), &wiki_root);
+
+    // Modify concept schema
+    let concept_schema = schemas_dir.join("concept.json");
+    let mut content = std::fs::read_to_string(&concept_schema).unwrap();
+    content = content.replace(
+        "\"x-wiki-types\"",
+        "\"x-graph-edges\": {\"related\": {}}, \"x-wiki-types\"",
+    );
+    std::fs::write(&concept_schema, content).unwrap();
+
+    let kind = mgr.staleness_kind(dir.path()).unwrap();
+    match kind {
+        StalenessKind::TypesChanged(types) => {
+            assert!(types.contains(&"concept".to_string()));
+        }
+        other => panic!("expected TypesChanged, got {:?}", other),
+    }
+}
+
+#[test]
+fn rebuild_types_reindexes_only_changed_type() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "concept body"));
+    write_page(
+        &wiki_root,
+        "skills/bar.md",
+        "---\nname: \"Bar\"\ntype: skill\nstatus: active\n---\n\nskill body\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let reg = registry();
+
+    // Verify both are searchable
+    let searcher = mgr.searcher().unwrap();
+    let results = search::search("Foo", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
+    assert!(!results.is_empty());
+    let results = search::search("Bar", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
+    assert!(!results.is_empty());
+
+    // Partial rebuild only "concept" type
+    let report = mgr.rebuild_types(&["concept".to_string()], &wiki_root, dir.path(), &is, &reg).unwrap();
+    assert_eq!(report.pages_indexed, 1);
+
+    // Both should still be searchable (skill untouched, concept re-indexed)
+    let searcher = open_searcher(&mgr, &is);
+    let results = search::search("Foo", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
+    assert!(!results.is_empty(), "concept should still be searchable after partial rebuild");
+    let results = search::search("Bar", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
+    assert!(!results.is_empty(), "skill should be untouched by partial rebuild");
+}
+
+#[test]
+fn changed_types_detects_modification() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    let schemas_dir = dir.path().join("schemas");
+    std::fs::create_dir_all(&schemas_dir).unwrap();
+    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+        std::fs::write(schemas_dir.join(filename), content).unwrap();
+    }
+    std::fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
+
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+    let mgr = build_index(dir.path(), &wiki_root);
+
+    // No changes yet
+    let changed = mgr.changed_types(dir.path()).unwrap();
+    assert!(changed.is_empty());
+
+    // Modify concept schema
+    let concept_schema = schemas_dir.join("concept.json");
+    let mut content = std::fs::read_to_string(&concept_schema).unwrap();
+    content = content.replace(
+        "\"x-wiki-types\"",
+        "\"x-graph-edges\": {\"related\": {}}, \"x-wiki-types\"",
+    );
+    std::fs::write(&concept_schema, content).unwrap();
+
+    let changed = mgr.changed_types(dir.path()).unwrap();
+    assert!(changed.contains(&"concept".to_string()));
+}

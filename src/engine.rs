@@ -103,15 +103,48 @@ impl EngineManager {
                 ) {
                     tracing::warn!(wiki = %entry.name, error = %e, "initial index build failed");
                 }
-            } else if let Ok(ref s) = status {
-                if s.stale && config.index.auto_rebuild {
-                    tracing::info!(wiki = %entry.name, "index stale, rebuilding");
-                    if let Err(e) = index_manager.rebuild(
-                        &wiki_root, &repo_root, &index_schema, &type_registry,
-                    ) {
-                        tracing::warn!(wiki = %entry.name, error = %e, "index rebuild failed");
+            } else if config.index.auto_rebuild {
+                use crate::index_manager::StalenessKind;
+                match index_manager.staleness_kind(&repo_root) {
+                    Ok(StalenessKind::Current) => {}
+                    Ok(StalenessKind::CommitChanged) => {
+                        tracing::info!(wiki = %entry.name, "index behind HEAD, updating");
+                        let last = index_manager.last_commit();
+                        if let Err(e) = index_manager.update(
+                            &wiki_root, &repo_root, last.as_deref(),
+                            &index_schema, &type_registry,
+                        ) {
+                            tracing::warn!(wiki = %entry.name, error = %e, "incremental update failed");
+                        }
                     }
-                } else if s.stale {
+                    Ok(StalenessKind::TypesChanged(types)) => {
+                        tracing::info!(wiki = %entry.name, types = ?types, "types changed, partial rebuild");
+                        if let Err(e) = index_manager.rebuild_types(
+                            &types, &wiki_root, &repo_root, &index_schema, &type_registry,
+                        ) {
+                            tracing::warn!(wiki = %entry.name, error = %e, "partial rebuild failed, doing full");
+                            let _ = index_manager.rebuild(
+                                &wiki_root, &repo_root, &index_schema, &type_registry,
+                            );
+                        }
+                    }
+                    Ok(StalenessKind::FullRebuildNeeded) => {
+                        tracing::info!(wiki = %entry.name, "index stale, rebuilding");
+                        if let Err(e) = index_manager.rebuild(
+                            &wiki_root, &repo_root, &index_schema, &type_registry,
+                        ) {
+                            tracing::warn!(wiki = %entry.name, error = %e, "index rebuild failed");
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(wiki = %entry.name, error = %e, "staleness check failed, rebuilding");
+                        let _ = index_manager.rebuild(
+                            &wiki_root, &repo_root, &index_schema, &type_registry,
+                        );
+                    }
+                }
+            } else if let Ok(ref s) = status {
+                if s.stale {
                     tracing::warn!(
                         wiki = %entry.name,
                         "index stale — run `llm-wiki index rebuild --wiki {}`",
@@ -160,13 +193,22 @@ impl EngineManager {
             .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
         let space = engine.space(wiki_name)?;
         let last_commit = space.index_manager.last_commit();
-        space.index_manager.update(
+        let report = space.index_manager.update(
             &space.wiki_root,
             &space.repo_root,
             last_commit.as_deref(),
             &space.index_schema,
             &space.type_registry,
-        )
+        )?;
+        if report.updated > 0 || report.deleted > 0 {
+            tracing::info!(
+                wiki = %wiki_name,
+                updated = report.updated,
+                deleted = report.deleted,
+                "index updated",
+            );
+        }
+        Ok(report)
     }
 
     pub fn rebuild_index(&self, wiki_name: &str) -> Result<IndexReport> {
@@ -175,12 +217,19 @@ impl EngineManager {
             .read()
             .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
         let space = engine.space(wiki_name)?;
-        space.index_manager.rebuild(
+        let report = space.index_manager.rebuild(
             &space.wiki_root,
             &space.repo_root,
             &space.index_schema,
             &space.type_registry,
-        )
+        )?;
+        tracing::info!(
+            wiki = %wiki_name,
+            pages = report.pages_indexed,
+            duration_ms = report.duration_ms,
+            "index rebuilt",
+        );
+        Ok(report)
     }
 
     pub fn on_wiki_added(&self, _name: &str, _path: &Path) -> Result<()> {

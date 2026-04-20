@@ -51,13 +51,63 @@ Recovery is handled internally by `SpaceIndexManager::open()`.
 **Priority:** Optimization — not blocking.
 
 **Problem:** Any `schema_hash` mismatch triggers a full rebuild. If
-only one type's schema changed, all pages are re-indexed.
+only one type's schema changed (e.g. added a field to `concept.json`),
+all pages are re-indexed unnecessarily.
 
-**Fix:** Compare per-type hashes (already stored in `state.toml`).
-If only some types changed, re-index only pages of those types via
-`index_manager.rebuild_types(types: &[String])`.
+**Mechanism:** `state.toml` already stores per-type hashes in `[types]`.
+`SpaceTypeRegistry::type_hashes()` returns the current per-type hashes.
+Comparing them reveals exactly which types changed.
 
-**Scope:** `src/index_manager.rs`.
+**Task list:**
+
+1. Add `pub fn changed_types(&self, repo_root: &Path) -> Result<Vec<String>>`
+   to `SpaceIndexManager`. Reads `state.toml.types`, compares against
+   `compute_disk_hashes(repo_root)`. Returns type names whose hash
+   differs (added or modified). Removed types also returned.
+
+2. Add `pub fn rebuild_types(&self, types: &[String], wiki_root: &Path,
+   repo_root: &Path, is: &IndexSchema, registry: &SpaceTypeRegistry)
+   -> Result<IndexReport>`. For each type in the list:
+   - `delete_by_type(is, type_name)` to remove old documents
+   - Walk `wiki/`, parse each `.md`, if `page.page_type()` matches
+     one of the changed types → `add_document()`
+   - `writer.commit()`
+   - Update `state.toml` (new schema_hash, new type_hashes, new commit)
+
+3. Add `pub fn staleness_kind(&self, repo_root: &Path) -> Result<StalenessKind>`
+   where `StalenessKind` is:
+   ```rust
+   pub enum StalenessKind {
+       Current,
+       CommitChanged,
+       TypesChanged(Vec<String>),
+       FullRebuildNeeded,  // schema_hash changed + types added/removed
+   }
+   ```
+   Logic:
+   - If commit differs → `CommitChanged` (handled by `update()`)
+   - If only some type hashes differ → `TypesChanged(changed)`
+   - If global schema_hash differs but all individual types match
+     → shouldn't happen, but fallback to `FullRebuildNeeded`
+
+4. Update `EngineManager::build()` staleness handling:
+   ```
+   match index_manager.staleness_kind(&repo_root)? {
+       Current => {},
+       CommitChanged => index_manager.update(...),
+       TypesChanged(types) => index_manager.rebuild_types(&types, ...),
+       FullRebuildNeeded => index_manager.rebuild(...),
+   }
+   ```
+
+5. Tests:
+   - Modify one type schema → only that type's pages re-indexed
+   - Add a new type → pages of new type indexed, others untouched
+   - Remove a type → pages of that type deleted from index
+   - Commit change (no schema change) → incremental update, not rebuild
+
+**Scope:** `src/index_manager.rs`, `src/engine.rs`,
+`tests/index_manager.rs`.
 
 ## 6. ops module test coverage
 

@@ -46,6 +46,14 @@ pub struct IndexStatus {
     pub queryable: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StalenessKind {
+    Current,
+    CommitChanged,
+    TypesChanged(Vec<String>),
+    FullRebuildNeeded,
+}
+
 // ── state.toml ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -344,6 +352,154 @@ impl SpaceIndexManager {
         Ok(())
     }
 
+    /// Compare stored per-type hashes against current disk hashes.
+    /// Returns type names that changed (added, modified, or removed).
+    pub fn changed_types(&self, repo_root: &Path) -> Result<Vec<String>> {
+        let state_path = self.index_path.join("state.toml");
+        let stored = match std::fs::read_to_string(&state_path)
+            .ok()
+            .and_then(|c| toml::from_str::<IndexState>(&c).ok())
+        {
+            Some(s) => s.types,
+            None => return Ok(Vec::new()),
+        };
+
+        let (_, current) = crate::type_registry::compute_disk_hashes(repo_root)?;
+
+        let mut changed = Vec::new();
+        // Modified or removed
+        for (name, hash) in &stored {
+            match current.get(name) {
+                Some(h) if h != hash => changed.push(name.clone()),
+                None => changed.push(name.clone()),
+                _ => {}
+            }
+        }
+        // Added
+        for name in current.keys() {
+            if !stored.contains_key(name) {
+                changed.push(name.clone());
+            }
+        }
+        changed.sort();
+        Ok(changed)
+    }
+
+    /// Determine what kind of staleness exists.
+    pub fn staleness_kind(&self, repo_root: &Path) -> Result<StalenessKind> {
+        let state_path = self.index_path.join("state.toml");
+        let state = match std::fs::read_to_string(&state_path)
+            .ok()
+            .and_then(|c| toml::from_str::<IndexState>(&c).ok())
+        {
+            Some(s) => s,
+            None => return Ok(StalenessKind::FullRebuildNeeded),
+        };
+
+        let head = git::current_head(repo_root).unwrap_or_default();
+        let (current_schema_hash, current_types) =
+            crate::type_registry::compute_disk_hashes(repo_root).unwrap_or_default();
+
+        if state.commit == head && state.schema_hash == current_schema_hash {
+            return Ok(StalenessKind::Current);
+        }
+
+        if state.schema_hash == current_schema_hash {
+            return Ok(StalenessKind::CommitChanged);
+        }
+
+        // Schema hash differs — check per-type
+        let mut changed = Vec::new();
+        for (name, hash) in &state.types {
+            match current_types.get(name) {
+                Some(h) if h != hash => changed.push(name.clone()),
+                None => changed.push(name.clone()),
+                _ => {}
+            }
+        }
+        for name in current_types.keys() {
+            if !state.types.contains_key(name) {
+                changed.push(name.clone());
+            }
+        }
+
+        if changed.is_empty() {
+            Ok(StalenessKind::FullRebuildNeeded)
+        } else {
+            changed.sort();
+            Ok(StalenessKind::TypesChanged(changed))
+        }
+    }
+
+    /// Re-index only pages of the specified types.
+    pub fn rebuild_types(
+        &self,
+        types: &[String],
+        wiki_root: &Path,
+        repo_root: &Path,
+        is: &IndexSchema,
+        registry: &SpaceTypeRegistry,
+    ) -> Result<IndexReport> {
+        let start = std::time::Instant::now();
+        let mut writer = self.writer()?;
+        let f_type = is.field("type");
+
+        // Delete all documents of the changed types
+        for type_name in types {
+            writer.delete_term(Term::from_field_text(f_type, type_name));
+        }
+
+        // Re-index pages matching those types
+        let type_set: std::collections::HashSet<&str> =
+            types.iter().map(|s| s.as_str()).collect();
+        let mut pages = 0usize;
+
+        for entry in WalkDir::new(wiki_root).into_iter().filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if !path.is_file() || path.extension().and_then(|e| e.to_str()) != Some("md") {
+                continue;
+            }
+            let content = match std::fs::read_to_string(path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            let page = frontmatter::parse(&content);
+            let page_type = page.page_type().unwrap_or("page");
+            if !type_set.contains(page_type) {
+                continue;
+            }
+            let slug = match Slug::from_path(path, wiki_root) {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+            let uri = format!("wiki://{}/{slug}", self.wiki_name);
+            writer.add_document(build_document(is, registry, slug.as_str(), &uri, &page))?;
+            pages += 1;
+        }
+
+        writer.commit()?;
+
+        // Update state.toml
+        let commit = git::current_head(repo_root).unwrap_or_default();
+        let state = IndexState {
+            schema_hash: registry.schema_hash().to_string(),
+            built: Utc::now().to_rfc3339(),
+            pages: 0, // not accurate for partial, but state.toml is refreshed
+            sections: 0,
+            commit,
+            types: registry.type_hashes().clone(),
+        };
+        std::fs::write(
+            self.index_path.join("state.toml"),
+            toml::to_string_pretty(&state)?,
+        )?;
+
+        Ok(IndexReport {
+            wiki: self.wiki_name.clone(),
+            pages_indexed: pages,
+            duration_ms: start.elapsed().as_millis() as u64,
+        })
+    }
 }
 
 // ── Document building (private) ───────────────────────────────────────────────
