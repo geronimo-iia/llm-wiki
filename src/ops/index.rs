@@ -1,14 +1,13 @@
 use anyhow::Result;
 
-use crate::engine::{Engine, EngineManager};
-use crate::indexing;
+use crate::engine::{EngineState, WikiEngine};
+use crate::index_manager;
 
-pub fn index_rebuild(manager: &EngineManager, wiki_name: &str) -> Result<indexing::IndexReport> {
+pub fn index_rebuild(manager: &WikiEngine, wiki_name: &str) -> Result<index_manager::IndexReport> {
     manager.rebuild_index(wiki_name)
 }
 
-pub fn index_status(engine: &Engine, wiki_name: &str) -> Result<indexing::IndexStatus> {
+pub fn index_status(engine: &EngineState, wiki_name: &str) -> Result<index_manager::IndexStatus> {
     let space = engine.space(wiki_name)?;
-    indexing::index_status(wiki_name, &space.index_path, &space.repo_root, space.type_registry.schema_hash())
+    space.index_manager.status(&space.repo_root)
 }
-

@@ -4,6 +4,7 @@ use std::path::Path;
 use anyhow::{bail, Result};
 use jsonschema::Validator;
 use serde_yaml::Value;
+use sha2::{Digest, Sha256};
 
 use crate::config;
 use crate::default_schemas;
@@ -15,6 +16,7 @@ pub struct RegisteredType {
     pub(crate) validator: Validator,
     pub(crate) aliases: HashMap<String, String>,
     pub(crate) required_fields: Vec<String>,
+    pub(crate) content_hash: String,
 }
 
 /// Per-wiki type registry — discovers types from `schemas/*.json` via
@@ -201,8 +203,6 @@ impl Default for SpaceTypeRegistry {
     }
 }
 
-// Keep backward-compatible alias
-pub type TypeRegistry = SpaceTypeRegistry;
 
 // ── Discovery ─────────────────────────────────────────────────────────────────
 
@@ -225,6 +225,7 @@ fn discover_from_dir(schemas_dir: &Path, types: &mut HashMap<String, RegisteredT
         let schema_value: serde_json::Value = serde_json::from_str(&content)?;
 
         let schema_rel = format!("schemas/{filename}");
+        let content_hash = sha256_hex(content.as_bytes());
 
         if let Some(wiki_types) = schema_value.get("x-wiki-types").and_then(|v| v.as_object()) {
             let aliases = extract_aliases(&schema_value);
@@ -242,6 +243,7 @@ fn discover_from_dir(schemas_dir: &Path, types: &mut HashMap<String, RegisteredT
                         validator,
                         aliases: aliases.clone(),
                         required_fields: required_fields.clone(),
+                        content_hash: content_hash.clone(),
                     },
                 );
             }
@@ -268,6 +270,7 @@ fn discover_from_embedded(types: &mut HashMap<String, RegisteredType>) -> Result
 }
 
 pub(crate) fn compile_schema(schema_path: &str, description: &str, content: &str) -> Result<RegisteredType> {
+    let content_hash = sha256_hex(content.as_bytes());
     let schema_value: serde_json::Value = serde_json::from_str(content)?;
     let validator = Validator::new(&schema_value)
         .map_err(|e| anyhow::anyhow!("invalid schema {schema_path}: {e}"))?;
@@ -280,6 +283,7 @@ pub(crate) fn compile_schema(schema_path: &str, description: &str, content: &str
         validator,
         aliases,
         required_fields,
+        content_hash,
     })
 }
 
@@ -328,30 +332,140 @@ pub(crate) fn validate_base_invariant(rt: &RegisteredType) -> Result<()> {
 
 // ── Hashing ───────────────────────────────────────────────────────────────────
 
+/// SHA-256 of bytes, returned as lowercase hex (64 chars).
+pub(crate) fn sha256_hex(data: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    format!("{:x}", hasher.finalize())
+}
+
 pub(crate) fn compute_hashes(types: &HashMap<String, RegisteredType>) -> (String, HashMap<String, String>) {
-    use std::collections::BTreeMap;
-    use std::hash::{Hash, Hasher};
+    let entries: HashMap<String, (String, HashMap<String, String>, String)> = types
+        .iter()
+        .map(|(name, rt)| {
+            (name.clone(), (rt.schema_path.clone(), rt.aliases.clone(), rt.content_hash.clone()))
+        })
+        .collect();
+    hash_type_entries(&entries)
+}
 
+/// Shared hashing core for compute_hashes and compute_disk_hashes.
+/// Per-type hash = SHA-256(schema_path + sorted_aliases + content_hash).
+/// Global hash = SHA-256(all per-type hashes sorted by name).
+fn hash_type_entries(
+    entries: &HashMap<String, (String, HashMap<String, String>, String)>,
+) -> (String, HashMap<String, String>) {
+    let sorted: BTreeMap<_, _> = entries.iter().collect();
     let mut type_hashes = HashMap::new();
-    // Use BTreeMap for deterministic ordering
-    let sorted: BTreeMap<_, _> = types.iter().collect();
+    let mut global_hasher = Sha256::new();
 
-    let mut combined = std::collections::hash_map::DefaultHasher::new();
-    for (name, rt) in &sorted {
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        rt.schema_path.hash(&mut h);
-        // Sort aliases for deterministic hashing
-        let sorted_aliases: BTreeMap<_, _> = rt.aliases.iter().collect();
+    for (name, (schema_path, aliases, content_hash)) in &sorted {
+        let mut h = Sha256::new();
+        h.update(schema_path.as_bytes());
+        let sorted_aliases: BTreeMap<_, _> = aliases.iter().collect();
         for (k, v) in &sorted_aliases {
-            k.hash(&mut h);
-            v.hash(&mut h);
+            h.update(k.as_bytes());
+            h.update(v.as_bytes());
         }
-        let type_hash = format!("{:016x}", h.finish());
+        h.update(content_hash.as_bytes());
+        let type_hash = format!("{:x}", h.finalize());
         type_hashes.insert(name.to_string(), type_hash.clone());
-        type_hash.hash(&mut combined);
+        global_hasher.update(type_hash.as_bytes());
     }
 
-    (format!("{:016x}", combined.finish()), type_hashes)
+    (format!("{:x}", global_hasher.finalize()), type_hashes)
+}
+
+/// Compute schema hashes directly from disk without building a full registry.
+/// Returns (global_hash, per_type_hashes).
+///
+/// Algorithm:
+/// 1. Scan `schemas/*.json` (sorted) — compute content hash per file
+/// 2. Read `x-wiki-types` to map type_name → content_hash
+/// 3. Apply `wiki.toml` `[types.*]` overrides
+/// 4. Per-type hash = SHA-256(schema_path + sorted_aliases + content_hash)
+/// 5. Global hash = SHA-256(all per-type hashes sorted by name)
+///
+/// Falls back to embedded schemas if `schemas/` dir is absent.
+pub fn compute_disk_hashes(repo_root: &Path) -> Result<(String, HashMap<String, String>)> {
+    let schemas_dir = repo_root.join("schemas");
+
+    // Collect (type_name -> (schema_path, aliases, content_hash))
+    let mut type_data: HashMap<String, (String, HashMap<String, String>, String)> = HashMap::new();
+
+    if schemas_dir.is_dir() {
+        let mut entries: Vec<_> = std::fs::read_dir(&schemas_dir)?
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().and_then(|ext| ext.to_str()) == Some("json"))
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+
+        for entry in entries {
+            let path = entry.path();
+            let filename = path.file_name().unwrap().to_string_lossy().to_string();
+            let content = std::fs::read_to_string(&path)?;
+            let content_hash = sha256_hex(content.as_bytes());
+            let schema_rel = format!("schemas/{filename}");
+            let schema_value: serde_json::Value = serde_json::from_str(&content)?;
+
+            if let Some(wiki_types) = schema_value.get("x-wiki-types").and_then(|v| v.as_object()) {
+                let aliases = extract_aliases(&schema_value);
+                for (type_name, _) in wiki_types {
+                    type_data.insert(
+                        type_name.clone(),
+                        (schema_rel.clone(), aliases.clone(), content_hash.clone()),
+                    );
+                }
+            }
+        }
+    } else {
+        // Embedded fallback
+        for (filename, content) in default_schemas::default_schemas() {
+            let content_hash = sha256_hex(content.as_bytes());
+            let schema_rel = format!("schemas/{filename}");
+            let schema_value: serde_json::Value = serde_json::from_str(content)?;
+
+            if let Some(wiki_types) = schema_value.get("x-wiki-types").and_then(|v| v.as_object()) {
+                let aliases = extract_aliases(&schema_value);
+                for (type_name, _) in wiki_types {
+                    type_data.insert(
+                        type_name.clone(),
+                        (schema_rel.clone(), aliases.clone(), content_hash.clone()),
+                    );
+                }
+            }
+        }
+    }
+
+    // Apply wiki.toml overrides
+    let wiki_cfg = config::load_wiki(repo_root)?;
+    for (type_name, entry) in &wiki_cfg.types {
+        let schema_path = repo_root.join(&entry.schema);
+        let content = std::fs::read_to_string(&schema_path)?;
+        let content_hash = sha256_hex(content.as_bytes());
+        let schema_value: serde_json::Value = serde_json::from_str(&content)?;
+        let aliases = extract_aliases(&schema_value);
+        type_data.insert(
+            type_name.clone(),
+            (entry.schema.clone(), aliases, content_hash),
+        );
+    }
+
+    // Ensure default type exists (same logic as build)
+    if !type_data.contains_key("default") {
+        let schemas = default_schemas::default_schemas();
+        let base = schemas["base.json"];
+        let content_hash = sha256_hex(base.as_bytes());
+        let schema_value: serde_json::Value = serde_json::from_str(base)?;
+        let aliases = extract_aliases(&schema_value);
+        type_data.insert(
+            "default".to_string(),
+            ("schemas/base.json".to_string(), aliases, content_hash),
+        );
+    }
+
+    // Compute per-type and global hashes
+    Ok(hash_type_entries(&type_data))
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -64,6 +64,9 @@ How frontmatter fields map to roles:
   text.
 - **Body text** is indexed as BM25 text.
 - **Slug** and **URI** are stored but not searched.
+- **`_slug_ord`** is a u64 FAST field encoding the first 8 bytes of
+  the slug as big-endian. Used by `wiki_list` for sorted pagination
+  via `order_by_fast_field`.
 
 The `slug` field is the unique key for delete+insert operations.
 
@@ -132,12 +135,12 @@ skill    = "3a4b5c6d..."
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `schema_hash` | string | SHA-256 hash of all type registry inputs combined |
+| `schema_hash` | string | SHA-256 of all per-type hashes combined (sorted by type name) |
 | `commit` | string | Git HEAD at time of last complete index update |
 | `pages` | integer | Total pages indexed |
 | `sections` | integer | Section pages indexed |
 | `built` | string | ISO 8601 datetime of last build |
-| `[types]` | table | Per-type hash of `x-index-aliases` + `x-graph-edges` |
+| `[types]` | table | Per-type SHA-256 of `schema_path` + `x-index-aliases` + file content hash |
 
 Missing or malformed `state.toml` is treated as "never built" — the
 index is stale.
@@ -146,17 +149,45 @@ See [engine-state.md](engine-state.md) for the full engine state layout.
 
 ## Schema Change Detection
 
-The engine detects type registry changes by hashing the inputs that
-affect the index schema:
+The engine detects type registry changes by comparing hashes of the
+schema file content on disk against the hashes stored in `state.toml`
+at last build time.
+
+Two functions compute hashes:
+
+- **`compute_hashes` (build time)** — called when building the type
+  registry. Hashes `schema_path` + sorted `x-index-aliases` +
+  SHA-256 of file content per type. Stored in `state.toml` after
+  rebuild.
+- **`compute_disk_hashes` (staleness check)** — reads schema files
+  directly from disk without building a full registry. Same algorithm,
+  same output. Called by `index_status` and at engine startup.
+
+Algorithm per type:
+
+```
+type_hash = SHA-256(schema_path + sorted_aliases + content_hash)
+```
+
+Global hash:
+
+```
+schema_hash = SHA-256(all type_hashes sorted by type name)
+```
+
+Where `content_hash = SHA-256(schema file bytes)`.
+
+Inputs considered:
 
 1. All `schemas/*.json` files (sorted by filename)
-2. All `[types.*]` override entries from `wiki.toml` (sorted by type name)
-3. For each type, the `x-index-aliases` and `x-graph-edges` from its
-   JSON Schema file
+2. All `[types.*]` override entries from `wiki.toml`
+3. For each type: the schema file path, `x-index-aliases`, and the
+   full file content (which includes `x-graph-edges`, properties, etc.)
+4. The embedded `base.json` fallback if no `default` type is declared
 
-These inputs are sorted and normalized, then hashed (SHA-256) per type
-and combined into a global `schema_hash`. Both are stored in
-`state.toml`.
+Because the full file content is hashed, any change to a schema file
+— adding properties, modifying `x-graph-edges`, changing validation
+rules — triggers a hash mismatch.
 
 On every ingest or search/list, the engine recomputes the hashes from
 the current `schemas/` + `wiki.toml` overrides and compares with stored
@@ -164,26 +195,22 @@ values.
 
 ### When the global hash mismatches
 
-1. Compare per-type hashes to determine which types changed
-2. If types were added or removed: full rebuild
-3. If all types changed: full rebuild
-4. If some types changed: partial rebuild — re-index only pages whose
-   `type` is in the changed set
+A full rebuild is triggered. Per-type hashes in `state.toml` enable
+future partial rebuilds (re-index only pages of changed types) but
+currently any mismatch triggers a full rebuild.
 
 ### What triggers a mismatch
 
 - Schema file added, removed, or modified in `schemas/`
 - `[types.*]` override added, removed, or changed in `wiki.toml`
-- `x-index-aliases` changed in a schema
-- `x-graph-edges` changed in a schema
+- Any content change in a schema file (properties, aliases, graph
+  edges, validation rules, descriptions)
 
 ### What does not trigger a mismatch
 
 - Page content changes (handled by incremental update via git diff)
 - Config changes (`ingest.auto_commit`, etc.)
 - `wiki.toml` changes outside `[types.*]` (name, description, settings)
-- Schema changes that don't affect aliases or graph edges (e.g. adding
-  a `description` field to a property)
 
 ## Staleness Detection
 

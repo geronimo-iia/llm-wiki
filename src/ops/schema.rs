@@ -4,9 +4,8 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::config;
-use crate::engine::{Engine, EngineManager};
+use crate::engine::{EngineState, WikiEngine};
 use crate::git;
-use crate::indexing;
 use crate::markdown;
 use crate::search;
 use crate::space_builder;
@@ -19,7 +18,7 @@ pub struct SchemaTypeEntry {
     pub schema_path: String,
 }
 
-pub fn schema_list(engine: &Engine, wiki_name: &str) -> Result<Vec<SchemaTypeEntry>> {
+pub fn schema_list(engine: &EngineState, wiki_name: &str) -> Result<Vec<SchemaTypeEntry>> {
     let space = engine.space(wiki_name)?;
     Ok(space
         .type_registry
@@ -37,7 +36,7 @@ pub fn schema_list(engine: &Engine, wiki_name: &str) -> Result<Vec<SchemaTypeEnt
         .collect())
 }
 
-pub fn schema_show(engine: &Engine, wiki_name: &str, type_name: &str) -> Result<String> {
+pub fn schema_show(engine: &EngineState, wiki_name: &str, type_name: &str) -> Result<String> {
     let space = engine.space(wiki_name)?;
     let schema_path = space
         .type_registry
@@ -48,13 +47,13 @@ pub fn schema_show(engine: &Engine, wiki_name: &str, type_name: &str) -> Result<
         .with_context(|| format!("failed to read schema: {}", full_path.display()))
 }
 
-pub fn schema_show_template(engine: &Engine, wiki_name: &str, type_name: &str) -> Result<String> {
+pub fn schema_show_template(engine: &EngineState, wiki_name: &str, type_name: &str) -> Result<String> {
     let content = schema_show(engine, wiki_name, type_name)?;
     let schema: serde_json::Value = serde_json::from_str(&content)?;
     Ok(generate_template(&schema, type_name))
 }
 
-pub fn schema_add(engine: &Engine, wiki_name: &str, type_name: &str, src_path: &Path) -> Result<String> {
+pub fn schema_add(engine: &EngineState, wiki_name: &str, type_name: &str, src_path: &Path) -> Result<String> {
     let space = engine.space(wiki_name)?;
 
     // Validate the schema file
@@ -113,7 +112,7 @@ pub struct SchemaRemoveReport {
 }
 
 pub fn schema_remove(
-    manager: &EngineManager,
+    manager: &WikiEngine,
     wiki_name: &str,
     type_name: &str,
     delete: bool,
@@ -125,21 +124,21 @@ pub fn schema_remove(
     }
 
     let engine = manager
-        .engine
+        .state
         .read()
         .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
     let space = engine.space(wiki_name)?;
 
     // Count pages of this type in the index
+    let searcher = space.index_manager.searcher()?;
     let list_result = search::list(
         &search::ListOptions {
             r#type: Some(type_name.to_string()),
             ..Default::default()
         },
-        &space.index_path,
+        &searcher,
         wiki_name,
         &space.index_schema,
-        None,
     )?;
     let pages_to_remove = list_result.total;
 
@@ -159,7 +158,7 @@ pub fn schema_remove(
 
     // Remove pages from index
     if pages_to_remove > 0 {
-        indexing::delete_by_type(&space.index_path, &space.index_schema, type_name)?;
+        space.index_manager.delete_by_type(&space.index_schema, type_name)?;
     }
 
     // Delete page files from disk if requested
@@ -224,7 +223,7 @@ pub fn schema_remove(
     })
 }
 
-pub fn schema_validate(engine: &Engine, wiki_name: &str, type_name: Option<&str>) -> Result<Vec<String>> {
+pub fn schema_validate(engine: &EngineState, wiki_name: &str, type_name: Option<&str>) -> Result<Vec<String>> {
     let space = engine.space(wiki_name)?;
     let mut issues = Vec::new();
 

@@ -3,7 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use llm_wiki::acp::WikiAgent;
-use llm_wiki::engine::EngineManager;
+use llm_wiki::engine::WikiEngine;
 use llm_wiki::git;
 
 use tokio::sync::mpsc;
@@ -27,7 +27,7 @@ fn setup_wiki(dir: &Path, name: &str) -> std::path::PathBuf {
 }
 
 fn make_agent(config_path: &Path) -> WikiAgent {
-    let manager = Arc::new(EngineManager::build(config_path).unwrap());
+    let manager = Arc::new(WikiEngine::build(config_path).unwrap());
     let (tx, _rx) = mpsc::unbounded_channel();
     WikiAgent::new(manager, tx)
 }
@@ -104,7 +104,7 @@ fn agent_creates_with_engine() {
     let agent = make_agent(&config_path);
 
     // Verify engine is accessible
-    let engine = agent.manager.engine.read().unwrap();
+    let engine = agent.manager.state.read().unwrap();
     assert!(engine.spaces.contains_key("test"));
 }
 

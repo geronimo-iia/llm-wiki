@@ -1,9 +1,6 @@
-use std::path::PathBuf;
-
 use anyhow::Result;
 
-use crate::engine::Engine;
-use crate::indexing;
+use crate::engine::EngineState;
 use crate::search;
 
 pub struct SearchParams<'a> {
@@ -12,11 +9,11 @@ pub struct SearchParams<'a> {
     pub no_excerpt: bool,
     pub top_k: Option<usize>,
     pub include_sections: bool,
-    pub all: bool,
+    pub cross_wiki: bool,
 }
 
 pub fn search(
-    engine: &Engine,
+    engine: &EngineState,
     wiki_name: &str,
     params: &SearchParams<'_>,
 ) -> Result<Vec<search::PageRef>> {
@@ -32,33 +29,28 @@ pub fn search(
         r#type: params.type_filter.map(|s| s.to_string()),
     };
 
-    if params.all {
-        let wikis: Vec<(String, PathBuf)> = engine
-            .spaces
-            .values()
-            .map(|s| (s.name.clone(), s.index_path.clone()))
-            .collect();
-        return search::search_all(params.query, &opts, &wikis, &space.index_schema);
+    if params.cross_wiki {
+        let mut wikis = Vec::new();
+        for s in engine.spaces.values() {
+            let searcher = s.index_manager.searcher()?;
+            wikis.push((s.name.clone(), searcher, &s.index_schema));
+        }
+        return search::search_all(params.query, &opts, &wikis);
     }
 
-    let recovery_ctx = if engine.config.index.auto_recovery {
-        Some(indexing::RecoveryContext { wiki_root: &space.wiki_root, repo_root: &space.repo_root, registry: &space.type_registry })
-    } else {
-        None
-    };
+    let searcher = space.index_manager.searcher()?;
     search::search(
         params.query,
         &opts,
-        &space.index_path,
+        &searcher,
         wiki_name,
         &space.index_schema,
-        recovery_ctx.as_ref(),
     )
 }
 
 
 pub fn list(
-    engine: &Engine,
+    engine: &EngineState,
     wiki_name: &str,
     type_filter: Option<&str>,
     status: Option<&str>,
@@ -74,16 +66,11 @@ pub fn list(
         page,
         page_size: page_size.unwrap_or(resolved.defaults.list_page_size as usize),
     };
-    let recovery_ctx = if engine.config.index.auto_recovery {
-        Some(indexing::RecoveryContext { wiki_root: &space.wiki_root, repo_root: &space.repo_root, registry: &space.type_registry })
-    } else {
-        None
-    };
+    let searcher = space.index_manager.searcher()?;
     search::list(
         &opts,
-        &space.index_path,
+        &searcher,
         wiki_name,
         &space.index_schema,
-        recovery_ctx.as_ref(),
     )
 }

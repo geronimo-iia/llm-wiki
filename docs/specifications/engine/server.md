@@ -68,11 +68,13 @@ wiki is used.
 1. Load ~/.llm-wiki/config.toml — spaces + global config
 2. Mount all registered wikis
 3. Check index staleness for each wiki (warn or auto-rebuild per config)
-4. Start heartbeat task (debug level, configurable interval)
-5. Start stdio MCP server (always)
-6. If --sse: start SSE listener (retry on bind failure)
-7. If --acp: start ACP thread (supervision loop)
-8. Log: "llm-wiki serve — N wikis mounted [stdio] [sse :8080] [acp]"
+4. Create shutdown channel (watch + AtomicBool)
+5. Start ctrl_c handler (sends shutdown signal)
+6. Start heartbeat task (debug level, configurable interval)
+7. Start stdio MCP server (always)
+8. If --sse: start SSE listener (retry on bind failure)
+9. If --acp: start ACP thread (supervision loop)
+10. Log: "llm-wiki serve — N wikis mounted [stdio] [sse :8080] [acp]"
 ```
 
 
@@ -195,9 +197,24 @@ reference.
 | SSE retries port binding                  | SSE       |
 | stdio exit on disconnect is intentional   | stdio     |
 | Max restart limit prevents infinite loops | ACP       |
+| Coordinated shutdown on ctrl_c            | All       |
+
+### Shutdown
+
+On ctrl_c, the engine sends a shutdown signal to all transports:
+
+| Transport | Behavior                                              |
+| --------- | ----------------------------------------------------- |
+| stdio     | Stops waiting, exits cleanly                          |
+| SSE       | Stops accepting connections, exits                    |
+| ACP       | Supervision loop checks flag, exits on next iteration |
+| Heartbeat | Stops ticking, task exits                             |
+
+"server stopped" is logged before process exit. In-flight requests
+are dropped (best-effort, no grace period).
 
 ### Not guaranteed
 
 - **Tool timeout** — blocking tool handler is not interrupted
 - **State recovery** — ACP sessions are in-memory only, lost on restart
-- **Graceful shutdown** — in-flight requests may be dropped on ctrl_c
+- **In-flight completion** — active requests are dropped on shutdown

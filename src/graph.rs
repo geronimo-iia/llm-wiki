@@ -1,16 +1,14 @@
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::path::Path;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use chrono::Utc;
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::Direction;
 use serde::{Deserialize, Serialize};
 use tantivy::collector::TopDocs;
-use tantivy::directory::MmapDirectory;
 use tantivy::query::AllQuery;
 use tantivy::schema::Value;
-use tantivy::Index;
+use tantivy::Searcher;
 
 use crate::index_schema::IndexSchema;
 
@@ -53,17 +51,7 @@ pub struct GraphReport {
 /// - `sources` field → "fed-by"
 /// - `concepts` field → "depends-on"
 /// - `body_links` field → "links-to"
-pub fn build_graph(index_path: &Path, is: &IndexSchema, filter: &GraphFilter) -> Result<WikiGraph> {
-    let search_dir = index_path.join("search-index");
-    if !search_dir.exists() {
-        bail!("search index not found — run `llm-wiki index rebuild`");
-    }
-
-    let dir = MmapDirectory::open(&search_dir)?;
-    let index = Index::open(dir)?;
-    let reader = index.reader()?;
-    let searcher = reader.searcher();
-
+pub fn build_graph(searcher: &Searcher, is: &IndexSchema, filter: &GraphFilter) -> Result<WikiGraph> {
     let f_slug = is.field("slug");
     let f_title = is.field("title");
     let f_type = is.field("type");
@@ -362,14 +350,4 @@ pub fn subgraph(graph: &WikiGraph, root_slug: &str, depth: usize) -> WikiGraph {
     }
 
     new_graph
-}
-
-// ── in_degree ─────────────────────────────────────────────────────────────────
-
-pub fn in_degree(graph: &WikiGraph, slug: &str) -> usize {
-    graph
-        .node_indices()
-        .find(|&idx| graph[idx].slug == slug)
-        .map(|idx| graph.neighbors_directed(idx, Direction::Incoming).count())
-        .unwrap_or(0)
 }

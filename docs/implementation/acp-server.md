@@ -24,7 +24,7 @@ The core struct implementing the ACP `Agent` trait:
 
 ```rust
 struct WikiAgent {
-    engine: Arc<RwLock<Engine>>,
+    engine: Arc<RwLock<EngineState>>,
     sessions: Mutex<HashMap<String, AcpSession>>,
     update_tx: mpsc::UnboundedSender<(SessionNotification, oneshot::Sender<()>)>,
 }
@@ -38,7 +38,7 @@ struct AcpSession {
 }
 ```
 
-`WikiAgent` holds a reference to the shared `Engine` (same as MCP
+`WikiAgent` holds a reference to the shared `EngineState` (same as MCP
 tools) and manages its own session state. Sessions are in-memory only
 — lost on restart.
 
@@ -130,7 +130,7 @@ The current `src/acp.rs` is partially reusable:
 
 | Component           | Reusable | Notes                                                                |
 | ------------------- | -------- | -------------------------------------------------------------------- |
-| `WikiAgent` struct  | mostly   | Replace `GlobalConfig` + `Vec<WikiEntry>` with `Arc<RwLock<Engine>>` |
+| `WikiAgent` struct  | mostly   | Replace `GlobalConfig` + `Vec<WikiEntry>` with `Arc<RwLock<EngineState>>` |
 | `AcpSession` struct | yes      | As-is                                                                |
 | Streaming helpers   | yes      | `send_message`, `send_tool_call`, `send_tool_result`                 |
 | `make_tool_id`      | yes      | As-is                                                                |
@@ -143,7 +143,7 @@ The current `src/acp.rs` is partially reusable:
 ### Changes needed
 
 - Replace direct `crate::search::search` / `crate::markdown::read_page`
-  calls with `Engine` methods
+  calls with `EngineState` methods
 - Remove `INSTRUCTIONS` injection at `initialize` — skills handle this
 - Remove `run_lint` — lint is a skill
 - Add prefix-based dispatch (`llm-wiki:` convention)

@@ -26,7 +26,7 @@ llm-wiki/
 │   ├── lib.rs               # module declarations
 │   ├── cli.rs               # clap subcommand hierarchy
 │   ├── ops.rs               # shared business logic (CLI + MCP call this)
-│   ├── engine.rs            # Engine, EngineManager
+│   ├── engine.rs            # EngineState, WikiEngine
 │   ├── config.rs            # GlobalConfig, WikiConfig, resolution
 │   ├── slug.rs              # Slug, WikiUri types and resolution
 │   ├── frontmatter.rs       # YAML extraction, BTreeMap parsing

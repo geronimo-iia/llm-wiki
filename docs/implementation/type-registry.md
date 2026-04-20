@@ -44,35 +44,32 @@ pub struct RegisteredType {
     validator: jsonschema::Validator,
     /// x-index-aliases: source field → canonical field
     aliases: HashMap<String, String>,
-    /// x-graph-edges: field → (relation, direction, target_types)
-    edges: Vec<EdgeDecl>,
-}
-
-pub struct EdgeDecl {
-    pub field: String,
-    pub relation: String,
-    pub direction: String,
-    pub target_types: Option<Vec<String>>,
+    /// Required fields from the schema
+    required_fields: Vec<String>,
+    /// SHA-256 of the schema file content (for change detection)
+    content_hash: String,
 }
 ```
 
 ## Build Sequence
 
-1. Scan `schemas/*.json` in the wiki repository
+1. Scan `schemas/*.json` in the wiki repository (sorted by filename)
 2. For each schema file:
    a. Parse the JSON Schema
-   b. Read `x-wiki-types` → collect `(type_name, description)` pairs
-   c. Extract `x-index-aliases`
-   d. Extract `x-graph-edges` (Phase 3)
-   e. Compile the validator via `jsonschema::Validator::new()`
-   f. For each type declared in `x-wiki-types`, create a
-      `RegisteredType` sharing the same compiled validator
+   b. Compute SHA-256 of file content → `content_hash`
+   c. Read `x-wiki-types` → collect `(type_name, description)` pairs
+   d. Extract `x-index-aliases`
+   e. Extract `x-graph-edges` (Phase 3)
+   f. Compile the validator via `jsonschema::Validator::new()`
+   g. For each type declared in `x-wiki-types`, create a
+      `RegisteredType` sharing the same compiled validator and
+      `content_hash`
 3. Read `[types.*]` from `wiki.toml` (if any)
 4. For each `wiki.toml` override:
    a. Load the referenced schema file
-   b. Compile validator, extract aliases/edges
+   b. Compile validator, compute content hash, extract aliases
    c. Replace or add the entry in the registry
-5. Compute per-type hashes and global `schema_hash`
+5. Compute per-type hashes and global `schema_hash` (SHA-256)
 6. Store in `SpaceTypeRegistry`
 
 ### Fallback behavior
@@ -135,38 +132,44 @@ run `llm-wiki index rebuild` or restart.
 
 ### CLI commands
 
-Each invocation:
-
-1. Read `state.toml` → get stored `schema_hash`
-2. Recompute hash from current `schemas/` + `wiki.toml` overrides
-3. Match → use cached registry
-4. Mismatch → rebuild registry from schema files → update cache
+Each invocation builds the registry from schema files, then calls
+`index_status()` which uses `compute_disk_hashes()` to compare
+against `state.toml`. Same path as the server startup.
 
 ## Schema Hash
 
-The `schema_hash` is a SHA-256 of all inputs that affect the type
-registry:
+The `schema_hash` is a SHA-256 of all per-type hashes combined.
 
-- Contents of each `schemas/*.json` file (sorted by filename)
-- Contents of `[types.*]` entries from `wiki.toml` (sorted by type name)
+Per-type hash:
 
-Per-type hashes cover the subset relevant to each type:
-- The schema file content
-- The `x-index-aliases` mapping
-- The `x-graph-edges` declarations (Phase 3)
+```
+type_hash = SHA-256(schema_path + sorted_aliases + content_hash)
+```
+
+Where `content_hash = SHA-256(schema file bytes)`, computed once at
+parse time and stored in `RegisteredType`.
+
+Global hash:
+
+```
+schema_hash = SHA-256(all type_hashes sorted by type name)
+```
+
+A standalone `compute_disk_hashes(repo_root)` function recomputes
+these hashes from disk without building a full registry. Used by
+`index_status()` for staleness checks.
 
 ### What triggers invalidation
 
 - Schema file added, removed, or modified in `schemas/`
 - `[types.*]` entry added, removed, or changed in `wiki.toml`
-- `x-index-aliases` changed in a schema
-- `x-graph-edges` changed in a schema
+- Any content change in a schema file (properties, aliases, graph
+  edges, validation rules)
 
 ### What does not trigger invalidation
 
 - Page content changes (handled by incremental update via git diff)
 - Config changes outside `[types.*]` in `wiki.toml`
-- Schema changes that don't affect validation, aliases, or edges
 
 ## Relationship to Index Schema
 

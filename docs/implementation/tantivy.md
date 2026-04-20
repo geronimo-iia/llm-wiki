@@ -110,6 +110,26 @@ let combined = BooleanQuery::new(vec![
 ]);
 ```
 
+### Sorted pagination for list
+
+`wiki_list` uses `_slug_ord` (u64 FAST field) for sorted pagination:
+
+```rust
+use tantivy::collector::{Count, TopDocs};
+use tantivy::Order;
+
+let total = searcher.search(&query, &Count)?;
+let sorted = searcher.search(
+    &query,
+    &TopDocs::with_limit(offset + page_size)
+        .order_by_fast_field::<u64>("_slug_ord", Order::Asc),
+)?;
+// Extract full fields only for sorted[offset..]
+```
+
+`_slug_ord` encodes the first 8 bytes of the slug as big-endian u64.
+Ties (same 8-byte prefix) are broken by in-window slug sort.
+
 ## Index Writer
 
 The writer manages in-memory segments and flushes to disk.

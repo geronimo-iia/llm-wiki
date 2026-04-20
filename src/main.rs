@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use clap::Parser;
 
-use llm_wiki::cli::{Cli, Commands, ConfigAction, ContentAction, IndexAction, SchemaAction, SpacesAction};
+use llm_wiki::cli::{Cli, Commands, ConfigAction, ContentAction, IndexAction, LogsAction, SchemaAction, SpacesAction};
 use llm_wiki::config;
-use llm_wiki::engine::EngineManager;
+use llm_wiki::engine::WikiEngine;
 use llm_wiki::ops;
 
 fn global_config_path() -> PathBuf {
@@ -124,8 +124,8 @@ fn main() -> Result<()> {
                 no_frontmatter,
                 list_assets,
             } => {
-                let manager = EngineManager::build(&config_path)?;
-                let engine = manager.engine.read().map_err(|_| anyhow::anyhow!("lock"))?;
+                let manager = WikiEngine::build(&config_path)?;
+                let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
 
                 match ops::content_read(
                     &engine,
@@ -155,8 +155,8 @@ fn main() -> Result<()> {
                     buf
                 };
 
-                let manager = EngineManager::build(&config_path)?;
-                let engine = manager.engine.read().map_err(|_| anyhow::anyhow!("lock"))?;
+                let manager = WikiEngine::build(&config_path)?;
+                let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
                 let result = ops::content_write(&engine, &uri, cli.wiki.as_deref(), &content)?;
                 println!(
                     "Wrote {} bytes to {}",
@@ -173,8 +173,8 @@ fn main() -> Result<()> {
                 dry_run,
             } => {
                 if dry_run {
-                    let manager = EngineManager::build(&config_path)?;
-                    let engine = manager.engine.read().map_err(|_| anyhow::anyhow!("lock"))?;
+                    let manager = WikiEngine::build(&config_path)?;
+                    let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
                     let global = &engine.config;
                     let (entry, slug) =
                         llm_wiki::slug::WikiUri::resolve(&uri, cli.wiki.as_deref(), global)?;
@@ -187,8 +187,8 @@ fn main() -> Result<()> {
                     };
                     println!("Would create {kind} at wiki://{}/{slug}", entry.name);
                 } else {
-                    let manager = EngineManager::build(&config_path)?;
-                    let engine = manager.engine.read().map_err(|_| anyhow::anyhow!("lock"))?;
+                    let manager = WikiEngine::build(&config_path)?;
+                    let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
                     let result_uri = ops::content_new(
                         &engine,
                         &uri,
@@ -206,8 +206,8 @@ fn main() -> Result<()> {
                 all,
                 message,
             } => {
-                let manager = EngineManager::build(&config_path)?;
-                let engine = manager.engine.read().map_err(|_| anyhow::anyhow!("lock"))?;
+                let manager = WikiEngine::build(&config_path)?;
+                let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
                 let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref()).to_string();
 
                 let hash =
@@ -228,11 +228,11 @@ fn main() -> Result<()> {
             no_excerpt,
             top_k,
             include_sections,
-            all,
+            cross_wiki,
             format,
         } => {
-            let manager = EngineManager::build(&config_path)?;
-            let engine = manager.engine.read().map_err(|_| anyhow::anyhow!("lock"))?;
+            let manager = WikiEngine::build(&config_path)?;
+            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
             let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref());
 
             let results = ops::search(
@@ -244,7 +244,7 @@ fn main() -> Result<()> {
                     no_excerpt,
                     top_k,
                     include_sections,
-                    all,
+                    cross_wiki,
                 },
             )?;
 
@@ -272,8 +272,8 @@ fn main() -> Result<()> {
             page_size,
             format,
         } => {
-            let manager = EngineManager::build(&config_path)?;
-            let engine = manager.engine.read().map_err(|_| anyhow::anyhow!("lock"))?;
+            let manager = WikiEngine::build(&config_path)?;
+            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
             let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref());
 
             let result = ops::list(
@@ -309,9 +309,9 @@ fn main() -> Result<()> {
             dry_run,
             format,
         } => {
-            let manager = EngineManager::build(&config_path)?;
+            let manager = WikiEngine::build(&config_path)?;
             let report = {
-                let engine = manager.engine.read().map_err(|_| anyhow::anyhow!("lock"))?;
+                let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
                 let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref()).to_string();
                 ops::ingest(&engine, &manager, &path, dry_run, &wiki_name)?
             };
@@ -345,8 +345,8 @@ fn main() -> Result<()> {
             relation,
             output,
         } => {
-            let manager = EngineManager::build(&config_path)?;
-            let engine = manager.engine.read().map_err(|_| anyhow::anyhow!("lock"))?;
+            let manager = WikiEngine::build(&config_path)?;
+            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
             let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref());
 
             let result = ops::graph_build(
@@ -373,14 +373,14 @@ fn main() -> Result<()> {
         // ── Index ─────────────────────────────────────────────────────
         Commands::Index { action } => match action {
             IndexAction::Rebuild { dry_run, format } => {
-                let manager = EngineManager::build(&config_path)?;
+                let manager = WikiEngine::build(&config_path)?;
                 let wiki_name = {
-                    let engine = manager.engine.read().map_err(|_| anyhow::anyhow!("lock"))?;
+                    let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
                     engine.resolve_wiki_name(cli.wiki.as_deref()).to_string()
                 };
 
                 if dry_run {
-                    let engine = manager.engine.read().map_err(|_| anyhow::anyhow!("lock"))?;
+                    let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
                     let space = engine.space(&wiki_name)?;
                     let count = walkdir::WalkDir::new(&space.wiki_root)
                         .into_iter()
@@ -407,8 +407,8 @@ fn main() -> Result<()> {
                 }
             }
             IndexAction::Status { format } => {
-                let manager = EngineManager::build(&config_path)?;
-                let engine = manager.engine.read().map_err(|_| anyhow::anyhow!("lock"))?;
+                let manager = WikiEngine::build(&config_path)?;
+                let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
                 let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref());
 
                 let status = ops::index_status(&engine, wiki_name)?;
@@ -430,8 +430,8 @@ fn main() -> Result<()> {
 
         // ── Serve ─────────────────────────────────────────────────────
         Commands::Schema { action } => {
-            let manager = EngineManager::build(&config_path)?;
-            let engine = manager.engine.read().map_err(|_| anyhow::anyhow!("lock"))?;
+            let manager = WikiEngine::build(&config_path)?;
+            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
             let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref()).to_string();
 
             match action {
@@ -506,6 +506,27 @@ fn main() -> Result<()> {
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(llm_wiki::server::serve(&config_path, sse_port, acp))?;
         }
+
+        Commands::Logs { action } => match action {
+            LogsAction::Tail { lines } => {
+                let output = ops::logs_tail(&config_path, lines)?;
+                println!("{output}");
+            }
+            LogsAction::List => {
+                let files = ops::logs_list(&config_path)?;
+                if files.is_empty() {
+                    println!("no log files");
+                } else {
+                    for f in &files {
+                        println!("{f}");
+                    }
+                }
+            }
+            LogsAction::Clear => {
+                let removed = ops::logs_clear(&config_path)?;
+                println!("removed {removed} log file(s)");
+            }
+        },
     }
 
     Ok(())

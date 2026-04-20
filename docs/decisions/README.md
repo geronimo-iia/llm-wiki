@@ -2,6 +2,8 @@
 
 Architectural decisions and their rationale.
 
+## Design Decisions
+
 | Decision                                            | Summary                                                                    |
 | --------------------------------------------------- | -------------------------------------------------------------------------- |
 | [engine-vs-skills](engine-vs-skills.md)             | Engine is a stateless tool provider, workflow intelligence lives in skills |
@@ -16,4 +18,18 @@ Architectural decisions and their rationale.
 | [engine-manager](engine-manager.md)                 | Centralized mutation handling with cascade reports                         |
 | [ops-module](ops-module.md)                         | Extract duplicated CLI/MCP business logic into src/ops.rs                  |
 | [rationalize-specs](rationalize-specs.md)           | How the specifications were rationalized                                   |
-| [schema-driven-types](schema-driven-types.md)       | Types discovered from schemas via x-wiki-types, wiki.toml as overrides     |
+| [schema-driven-types](schema-driven-types.md)       | Types discovered from schemas via x-wiki-types, wiki.toml as overrides    |
+| [space-context](space-context.md)                   | Per-wiki SpaceContext bundles registry + index + paths                     |
+
+## Refactoring Decisions (from spec-gap analysis)
+
+| Decision                                                  | Summary                                                              |
+| --------------------------------------------------------- | -------------------------------------------------------------------- |
+| [engine-manager-redesign](engine-manager-redesign.md)     | Rename Engine→EngineState/WikiEngine, extract mount_wiki, interior mutability in SpaceIndexManager |
+| [graceful-shutdown](graceful-shutdown.md)                  | Coordinated shutdown via watch channel + AtomicBool                   |
+| [list-pagination](list-pagination.md)                      | _slug_ord u64 FAST field for sorted list pagination                  |
+| [unspec-code](unspec-code.md)                              | Logs CLI and wiki-link extraction spec'd, rest is impl detail        |
+| [wiki-page-struct](wiki-page-struct.md)                    | Not needed — 3 call sites, all local to index_manager.rs             |
+| [index-query-pattern](index-query-pattern.md)              | Not worth it — 3 consumers with different return types               |
+| [rename-ops-ingest](rename-ops-ingest.md)                  | Left as-is — stutter is 1 internal line                              |
+| [yaml-value-extraction](yaml-value-extraction.md)          | Left as-is — intentionally different Sequence handling               |

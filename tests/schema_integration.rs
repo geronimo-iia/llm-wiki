@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use llm_wiki::config;
-use llm_wiki::engine::EngineManager;
+use llm_wiki::engine::WikiEngine;
 use llm_wiki::ops;
 use llm_wiki::spaces;
 
@@ -13,8 +13,8 @@ fn setup_wiki(dir: &Path) -> std::path::PathBuf {
     config_path
 }
 
-fn engine(config_path: &Path) -> EngineManager {
-    EngineManager::build(config_path).unwrap()
+fn engine(config_path: &Path) -> WikiEngine {
+    WikiEngine::build(config_path).unwrap()
 }
 
 // ── schema list ───────────────────────────────────────────────────────────────
@@ -24,7 +24,7 @@ fn schema_list_returns_all_default_types() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.engine.read().unwrap();
+    let eng = mgr.state.read().unwrap();
 
     let entries = ops::schema_list(&eng, "test").unwrap();
     assert_eq!(entries.len(), 15);
@@ -45,7 +45,7 @@ fn schema_show_returns_valid_json_schema() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.engine.read().unwrap();
+    let eng = mgr.state.read().unwrap();
 
     let content = ops::schema_show(&eng, "test", "concept").unwrap();
     let schema: serde_json::Value = serde_json::from_str(&content).unwrap();
@@ -61,7 +61,7 @@ fn schema_show_errors_on_unknown_type() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.engine.read().unwrap();
+    let eng = mgr.state.read().unwrap();
 
     let result = ops::schema_show(&eng, "test", "nonexistent");
     assert!(result.is_err());
@@ -74,7 +74,7 @@ fn schema_template_concept_has_required_fields() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.engine.read().unwrap();
+    let eng = mgr.state.read().unwrap();
 
     let tmpl = ops::schema_show_template(&eng, "test", "concept").unwrap();
     assert!(tmpl.contains("title:"));
@@ -87,7 +87,7 @@ fn schema_template_skill_uses_aliased_fields() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.engine.read().unwrap();
+    let eng = mgr.state.read().unwrap();
 
     let tmpl = ops::schema_show_template(&eng, "test", "skill").unwrap();
     assert!(tmpl.contains("name:"));
@@ -102,7 +102,7 @@ fn schema_template_passes_own_validation() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.engine.read().unwrap();
+    let eng = mgr.state.read().unwrap();
 
     // Templates are scaffolds with empty values. Fill required fields
     // to verify the structure is correct for validation.
@@ -151,7 +151,7 @@ fn roundtrip_template_write_ingest() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.engine.read().unwrap();
+    let eng = mgr.state.read().unwrap();
 
     let tmpl = ops::schema_show_template(&eng, "test", "concept").unwrap();
     // Fill in required values
@@ -169,7 +169,7 @@ fn roundtrip_template_write_ingest() {
     drop(eng);
 
     let result = ops::ingest(
-        &mgr.engine.read().unwrap(),
+        &mgr.state.read().unwrap(),
         &mgr,
         "concepts/test.md",
         false,
@@ -185,7 +185,7 @@ fn schema_add_registers_custom_type() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.engine.read().unwrap();
+    let eng = mgr.state.read().unwrap();
 
     // Write a custom schema file
     let custom_schema = dir.path().join("meeting.json");
@@ -221,7 +221,7 @@ fn schema_validate_passes_for_default_schemas() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.engine.read().unwrap();
+    let eng = mgr.state.read().unwrap();
 
     let issues = ops::schema_validate(&eng, "test", None).unwrap();
     assert!(issues.is_empty(), "unexpected issues: {issues:?}");
@@ -232,7 +232,7 @@ fn schema_validate_catches_invalid_json() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.engine.read().unwrap();
+    let eng = mgr.state.read().unwrap();
 
     // Write an invalid JSON file to schemas/
     let space = eng.space("test").unwrap();
@@ -280,13 +280,10 @@ fn schema_change_makes_index_stale() {
 
     // Index is current after build
     {
-        let eng = mgr.engine.read().unwrap();
+        let eng = mgr.state.read().unwrap();
         let space = eng.space("test").unwrap();
-        let status = llm_wiki::indexing::index_status(
-            "test",
-            &space.index_path,
+        let status = space.index_manager.status(
             &space.repo_root,
-            space.type_registry.schema_hash(),
         )
         .unwrap();
         assert!(!status.stale, "index should not be stale after build");
@@ -294,7 +291,7 @@ fn schema_change_makes_index_stale() {
 
     // Modify a schema file
     {
-        let eng = mgr.engine.read().unwrap();
+        let eng = mgr.state.read().unwrap();
         let space = eng.space("test").unwrap();
         let schema_path = space.repo_root.join("schemas/concept.json");
         let mut content = fs::read_to_string(&schema_path).unwrap();
@@ -307,17 +304,14 @@ fn schema_change_makes_index_stale() {
 
     // Rebuild engine — new schema_hash should differ
     let mgr2 = engine(&config_path);
-    let eng2 = mgr2.engine.read().unwrap();
+    let eng2 = mgr2.state.read().unwrap();
     let space2 = eng2.space("test").unwrap();
 
     // The old state.toml has the old hash, new registry has new hash
     // So if we check with the OLD hash, it's not stale
     // But if we check with the NEW hash, it IS stale (hash mismatch)
-    let status = llm_wiki::indexing::index_status(
-        "test",
-        &space2.index_path,
+    let status = space2.index_manager.status(
         &space2.repo_root,
-        "completely_wrong_hash",
     )
     .unwrap();
     assert!(status.stale, "index should be stale with wrong hash");

@@ -3,16 +3,19 @@ use std::path::Path;
 
 use llm_wiki::git;
 use llm_wiki::index_schema::IndexSchema;
-use llm_wiki::indexing;
+use llm_wiki::index_manager::SpaceIndexManager;
 use llm_wiki::search::*;
+use llm_wiki::space_builder;
 use llm_wiki::type_registry::SpaceTypeRegistry;
 
 fn schema() -> IndexSchema {
-    IndexSchema::build("en_stem")
+    let (_registry, schema) = space_builder::build_space_from_embedded("en_stem");
+    schema
 }
 
 fn registry() -> SpaceTypeRegistry {
-    SpaceTypeRegistry::from_embedded()
+    let (registry, _schema) = space_builder::build_space_from_embedded("en_stem");
+    registry
 }
 
 fn setup_repo(dir: &Path) -> std::path::PathBuf {
@@ -54,11 +57,13 @@ fn section_page(title: &str) -> String {
     format!("---\ntitle: \"{title}\"\nstatus: active\ntype: section\n---\n\n")
 }
 
-fn build_index(dir: &Path, wiki_root: &Path) -> std::path::PathBuf {
+fn build_index(dir: &Path, wiki_root: &Path) -> SpaceIndexManager {
     let index_path = dir.join("index-store");
     git::commit(dir, "index pages").unwrap();
-    indexing::rebuild_index(wiki_root, &index_path, "test", dir, &schema(), &registry()).unwrap();
-    index_path
+    let mut mgr = SpaceIndexManager::new("test", &index_path);
+    mgr.rebuild(wiki_root, dir, &schema(), &registry()).unwrap();
+    mgr.open(&schema(), None).unwrap();
+    mgr
 }
 
 // ── search ────────────────────────────────────────────────────────────────────
@@ -83,15 +88,14 @@ fn search_returns_ranked_results() {
         &concept_page("Attention", "Self-attention"),
     );
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let results = search(
         "MoE scaling",
         &SearchOptions::default(),
-        &index_path,
+        &mgr.searcher().unwrap(),
         "test",
         &is,
-        None,
     )
     .unwrap();
 
@@ -116,13 +120,13 @@ fn search_type_filter() {
         &paper_page("Switch", "MoE scaling paper"),
     );
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let opts = SearchOptions {
         r#type: Some("paper".into()),
         ..Default::default()
     };
-    let results = search("MoE scaling", &opts, &index_path, "test", &is, None).unwrap();
+    let results = search("MoE scaling", &opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
 
     assert!(!results.is_empty());
     for r in &results {
@@ -141,15 +145,14 @@ fn search_excludes_sections_by_default() {
         &concept_page("Foo Concepts", "about concepts"),
     );
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let results = search(
         "Concepts",
         &SearchOptions::default(),
-        &index_path,
+        &mgr.searcher().unwrap(),
         "test",
         &is,
-        None,
     )
     .unwrap();
 
@@ -164,13 +167,13 @@ fn search_no_excerpt() {
     let wiki_root = setup_repo(dir.path());
     write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let opts = SearchOptions {
         no_excerpt: true,
         ..Default::default()
     };
-    let results = search("Foo", &opts, &index_path, "test", &is, None).unwrap();
+    let results = search("Foo", &opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
 
     assert!(!results.is_empty());
     assert!(results[0].excerpt.is_none());
@@ -185,9 +188,9 @@ fn list_returns_sorted_by_slug() {
     write_page(&wiki_root, "concepts/zebra.md", &concept_page("Zebra", "z"));
     write_page(&wiki_root, "concepts/alpha.md", &concept_page("Alpha", "a"));
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let result = list(&ListOptions::default(), &index_path, "test", &is, None).unwrap();
+    let result = list(&ListOptions::default(), &mgr.searcher().unwrap(), "test", &is).unwrap();
 
     assert_eq!(result.total, 2);
     assert_eq!(result.pages[0].slug, "concepts/alpha");
@@ -201,13 +204,13 @@ fn list_type_filter() {
     write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "f"));
     write_page(&wiki_root, "sources/bar.md", &paper_page("Bar", "b"));
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let opts = ListOptions {
         r#type: Some("concept".into()),
         ..Default::default()
     };
-    let result = list(&opts, &index_path, "test", &is, None).unwrap();
+    let result = list(&opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
 
     assert_eq!(result.total, 1);
     assert_eq!(result.pages[0].r#type, "concept");
@@ -224,13 +227,13 @@ fn list_status_filter() {
     );
     write_page(&wiki_root, "concepts/wip.md", &draft_page("WIP"));
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let opts = ListOptions {
         status: Some("draft".into()),
         ..Default::default()
     };
-    let result = list(&opts, &index_path, "test", &is, None).unwrap();
+    let result = list(&opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
 
     assert_eq!(result.total, 1);
     assert_eq!(result.pages[0].status, "draft");
@@ -248,7 +251,7 @@ fn list_pagination() {
         );
     }
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
 
     let result = list(
@@ -257,10 +260,9 @@ fn list_pagination() {
             page_size: 2,
             ..Default::default()
         },
-        &index_path,
+        &mgr.searcher().unwrap(),
         "test",
         &is,
-        None,
     )
     .unwrap();
     assert_eq!(result.total, 5);
@@ -272,10 +274,9 @@ fn list_pagination() {
             page_size: 2,
             ..Default::default()
         },
-        &index_path,
+        &mgr.searcher().unwrap(),
         "test",
         &is,
-        None,
     )
     .unwrap();
     assert_eq!(result.pages.len(), 1);
@@ -288,7 +289,7 @@ fn search_all_merges_wikis() {
     let dir_a = tempfile::tempdir().unwrap();
     let wiki_a = setup_repo(dir_a.path());
     write_page(&wiki_a, "concepts/moe.md", &concept_page("MoE", "MoE body"));
-    let idx_a = build_index(dir_a.path(), &wiki_a);
+    let mgr_a = build_index(dir_a.path(), &wiki_a);
 
     let dir_b = tempfile::tempdir().unwrap();
     let wiki_b = setup_repo(dir_b.path());
@@ -297,11 +298,14 @@ fn search_all_merges_wikis() {
         "sources/switch.md",
         &paper_page("Switch", "MoE paper"),
     );
-    let idx_b = build_index(dir_b.path(), &wiki_b);
+    let mgr_b = build_index(dir_b.path(), &wiki_b);
 
     let is = schema();
-    let wikis = vec![("a".into(), idx_a), ("b".into(), idx_b)];
-    let results = search_all("MoE", &SearchOptions::default(), &wikis, &is).unwrap();
+    let wikis = vec![
+        ("a".into(), mgr_a.searcher().unwrap(), &is),
+        ("b".into(), mgr_b.searcher().unwrap(), &is),
+    ];
+    let results = search_all("MoE", &SearchOptions::default(), &wikis).unwrap();
 
     assert!(results.len() >= 2);
     assert!(results.iter().any(|r| r.uri.starts_with("wiki://a/")));
@@ -319,15 +323,15 @@ fn search_all_respects_top_k() {
             &concept_page(&format!("Topic {i}"), "shared keyword body"),
         );
     }
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
 
     let opts = SearchOptions {
         top_k: 2,
         ..Default::default()
     };
-    let wikis = vec![("test".into(), index_path)];
-    let results = search_all("keyword", &opts, &wikis, &is).unwrap();
+    let wikis = vec![("test".into(), mgr.searcher().unwrap(), &is)];
+    let results = search_all("keyword", &opts, &wikis).unwrap();
     assert!(results.len() <= 2);
 }
 
@@ -336,13 +340,11 @@ fn search_all_skips_missing_index() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
     write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
 
-    let wikis = vec![
-        ("good".into(), index_path),
-        ("bad".into(), dir.path().join("nonexistent")),
-    ];
-    let results = search_all("Foo", &SearchOptions::default(), &wikis, &is).unwrap();
+    // search_all with only the good wiki — bad wiki can't produce a Searcher
+    let wikis = vec![("good".into(), mgr.searcher().unwrap(), &is)];
+    let results = search_all("Foo", &SearchOptions::default(), &wikis).unwrap();
     assert!(!results.is_empty());
 }

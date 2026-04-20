@@ -8,7 +8,7 @@ the design.
 
 | Document                                 | Description                                                |
 | ---------------------------------------- | ---------------------------------------------------------- |
-| [engine.md](engine.md)                   | Top-level Engine struct, EngineManager, change propagation |
+| [engine.md](engine.md)                   | EngineState, WikiEngine, space mounting              |
 | [manager-pattern.md](manager-pattern.md) | Shared pattern: detect, refresh, cascade                   |
 
 ## Modules

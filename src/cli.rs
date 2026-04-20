@@ -46,7 +46,7 @@ pub enum Commands {
         include_sections: bool,
         /// Search across all registered wikis
         #[arg(long)]
-        all: bool,
+        cross_wiki: bool,
         /// Output format: text | json
         #[arg(long)]
         format: Option<String>,
@@ -123,6 +123,25 @@ pub enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Inspect and manage server logs
+    Logs {
+        #[command(subcommand)]
+        action: LogsAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum LogsAction {
+    /// Show recent log entries
+    Tail {
+        /// Number of lines to show (default: 50)
+        #[arg(long, default_value = "50")]
+        lines: usize,
+    },
+    /// List log files
+    List,
+    /// Delete all log files
+    Clear,
 }
 
 #[derive(Subcommand)]

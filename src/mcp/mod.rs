@@ -15,7 +15,7 @@ use rmcp::service::{Peer, RequestContext, RoleServer};
 use rmcp::Error as McpError;
 use rmcp::ServerHandler;
 
-use crate::engine::{Engine, EngineManager};
+use crate::engine::{EngineState, WikiEngine};
 use crate::markdown;
 use crate::slug::{Slug, WikiUri};
 
@@ -23,24 +23,24 @@ use crate::slug::{Slug, WikiUri};
 
 #[derive(Clone)]
 pub struct McpServer {
-    pub manager: Arc<EngineManager>,
+    pub manager: Arc<WikiEngine>,
     pub peer: Arc<Mutex<Option<Peer<RoleServer>>>>,
 }
 
 impl McpServer {
-    pub fn new(manager: Arc<EngineManager>) -> Self {
+    pub fn new(manager: Arc<WikiEngine>) -> Self {
         Self {
             manager,
             peer: Arc::new(Mutex::new(None)),
         }
     }
 
-    pub fn engine(&self) -> std::sync::RwLockReadGuard<'_, Engine> {
-        self.manager.engine.read().expect("engine lock poisoned")
+    pub fn engine(&self) -> std::sync::RwLockReadGuard<'_, EngineState> {
+        self.manager.state.read().expect("engine lock poisoned")
     }
 
     fn list_wiki_resources(&self) -> Vec<rmcp::model::Resource> {
-        let engine = match self.manager.engine.read() {
+        let engine = match self.manager.state.read() {
             Ok(e) => e,
             Err(_) => return vec![],
         };
@@ -149,7 +149,7 @@ impl ServerHandler for McpServer {
     ) -> impl Future<Output = Result<ReadResourceResult, McpError>> + Send + '_ {
         let uri = &request.uri;
         let result = if uri.starts_with("wiki://") {
-            let engine = match self.manager.engine.read() {
+            let engine = match self.manager.state.read() {
                 Ok(e) => e,
                 Err(_) => {
                     return std::future::ready(Err(McpError::internal_error(

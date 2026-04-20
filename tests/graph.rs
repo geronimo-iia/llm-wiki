@@ -4,16 +4,21 @@ use std::path::Path;
 use llm_wiki::git;
 use llm_wiki::graph::*;
 use llm_wiki::index_schema::IndexSchema;
-use llm_wiki::indexing;
-use llm_wiki::search;
+use llm_wiki::index_manager::SpaceIndexManager;
+use llm_wiki::space_builder;
 use llm_wiki::type_registry::SpaceTypeRegistry;
 
+fn schema_and_registry() -> (IndexSchema, SpaceTypeRegistry) {
+    let (registry, schema) = space_builder::build_space_from_embedded("en_stem");
+    (schema, registry)
+}
+
 fn schema() -> IndexSchema {
-    IndexSchema::build("en_stem")
+    schema_and_registry().0
 }
 
 fn registry() -> SpaceTypeRegistry {
-    SpaceTypeRegistry::from_embedded()
+    schema_and_registry().1
 }
 
 fn setup_repo(dir: &Path) -> std::path::PathBuf {
@@ -35,11 +40,13 @@ fn write_page(wiki_root: &Path, rel_path: &str, content: &str) {
     fs::write(path, content).unwrap();
 }
 
-fn build_index(dir: &Path, wiki_root: &Path) -> std::path::PathBuf {
+fn build_index(dir: &Path, wiki_root: &Path) -> SpaceIndexManager {
     let index_path = dir.join("index-store");
     git::commit(dir, "index pages").unwrap();
-    indexing::rebuild_index(wiki_root, &index_path, "test", dir, &schema(), &registry()).unwrap();
-    index_path
+    let mut mgr = SpaceIndexManager::new("test", &index_path);
+    mgr.rebuild(wiki_root, dir, &schema(), &registry()).unwrap();
+    mgr.open(&schema(), None).unwrap();
+    mgr
 }
 
 fn page_with_body_links(title: &str, body: &str) -> String {
@@ -71,9 +78,9 @@ fn build_graph_creates_nodes_from_index() {
         &simple_page("Switch", "paper"),
     );
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&index_path, &is, &default_filter()).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter()).unwrap();
 
     assert_eq!(g.node_count(), 2);
 }
@@ -93,9 +100,9 @@ fn build_graph_creates_edges_from_body_links() {
         &simple_page("Scaling", "concept"),
     );
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&index_path, &is, &default_filter()).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter()).unwrap();
 
     assert_eq!(g.edge_count(), 1);
     let edge = g.edge_indices().next().unwrap();
@@ -112,9 +119,9 @@ fn build_graph_skips_broken_references() {
         &page_with_body_links("MoE", "See [[concepts/nonexistent]]."),
     );
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&index_path, &is, &default_filter()).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter()).unwrap();
 
     assert_eq!(g.node_count(), 1);
     assert_eq!(g.edge_count(), 0);
@@ -137,13 +144,13 @@ fn build_graph_type_filter() {
         &simple_page("Switch", "paper"),
     );
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let filter = GraphFilter {
         types: vec!["concept".into()],
         ..Default::default()
     };
-    let g = build_graph(&index_path, &is, &filter).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &filter).unwrap();
 
     assert_eq!(g.node_count(), 1);
     assert_eq!(g[g.node_indices().next().unwrap()].r#type, "concept");
@@ -166,7 +173,7 @@ fn build_graph_relation_filter_excludes_non_matching() {
         &simple_page("Scaling", "concept"),
     );
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
 
     // Filter for "fed-by" — should exclude "links-to" edges
@@ -174,7 +181,7 @@ fn build_graph_relation_filter_excludes_non_matching() {
         relation: Some("fed-by".into()),
         ..Default::default()
     };
-    let g = build_graph(&index_path, &is, &filter).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &filter).unwrap();
     assert_eq!(g.edge_count(), 0);
 }
 
@@ -195,9 +202,9 @@ fn render_mermaid_includes_titles_and_relations() {
         &simple_page("Scaling", "concept"),
     );
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&index_path, &is, &default_filter()).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter()).unwrap();
     let output = render_mermaid(&g);
 
     assert!(output.starts_with("graph LR\n"));
@@ -224,9 +231,9 @@ fn render_dot_includes_labels_and_relations() {
         &simple_page("Scaling", "concept"),
     );
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&index_path, &is, &default_filter()).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter()).unwrap();
     let output = render_dot(&g);
 
     assert!(output.starts_with("digraph wiki {\n"));
@@ -261,14 +268,14 @@ fn subgraph_limits_depth() {
     );
     write_page(&wiki_root, "concepts/d.md", &simple_page("D", "concept"));
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let filter = GraphFilter {
         root: Some("concepts/a".into()),
         depth: Some(2),
         ..Default::default()
     };
-    let g = build_graph(&index_path, &is, &filter).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &filter).unwrap();
 
     let slugs: Vec<String> = g.node_indices().map(|i| g[i].slug.clone()).collect();
     assert!(slugs.contains(&"concepts/a".to_string()));
@@ -288,14 +295,14 @@ fn subgraph_depth_0_returns_root_only() {
     );
     write_page(&wiki_root, "concepts/b.md", &simple_page("B", "concept"));
 
-    let index_path = build_index(dir.path(), &wiki_root);
+    let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let filter = GraphFilter {
         root: Some("concepts/a".into()),
         depth: Some(0),
         ..Default::default()
     };
-    let g = build_graph(&index_path, &is, &filter).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &filter).unwrap();
 
     assert_eq!(g.node_count(), 1);
     assert_eq!(g[g.node_indices().next().unwrap()].slug, "concepts/a");
@@ -323,48 +330,3 @@ fn wrap_graph_md_includes_frontmatter() {
     assert!(output.ends_with("```\n"));
 }
 
-// ── in_degree ─────────────────────────────────────────────────────────────────
-
-#[test]
-fn in_degree_counts_incoming_edges() {
-    let dir = tempfile::tempdir().unwrap();
-    let wiki_root = setup_repo(dir.path());
-    write_page(
-        &wiki_root,
-        "concepts/a.md",
-        &page_with_body_links("A", "See [[concepts/target]]."),
-    );
-    write_page(
-        &wiki_root,
-        "concepts/b.md",
-        &page_with_body_links("B", "See [[concepts/target]]."),
-    );
-    write_page(
-        &wiki_root,
-        "concepts/target.md",
-        &simple_page("Target", "concept"),
-    );
-
-    let index_path = build_index(dir.path(), &wiki_root);
-    let is = schema();
-    let g = build_graph(&index_path, &is, &default_filter()).unwrap();
-
-    assert_eq!(in_degree(&g, "concepts/target"), 2);
-}
-
-#[test]
-fn in_degree_zero_for_orphan() {
-    let dir = tempfile::tempdir().unwrap();
-    let wiki_root = setup_repo(dir.path());
-    write_page(
-        &wiki_root,
-        "concepts/orphan.md",
-        &simple_page("Orphan", "concept"),
-    );
-
-    let index_path = build_index(dir.path(), &wiki_root);
-    let is = schema();
-    let g = build_graph(&index_path, &is, &default_filter()).unwrap();
-
-    assert_eq!(in_degree(&g, "concepts/orphan"), 0);
-}

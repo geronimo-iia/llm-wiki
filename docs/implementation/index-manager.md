@@ -29,7 +29,7 @@ impl SpaceIndexManager {
              schema: &IndexSchema) -> Result<Self>;
 
     /// Check if index is stale (commit or schema_hash mismatch)
-    fn has_changed(&self, repo_root: &Path, schema_hash: &str) -> Result<bool>;
+    fn has_changed(&self, repo_root: &Path) -> Result<bool>;
 
     /// Incremental update from git diffs
     fn update(&mut self, registry: &SpaceTypeRegistry) -> Result<UpdateReport>;
@@ -77,7 +77,7 @@ enum RebuildReason {
 
 ### Incremental update
 
-Called by `EngineManager.on_ingest()`. Uses two git diffs to find
+Called by `WikiEngine.refresh_index()`. Uses two git diffs to find
 changed pages:
 
 ```
@@ -135,11 +135,12 @@ Recovery is attempted once.
 ## Staleness Check
 
 ```rust
-fn has_changed(&self, repo_root: &Path, schema_hash: &str) -> Result<bool> {
+fn has_changed(&self, repo_root: &Path) -> Result<bool> {
     // 1. Read state.toml
     // 2. Compare commit against git HEAD
-    // 3. Compare schema_hash against current
-    // 4. Either mismatch -> true
+    // 3. Call compute_disk_hashes(repo_root) to get current schema_hash
+    // 4. Compare against stored schema_hash
+    // 5. Either mismatch -> true
 }
 ```
 
@@ -162,18 +163,14 @@ skill    = "3a4b5c6d..."
 
 Updated after every successful rebuild or update.
 
-## Called by EngineManager
+## Called by WikiEngine
 
 ```
-EngineManager.on_ingest(wiki, paths)
+WikiEngine.refresh_index(wiki)
     -> SpaceIndexManager.update(registry)
 
-EngineManager.on_type_change(wiki)
-    -> SpaceTypeRegistryManager.refresh()
-        -> if needs_full_rebuild:
-            SpaceIndexManager.rebuild(registry)
-        -> if needs_partial_rebuild:
-            SpaceIndexManager.rebuild_types(changed, registry)
+WikiEngine.rebuild_index(wiki)
+    -> SpaceIndexManager.rebuild(registry)
 ```
 
 ## Initial Scope

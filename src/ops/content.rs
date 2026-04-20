@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Result};
 
 use crate::config;
-use crate::engine::Engine;
+use crate::engine::EngineState;
 use crate::git;
 use crate::markdown;
 use crate::slug::{resolve_read_target, ReadTarget, Slug, WikiUri};
@@ -15,7 +15,7 @@ pub enum ContentReadResult {
 }
 
 pub fn content_read(
-    engine: &Engine,
+    engine: &EngineState,
     uri: &str,
     wiki_flag: Option<&str>,
     no_frontmatter: bool,
@@ -54,7 +54,7 @@ pub struct WriteResult {
 }
 
 pub fn content_write(
-    engine: &Engine,
+    engine: &EngineState,
     uri: &str,
     wiki_flag: Option<&str>,
     content: &str,
@@ -69,7 +69,7 @@ pub fn content_write(
 }
 
 pub fn content_new(
-    engine: &Engine,
+    engine: &EngineState,
     uri: &str,
     wiki_flag: Option<&str>,
     section: bool,
@@ -89,7 +89,7 @@ pub fn content_new(
 }
 
 pub fn content_commit(
-    engine: &Engine,
+    engine: &EngineState,
     wiki_name: &str,
     slugs: &[String],
     all: bool,

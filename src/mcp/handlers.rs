@@ -175,7 +175,7 @@ pub fn handle_content_commit(server: &McpServer, args: &Map<String, Value>) -> T
 
 pub fn handle_search(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let query = arg_str_req(args, "query")?;
-    let all = arg_bool(args, "all");
+    let cross_wiki = arg_bool(args, "cross_wiki");
     let engine = server.engine();
     let wiki_name = resolve_wiki_name(&engine, args)?;
 
@@ -188,7 +188,7 @@ pub fn handle_search(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
             no_excerpt: arg_bool(args, "no_excerpt"),
             top_k: arg_usize(args, "top_k"),
             include_sections: arg_bool(args, "include_sections"),
-            all,
+            cross_wiki,
         },
     )
     .map_err(|e| format!("{e}"))?;
@@ -223,7 +223,7 @@ pub fn handle_ingest(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
     let path = arg_str_req(args, "path")?;
     let dry_run = arg_bool(args, "dry_run");
 
-    // Read path: ingest (ops handles EngineManager mutation internally)
+    // Read path: ingest (ops handles WikiEngine mutation internally)
     let (report, wiki_name, notify_uris) = {
         let engine = server.engine();
         let wiki_name = resolve_wiki_name(&engine, args)?;

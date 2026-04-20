@@ -1,14 +1,31 @@
 use std::fs;
 
 use llm_wiki::index_schema::IndexSchema;
+use llm_wiki::space_builder;
 
-// ── build (hardcoded, backward compat) ────────────────────────────────────────
+// ── build_space_from_embedded determinism ──────────────────────────────────────
 
 #[test]
-fn build_has_fixed_fields() {
-    let is = IndexSchema::build("en_stem");
-    for name in &["slug", "uri", "body", "body_links", "title", "summary", "type", "status", "tags"] {
-        assert!(is.try_field(name).is_some(), "missing field: {name}");
+fn embedded_schema_fields_are_deterministic() {
+    // build_space_from_embedded must produce identical field sets across
+    // calls — guards against non-deterministic HashMap iteration in
+    // default_schemas().
+    let (_, schema1) = space_builder::build_space_from_embedded("en_stem");
+    let (_, schema2) = space_builder::build_space_from_embedded("en_stem");
+
+    let mut fields1: Vec<_> = schema1.fields.keys().collect();
+    let mut fields2: Vec<_> = schema2.fields.keys().collect();
+    fields1.sort();
+    fields2.sort();
+    assert_eq!(fields1, fields2);
+
+    // Verify keyword classification is also stable
+    for name in &fields1 {
+        assert_eq!(
+            schema1.is_keyword(name),
+            schema2.is_keyword(name),
+            "keyword classification differs for field '{name}'"
+        );
     }
 }
 

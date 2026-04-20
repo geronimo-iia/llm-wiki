@@ -22,7 +22,7 @@ produces warnings.
 
 ## Alias Resolution
 
-`build_document()` in `indexing.rs` resolves aliases before indexing:
+`index_page()` in `indexing.rs` resolves aliases before indexing:
 
 ```
 1. page_type = fm["type"] or "page"
@@ -62,7 +62,7 @@ tantivy:
 ## Keyword vs Text for Arrays
 
 `IndexSchema` holds `keyword_fields: HashSet<String>` populated
-during construction. `build_document` checks membership to decide:
+during construction. `index_page` checks membership to decide:
 
 - **Text field** (tags, read_when): join values with space, single
   `add_text`

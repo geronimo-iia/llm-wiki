@@ -7,7 +7,7 @@ use anyhow::Result;
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
-use crate::engine::EngineManager;
+use crate::engine::WikiEngine;
 use crate::ops;
 
 // ── Session ───────────────────────────────────────────────────────────────────
@@ -23,14 +23,14 @@ pub struct AcpSession {
 // ── WikiAgent ─────────────────────────────────────────────────────────────────
 
 pub struct WikiAgent {
-    pub manager: Arc<EngineManager>,
+    pub manager: Arc<WikiEngine>,
     sessions: Mutex<HashMap<String, AcpSession>>,
     update_tx: mpsc::UnboundedSender<(acp::SessionNotification, oneshot::Sender<()>)>,
 }
 
 impl WikiAgent {
     pub fn new(
-        manager: Arc<EngineManager>,
+        manager: Arc<WikiEngine>,
         update_tx: mpsc::UnboundedSender<(acp::SessionNotification, oneshot::Sender<()>)>,
     ) -> Self {
         Self {
@@ -41,12 +41,12 @@ impl WikiAgent {
     }
 
     pub fn resolve_wiki_name(&self, session_wiki: Option<&str>) -> String {
-        let engine = self.manager.engine.read().expect("engine lock poisoned");
+        let engine = self.manager.state.read().expect("engine lock poisoned");
         engine.resolve_wiki_name(session_wiki).to_string()
     }
 
     fn session_cwd(&self) -> PathBuf {
-        let engine = self.manager.engine.read().expect("engine lock poisoned");
+        let engine = self.manager.state.read().expect("engine lock poisoned");
         let name = engine.default_wiki_name();
         engine
             .space(name)
@@ -161,33 +161,29 @@ impl WikiAgent {
         }
     }
 
-    // ── Workflows ─────────────────────────────────────────────────────────
+    // ── Reusable workflow steps ─────────────────────────────────────────
 
-    async fn run_research(
+    async fn step_search(
         &self,
         session_id: &acp::SessionId,
+        workflow: &str,
         query: &str,
         wiki_name: &str,
-    ) -> std::result::Result<acp::PromptResponse, acp::Error> {
-        // Step 1: announce search
-        self.send_message(session_id, &format!("Searching for: {query}..."))
-            .await?;
-
-        // Step 2: tool call — search
-        let search_id = Self::make_tool_id("research", "search");
+        top_k: usize,
+    ) -> std::result::Result<Vec<crate::search::PageRef>, acp::Error> {
+        let tool_id = Self::make_tool_id(workflow, "search");
         self.send_tool_call(
             session_id,
-            &search_id,
+            &tool_id,
             &format!("wiki_search: {query}"),
             acp::ToolKind::Search,
         )
         .await?;
 
-        // Step 3: execute search via ops
         let results = {
             let engine = self
                 .manager
-                .engine
+                .state
                 .read()
                 .map_err(|_| acp::Error::internal_error())?;
             ops::search(
@@ -197,104 +193,132 @@ impl WikiAgent {
                     query,
                     type_filter: None,
                     no_excerpt: false,
-                    top_k: Some(5),
+                    top_k: Some(top_k),
                     include_sections: false,
-                    all: false,
+                    cross_wiki: false,
                 },
             )
         };
 
         match results {
-            Ok(results) if !results.is_empty() => {
+            Ok(results) => {
                 self.send_tool_result(
                     session_id,
-                    &search_id,
+                    &tool_id,
                     acp::ToolCallStatus::Completed,
                     &format!("{} results", results.len()),
                 )
                 .await?;
-
-                // Step 4: read top result via ops
-                let top = &results[0];
-                let read_id = Self::make_tool_id("research", "read");
-                self.send_tool_call(
-                    session_id,
-                    &read_id,
-                    &format!("wiki_content_read: {}", top.slug),
-                    acp::ToolKind::Read,
-                )
-                .await?;
-
-                let read_result = {
-                    let engine = self
-                        .manager
-                        .engine
-                        .read()
-                        .map_err(|_| acp::Error::internal_error())?;
-                    ops::content_read(&engine, &top.slug, Some(wiki_name), false, false)
-                };
-                match read_result {
-                    Ok(_) => {
-                        self.send_tool_result(
-                            session_id,
-                            &read_id,
-                            acp::ToolCallStatus::Completed,
-                            "",
-                        )
-                        .await?;
-                    }
-                    Err(e) => {
-                        self.send_tool_result(
-                            session_id,
-                            &read_id,
-                            acp::ToolCallStatus::Failed,
-                            &format!("{e}"),
-                        )
-                        .await?;
-                    }
-                }
-
-                // Step 5: summary
-                let hits: Vec<String> = results
-                    .iter()
-                    .take(5)
-                    .map(|r| format!("- {} (score: {:.2})", r.uri, r.score))
-                    .collect();
-                self.send_message(
-                    session_id,
-                    &format!(
-                        "Based on {} pages in \"{wiki_name}\":\n{}",
-                        results.len(),
-                        hits.join("\n")
-                    ),
-                )
-                .await?;
+                Ok(results)
             }
+            Err(e) => {
+                self.send_tool_result(
+                    session_id,
+                    &tool_id,
+                    acp::ToolCallStatus::Failed,
+                    &format!("{e}"),
+                )
+                .await?;
+                Ok(Vec::new())
+            }
+        }
+    }
+
+    async fn step_read(
+        &self,
+        session_id: &acp::SessionId,
+        workflow: &str,
+        slug: &str,
+        wiki_name: &str,
+    ) -> std::result::Result<(), acp::Error> {
+        let tool_id = Self::make_tool_id(workflow, "read");
+        self.send_tool_call(
+            session_id,
+            &tool_id,
+            &format!("wiki_content_read: {slug}"),
+            acp::ToolKind::Read,
+        )
+        .await?;
+
+        let result = {
+            let engine = self
+                .manager
+                .state
+                .read()
+                .map_err(|_| acp::Error::internal_error())?;
+            ops::content_read(&engine, slug, Some(wiki_name), false, false)
+        };
+
+        match result {
             Ok(_) => {
                 self.send_tool_result(
                     session_id,
-                    &search_id,
+                    &tool_id,
                     acp::ToolCallStatus::Completed,
-                    "0 results",
-                )
-                .await?;
-                self.send_message(
-                    session_id,
-                    &format!("No results found for \"{query}\" in wiki \"{wiki_name}\"."),
+                    "",
                 )
                 .await?;
             }
             Err(e) => {
                 self.send_tool_result(
                     session_id,
-                    &search_id,
+                    &tool_id,
                     acp::ToolCallStatus::Failed,
                     &format!("{e}"),
                 )
                 .await?;
-                self.send_message(session_id, &format!("Search failed: {e}"))
-                    .await?;
             }
+        }
+        Ok(())
+    }
+
+    async fn step_report_results(
+        &self,
+        session_id: &acp::SessionId,
+        results: &[crate::search::PageRef],
+        wiki_name: &str,
+    ) -> std::result::Result<(), acp::Error> {
+        if results.is_empty() {
+            return Ok(());
+        }
+        let hits: Vec<String> = results
+            .iter()
+            .take(5)
+            .map(|r| format!("- {} (score: {:.2})", r.uri, r.score))
+            .collect();
+        self.send_message(
+            session_id,
+            &format!(
+                "Based on {} pages in \"{wiki_name}\":\n{}",
+                results.len(),
+                hits.join("\n")
+            ),
+        )
+        .await
+    }
+
+    // ── Workflows ─────────────────────────────────────────────────────────
+
+    async fn run_research(
+        &self,
+        session_id: &acp::SessionId,
+        query: &str,
+        wiki_name: &str,
+    ) -> std::result::Result<acp::PromptResponse, acp::Error> {
+        self.send_message(session_id, &format!("Searching for: {query}..."))
+            .await?;
+
+        let results = self.step_search(session_id, "research", query, wiki_name, 5).await?;
+
+        if results.is_empty() {
+            self.send_message(
+                session_id,
+                &format!("No results found for \"{query}\" in wiki \"{wiki_name}\"."),
+            )
+            .await?;
+        } else {
+            self.step_read(session_id, "research", &results[0].slug, wiki_name).await?;
+            self.step_report_results(session_id, &results, wiki_name).await?;
         }
 
         self.clear_active_run(&session_id.to_string());
@@ -466,7 +490,7 @@ impl acp::Agent for WikiAgent {
 
 // ── serve_acp ─────────────────────────────────────────────────────────────────
 
-pub async fn serve_acp(manager: Arc<EngineManager>) -> Result<()> {
+pub async fn serve_acp(manager: Arc<WikiEngine>) -> Result<()> {
     let outgoing = tokio::io::stdout().compat_write();
     let incoming = tokio::io::stdin().compat();
 

@@ -52,7 +52,7 @@ struct RefreshReport {
 }
 ```
 
-The caller (typically `EngineManager`) reads the report and decides
+The caller (typically `WikiEngine`) reads the report and decides
 what to do next — rebuild an index, reload config, etc.
 
 ## Where It's Used
@@ -60,12 +60,12 @@ what to do next — rebuild an index, reload config, etc.
 | Manager                    | Wraps               | Source of truth          | Cascades to                    |
 | -------------------------- | ------------------- | ------------------------ | ------------------------------ |
 | `SpaceTypeRegistryManager` | `SpaceTypeRegistry` | `wiki.toml` + `schemas/` | `IndexSchema` -> tantivy index |
-| `EngineManager`            | `Engine`            | all sources              | all components                 |
+| `WikiEngine`               | `EngineState`       | all sources              | all components                 |
 
 ## Dependency Chain
 
 ```
-EngineManager
+WikiEngine
     -> SpaceTypeRegistryManager (per wiki)
         -> SpaceTypeRegistry
             -> IndexSchema
@@ -74,7 +74,7 @@ EngineManager
     -> GlobalConfig
 ```
 
-`EngineManager` is the top-level orchestrator. It calls each
+`WikiEngine` is the top-level orchestrator. It calls each
 component's manager, reads the refresh report, and cascades to
 downstream components.
 
@@ -106,7 +106,7 @@ brief and infrequent.
 
 ## Initial Scope
 
-- `EngineManager` with `on_ingest` (incremental index update)
+- `WikiEngine` with `refresh_index` (incremental index update)
 - `SpaceTypeRegistryManager` with `build` and `has_changed`
 - `refresh` returns "restart required" for type changes
 

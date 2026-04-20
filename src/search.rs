@@ -1,16 +1,14 @@
-use std::path::{Path, PathBuf};
-
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use tantivy::{
-    collector::TopDocs,
+    collector::{Count, TopDocs},
     query::{AllQuery, BooleanQuery, Occur, QueryParser, TermQuery},
     schema::{IndexRecordOption, Value},
-    Snippet, SnippetGenerator, Term,
+    snippet::{Snippet, SnippetGenerator},
+    Order, Searcher, Term,
 };
 
 use crate::index_schema::IndexSchema;
-use crate::indexing;
 
 // ── Return types ──────────────────────────────────────────────────────────────
 
@@ -84,27 +82,18 @@ impl Default for ListOptions {
 pub fn search(
     query_str: &str,
     options: &SearchOptions,
-    index_path: &Path,
+    searcher: &Searcher,
     wiki_name: &str,
     is: &IndexSchema,
-    recovery: Option<&indexing::RecoveryContext<'_>>,
 ) -> Result<Vec<PageRef>> {
-    let search_dir = index_path.join("search-index");
-    if !search_dir.exists() {
-        bail!("search index not found — run `llm-wiki index rebuild`");
-    }
-
-    let index = indexing::open_index(&search_dir, index_path, wiki_name, is, recovery)?;
-    let reader = index.reader()?;
-    let searcher = reader.searcher();
-
     let f_slug = is.field("slug");
     let f_title = is.field("title");
     let f_summary = is.field("summary");
     let f_body = is.field("body");
     let f_type = is.field("type");
 
-    let query_parser = QueryParser::for_index(&index, vec![f_title, f_summary, f_body]);
+    let index = searcher.index();
+    let query_parser = QueryParser::for_index(index, vec![f_title, f_summary, f_body]);
     let parsed = query_parser
         .parse_query(query_str)
         .with_context(|| format!("failed to parse query: {query_str}"))?;
@@ -139,7 +128,7 @@ pub fn search(
     let top_docs = searcher.search(&final_query, &TopDocs::with_limit(options.top_k))?;
 
     let snippet_gen = if !options.no_excerpt {
-        Some(SnippetGenerator::create(&searcher, &final_query, f_body)?)
+        Some(SnippetGenerator::create(searcher, &final_query, f_body)?)
     } else {
         None
     };
@@ -181,20 +170,10 @@ pub fn search(
 
 pub fn list(
     options: &ListOptions,
-    index_path: &Path,
+    searcher: &Searcher,
     wiki_name: &str,
     is: &IndexSchema,
-    recovery: Option<&indexing::RecoveryContext<'_>>,
 ) -> Result<PageList> {
-    let search_dir = index_path.join("search-index");
-    if !search_dir.exists() {
-        bail!("search index not found — run `llm-wiki index rebuild`");
-    }
-
-    let index = indexing::open_index(&search_dir, index_path, wiki_name, is, recovery)?;
-    let reader = index.reader()?;
-    let searcher = reader.searcher();
-
     let f_slug = is.field("slug");
     let f_title = is.field("title");
     let f_type = is.field("type");
@@ -231,11 +210,38 @@ pub fn list(
         }
     };
 
-    let top_docs = searcher.search(&query, &TopDocs::with_limit(100_000))?;
+    // Count total matches
+    let total = searcher.search(&query, &Count)?;
+    if total == 0 {
+        return Ok(PageList {
+            pages: Vec::new(),
+            total: 0,
+            page: options.page,
+            page_size: options.page_size,
+        });
+    }
 
-    let mut summaries: Vec<PageSummary> = Vec::new();
-    for (_score, doc_addr) in top_docs {
-        let doc: tantivy::TantivyDocument = searcher.doc(doc_addr)?;
+    // Fetch sorted by _slug_ord, limited to offset + page_size
+    let page = options.page;
+    let page_size = options.page_size;
+    let offset = (page - 1) * page_size;
+    let limit = offset + page_size;
+
+    let sorted_docs = searcher.search(
+        &query,
+        &TopDocs::with_limit(limit).order_by_fast_field::<u64>("_slug_ord", Order::Asc),
+    )?;
+
+    // Extract full fields only for the page window
+    let window = if offset < sorted_docs.len() {
+        &sorted_docs[offset..]
+    } else {
+        &[]
+    };
+
+    let mut summaries = Vec::with_capacity(window.len());
+    for (_ord, doc_addr) in window {
+        let doc: tantivy::TantivyDocument = searcher.doc(*doc_addr)?;
 
         let slug = doc
             .get_first(f_slug)
@@ -280,20 +286,11 @@ pub fn list(
         });
     }
 
+    // Stable sort within the window for ties (same 8-byte prefix)
     summaries.sort_by(|a, b| a.slug.cmp(&b.slug));
 
-    let total = summaries.len();
-    let page = options.page;
-    let page_size = options.page_size;
-    let start = (page - 1) * page_size;
-    let pages = if start < total {
-        summaries[start..(start + page_size).min(total)].to_vec()
-    } else {
-        Vec::new()
-    };
-
     Ok(PageList {
-        pages,
+        pages: summaries,
         total,
         page,
         page_size,
@@ -305,12 +302,11 @@ pub fn list(
 pub fn search_all(
     query_str: &str,
     options: &SearchOptions,
-    wikis: &[(String, PathBuf)],
-    is: &IndexSchema,
+    wikis: &[(String, Searcher, &IndexSchema)],
 ) -> Result<Vec<PageRef>> {
     let mut all_results = Vec::new();
-    for (name, index_path) in wikis {
-        match search(query_str, options, index_path, name, is, None) {
+    for (name, searcher, is) in wikis {
+        match search(query_str, options, searcher, name, is) {
             Ok(results) => all_results.extend(results),
             Err(_) => continue,
         }

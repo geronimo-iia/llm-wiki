@@ -21,7 +21,9 @@ llm-wiki list
          [--wiki <name>]
 ```
 
-Results ordered by slug alphabetically. No search ranking.
+Results ordered by slug alphabetically via the `_slug_ord` fast field.
+No search ranking. Only the requested page window is extracted from
+the index.
 
 Each entry includes slug, `wiki://` URI, title, type, status, and tags.
 

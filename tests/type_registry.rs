@@ -349,3 +349,94 @@ fn build_rejects_base_missing_type_requirement() {
     let msg = result.unwrap_err().to_string();
     assert!(msg.contains("type"), "error should mention type: {msg}");
 }
+
+
+// ── compute_disk_hashes ───────────────────────────────────────────────────────
+
+use llm_wiki::git;
+use llm_wiki::type_registry::compute_disk_hashes;
+
+fn setup_repo(dir: &std::path::Path) {
+    fs::create_dir_all(dir.join("wiki")).unwrap();
+    fs::create_dir_all(dir.join("inbox")).unwrap();
+    fs::create_dir_all(dir.join("raw")).unwrap();
+    git::init_repo(dir).unwrap();
+    fs::write(dir.join("README.md"), "# test\n").unwrap();
+    git::commit(dir, "init").unwrap();
+}
+
+#[test]
+fn disk_hashes_change_on_schema_file_modification() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_repo(dir.path());
+
+    let schemas_dir = dir.path().join("schemas");
+    fs::create_dir_all(&schemas_dir).unwrap();
+    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+        fs::write(schemas_dir.join(filename), content).unwrap();
+    }
+    fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
+
+    let (hash1, _) = compute_disk_hashes(dir.path()).unwrap();
+
+    let concept_schema = schemas_dir.join("concept.json");
+    let mut content = fs::read_to_string(&concept_schema).unwrap();
+    content = content.replace(
+        "\"x-wiki-types\"",
+        "\"x-graph-edges\": {\"related\": {}}, \"x-wiki-types\"",
+    );
+    fs::write(&concept_schema, content).unwrap();
+
+    let (hash2, _) = compute_disk_hashes(dir.path()).unwrap();
+    assert_ne!(hash1, hash2, "hash should change when schema file is modified");
+}
+
+#[test]
+fn disk_hashes_identical_schemas_same_hash() {
+    let dir1 = tempfile::tempdir().unwrap();
+    let dir2 = tempfile::tempdir().unwrap();
+
+    for dir in [dir1.path(), dir2.path()] {
+        setup_repo(dir);
+        let schemas_dir = dir.join("schemas");
+        fs::create_dir_all(&schemas_dir).unwrap();
+        for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+            fs::write(schemas_dir.join(filename), content).unwrap();
+        }
+        fs::write(dir.join("wiki.toml"), "[types]\n").unwrap();
+    }
+
+    let (hash1, types1) = compute_disk_hashes(dir1.path()).unwrap();
+    let (hash2, types2) = compute_disk_hashes(dir2.path()).unwrap();
+    assert_eq!(hash1, hash2);
+    assert_eq!(types1, types2);
+}
+
+#[test]
+fn disk_hashes_embedded_fallback_stable() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_repo(dir.path());
+    fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
+
+    let (hash1, _) = compute_disk_hashes(dir.path()).unwrap();
+    let (hash2, _) = compute_disk_hashes(dir.path()).unwrap();
+    assert_eq!(hash1, hash2, "embedded fallback hash should be stable");
+}
+
+#[test]
+fn disk_hashes_deterministic() {
+    let dir = tempfile::tempdir().unwrap();
+    setup_repo(dir.path());
+
+    let schemas_dir = dir.path().join("schemas");
+    fs::create_dir_all(&schemas_dir).unwrap();
+    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+        fs::write(schemas_dir.join(filename), content).unwrap();
+    }
+    fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
+
+    let (hash1, types1) = compute_disk_hashes(dir.path()).unwrap();
+    let (hash2, types2) = compute_disk_hashes(dir.path()).unwrap();
+    assert_eq!(hash1, hash2);
+    assert_eq!(types1, types2);
+}

@@ -159,7 +159,7 @@ pub fn tool_list() -> Vec<Tool> {
                     "include_sections": opt_bool("Include section index pages"),
                     "top_k": opt_int("Max results"),
                     "wiki": opt_str("Target wiki name"),
-                    "all": opt_bool("Search across all wikis"),
+                    "cross_wiki": opt_bool("Search across all wikis"),
                 }),
                 &["query"],
             ),

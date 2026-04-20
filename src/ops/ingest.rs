@@ -2,12 +2,12 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::engine::{Engine, EngineManager};
+use crate::engine::{EngineState, WikiEngine};
 use crate::ingest;
 
 pub fn ingest(
-    engine: &Engine,
-    manager: &EngineManager,
+    engine: &EngineState,
+    manager: &WikiEngine,
     path: &str,
     dry_run: bool,
     wiki_name: &str,
@@ -28,7 +28,7 @@ pub fn ingest(
     )?;
 
     if !dry_run {
-        if let Err(e) = manager.on_ingest(wiki_name) {
+        if let Err(e) = manager.refresh_index(wiki_name) {
             tracing::warn!(error = %e, "incremental index update failed after ingest");
         }
     }

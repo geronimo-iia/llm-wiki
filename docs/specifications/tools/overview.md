@@ -95,3 +95,18 @@ All CLI commands accept:
 
 All MCP/ACP tools accept an optional `wiki` parameter with the same
 semantics.
+
+## CLI-Only Commands
+
+These commands are available via CLI only (no MCP/ACP equivalent).
+
+### Log management
+
+| Command | Description |
+|---------|-------------|
+| `llm-wiki logs tail [--lines N]` | Show recent log entries (default: 50) |
+| `llm-wiki logs list` | List log files |
+| `llm-wiki logs clear` | Delete all log files |
+
+Operates on `~/.llm-wiki/logs/`. Only useful when `llm-wiki serve`
+has file logging enabled (see [server.md](../engine/server.md)).

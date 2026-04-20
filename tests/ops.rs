@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use llm_wiki::engine::EngineManager;
+use llm_wiki::engine::WikiEngine;
 use llm_wiki::git;
 use llm_wiki::ops;
 
@@ -106,8 +106,8 @@ fn config_list_resolved_returns_struct() {
 fn content_read_page() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
-    let engine = manager.engine.read().unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
 
     match ops::content_read(&engine, "concepts/moe", None, false, false).unwrap() {
         ops::ContentReadResult::Page(content) => {
@@ -121,8 +121,8 @@ fn content_read_page() {
 fn content_read_no_frontmatter() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
-    let engine = manager.engine.read().unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
 
     match ops::content_read(&engine, "concepts/moe", None, true, false).unwrap() {
         ops::ContentReadResult::Page(content) => {
@@ -137,8 +137,8 @@ fn content_read_no_frontmatter() {
 fn content_write_and_read_back() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
-    let engine = manager.engine.read().unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
 
     let body = "---\ntitle: \"New\"\ntype: page\n---\n\nHello.\n";
     let result = ops::content_write(&engine, "new-page", None, body).unwrap();
@@ -154,8 +154,8 @@ fn content_write_and_read_back() {
 fn content_new_page() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
-    let engine = manager.engine.read().unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
 
     let uri = ops::content_new(
         &engine,
@@ -174,8 +174,8 @@ fn content_new_page() {
 fn content_new_section() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
-    let engine = manager.engine.read().unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
 
     let uri = ops::content_new(&engine, "topics", None, true, false, None, None).unwrap();
     assert!(uri.contains("topics"));
@@ -185,8 +185,8 @@ fn content_new_section() {
 fn content_commit_all() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
-    let engine = manager.engine.read().unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
 
     // Write a new file so there's something to commit
     ops::content_write(
@@ -207,8 +207,8 @@ fn content_commit_all() {
 fn search_returns_results() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
-    let engine = manager.engine.read().unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
 
     let results = ops::search(
         &engine,
@@ -219,7 +219,7 @@ fn search_returns_results() {
             no_excerpt: false,
             top_k: None,
             include_sections: false,
-            all: false,
+            cross_wiki: false,
         },
     )
     .unwrap();
@@ -231,8 +231,8 @@ fn search_returns_results() {
 fn search_type_filter() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
-    let engine = manager.engine.read().unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
 
     let results = ops::search(
         &engine,
@@ -243,7 +243,7 @@ fn search_type_filter() {
             no_excerpt: true,
             top_k: None,
             include_sections: false,
-            all: false,
+            cross_wiki: false,
         },
     )
     .unwrap();
@@ -256,8 +256,8 @@ fn search_type_filter() {
 fn list_returns_pages() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
-    let engine = manager.engine.read().unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
 
     let result = ops::list(&engine, "test", None, None, 1, None).unwrap();
     assert!(result.total >= 2);
@@ -267,8 +267,8 @@ fn list_returns_pages() {
 fn list_type_filter() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
-    let engine = manager.engine.read().unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
 
     let result = ops::list(&engine, "test", Some("concept"), None, 1, None).unwrap();
     assert!(result.total >= 2);
@@ -283,11 +283,11 @@ fn list_type_filter() {
 fn ingest_validates_and_indexes() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
 
     // Write a new page
     {
-        let engine = manager.engine.read().unwrap();
+        let engine = manager.state.read().unwrap();
         let space = engine.space("test").unwrap();
         fs::write(
             space.wiki_root.join("concepts/rag.md"),
@@ -297,7 +297,7 @@ fn ingest_validates_and_indexes() {
     }
 
     let report = {
-        let engine = manager.engine.read().unwrap();
+        let engine = manager.state.read().unwrap();
         ops::ingest(&engine, &manager, "concepts/rag.md", false, "test").unwrap()
     };
     assert_eq!(report.pages_validated, 1);
@@ -307,23 +307,23 @@ fn ingest_validates_and_indexes() {
 fn ingest_dry_run_does_not_commit() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
 
     let head_before = {
-        let engine = manager.engine.read().unwrap();
+        let engine = manager.state.read().unwrap();
         let space = engine.space("test").unwrap();
         git::current_head(&space.repo_root)
     };
 
     let report = {
-        let engine = manager.engine.read().unwrap();
+        let engine = manager.state.read().unwrap();
         ops::ingest(&engine, &manager, "concepts/moe.md", true, "test").unwrap()
     };
     assert_eq!(report.pages_validated, 1);
     assert!(report.commit.is_empty());
 
     let head_after = {
-        let engine = manager.engine.read().unwrap();
+        let engine = manager.state.read().unwrap();
         let space = engine.space("test").unwrap();
         git::current_head(&space.repo_root)
     };
@@ -336,12 +336,12 @@ fn ingest_dry_run_does_not_commit() {
 fn index_rebuild_and_status() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
 
     let report = ops::index_rebuild(&manager, "test").unwrap();
     assert!(report.pages_indexed >= 2);
 
-    let engine = manager.engine.read().unwrap();
+    let engine = manager.state.read().unwrap();
     let status = ops::index_status(&engine, "test").unwrap();
     assert!(status.openable);
     assert!(status.queryable);
@@ -354,8 +354,8 @@ fn index_rebuild_and_status() {
 fn graph_build_returns_nodes() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
-    let engine = manager.engine.read().unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
 
     let result = ops::graph_build(
         &engine,
@@ -378,8 +378,8 @@ fn graph_build_returns_nodes() {
 fn graph_build_dot_format() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
-    let manager = EngineManager::build(&config_path).unwrap();
-    let engine = manager.engine.read().unwrap();
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
 
     let result = ops::graph_build(
         &engine,
@@ -395,4 +395,67 @@ fn graph_build_dot_format() {
     )
     .unwrap();
     assert!(result.rendered.contains("digraph wiki"));
+}
+
+
+// ── Schema ────────────────────────────────────────────────────────────────────
+
+#[test]
+fn schema_list_returns_types() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "test");
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+
+    let types = ops::schema_list(&engine, "test").unwrap();
+    assert!(types.len() >= 15);
+    assert!(types.iter().any(|t| t.name == "concept"));
+    assert!(types.iter().any(|t| t.name == "skill"));
+}
+
+#[test]
+fn schema_show_returns_json() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "test");
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+
+    let content = ops::schema_show(&engine, "test", "concept").unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+    assert!(parsed.get("properties").is_some());
+}
+
+#[test]
+fn schema_show_unknown_type_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "test");
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+
+    let result = ops::schema_show(&engine, "test", "nonexistent");
+    assert!(result.is_err());
+}
+
+#[test]
+fn schema_show_template_has_frontmatter() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "test");
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+
+    let template = ops::schema_show_template(&engine, "test", "concept").unwrap();
+    assert!(template.starts_with("---"));
+    assert!(template.contains("type: concept"));
+    assert!(template.contains("title:"));
+}
+
+#[test]
+fn schema_validate_passes_default_schemas() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "test");
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+
+    let issues = ops::schema_validate(&engine, "test", None).unwrap();
+    assert!(issues.is_empty(), "default schemas should validate: {:?}", issues);
 }

@@ -3,7 +3,7 @@ use std::path::Path;
 use rmcp::model::Content;
 use serde_json::{Map, Value};
 
-use crate::engine::Engine;
+use crate::engine::EngineState;
 use crate::slug::Slug;
 
 // ── ToolResult ────────────────────────────────────────────────────────────────
@@ -49,8 +49,8 @@ pub fn arg_usize(args: &Map<String, Value>, key: &str) -> Option<usize> {
 // ── Wiki resolution ───────────────────────────────────────────────────────────
 
 /// Resolve the target wiki from Engine state + optional `wiki` arg.
-/// Returns (wiki_name, SpaceState ref key) for use with engine.space().
-pub fn resolve_wiki_name(engine: &Engine, args: &Map<String, Value>) -> Result<String, String> {
+/// Resolve the target wiki from Engine state + optional `wiki` arg.
+pub fn resolve_wiki_name(engine: &EngineState, args: &Map<String, Value>) -> Result<String, String> {
     let name = arg_str(args, "wiki");
     Ok(engine.resolve_wiki_name(name.as_deref()).to_string())
 }

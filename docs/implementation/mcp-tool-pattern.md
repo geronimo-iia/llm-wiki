@@ -91,8 +91,8 @@ pub fn handle_my_tool(server: &McpServer, args: &Map<String, Value>) -> ToolHand
 
 ### When the handler needs to drop the engine lock
 
-If the operation needs `&EngineManager` (e.g. for write operations
-that call `on_ingest`), drop the engine read lock first:
+If the operation needs `&WikiEngine` (e.g. for write operations
+that call `refresh_index`), drop the engine read lock first:
 
 ```rust
 let engine = server.engine();
@@ -118,7 +118,7 @@ This function is shared with the CLI — same code, different entry
 point.
 
 ```rust
-pub fn my_operation(engine: &Engine, wiki_name: &str, param: &str) -> Result<MyResult> {
+pub fn my_operation(engine: &EngineState, wiki_name: &str, param: &str) -> Result<MyResult> {
     let space = engine.space(wiki_name)?;
     // ... business logic using space.type_registry, space.index_schema, etc.
     Ok(result)
