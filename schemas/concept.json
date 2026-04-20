@@ -96,5 +96,21 @@
     "concept": "Synthesized knowledge — one concept per page",
     "query-result": "Saved conclusion — crystallized sessions, comparisons"
   },
+  "x-graph-edges": {
+    "sources": {
+      "relation": "fed-by",
+      "direction": "outgoing",
+      "target_types": ["paper", "article", "documentation", "clipping", "transcript", "note", "data", "book-chapter", "thread"]
+    },
+    "concepts": {
+      "relation": "depends-on",
+      "direction": "outgoing",
+      "target_types": ["concept"]
+    },
+    "superseded_by": {
+      "relation": "superseded-by",
+      "direction": "outgoing"
+    }
+  },
   "additionalProperties": true
 }

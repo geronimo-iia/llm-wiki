@@ -11,6 +11,7 @@ use tantivy::schema::Value;
 use tantivy::Searcher;
 
 use crate::index_schema::IndexSchema;
+use crate::type_registry::SpaceTypeRegistry;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -46,12 +47,14 @@ pub struct GraphReport {
 // ── build_graph ───────────────────────────────────────────────────────────────
 
 /// Build the concept graph from the tantivy index. No file I/O.
-///
-/// Phase 1 uses hardcoded relations:
-/// - `sources` field → "fed-by"
-/// - `concepts` field → "depends-on"
-/// - `body_links` field → "links-to"
-pub fn build_graph(searcher: &Searcher, is: &IndexSchema, filter: &GraphFilter) -> Result<WikiGraph> {
+/// Edge relations are read from  declarations in the
+/// type registry. Body  get a generic  relation.
+pub fn build_graph(
+    searcher: &Searcher,
+    is: &IndexSchema,
+    filter: &GraphFilter,
+    registry: &SpaceTypeRegistry,
+) -> Result<WikiGraph> {
     let f_slug = is.field("slug");
     let f_title = is.field("title");
     let f_type = is.field("type");
@@ -62,17 +65,15 @@ pub fn build_graph(searcher: &Searcher, is: &IndexSchema, filter: &GraphFilter) 
     let mut graph = WikiGraph::new();
     let mut slug_to_idx: HashMap<String, NodeIndex> = HashMap::new();
 
-    // Collect all slug-list fields we need for edges
-    // For each doc, store (slug, type, sources, concepts, body_links)
-    struct DocEdges {
+    struct DocInfo {
         slug: String,
-        sources: Vec<String>,
-        concepts: Vec<String>,
+        page_type: String,
         body_links: Vec<String>,
+        edge_fields: Vec<(String, Vec<String>)>, // (field_name, target_slugs)
     }
-    let mut all_edges: Vec<DocEdges> = Vec::new();
+    let mut all_docs: Vec<DocInfo> = Vec::new();
 
-    // First pass: create nodes
+    // First pass: create nodes and collect edge data
     for (_score, doc_addr) in &top_docs {
         let doc: tantivy::TantivyDocument = searcher.doc(*doc_addr)?;
 
@@ -92,7 +93,6 @@ pub fn build_graph(searcher: &Searcher, is: &IndexSchema, filter: &GraphFilter) 
             .unwrap_or("")
             .to_string();
 
-        // Apply type filter
         if !filter.types.is_empty() && !filter.types.contains(&page_type) {
             continue;
         }
@@ -100,49 +100,67 @@ pub fn build_graph(searcher: &Searcher, is: &IndexSchema, filter: &GraphFilter) 
         let node = PageNode {
             slug: slug.clone(),
             title,
-            r#type: page_type,
+            r#type: page_type.clone(),
         };
         let idx = graph.add_node(node);
         slug_to_idx.insert(slug.clone(), idx);
 
-        // Collect edge fields from stored tags-like fields
-        // sources and concepts are stored in the tags field as space-separated
-        // but we need them from frontmatter. In Phase 1, they're not in the
-        // index as separate fields — we read body_links from the index.
-        // For sources/concepts, we parse from the tags field... but actually
-        // those aren't stored separately in Phase 1's hardcoded schema.
-        //
-        // body_links IS stored as a multi-valued keyword field.
+        // Read body wiki-links
         let body_links: Vec<String> = doc
             .get_all(f_body_links)
             .filter_map(|v| v.as_str().map(|s| s.to_string()))
             .collect();
 
-        all_edges.push(DocEdges {
+        // Read declared edge fields from the index
+        let mut edge_fields = Vec::new();
+        for decl in registry.edges(&page_type) {
+            if let Some(field_handle) = is.try_field(&decl.field) {
+                let targets: Vec<String> = doc
+                    .get_all(field_handle)
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect();
+                if !targets.is_empty() {
+                    edge_fields.push((decl.field.clone(), targets));
+                }
+            }
+        }
+
+        all_docs.push(DocInfo {
             slug,
-            sources: Vec::new(),
-            concepts: Vec::new(),
+            page_type,
             body_links,
+            edge_fields,
         });
     }
 
     // Second pass: add edges
-    for doc_edges in &all_edges {
-        let from_idx = match slug_to_idx.get(&doc_edges.slug) {
+    for doc_info in &all_docs {
+        let from_idx = match slug_to_idx.get(&doc_info.slug) {
             Some(idx) => *idx,
             None => continue,
         };
 
-        // sources → "fed-by"
-        if filter.relation.is_none() || filter.relation.as_deref() == Some("fed-by") {
-            for target in &doc_edges.sources {
+        // Declared edges (from x-graph-edges)
+        let edge_decls = registry.edges(&doc_info.page_type);
+        for (field_name, targets) in &doc_info.edge_fields {
+            let relation = edge_decls
+                .iter()
+                .find(|d| d.field == *field_name)
+                .map(|d| d.relation.as_str())
+                .unwrap_or("links-to");
+
+            if filter.relation.is_some() && filter.relation.as_deref() != Some(relation) {
+                continue;
+            }
+
+            for target in targets {
                 if let Some(&to_idx) = slug_to_idx.get(target) {
                     if from_idx != to_idx {
                         graph.add_edge(
                             from_idx,
                             to_idx,
                             LabeledEdge {
-                                relation: "fed-by".into(),
+                                relation: relation.to_string(),
                             },
                         );
                     }
@@ -150,26 +168,9 @@ pub fn build_graph(searcher: &Searcher, is: &IndexSchema, filter: &GraphFilter) 
             }
         }
 
-        // concepts → "depends-on"
-        if filter.relation.is_none() || filter.relation.as_deref() == Some("depends-on") {
-            for target in &doc_edges.concepts {
-                if let Some(&to_idx) = slug_to_idx.get(target) {
-                    if from_idx != to_idx {
-                        graph.add_edge(
-                            from_idx,
-                            to_idx,
-                            LabeledEdge {
-                                relation: "depends-on".into(),
-                            },
-                        );
-                    }
-                }
-            }
-        }
-
-        // body_links → "links-to"
+        // Body wiki-links → "links-to"
         if filter.relation.is_none() || filter.relation.as_deref() == Some("links-to") {
-            for target in &doc_edges.body_links {
+            for target in &doc_info.body_links {
                 if let Some(&to_idx) = slug_to_idx.get(target) {
                     if from_idx != to_idx {
                         graph.add_edge(

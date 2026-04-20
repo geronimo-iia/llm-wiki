@@ -2,14 +2,13 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use anyhow::Result;
-use jsonschema::Validator;
 
 use crate::config;
 use crate::default_schemas;
 use crate::index_schema::{classify_field, FieldClass, IndexSchema, SchemaBuilder};
 use crate::type_registry::{
-    self, compute_hashes, extract_aliases, extract_required, sha256_hex, validate_base_invariant,
-    RegisteredType, SpaceTypeRegistry,
+    self, compile_schema_from_value, compute_hashes, extract_aliases, sha256_hex,
+    validate_base_invariant, SpaceTypeRegistry,
 };
 
 /// Build both SpaceTypeRegistry and IndexSchema from a wiki's schema
@@ -41,7 +40,6 @@ struct ParsedSchemaFile {
     schema_json: serde_json::Value,
     wiki_types: Vec<(String, String)>, // (type_name, description)
     aliases: HashMap<String, String>,
-    required_fields: Vec<String>,
     properties: Vec<(String, serde_json::Value)>,
     edge_fields: HashSet<String>,
     content_hash: String,
@@ -113,7 +111,6 @@ fn parse_schema_file(schema_rel: &str, content: &str) -> Result<ParsedSchemaFile
         .unwrap_or_default();
 
     let aliases = extract_aliases(&schema_json);
-    let required_fields = extract_required(&schema_json);
 
     let properties = schema_json
         .get("properties")
@@ -132,7 +129,6 @@ fn parse_schema_file(schema_rel: &str, content: &str) -> Result<ParsedSchemaFile
         schema_json,
         wiki_types,
         aliases,
-        required_fields,
         properties,
         edge_fields,
         content_hash,
@@ -155,19 +151,13 @@ fn assemble(
     for pf in &parsed {
         // Build registry entries
         for (type_name, description) in &pf.wiki_types {
-            let validator = Validator::new(&pf.schema_json)
-                .map_err(|e| anyhow::anyhow!("invalid schema {}: {e}", pf.schema_rel))?;
-            types.insert(
-                type_name.clone(),
-                RegisteredType {
-                    schema_path: pf.schema_rel.clone(),
-                    description: description.clone(),
-                    validator,
-                    aliases: pf.aliases.clone(),
-                    required_fields: pf.required_fields.clone(),
-                    content_hash: pf.content_hash.clone(),
-                },
-            );
+            let registered = compile_schema_from_value(
+                &pf.schema_rel,
+                description,
+                &pf.schema_json,
+                &pf.content_hash,
+            )?;
+            types.insert(type_name.clone(), registered);
         }
 
         // Build index schema fields
@@ -228,19 +218,13 @@ fn assemble_without_overrides(
 
     for pf in &parsed {
         for (type_name, description) in &pf.wiki_types {
-            let validator = Validator::new(&pf.schema_json)
-                .map_err(|e| anyhow::anyhow!("invalid schema {}: {e}", pf.schema_rel))?;
-            types.insert(
-                type_name.clone(),
-                RegisteredType {
-                    schema_path: pf.schema_rel.clone(),
-                    description: description.clone(),
-                    validator,
-                    aliases: pf.aliases.clone(),
-                    required_fields: pf.required_fields.clone(),
-                    content_hash: pf.content_hash.clone(),
-                },
-            );
+            let registered = compile_schema_from_value(
+                &pf.schema_rel,
+                description,
+                &pf.schema_json,
+                &pf.content_hash,
+            )?;
+            types.insert(type_name.clone(), registered);
         }
 
         let alias_keys: HashSet<&str> = pf.aliases.keys().map(|k| k.as_str()).collect();

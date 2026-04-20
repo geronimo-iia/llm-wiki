@@ -80,7 +80,7 @@ fn build_graph_creates_nodes_from_index() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter()).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter(), &registry()).unwrap();
 
     assert_eq!(g.node_count(), 2);
 }
@@ -102,7 +102,7 @@ fn build_graph_creates_edges_from_body_links() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter()).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter(), &registry()).unwrap();
 
     assert_eq!(g.edge_count(), 1);
     let edge = g.edge_indices().next().unwrap();
@@ -121,7 +121,7 @@ fn build_graph_skips_broken_references() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter()).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter(), &registry()).unwrap();
 
     assert_eq!(g.node_count(), 1);
     assert_eq!(g.edge_count(), 0);
@@ -150,7 +150,7 @@ fn build_graph_type_filter() {
         types: vec!["concept".into()],
         ..Default::default()
     };
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &filter).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &filter, &registry()).unwrap();
 
     assert_eq!(g.node_count(), 1);
     assert_eq!(g[g.node_indices().next().unwrap()].r#type, "concept");
@@ -181,7 +181,7 @@ fn build_graph_relation_filter_excludes_non_matching() {
         relation: Some("fed-by".into()),
         ..Default::default()
     };
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &filter).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &filter, &registry()).unwrap();
     assert_eq!(g.edge_count(), 0);
 }
 
@@ -204,7 +204,7 @@ fn render_mermaid_includes_titles_and_relations() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter()).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter(), &registry()).unwrap();
     let output = render_mermaid(&g);
 
     assert!(output.starts_with("graph LR\n"));
@@ -233,7 +233,7 @@ fn render_dot_includes_labels_and_relations() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter()).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter(), &registry()).unwrap();
     let output = render_dot(&g);
 
     assert!(output.starts_with("digraph wiki {\n"));
@@ -275,7 +275,7 @@ fn subgraph_limits_depth() {
         depth: Some(2),
         ..Default::default()
     };
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &filter).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &filter, &registry()).unwrap();
 
     let slugs: Vec<String> = g.node_indices().map(|i| g[i].slug.clone()).collect();
     assert!(slugs.contains(&"concepts/a".to_string()));
@@ -302,7 +302,7 @@ fn subgraph_depth_0_returns_root_only() {
         depth: Some(0),
         ..Default::default()
     };
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &filter).unwrap();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &filter, &registry()).unwrap();
 
     assert_eq!(g.node_count(), 1);
     assert_eq!(g[g.node_indices().next().unwrap()].slug, "concepts/a");
@@ -330,3 +330,116 @@ fn wrap_graph_md_includes_frontmatter() {
     assert!(output.ends_with("```\n"));
 }
 
+
+// ── Phase 3: frontmatter edge tests ──────────────────────────────────────────
+
+fn concept_with_sources(title: &str, sources: &[&str]) -> String {
+    let sources_yaml: Vec<String> = sources.iter().map(|s| format!("  - {s}")).collect();
+    format!(
+        "---\ntitle: \"{title}\"\ntype: concept\nstatus: active\nsources:\n{}\n---\n\nBody.\n",
+        sources_yaml.join("\n")
+    )
+}
+
+fn paper_page(title: &str) -> String {
+    format!("---\ntitle: \"{title}\"\ntype: paper\nstatus: active\n---\n\nBody.\n")
+}
+
+#[test]
+fn build_graph_creates_edges_from_frontmatter_sources() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "sources/paper-a.md", &paper_page("Paper A"));
+    write_page(
+        &wiki_root,
+        "concepts/moe.md",
+        &concept_with_sources("MoE", &["sources/paper-a"]),
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter(), &registry()).unwrap();
+
+    // Should have a "fed-by" edge from concepts/moe → sources/paper-a
+    let mut found = false;
+    for edge in g.edge_indices() {
+        let (from, to) = g.edge_endpoints(edge).unwrap();
+        if g[from].slug == "concepts/moe"
+            && g[to].slug == "sources/paper-a"
+            && g[edge].relation == "fed-by"
+        {
+            found = true;
+        }
+    }
+    assert!(found, "expected fed-by edge from concepts/moe to sources/paper-a");
+}
+
+#[test]
+fn build_graph_relation_filter_with_declared_edges() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "sources/paper-a.md", &paper_page("Paper A"));
+    write_page(
+        &wiki_root,
+        "concepts/moe.md",
+        &concept_with_sources("MoE", &["sources/paper-a"]),
+    );
+    // Also add a body link to create a "links-to" edge
+    write_page(
+        &wiki_root,
+        "concepts/other.md",
+        &page_with_body_links("Other", "See [[concepts/moe]]."),
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+
+    // Filter to only "fed-by" edges
+    let filter = GraphFilter {
+        relation: Some("fed-by".into()),
+        ..Default::default()
+    };
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &filter, &registry()).unwrap();
+
+    // Should have fed-by edge but NOT links-to
+    let relations: Vec<&str> = g
+        .edge_indices()
+        .map(|e| g[e].relation.as_str())
+        .collect();
+    assert!(relations.contains(&"fed-by"));
+    assert!(!relations.contains(&"links-to"));
+}
+
+#[test]
+fn build_graph_multiple_edge_types_from_same_page() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "sources/paper-a.md", &paper_page("Paper A"));
+    write_page(
+        &wiki_root,
+        "concepts/scaling.md",
+        &simple_page("Scaling", "concept"),
+    );
+    // Concept with both sources and concepts fields
+    let content = "---\ntitle: \"MoE\"\ntype: concept\nstatus: active\nsources:\n  - sources/paper-a\nconcepts:\n  - concepts/scaling\n---\n\nBody.\n";
+    write_page(&wiki_root, "concepts/moe.md", content);
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter(), &registry()).unwrap();
+
+    let mut has_fed_by = false;
+    let mut has_depends_on = false;
+    for edge in g.edge_indices() {
+        let (from, _to) = g.edge_endpoints(edge).unwrap();
+        if g[from].slug == "concepts/moe" {
+            match g[edge].relation.as_str() {
+                "fed-by" => has_fed_by = true,
+                "depends-on" => has_depends_on = true,
+                _ => {}
+            }
+        }
+    }
+    assert!(has_fed_by, "expected fed-by edge");
+    assert!(has_depends_on, "expected depends-on edge");
+}

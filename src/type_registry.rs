@@ -17,6 +17,16 @@ pub struct RegisteredType {
     pub(crate) aliases: HashMap<String, String>,
     pub(crate) required_fields: Vec<String>,
     pub(crate) content_hash: String,
+    pub(crate) edges: Vec<EdgeDecl>,
+}
+
+/// A graph edge declaration from `x-graph-edges` in a type schema.
+#[derive(Debug, Clone)]
+pub struct EdgeDecl {
+    pub field: String,
+    pub relation: String,
+    pub direction: String,
+    pub target_types: Vec<String>,
 }
 
 /// Per-wiki type registry — discovers types from `schemas/*.json` via
@@ -137,6 +147,14 @@ impl SpaceTypeRegistry {
         &self.type_hashes
     }
 
+    /// Get edge declarations for a type.
+    pub fn edges(&self, type_name: &str) -> &[EdgeDecl] {
+        self.types
+            .get(type_name)
+            .map(|rt| rt.edges.as_slice())
+            .unwrap_or(&[])
+    }
+
     /// Validate frontmatter against the type's JSON Schema.
     ///
     /// - Resolves the page type (falls back to "default")
@@ -230,6 +248,7 @@ fn discover_from_dir(schemas_dir: &Path, types: &mut HashMap<String, RegisteredT
         if let Some(wiki_types) = schema_value.get("x-wiki-types").and_then(|v| v.as_object()) {
             let aliases = extract_aliases(&schema_value);
             let required_fields = extract_required(&schema_value);
+            let edges = extract_edges(&schema_value);
 
             for (type_name, desc) in wiki_types {
                 let description = desc.as_str().unwrap_or("").to_string();
@@ -244,6 +263,7 @@ fn discover_from_dir(schemas_dir: &Path, types: &mut HashMap<String, RegisteredT
                         aliases: aliases.clone(),
                         required_fields: required_fields.clone(),
                         content_hash: content_hash.clone(),
+                        edges: edges.clone(),
                     },
                 );
             }
@@ -272,10 +292,20 @@ fn discover_from_embedded(types: &mut HashMap<String, RegisteredType>) -> Result
 pub(crate) fn compile_schema(schema_path: &str, description: &str, content: &str) -> Result<RegisteredType> {
     let content_hash = sha256_hex(content.as_bytes());
     let schema_value: serde_json::Value = serde_json::from_str(content)?;
-    let validator = Validator::new(&schema_value)
+    compile_schema_from_value(schema_path, description, &schema_value, &content_hash)
+}
+
+pub(crate) fn compile_schema_from_value(
+    schema_path: &str,
+    description: &str,
+    schema_value: &serde_json::Value,
+    content_hash: &str,
+) -> Result<RegisteredType> {
+    let validator = Validator::new(schema_value)
         .map_err(|e| anyhow::anyhow!("invalid schema {schema_path}: {e}"))?;
-    let aliases = extract_aliases(&schema_value);
-    let required_fields = extract_required(&schema_value);
+    let aliases = extract_aliases(schema_value);
+    let required_fields = extract_required(schema_value);
+    let edges = extract_edges(schema_value);
 
     Ok(RegisteredType {
         schema_path: schema_path.to_string(),
@@ -283,7 +313,8 @@ pub(crate) fn compile_schema(schema_path: &str, description: &str, content: &str
         validator,
         aliases,
         required_fields,
-        content_hash,
+        content_hash: content_hash.to_string(),
+        edges,
     })
 }
 
@@ -306,6 +337,44 @@ pub(crate) fn extract_required(schema: &serde_json::Value) -> Vec<String> {
         .map(|arr| {
             arr.iter()
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+pub(crate) fn extract_edges(schema: &serde_json::Value) -> Vec<EdgeDecl> {
+    schema
+        .get("x-graph-edges")
+        .and_then(|v| v.as_object())
+        .map(|obj| {
+            obj.iter()
+                .map(|(field, decl)| {
+                    let relation = decl
+                        .get("relation")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("links-to")
+                        .to_string();
+                    let direction = decl
+                        .get("direction")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("outgoing")
+                        .to_string();
+                    let target_types = decl
+                        .get("target_types")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    EdgeDecl {
+                        field: field.clone(),
+                        relation,
+                        direction,
+                        target_types,
+                    }
+                })
                 .collect()
         })
         .unwrap_or_default()

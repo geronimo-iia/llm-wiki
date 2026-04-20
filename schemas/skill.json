@@ -124,5 +124,16 @@
   "x-wiki-types": {
     "skill": "Agent skill with workflow instructions"
   },
+  "x-graph-edges": {
+    "document_refs": {
+      "relation": "documented-by",
+      "direction": "outgoing",
+      "target_types": ["doc"]
+    },
+    "superseded_by": {
+      "relation": "superseded-by",
+      "direction": "outgoing"
+    }
+  },
   "additionalProperties": true
 }

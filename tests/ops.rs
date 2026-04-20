@@ -459,3 +459,72 @@ fn schema_validate_passes_default_schemas() {
     let issues = ops::schema_validate(&engine, "test", None).unwrap();
     assert!(issues.is_empty(), "default schemas should validate: {:?}", issues);
 }
+
+// ── Phase 3: edge target type warnings ───────────────────────────────────────
+
+#[test]
+fn ingest_warns_on_wrong_edge_target_type() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "test");
+    let wiki_path = dir.path().join("test");
+    let wiki_root = wiki_path.join("wiki");
+
+    // Create a concept page with sources pointing to another concept (wrong type)
+    fs::create_dir_all(wiki_root.join("concepts")).unwrap();
+    fs::write(
+        wiki_root.join("concepts/bad.md"),
+        "---\ntitle: \"Bad\"\ntype: concept\nstatus: active\nsources:\n  - concepts/moe\n---\n\nBody.\n",
+    )
+    .unwrap();
+    git::commit(&wiki_path, "add bad page").unwrap();
+
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+    let report = ops::ingest(&engine, &manager, "concepts/bad.md", false, "test").unwrap();
+
+    // Should warn: concepts/moe is type "concept", but sources expects source types
+    assert!(
+        report.warnings.iter().any(|w| w.contains("concepts/moe") && w.contains("concept")),
+        "expected warning about wrong target type, got: {:?}",
+        report.warnings
+    );
+}
+
+#[test]
+fn ingest_no_warning_on_correct_edge_target_type() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "test");
+    let wiki_path = dir.path().join("test");
+    let wiki_root = wiki_path.join("wiki");
+
+    // Create a paper page and a concept that references it correctly
+    fs::create_dir_all(wiki_root.join("sources")).unwrap();
+    fs::write(
+        wiki_root.join("sources/paper-a.md"),
+        "---\ntitle: \"Paper A\"\ntype: paper\nstatus: active\n---\n\nBody.\n",
+    )
+    .unwrap();
+    fs::create_dir_all(wiki_root.join("concepts")).unwrap();
+    fs::write(
+        wiki_root.join("concepts/good.md"),
+        "---\ntitle: \"Good\"\ntype: concept\nstatus: active\nsources:\n  - sources/paper-a\n---\n\nBody.\n",
+    )
+    .unwrap();
+    git::commit(&wiki_path, "add pages").unwrap();
+
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+    let report = ops::ingest(&engine, &manager, "concepts/good.md", false, "test").unwrap();
+
+    // No edge target warnings expected
+    let edge_warnings: Vec<&String> = report
+        .warnings
+        .iter()
+        .filter(|w| w.contains("edge"))
+        .collect();
+    assert!(
+        edge_warnings.is_empty(),
+        "unexpected edge warnings: {:?}",
+        edge_warnings
+    );
+}

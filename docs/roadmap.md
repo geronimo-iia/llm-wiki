@@ -78,18 +78,46 @@ types addable via `wiki.toml` + schema file.
 `x-graph-edges` in type schemas. Typed nodes and labeled edges.
 `wiki_graph` filters by relation.
 
-### Engine (llm-wiki)
+### Step 1: Add `x-graph-edges` to default schemas
 
-- [ ] Index `sources` and `concepts` frontmatter fields as keyword
-  fields (currently only `body_links` produces edges)
-- [ ] Implement `x-graph-edges` parsing from JSON Schema files
-- [ ] At ingest: read edge declarations, index edges with relation labels
-- [ ] At graph build: read edge fields from index (not hardcoded empty
-  vectors)
-- [ ] `wiki_graph --relation <label>` — filter edges by relation
-- [ ] Mermaid and DOT output include relation labels (already renders,
-  but no data flows through)
-- [ ] Warn on ingest when edge target has wrong type
+Modules: `schemas/concept.json`, `schemas/paper.json`, `schemas/skill.json`, `schemas/doc.json`
+Tests: `cargo test` — existing tests pass (schemas are valid JSON Schema)
+Commit: `feat: add x-graph-edges declarations to default schemas`
+
+### Step 2: Parse `x-graph-edges` into type registry
+
+Modules: `src/type_registry.rs`
+- Add `EdgeDecl { field, relation, direction, target_types }` struct
+- Add `edges: Vec<EdgeDecl>` to `RegisteredType`
+- Parse `x-graph-edges` from schema JSON during `compile_schema`
+- Expose `fn edges(&self, type_name: &str) -> &[EdgeDecl]` on `SpaceTypeRegistry`
+
+Tests: unit tests for edge parsing, registry returns correct edges per type
+Commit: `feat: parse x-graph-edges into SpaceTypeRegistry`
+
+### Step 3: Read edge fields from index in `build_graph`
+
+Modules: `src/graph.rs`
+- Add `registry: &SpaceTypeRegistry` parameter to `build_graph`
+- For each doc: read page type, get edge declarations, read declared
+  fields from the doc (they're already indexed as keywords)
+- Create `LabeledEdge` with the relation from the declaration
+- Remove hardcoded empty `sources`/`concepts` vectors
+- Update all callers (`ops/graph.rs`, tests)
+
+Tests: graph with concept→source edges, relation labels correct
+Commit: `feat: build_graph reads edge fields from index via registry`
+
+### Step 4: Warn on ingest when edge target has wrong type
+
+Modules: `src/ingest.rs`
+- After validation, for each edge field: check if target slugs exist
+  in the index and if their type matches `target_types`
+- Produce warnings (not errors) for mismatches
+- Add warnings to `IngestReport`
+
+Tests: ingest with wrong-type target produces warning
+Commit: `feat: warn on ingest when edge target has wrong type`
 
 ### Default edge declarations
 
@@ -108,6 +136,17 @@ types addable via `wiki.toml` + schema file.
 
 Body `[[wiki-links]]` get a generic `links-to` relation (already
 implemented).
+
+### What already works (from Phase 1+2)
+
+- `LabeledEdge` struct, `GraphFilter.relation`, Mermaid/DOT renderers
+  with relation labels
+- `body_links` keyword field read correctly in `build_graph`
+- `x-graph-edges` field names force keyword classification in index schema
+- `index_page` indexes all frontmatter fields (including edge fields)
+  as multi-valued keywords when declared
+- Schema hash includes full file content — adding `x-graph-edges`
+  triggers rebuild automatically
 
 ### Skills (llm-wiki-skills)
 

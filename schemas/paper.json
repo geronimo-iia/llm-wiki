@@ -103,5 +103,21 @@
     "book-chapter": "Published source — book excerpts",
     "thread": "Discussion source — forum threads, social media"
   },
+  "x-graph-edges": {
+    "sources": {
+      "relation": "cites",
+      "direction": "outgoing",
+      "target_types": ["paper", "article", "documentation", "clipping", "transcript", "note", "data", "book-chapter", "thread"]
+    },
+    "concepts": {
+      "relation": "informs",
+      "direction": "outgoing",
+      "target_types": ["concept"]
+    },
+    "superseded_by": {
+      "relation": "superseded-by",
+      "direction": "outgoing"
+    }
+  },
   "additionalProperties": true
 }

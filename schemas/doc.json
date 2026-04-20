@@ -54,5 +54,16 @@
   "x-wiki-types": {
     "doc": "Reference document — specifications, guides, standards"
   },
+  "x-graph-edges": {
+    "sources": {
+      "relation": "informed-by",
+      "direction": "outgoing",
+      "target_types": ["paper", "article", "documentation", "clipping", "transcript", "note", "data", "book-chapter", "thread"]
+    },
+    "superseded_by": {
+      "relation": "superseded-by",
+      "direction": "outgoing"
+    }
+  },
   "additionalProperties": true
 }
