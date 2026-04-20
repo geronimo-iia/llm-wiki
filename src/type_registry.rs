@@ -340,19 +340,34 @@ pub(crate) fn sha256_hex(data: &[u8]) -> String {
 }
 
 pub(crate) fn compute_hashes(types: &HashMap<String, RegisteredType>) -> (String, HashMap<String, String>) {
-    let mut type_hashes = HashMap::new();
-    let sorted: BTreeMap<_, _> = types.iter().collect();
+    let entries: HashMap<String, (String, HashMap<String, String>, String)> = types
+        .iter()
+        .map(|(name, rt)| {
+            (name.clone(), (rt.schema_path.clone(), rt.aliases.clone(), rt.content_hash.clone()))
+        })
+        .collect();
+    hash_type_entries(&entries)
+}
 
+/// Shared hashing core for compute_hashes and compute_disk_hashes.
+/// Per-type hash = SHA-256(schema_path + sorted_aliases + content_hash).
+/// Global hash = SHA-256(all per-type hashes sorted by name).
+fn hash_type_entries(
+    entries: &HashMap<String, (String, HashMap<String, String>, String)>,
+) -> (String, HashMap<String, String>) {
+    let sorted: BTreeMap<_, _> = entries.iter().collect();
+    let mut type_hashes = HashMap::new();
     let mut global_hasher = Sha256::new();
-    for (name, rt) in &sorted {
+
+    for (name, (schema_path, aliases, content_hash)) in &sorted {
         let mut h = Sha256::new();
-        h.update(rt.schema_path.as_bytes());
-        let sorted_aliases: BTreeMap<_, _> = rt.aliases.iter().collect();
+        h.update(schema_path.as_bytes());
+        let sorted_aliases: BTreeMap<_, _> = aliases.iter().collect();
         for (k, v) in &sorted_aliases {
             h.update(k.as_bytes());
             h.update(v.as_bytes());
         }
-        h.update(rt.content_hash.as_bytes());
+        h.update(content_hash.as_bytes());
         let type_hash = format!("{:x}", h.finalize());
         type_hashes.insert(name.to_string(), type_hash.clone());
         global_hasher.update(type_hash.as_bytes());
@@ -449,26 +464,8 @@ pub fn compute_disk_hashes(repo_root: &Path) -> Result<(String, HashMap<String, 
         );
     }
 
-    // Compute per-type and global hashes (same algorithm as compute_hashes)
-    let sorted: BTreeMap<_, _> = type_data.iter().collect();
-    let mut type_hashes = HashMap::new();
-    let mut global_hasher = Sha256::new();
-
-    for (name, (schema_path, aliases, content_hash)) in &sorted {
-        let mut h = Sha256::new();
-        h.update(schema_path.as_bytes());
-        let sorted_aliases: BTreeMap<_, _> = aliases.iter().collect();
-        for (k, v) in &sorted_aliases {
-            h.update(k.as_bytes());
-            h.update(v.as_bytes());
-        }
-        h.update(content_hash.as_bytes());
-        let type_hash = format!("{:x}", h.finalize());
-        type_hashes.insert(name.to_string(), type_hash.clone());
-        global_hasher.update(type_hash.as_bytes());
-    }
-
-    Ok((format!("{:x}", global_hasher.finalize()), type_hashes))
+    // Compute per-type and global hashes
+    Ok(hash_type_entries(&type_data))
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
