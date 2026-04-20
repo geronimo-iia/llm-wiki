@@ -357,6 +357,9 @@ types addable via `wiki.toml` + schema file.
 `x-graph-edges` in type schemas. Typed nodes and labeled edges.
 `wiki_graph` filters by relation.
 
+Did `graph.type` — documented but not yet implemented in `set_global_config_value`. ?
+
+
 ### Engine (llm-wiki)
 
 - [ ] Implement `x-graph-edges` parsing from JSON Schema files

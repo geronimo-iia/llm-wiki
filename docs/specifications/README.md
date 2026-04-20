@@ -104,6 +104,4 @@ How external tools connect.
 | `proposal` | Draft exists, needs review or completion      |
 | `plan`     | Not yet written, scope defined in this prompt |
 
-## Archive
 
-Old specifications preserved as read-only reference: [archive/](archive/)
