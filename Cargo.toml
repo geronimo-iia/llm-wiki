@@ -41,7 +41,7 @@ serde_yaml = "0.9"
 toml       = "0.8"
 
 # JSON Schema validation
-jsonschema = "0.28"
+jsonschema = "0.46"
 
 # Hashing
 sha2       = "0.11"
