@@ -53,7 +53,7 @@ frontmatter = "0.4"
 tantivy    = "0.25"
 
 # Graph
-petgraph   = "0.6"
+petgraph   = "0.8"
 
 # Filesystem traversal
 walkdir    = "2"
