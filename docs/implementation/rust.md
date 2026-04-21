@@ -103,7 +103,8 @@ matrix build.
 | `walkdir`                             | 2                                                        | Filesystem traversal             |
 | `chrono`                              | 0.4 (clock, std)                                         | Date/time                        |
 | `git2`                                | 0.20                                                     | Git operations                   |
-| `rmcp`                                | 0.1 (server, transport-io, transport-sse-server)         | MCP server                       |
+| `rmcp`                                | 1 (server, transport-io, transport-streamable-http-server) | MCP server                       |
+| `axum`                                | 0.8                                                      | HTTP server for Streamable HTTP  |
 | `agent-client-protocol`               | 0.11                                                     | ACP agent (builder pattern)      |
 
 ### Dev

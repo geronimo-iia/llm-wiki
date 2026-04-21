@@ -55,7 +55,7 @@ fn tool_list_no_removed_tools() {
 fn tool_list_all_have_descriptions() {
     for tool in &tools::tool_list() {
         assert!(
-            !tool.description.is_empty(),
+            !tool.description.as_ref().is_none_or(|d| d.is_empty()),
             "tool {} has empty description",
             tool.name
         );

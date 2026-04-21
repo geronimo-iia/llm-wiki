@@ -69,7 +69,7 @@ First release. Single Rust binary, 16 MCP tools, ACP agent.
 ### Server
 
 - MCP stdio transport (always on)
-- MCP SSE transport (opt-in, retry on bind failure)
+- MCP Streamable HTTP transport (opt-in, retry on bind failure)
 - ACP transport (opt-in, runs as tokio task)
 - `async-trait` removed (was only used for ACP `Agent` trait)
 - Panic isolation (`catch_unwind` around tool dispatch)

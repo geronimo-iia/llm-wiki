@@ -3,16 +3,16 @@ pub mod helpers;
 pub mod tools;
 
 use std::future::Future;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use rmcp::model::AnnotateAble;
 use rmcp::model::{
-    CallToolRequestParam, CallToolResult, Implementation, ListResourcesResult, ListToolsResult,
-    PaginatedRequestParam, RawResource, ReadResourceRequestParam, ReadResourceResult,
-    ResourceContents, ResourcesCapability, ServerCapabilities, ServerInfo, ToolsCapability,
+    CallToolRequestParams, CallToolResult, Implementation, ListResourcesResult, ListToolsResult,
+    PaginatedRequestParams, RawResource, ReadResourceRequestParams, ReadResourceResult,
+    ResourceContents, ServerCapabilities, ServerInfo,
 };
-use rmcp::service::{Peer, RequestContext, RoleServer};
-use rmcp::Error as McpError;
+use rmcp::service::{RequestContext, RoleServer};
+use rmcp::ErrorData as McpError;
 use rmcp::ServerHandler;
 
 use crate::engine::{EngineState, WikiEngine};
@@ -24,15 +24,11 @@ use crate::slug::{Slug, WikiUri};
 #[derive(Clone)]
 pub struct McpServer {
     pub manager: Arc<WikiEngine>,
-    pub peer: Arc<Mutex<Option<Peer<RoleServer>>>>,
 }
 
 impl McpServer {
     pub fn new(manager: Arc<WikiEngine>) -> Self {
-        Self {
-            manager,
-            peer: Arc::new(Mutex::new(None)),
-        }
+        Self { manager }
     }
 
     pub fn engine(&self) -> std::sync::RwLockReadGuard<'_, EngineState> {
@@ -68,83 +64,78 @@ impl McpServer {
 
 impl ServerHandler for McpServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            protocol_version: Default::default(),
-            server_info: Implementation {
-                name: "llm-wiki".into(),
-                version: env!("CARGO_PKG_VERSION").into(),
-            },
-            capabilities: ServerCapabilities {
-                tools: Some(ToolsCapability { list_changed: None }),
-                resources: Some(ResourcesCapability {
-                    subscribe: Some(true),
-                    list_changed: Some(true),
-                }),
-                ..Default::default()
-            },
-            instructions: None,
-        }
+        ServerInfo::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .build(),
+        )
+        .with_server_info(Implementation::new("llm-wiki", env!("CARGO_PKG_VERSION")))
     }
 
     fn list_tools(
         &self,
-        _request: PaginatedRequestParam,
+        _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<ListToolsResult, McpError>> + Send + '_ {
         std::future::ready(Ok(ListToolsResult {
             tools: tools::tool_list(),
             next_cursor: None,
+            meta: None,
         }))
     }
 
     fn call_tool(
         &self,
-        request: CallToolRequestParam,
-        _context: RequestContext<RoleServer>,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<CallToolResult, McpError>> + Send + '_ {
         let args = request.arguments.unwrap_or_default();
         let result = tools::call(self, &request.name, &args);
 
         // Send resource update notifications for ingested pages
         if !result.notify_uris.is_empty() {
-            if let Some(peer) = self.get_peer() {
-                let uris = result.notify_uris.clone();
-                tokio::spawn(async move {
-                    for uri in uris {
-                        if let Err(e) = peer
-                            .notify_resource_updated(
-                                rmcp::model::ResourceUpdatedNotificationParam { uri: uri.clone() },
-                            )
-                            .await
-                        {
-                            tracing::warn!(error = %e, uri = %uri, "resource notification failed");
-                        }
+            let peer = context.peer.clone();
+            let uris = result.notify_uris.clone();
+            tokio::spawn(async move {
+                for uri in uris {
+                    if let Err(e) = peer
+                        .notify_resource_updated(rmcp::model::ResourceUpdatedNotificationParam {
+                            uri: uri.clone(),
+                        })
+                        .await
+                    {
+                        tracing::warn!(error = %e, uri = %uri, "resource notification failed");
                     }
-                });
-            }
+                }
+            });
         }
 
-        std::future::ready(Ok(CallToolResult {
-            content: result.content,
-            is_error: Some(result.is_error),
-        }))
+        let tool_result = if result.is_error {
+            CallToolResult::error(result.content)
+        } else {
+            CallToolResult::success(result.content)
+        };
+
+        std::future::ready(Ok(tool_result))
     }
 
     fn list_resources(
         &self,
-        _request: PaginatedRequestParam,
+        _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<ListResourcesResult, McpError>> + Send + '_ {
         let resources = self.list_wiki_resources();
         std::future::ready(Ok(ListResourcesResult {
             resources,
             next_cursor: None,
+            meta: None,
         }))
     }
 
     fn read_resource(
         &self,
-        request: ReadResourceRequestParam,
+        request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<ReadResourceResult, McpError>> + Send + '_ {
         let uri = &request.uri;
@@ -162,13 +153,11 @@ impl ServerHandler for McpServer {
                 Ok((entry, slug)) => {
                     let wiki_root = std::path::PathBuf::from(&entry.path).join("wiki");
                     match markdown::read_page(&slug, &wiki_root, false) {
-                        Ok(content) => Ok(ReadResourceResult {
-                            contents: vec![ResourceContents::TextResourceContents {
-                                uri: uri.to_string(),
-                                mime_type: Some("text/markdown".into()),
-                                text: content,
-                            }],
-                        }),
+                        Ok(content) => Ok(ReadResourceResult::new(vec![ResourceContents::text(
+                            content,
+                            uri.to_string(),
+                        )
+                        .with_mime_type("text/markdown")])),
                         Err(e) => Err(McpError::internal_error(
                             format!("failed to read: {e}"),
                             None,
@@ -184,13 +173,5 @@ impl ServerHandler for McpServer {
             ))
         };
         std::future::ready(result)
-    }
-
-    fn get_peer(&self) -> Option<Peer<RoleServer>> {
-        self.peer.lock().unwrap().clone()
-    }
-
-    fn set_peer(&mut self, peer: Peer<RoleServer>) {
-        *self.peer.lock().unwrap() = Some(peer);
     }
 }

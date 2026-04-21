@@ -5,7 +5,7 @@ read_when:
   - Understanding how llm-wiki serve works
   - Understanding failure isolation and crash recovery
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2025-07-21"
 ---
 
 # Server
@@ -20,7 +20,7 @@ SSE and ACP are opt-in and can run simultaneously.
 | Transport | Protocol | Use case                                                |
 | --------- | -------- | ------------------------------------------------------- |
 | stdio     | MCP      | Claude Code, local agents, batch pipelines — always on  |
-| SSE       | MCP      | Remote agents, multi-client access                      |
+| HTTP      | MCP      | Remote agents, multi-client access (Streamable HTTP)    |
 | ACP       | ACP      | Zed / VS Code agent panel — streaming, session-oriented |
 
 All active transports share the same wiki engine and spaces. A request
@@ -31,7 +31,7 @@ on any transport sees the same pages and state.
 
 ```
 llm-wiki serve
-          [--sse [:<port>]]         # enable SSE (default port: from config)
+          [--http [:<port>]]         # enable HTTP (default port: from config)
           [--acp]                   # enable ACP
 ```
 
@@ -39,10 +39,10 @@ llm-wiki serve
 
 ```bash
 llm-wiki serve                     # stdio only
-llm-wiki serve --sse               # stdio + SSE on default port
-llm-wiki serve --sse :9090         # stdio + SSE on port 9090
+llm-wiki serve --http              # stdio + HTTP on default port
+llm-wiki serve --http :9090        # stdio + HTTP on port 9090
 llm-wiki serve --acp               # stdio + ACP
-llm-wiki serve --sse --acp         # all three
+llm-wiki serve --http --acp        # all three
 ```
 
 
@@ -72,9 +72,9 @@ wiki is used.
 5. Start ctrl_c handler (sends shutdown signal)
 6. Start heartbeat task (debug level, configurable interval)
 7. Start stdio MCP server (always)
-8. If --sse: start SSE listener (retry on bind failure)
-9. If --acp: start ACP thread (supervision loop)
-10. Log: "llm-wiki serve — N wikis mounted [stdio] [sse :8080] [acp]"
+8. If --http: start HTTP listener (retry on bind failure)
+9. If --acp: start ACP task
+10. Log: "llm-wiki serve — N wikis mounted [stdio] [http :8080] [acp]"
 ```
 
 
@@ -98,7 +98,7 @@ others.
 | Transport | Isolation                                                              |
 | --------- | ---------------------------------------------------------------------- |
 | stdio     | Process-level — broken pipe means client disconnected, exit is correct |
-| SSE       | Retry loop on bind failure                                             |
+| HTTP      | Retry loop on bind failure                                             |
 | ACP       | Supervision loop with restart                                          |
 
 
@@ -118,7 +118,7 @@ attempt N: min(2^(N-2), 30) seconds delay
 
 Exits on: clean shutdown, or max restarts reached.
 
-### SSE retry on bind failure
+### HTTP retry on bind failure
 
 Retries port binding with exponential backoff (same formula). Once bound
 successfully, runs until shutdown.
@@ -152,7 +152,7 @@ stdout is the MCP stdio transport — logging must never write to stdout.
 | ------- | ---------------------------------------------------------- |
 | `error` | Unrecoverable: transport crash, ACP connection lost        |
 | `warn`  | Recoverable: git commit failed, index rebuild failed       |
-| `info`  | Milestones: server started, SSE listening, session created |
+| `info`  | Milestones: server started, HTTP listening, session created |
 | `debug` | Per-request: tool call ok, search results count, heartbeat |
 
 Default filter: `llm_wiki=info,warn`. Override with `RUST_LOG`:
@@ -194,7 +194,7 @@ reference.
 | Tool panic does not crash server          | MCP + ACP |
 | Transport crash does not affect others    | All       |
 | ACP restarts automatically                | ACP       |
-| SSE retries port binding                  | SSE       |
+| HTTP retries port binding                  | HTTP      |
 | stdio exit on disconnect is intentional   | stdio     |
 | Max restart limit prevents infinite loops | ACP       |
 | Coordinated shutdown on ctrl_c            | All       |
@@ -206,7 +206,7 @@ On ctrl_c, the engine sends a shutdown signal to all transports:
 | Transport | Behavior                                              |
 | --------- | ----------------------------------------------------- |
 | stdio     | Stops waiting, exits cleanly                          |
-| SSE       | Stops accepting connections, exits                    |
+| HTTP      | Stops accepting connections, exits                    |
 | ACP       | Supervision loop checks flag, exits on next iteration |
 | Heartbeat | Stops ticking, task exits                             |
 

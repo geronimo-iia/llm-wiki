@@ -1,8 +1,8 @@
 ---
 title: "MCP Server Implementation"
-summary: "rmcp setup, tool registration, resource namespacing, stdio + SSE transport wiring."
+summary: "rmcp setup, tool registration, resource namespacing, stdio + HTTP transport wiring."
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2025-07-21"
 ---
 
 # MCP Server Implementation
@@ -20,7 +20,6 @@ holds a reference to the shared `EngineState`:
 ```rust
 struct McpServer {
     engine: Arc<RwLock<EngineState>>,
-    peer: Mutex<Option<Peer<RoleServer>>>,
 }
 ```
 
@@ -101,20 +100,24 @@ let server = McpServer::new(engine);
 server.serve(transport).await?;
 ```
 
-### SSE (opt-in)
+### HTTP (opt-in)
 
 ```rust
-let sse = rmcp::transport::SseServer::serve(addr).await?;
-// Each SSE connection gets a cloned server
+let config = StreamableHttpServerConfig::default()
+    .with_cancellation_token(cancel_token)
+    .with_allowed_hosts(allowed_hosts);
+let service = StreamableHttpService::new(move || Ok(server.clone()), Default::default(), config);
+let router = axum::Router::new().nest_service("/mcp", service);
+axum::serve(listener, router).with_graceful_shutdown(cancel.cancelled_owned()).await?;
 ```
 
-SSE retries port binding with exponential backoff. Once bound, runs
-until shutdown.
+HTTP retries port binding with exponential backoff. Once bound, runs
+until shutdown via `CancellationToken`.
 
 ### Both simultaneously
 
-When `--sse` is passed, the server clones and runs both transports.
-Both share the same `Arc<RwLock<EngineState>>`.
+When `--http` is passed, the server clones and runs both transports.
+Both share the same `Arc<WikiEngine>`.
 
 ## Prompts
 
@@ -138,7 +141,7 @@ instructions from the engine binary.
 | `ToolResult` struct           | yes      | As-is                                                           |
 | Resource notification         | yes      | `collect_page_uris` + peer notification                         |
 | `serve_stdio`                 | yes      | Transport wiring                                                |
-| `serve_sse`                   | yes      | Transport wiring with retry                                     |
+| `serve_http`                  | yes      | Transport wiring with retry                                     |
 | Prompt definitions            | remove   | Skills handle this                                              |
 | `get_prompt` / `list_prompts` | remove   | Skills handle this                                              |
 
@@ -156,7 +159,8 @@ instructions from the engine binary.
 ## Crate
 
 ```toml
-rmcp = { version = "0.1", features = ["server", "transport-io", "transport-sse-server", "macros"] }
+rmcp = { version = "1", features = ["server", "transport-io", "transport-streamable-http-server"] }
+axum = "0.8"
 ```
 
 Reference: https://docs.rs/rmcp/latest/rmcp/

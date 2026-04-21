@@ -71,7 +71,7 @@ with every addition.
   `cites`), Mermaid and DOT output
 - **Git-backed** — every change is a commit, full history, diffable
 - **Multi-wiki** — manage multiple wikis from one process
-- **MCP + ACP** — stdio, SSE, and ACP transports for any agent
+- **MCP + ACP** — stdio, HTTP, and ACP transports for any agent
 
 ## What It Is Not
 
@@ -89,7 +89,7 @@ Single Rust binary. No runtime, no database, no Docker.
 | Search | [tantivy](https://crates.io/crates/tantivy) (BM25, Lucene-class) |
 | Git | [git2](https://crates.io/crates/git2) (libgit2) |
 | Graph | [petgraph](https://crates.io/crates/petgraph) |
-| MCP | [rmcp](https://crates.io/crates/rmcp) (stdio + SSE) |
+| MCP | [rmcp](https://crates.io/crates/rmcp) (stdio + Streamable HTTP) |
 | ACP | [agent-client-protocol](https://crates.io/crates/agent-client-protocol) |
 
 ## Documentation

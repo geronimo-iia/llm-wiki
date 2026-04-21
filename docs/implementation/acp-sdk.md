@@ -153,6 +153,6 @@ runs as a `tokio::spawn` task with `tokio::select!` for shutdown.
 
 | Crate | Purpose | Status |
 |-------|---------|--------|
-| `agent-client-protocol-rmcp` | Bridge rmcp `ServerHandler` into ACP sessions | Evaluated, not adopted — see [study-rmcp-upgrade.md](../prompts/study-rmcp-upgrade.md) |
+| `agent-client-protocol-rmcp` | Bridge rmcp `ServerHandler` into ACP sessions | Deferred — Proxy-only, see [rmcp-streamable-http.md](../decisions/rmcp-streamable-http.md) |
 | `agent-client-protocol-tokio` | Tokio spawn utilities | Not needed with 0.11 builder |
 | `agent-client-protocol-conductor` | Proxy chain orchestration | Not applicable (we're an Agent, not a Proxy) |

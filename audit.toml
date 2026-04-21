@@ -2,6 +2,6 @@
 
 [advisories]
 ignore = [
-    # paste unmaintained — transitive via rmcp 0.1, fixed by rmcp 1.x upgrade
-    "RUSTSEC-2024-0436",
+    # boxfnonce unmaintained — transitive via agent-client-protocol 0.11
+    "RUSTSEC-2019-0040",
 ]

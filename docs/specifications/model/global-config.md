@@ -6,7 +6,7 @@ read_when:
   - Looking up a config key and its default
   - Understanding which keys are global-only vs per-wiki
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2025-07-21"
 ---
 
 # config.toml
@@ -62,8 +62,9 @@ auto_rebuild  = false
 auto_recovery = true
 
 [serve]
-sse             = false
-sse_port        = 8080
+http             = false
+http_port        = 8080
+http_allowed_hosts = ["localhost", "127.0.0.1", "::1"]
 acp             = false
 max_restarts    = 10
 restart_backoff = 1
@@ -127,8 +128,9 @@ is rejected.
 | ----------------------- | ------------------ | ----------------------------------------- |
 | `index.auto_rebuild`    | `false`            | Rebuild stale index before search/list    |
 | `index.auto_recovery`   | `true`             | Rebuild corrupt index on open failure     |
-| `serve.sse`             | `false`            | Enable SSE transport by default           |
-| `serve.sse_port`        | `8080`             | SSE port                                  |
+| `serve.http`             | `false`            | Enable HTTP transport by default          |
+| `serve.http_port`        | `8080`             | HTTP port                                 |
+| `serve.http_allowed_hosts` | `localhost,127.0.0.1,::1` | Allowed Host headers (DNS rebinding protection) |
 | `serve.acp`             | `false`            | Enable ACP transport by default           |
 | `serve.max_restarts`    | `10`               | Max transport restarts; `0` = no restart  |
 | `serve.restart_backoff` | `1`                | Initial backoff seconds; doubles, cap 30s |
