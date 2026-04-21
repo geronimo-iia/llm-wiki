@@ -7,7 +7,7 @@ read_when:
   - Preparing a release
   - Understanding project-specific conventions
 status: active
-last_updated: "2025-07-15"
+last_updated: "2025-07-21"
 ---
 
 # Rust Implementation Guide
@@ -48,7 +48,11 @@ llm-wiki/
 │   │   ├── tools.rs         # tool definitions + dispatch
 │   │   ├── handlers.rs      # MCP-specific: parse args, call ops, wrap result
 │   │   └── helpers.rs       # arg helpers, ToolResult, collect_page_uris
-│   └── acp.rs               # WikiAgent, session management
+│   └── acp/
+│       ├── mod.rs           # AcpSession, dispatch_workflow, make_tool_id
+│       ├── helpers.rs       # send_text, send_tool_call, send_tool_result, resolve_wiki_name
+│       ├── research.rs      # step_search, step_read, step_report_results, run_research
+│       └── server.rs        # serve_acp (Agent builder wiring)
 ├── tests/                   # integration tests
 ├── code-ref/                # previous implementation (reference)
 └── docs/
@@ -90,17 +94,17 @@ matrix build.
 | `anyhow`                              | 1                                                        | Application-level error handling |
 | `tracing` + `tracing-subscriber`      | 0.1 / 0.3                                                | Structured logging               |
 | `tokio`                               | 1 (full)                                                 | Async runtime                    |
-| `async-trait`                         | 0.1                                                      | Async trait support              |
 | `serde` + `serde_json` + `serde_yaml` | 1 / 1 / 0.9                                              | Serialization                    |
-| `toml`                                | 0.8                                                      | Config file parsing              |
-| `tantivy`                             | 0.22                                                     | Full-text search index           |
-| `petgraph`                            | 0.6                                                      | Concept graph                    |
+| `toml`                                | 1.1                                                      | Config file parsing              |
+| `jsonschema`                          | 0.46                                                     | JSON Schema validation           |
+| `sha2` + `hex`                        | 0.11 / 0.4                                               | Schema hashing                   |
+| `tantivy`                             | 0.26                                                     | Full-text search index           |
+| `petgraph`                            | 0.8                                                      | Concept graph                    |
 | `walkdir`                             | 2                                                        | Filesystem traversal             |
 | `chrono`                              | 0.4 (clock, std)                                         | Date/time                        |
-| `git2`                                | 0.19                                                     | Git operations                   |
-| `rmcp`                                | 0.1 (server, transport-io, transport-sse-server, macros) | MCP server                       |
-| `agent-client-protocol`               | 0.10                                                     | ACP agent                        |
-| `frontmatter`                         | 0.4                                                      | YAML frontmatter extraction      |
+| `git2`                                | 0.20                                                     | Git operations                   |
+| `rmcp`                                | 0.1 (server, transport-io, transport-sse-server)         | MCP server                       |
+| `agent-client-protocol`               | 0.11                                                     | ACP agent (builder pattern)      |
 
 ### Dev
 

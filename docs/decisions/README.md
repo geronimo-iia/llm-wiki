@@ -33,3 +33,4 @@ Architectural decisions and their rationale.
 | [index-query-pattern](index-query-pattern.md)              | Not worth it — 3 consumers with different return types               |
 | [rename-ops-ingest](rename-ops-ingest.md)                  | Left as-is — stutter is 1 internal line                              |
 | [yaml-value-extraction](yaml-value-extraction.md)          | Left as-is — intentionally different Sequence handling               |
+| [acp-builder-pattern](acp-builder-pattern.md)              | Agent builder replaces Agent trait, no LocalSet/channel/thread       |

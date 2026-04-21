@@ -1,49 +1,69 @@
 # ACP SDK Usage Reference
 
-Reference for `agent-client-protocol` v0.10 / `agent-client-protocol-schema`
-v0.11 as used in llm-wiki.
+Reference for `agent-client-protocol` v0.11 as used in llm-wiki.
 
 ---
 
-## Crates
+## Crate
 
 | Crate | Version | Role |
 |-------|---------|------|
-| `agent-client-protocol` | 0.10 | Agent trait, connection, session management |
-| `agent-client-protocol-schema` | 0.11 | Types: SessionUpdate, ToolCall, ContentChunk, etc. |
+| `agent-client-protocol` | 0.11 | Builder API, connection, schema types |
 
-The schema crate is re-exported through `agent-client-protocol`.
+The schema crate (`agent-client-protocol-schema` 0.12) is re-exported
+through `agent_client_protocol::schema::*`.
 
 ---
 
-## Agent Trait
+## Agent Builder
 
-The `Agent` trait is the main integration point. Implement it on a struct
-that holds your state:
+The 0.11 SDK uses a builder pattern instead of a trait. Register
+handlers for each message type:
 
 ```rust
-#[async_trait::async_trait(?Send)]
-impl acp::Agent for WikiAgent {
-    async fn initialize(&self, req: InitializeRequest) -> Result<InitializeResponse, Error>;
-    async fn authenticate(&self, req: AuthenticateRequest) -> Result<AuthenticateResponse, Error>;
-    async fn new_session(&self, req: NewSessionRequest) -> Result<NewSessionResponse, Error>;
-    async fn load_session(&self, req: LoadSessionRequest) -> Result<LoadSessionResponse, Error>;
-    async fn list_sessions(&self, req: ListSessionsRequest) -> Result<ListSessionsResponse, Error>;
-    async fn prompt(&self, req: PromptRequest) -> Result<PromptResponse, Error>;
-    async fn cancel(&self, notif: CancelNotification) -> Result<(), Error>;
-}
+Agent.builder()
+    .name("llm-wiki")
+    .on_receive_request(
+        async move |req: InitializeRequest, responder, _cx| {
+            responder.respond(
+                InitializeResponse::new(req.protocol_version)
+                    .agent_capabilities(AgentCapabilities::new()),
+            )
+        },
+        on_receive_request!(),
+    )
+    .on_receive_dispatch(
+        async move |msg: Dispatch, cx: ConnectionTo<Client>| {
+            msg.respond_with_error(util::internal_error("not supported"), cx)
+        },
+        on_receive_dispatch!(),
+    )
+    .connect_to(ByteStreams::new(stdout, stdin))
+    .await
 ```
 
-Note: `?Send` — the agent runs on a `tokio::task::LocalSet`, not a
-multi-threaded runtime. This is required by the SDK's connection model.
+Each handler receives:
+- The typed request/notification
+- A `Responder` (for requests) to send the response
+- A `ConnectionTo<Client>` to send notifications back
+
+No `LocalSet`, no `spawn_local`, no `!Send` constraint.
 
 ---
 
 ## Streaming via SessionNotification
 
-The agent streams events to the client by sending `SessionNotification`
-messages through the connection. Each notification wraps a `SessionUpdate`
-variant.
+Send `SessionNotification` directly through `ConnectionTo<Client>`.
+The call is synchronous (queues the message):
+
+```rust
+cx.send_notification(SessionNotification::new(
+    session_id.clone(),
+    SessionUpdate::AgentMessageChunk(ContentChunk::new(
+        ContentBlock::Text(TextContent::new("Hello")),
+    )),
+))?;
+```
 
 ### SessionUpdate Variants (relevant subset)
 
@@ -68,23 +88,10 @@ ContentChunk::new(ContentBlock::Text(TextContent::new("Searching...")))
 Announces a new tool invocation. Visible in the IDE as a collapsible step:
 
 ```rust
-ToolCall::new(
-    ToolCallId::new("search-001"),
-    "Searching for: MoE scaling",
-)
-.kind(ToolKind::Search)
-.status(ToolCallStatus::InProgress)
+ToolCall::new(ToolCallId::new("search-001"), "Searching for: MoE scaling")
+    .kind(ToolKind::Search)
+    .status(ToolCallStatus::InProgress)
 ```
-
-Fields:
-- `tool_call_id: ToolCallId` — unique ID within the session
-- `title: String` — human-readable description
-- `kind: ToolKind` — icon hint: `Search`, `Read`, `Edit`, `Execute`, etc.
-- `status: ToolCallStatus` — `Pending`, `InProgress`, `Completed`, `Failed`
-- `content: Vec<ToolCallContent>` — output content
-- `locations: Vec<ToolCallLocation>` — affected file paths
-- `raw_input: Option<Value>` — tool input parameters
-- `raw_output: Option<Value>` — tool output
 
 ### ToolCallUpdate
 
@@ -99,86 +106,9 @@ ToolCallUpdate::new(
 )
 ```
 
-All fields in `ToolCallUpdateFields` are optional — only include what changed.
-Collections (`content`, `locations`) are overwritten, not extended.
-
-### ToolKind
-
-```rust
-pub enum ToolKind {
-    Read,       // reading files or data
-    Edit,       // modifying files
-    Delete,     // removing files
-    Move,       // renaming/moving
-    Search,     // searching
-    Execute,    // running commands
-    Think,      // internal reasoning
-    Fetch,      // external data retrieval
-    SwitchMode, // session mode change
-    Other,      // default
-}
-```
-
-### ToolCallStatus
-
-```rust
-pub enum ToolCallStatus {
-    Pending,     // not started (awaiting input or approval)
-    InProgress,  // currently running
-    Completed,   // finished successfully
-    Failed,      // finished with error
-}
-```
-
----
-
-## Sending Notifications
-
-The agent sends notifications through the `AgentSideConnection`:
-
-```rust
-let notif = SessionNotification::new(
-    session_id.clone(),
-    SessionUpdate::AgentMessageChunk(ContentChunk::new(
-        ContentBlock::Text(TextContent::new("Hello")),
-    )),
-);
-conn.session_notification(notif).await?;
-```
-
-In llm-wiki, the connection is not directly accessible from the `Agent`
-trait methods. Instead, notifications are sent through an
-`mpsc::UnboundedSender` channel that bridges the agent to the connection:
-
-```rust
-pub struct WikiAgent {
-    update_tx: mpsc::UnboundedSender<(SessionNotification, oneshot::Sender<()>)>,
-}
-
-impl WikiAgent {
-    async fn send_message(&self, session_id: &SessionId, text: &str) -> Result<(), Error> {
-        let notif = SessionNotification::new(
-            session_id.clone(),
-            SessionUpdate::AgentMessageChunk(ContentChunk::new(
-                ContentBlock::Text(TextContent::new(text)),
-            )),
-        );
-        let (tx, rx) = oneshot::channel();
-        self.update_tx.send((notif, tx)).map_err(|_| Error::internal_error())?;
-        rx.await.map_err(|_| Error::internal_error())
-    }
-}
-```
-
-The same pattern applies for `ToolCall` and `ToolCallUpdate` — wrap in
-`SessionNotification` with the appropriate `SessionUpdate` variant and send
-through the channel.
-
 ---
 
 ## Streaming Pattern: Tool Call Lifecycle
-
-The canonical pattern for a tool call with streaming:
 
 ```
 1. SessionUpdate::ToolCall(new(id, title).kind(K).status(InProgress))
@@ -199,38 +129,30 @@ On error:
 ## Connection Setup
 
 ```rust
-pub async fn serve_acp(global: Arc<GlobalConfig>) -> Result<()> {
-    let outgoing = tokio::io::stdout().compat_write();
-    let incoming = tokio::io::stdin().compat();
+pub async fn serve_acp(manager: Arc<WikiEngine>) -> Result<()> {
+    let sessions: Sessions = Arc::new(Mutex::new(HashMap::new()));
 
-    let local_set = tokio::task::LocalSet::new();
-    local_set.run_until(async move {
-        let (tx, mut rx) = mpsc::unbounded_channel();
-        let agent = WikiAgent::new(global, tx);
-
-        let (conn, handle_io) =
-            AgentSideConnection::new(agent, outgoing, incoming, |fut| {
-                tokio::task::spawn_local(fut);
-            });
-
-        // Bridge: drain channel → send notifications via connection
-        tokio::task::spawn_local(async move {
-            while let Some((notif, tx)) = rx.recv().await {
-                if let Err(e) = conn.session_notification(notif).await {
-                    eprintln!("ACP notification error: {e}");
-                    break;
-                }
-                tx.send(()).ok();
-            }
-        });
-
-        handle_io.await
-    }).await?;
-    Ok(())
+    Agent.builder()
+        .name("llm-wiki")
+        // ... handlers capture manager + sessions via Arc::clone ...
+        .connect_to(ByteStreams::new(
+            tokio::io::stdout().compat_write(),
+            tokio::io::stdin().compat(),
+        ))
+        .await
+        .map_err(|e| anyhow::anyhow!("ACP error: {e}"))
 }
 ```
 
-Key constraints:
-- `LocalSet` required — the agent is `!Send`
-- `spawn_local` for all async tasks
-- `oneshot` channel per notification for backpressure
+The future resolves when the transport closes. In `server.rs` it
+runs as a `tokio::spawn` task with `tokio::select!` for shutdown.
+
+---
+
+## Companion Crates (not used yet)
+
+| Crate | Purpose | Status |
+|-------|---------|--------|
+| `agent-client-protocol-rmcp` | Bridge rmcp `ServerHandler` into ACP sessions | Evaluated, not adopted — see [study-acp-rmcp.md](../prompts/study-acp-rmcp.md) |
+| `agent-client-protocol-tokio` | Tokio spawn utilities | Not needed with 0.11 builder |
+| `agent-client-protocol-conductor` | Proxy chain orchestration | Not applicable (we're an Agent, not a Proxy) |

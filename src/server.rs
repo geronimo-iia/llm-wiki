@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -109,14 +108,11 @@ pub async fn serve(config_path: &std::path::Path, sse_port: Option<u16>, acp: bo
 
     // 3. Shutdown coordination
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
-    let shutdown_flag = Arc::new(AtomicBool::new(false));
 
     // ctrl_c handler
-    let flag_for_signal = shutdown_flag.clone();
     tokio::spawn(async move {
         tokio::signal::ctrl_c().await.ok();
         tracing::info!("shutdown signal received");
-        flag_for_signal.store(true, Ordering::SeqCst);
         let _ = shutdown_tx.send(true);
     });
 
@@ -146,47 +142,17 @@ pub async fn serve(config_path: &std::path::Path, sse_port: Option<u16>, acp: bo
     // 6. Start transports
     if acp {
         let acp_manager = manager.clone();
-        let acp_flag = shutdown_flag.clone();
-        let max_restarts = serve_cfg.max_restarts;
-        let initial_backoff_secs = serve_cfg.restart_backoff;
+        let mut acp_shutdown = shutdown_rx.clone();
 
-        let acp_thread = std::thread::spawn(move || {
-            let max_backoff = std::time::Duration::from_secs(30);
-            let mut backoff = std::time::Duration::from_secs(initial_backoff_secs as u64);
-            let mut restarts = 0u32;
-
-            loop {
-                if acp_flag.load(Ordering::SeqCst) {
-                    tracing::info!("ACP: shutdown signal received");
-                    break Ok(());
-                }
-
-                let mgr = acp_manager.clone();
-                let rt = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .expect("failed to build ACP runtime");
-                match rt.block_on(crate::acp::serve_acp(mgr)) {
-                    Ok(()) => break Ok(()),
-                    Err(e) => {
-                        if acp_flag.load(Ordering::SeqCst) {
-                            break Ok(());
-                        }
-                        restarts += 1;
-                        tracing::error!(
-                            transport = "acp",
-                            error = %e,
-                            restart = restarts,
-                            max = max_restarts,
-                            "transport crashed",
-                        );
-                        if max_restarts > 0 && restarts >= max_restarts {
-                            tracing::error!("ACP max restarts reached, giving up");
-                            break Err(e);
-                        }
-                        std::thread::sleep(backoff);
-                        backoff = (backoff * 2).min(max_backoff);
+        let acp_handle = tokio::spawn(async move {
+            tokio::select! {
+                result = crate::acp::serve_acp(acp_manager) => {
+                    if let Err(e) = result {
+                        tracing::error!(transport = "acp", error = %e, "ACP transport error");
                     }
+                }
+                _ = acp_shutdown.changed() => {
+                    tracing::info!("ACP: shutdown signal received");
                 }
             }
         });
@@ -197,8 +163,8 @@ pub async fn serve(config_path: &std::path::Path, sse_port: Option<u16>, acp: bo
             serve_stdio(mcp_server, shutdown_rx).await?;
         }
 
-        // Wait briefly for ACP thread to notice the flag
-        let _ = acp_thread.join();
+        acp_handle.abort();
+        let _ = acp_handle.await;
     } else if sse_enabled {
         serve_sse(mcp_server, resolved_port, &serve_cfg, shutdown_rx).await?;
     } else {

@@ -19,6 +19,14 @@ First release. Single Rust binary, 16 MCP tools, ACP agent.
 - tantivy 0.25 for full-text search
 - `_slug_ord` u64 FAST field for sorted list pagination
 
+### ACP
+
+- ACP agent via `agent-client-protocol` 0.11 builder pattern
+- Session management — create, load, list, cancel
+- Prompt dispatch — `llm-wiki:research <query>` prefix convention
+- Streaming workflow steps — search, read, report results
+- `src/acp/` module — helpers, research, server
+
 ### Tools — Space Management
 
 - `wiki_spaces_create` — initialize wiki repo + register space
@@ -62,8 +70,8 @@ First release. Single Rust binary, 16 MCP tools, ACP agent.
 
 - MCP stdio transport (always on)
 - MCP SSE transport (opt-in, retry on bind failure)
-- ACP transport (opt-in, supervision with backoff)
-- Reusable ACP workflow steps (`step_search`, `step_read`, `step_report_results`)
+- ACP transport (opt-in, runs as tokio task)
+- `async-trait` removed (was only used for ACP `Agent` trait)
 - Panic isolation (`catch_unwind` around tool dispatch)
 - File logging with rotation (daily/hourly/never, max files, text/json)
 - Heartbeat task (configurable interval)
