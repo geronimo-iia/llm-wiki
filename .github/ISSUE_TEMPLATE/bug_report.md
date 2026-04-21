@@ -6,15 +6,15 @@ labels: bug
 
 ## Environment
 
-- `wiki --version` output:
+- `llm-wiki --version` output:
 - OS and architecture:
-- Rust version (`rustc --version`):
+- Install method (cargo, binstall, homebrew, asdf, script):
 
 ## Command run
 
 ```bash
 # paste the exact command (sanitise any sensitive paths or content)
-wiki ingest analysis.json
+llm-wiki ingest wiki/concepts/example.md
 ```
 
 ## Expected behaviour
@@ -28,11 +28,13 @@ wiki ingest analysis.json
 ## Debug log
 
 ```
-# RUST_LOG=debug wiki <your command>
+# RUST_LOG=llm_wiki=debug llm-wiki <your command>
 ```
 
-## analysis.json excerpt (if ingest-related)
+## Minimal reproduction
 
-```json
-// paste a minimal reproduction — remove any secrets or private content
-```
+<!-- If possible, provide a minimal wiki setup that reproduces the issue:
+     - wiki.toml content
+     - schema file (if custom type)
+     - page frontmatter
+-->

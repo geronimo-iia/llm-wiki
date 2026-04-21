@@ -1,29 +1,93 @@
 # Changelog
 
-## [Unreleased]
+All notable changes to this project will be documented in this file.
 
-### Added
-- (list features as they land)
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
 
 ## [0.1.0] — TBD
 
-### Added
-- `wiki init` — initialize a new wiki repository with default structure and git repo
-- `wiki ingest` — validate, commit, and index files already in the wiki tree
-- `wiki new page` / `wiki new section` — create scaffolded pages and sections
-- `wiki search` — full-text BM25 search with PageRef return type (`wiki://` URIs)
-- `wiki read` — fetch page content by slug or `wiki://` URI
-- `wiki list` — paginated page enumeration with type and status filters
-- `wiki index rebuild` / `wiki index status` — tantivy index management
-- `wiki lint` — structural audit with LINT.md output (orphans, missing stubs, empty sections)
-- `wiki lint fix` — auto-fix missing stubs and empty sections
-- `wiki graph` — concept graph in Mermaid or DOT format with subgraph support
-- `wiki serve` — MCP server on stdio and SSE for Claude Code and other agents
-- `wiki serve --acp` — ACP agent with session-oriented streaming workflows
-- `wiki instruct` — embedded workflow instructions for LLMs (ingest, research, lint, crystallize, frontmatter)
-- `wiki config` — two-level configuration (global + per-wiki) with get/set/list
-- `wiki spaces` — multi-wiki management (list, remove, set-default)
-- Frontmatter validation with built-in and custom type taxonomy
-- Claude Code plugin with slash commands (`/llm-wiki:ingest`, `/llm-wiki:research`, `/llm-wiki:lint`, etc.)
-- MCP resources namespaced by wiki name with update notifications on ingest
-- Session bootstrap: instructions + schema.md injected at MCP/ACP session start
+First release. Single Rust binary, 16 MCP tools, ACP agent.
+
+### Engine
+
+- `WikiEngine` / `EngineState` architecture with `mount_wiki` per space
+- Interior mutability in `SpaceIndexManager` (`RwLock<IndexInner>`)
+- Graceful shutdown via `watch` channel + `AtomicBool` across all transports
+- tantivy 0.25 for full-text search
+- `_slug_ord` u64 FAST field for sorted list pagination
+
+### Tools — Space Management
+
+- `wiki_spaces_create` — initialize wiki repo + register space
+- `wiki_spaces_list` — list registered wikis
+- `wiki_spaces_remove` — unregister (optionally delete)
+- `wiki_spaces_set_default` — set default wiki
+
+### Tools — Configuration
+
+- `wiki_config` — get, set, list config values (global + per-wiki)
+- `wiki_schema` — list, show, add, remove, validate type schemas
+
+### Tools — Content
+
+- `wiki_content_read` — read page by slug or `wiki://` URI
+- `wiki_content_write` — write file into wiki tree
+- `wiki_content_new` — create page or section with scaffolded frontmatter
+- `wiki_content_commit` — commit pending changes to git
+
+### Tools — Search & Index
+
+- `wiki_search` — BM25 search with type filter and cross-wiki support
+- `wiki_list` — paginated listing with type/status filters, sorted by slug
+- `wiki_ingest` — validate frontmatter, update index, commit
+- `wiki_graph` — concept graph in Mermaid or DOT with relation filtering
+- `wiki_index_rebuild` — full index rebuild from committed files
+- `wiki_index_status` — index health check
+
+### Type System
+
+- JSON Schema validation per page type (Draft 2020-12)
+- Type discovery from `schemas/*.json` via `x-wiki-types`
+- `wiki.toml` `[types.*]` overrides
+- Field aliasing via `x-index-aliases`
+- Typed graph edges via `x-graph-edges` (fed-by, depends-on, cites, etc.)
+- Schema change detection with per-type hashing
+- Embedded default schemas (base, concept, paper, skill, doc, section)
+- Edge target type warnings on ingest
+
+### Server
+
+- MCP stdio transport (always on)
+- MCP SSE transport (opt-in, retry on bind failure)
+- ACP transport (opt-in, supervision with backoff)
+- Reusable ACP workflow steps (`step_search`, `step_read`, `step_report_results`)
+- Panic isolation (`catch_unwind` around tool dispatch)
+- File logging with rotation (daily/hourly/never, max files, text/json)
+- Heartbeat task (configurable interval)
+- MCP resource listing and update notifications
+
+### Index
+
+- Dynamic tantivy schema computed from type registry
+- Incremental update via two-diff merge (working tree + committed changes)
+- Partial rebuild per changed type
+- Auto-recovery on index corruption
+- Staleness detection (`StalenessKind` enum)
+- Skip warnings with `tracing::warn` + `skipped` count in `IndexReport`
+
+### CLI-only
+
+- `llm-wiki logs tail/list/clear` — log file management
+- `llm-wiki serve --dry-run` — show what would start
+
+### Distribution
+
+- `cargo install llm-wiki`
+- `cargo binstall llm-wiki` (pre-built binaries)
+- Homebrew tap (`brew install geronimo-iia/tap/llm-wiki`)
+- asdf plugin (`asdf install llm-wiki latest`)
+- `install.sh` (macOS/Linux) and `install.ps1` (Windows)
+- GitHub Actions CI + release workflows

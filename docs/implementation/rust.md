@@ -30,8 +30,10 @@ llm-wiki/
 │   ├── config.rs            # GlobalConfig, WikiConfig, resolution
 │   ├── slug.rs              # Slug, WikiUri types and resolution
 │   ├── frontmatter.rs       # YAML extraction, BTreeMap parsing
-│   ├── type_registry.rs     # SpaceTypeRegistry, GlobalTypeRegistry
-│   ├── index_manager.rs     # SpaceIndexManager, IndexRegistry
+│   ├── type_registry.rs     # SpaceTypeRegistry, EdgeDecl, schema hashing
+│   ├── default_schemas.rs   # embedded default schemas (include_str!)
+│   ├── space_builder.rs     # build SpaceTypeRegistry + IndexSchema from schemas/
+│   ├── index_manager.rs     # SpaceIndexManager, rebuild, staleness
 │   ├── index_schema.rs      # IndexSchema from type registry
 │   ├── search.rs            # tantivy search + list queries
 │   ├── ingest.rs            # ingest pipeline

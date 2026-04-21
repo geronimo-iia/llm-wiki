@@ -16,41 +16,27 @@ cargo fmt -- --check             # check formatting
 cargo fmt                        # auto-format
 ```
 
-## Module Architecture
+## Documentation
 
-```
-src/
-├── main.rs          dispatch only — no logic
-├── lib.rs           module declarations
-├── cli.rs           clap Command enum — all subcommands and flags
-├── config.rs        GlobalConfig, WikiConfig, two-level config resolution
-├── spaces.rs        multi-wiki management, wiki:// URI resolution
-├── git.rs           init, commit, head, diff via git2
-├── frontmatter.rs   parse/write YAML frontmatter, validation, scaffolding
-├── markdown.rs      page read/write, slug resolution, bundle promotion
-├── links.rs         extract links from frontmatter and [[wikilinks]]
-├── ingest.rs        validate → git add → commit → index pipeline
-├── search.rs        tantivy index, BM25 search, paginated list
-├── lint.rs          orphan/stub/section/connection detection, LINT.md
-├── graph.rs         petgraph concept graph, Mermaid/DOT rendering
-├── server.rs        WikiServer startup, stdio + SSE transport
-├── mcp/             MCP tools, resources, prompts
-│   ├── mod.rs         ServerHandler impl
-│   └── tools.rs       tool definitions and handlers
-└── acp.rs           ACP agent, session management, workflow dispatch
-```
+| Area                    | Location                                              |
+| ----------------------- | ----------------------------------------------------- |
+| Specifications          | [docs/specifications/](docs/specifications/README.md) |
+| Implementation notes    | [docs/implementation/](docs/implementation/README.md) |
+| Architectural decisions | [docs/decisions/](docs/decisions/README.md)           |
 
-See [docs/specifications/rust-modules.md](docs/specifications/rust-modules.md)
-for the full module responsibility table.
 
 ## Adding a Feature
 
 1. Read the relevant spec in `docs/specifications/`.
-2. Implement in the correct module per the module map.
+2. Implement in the correct module — see
+   [docs/implementation/](docs/implementation/README.md) for the module map.
 3. Write tests in `tests/<module>.rs` using `tempfile::tempdir()` for all
    filesystem operations.
-4. Check exit criteria in [docs/tasks.md](docs/tasks.md).
-5. Run `cargo test`, `cargo clippy -- -D warnings`, `cargo fmt -- --check`.
+4. Run `cargo test`, `cargo clippy -- -D warnings`, `cargo fmt -- --check`.
+
+### Adding an MCP tool
+
+See [docs/implementation/mcp-tool-pattern.md](docs/implementation/mcp-tool-pattern.md).
 
 ## No LLM Dependency Rule
 

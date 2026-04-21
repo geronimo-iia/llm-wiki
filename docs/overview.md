@@ -1,8 +1,8 @@
 ---
 title: "Overview"
 summary: "What llm-wiki is, the problem it solves, the architecture, and how the pieces fit together — engine, type system, skill registry, and plugin skills."
-status: draft
-last_updated: "2025-07-17"
+status: ready
+last_updated: "2025-07-20"
 ---
 
 # llm-wiki
@@ -50,8 +50,8 @@ history. The search index is derived — rebuildable from committed files
 at any time.
 
 **Skills are separate.** The engine ships no workflow instructions.
-The `llm-wiki-skills` repository is a Claude Code plugin with 8 skills
-that teach agents how to use the 16 tools. Other agent platforms write
+The `llm-wiki-skills` repository is a Claude Code plugin with skills
+that teach agents how to use the tools. Other agent platforms write
 their own skills. The engine and the skills have independent release
 cycles, independent contributors, independent distribution.
 
@@ -89,7 +89,7 @@ Three independent pieces, three repositories:
 │   llm-wiki          │   │   llm-wiki-skills   │   │   llm-wiki-hugo-cms │
 │   (engine)          │   │   (plugin)          │   │   (renderer)        │
 │                     │   │                     │   │                     │
-│   16 MCP tools      │   │   8 skills          │   │   Hugo site         │
+│   MCP tools         │   │   skills            │   │   Hugo site         │
 │   Rust binary       │   │   Claude Code plugin│   │   scaffold          │
 │   tantivy + git     │   │   agentskills.io    │   │   GitHub Pages CI   │
 └────────┬────────────┘   └────────┬────────────┘   └────────┬────────────┘
@@ -111,10 +111,10 @@ Three independent pieces, three repositories:
 ```
 
 **llm-wiki** (engine) — a Rust binary that manages wiki repositories.
-16 MCP/ACP tools for space management, content operations, search, and
+MCP/ACP tools for space management, content operations, search, and
 graph traversal. No embedded LLM prompts. No workflow logic.
 
-**llm-wiki-skills** (plugin) — a Claude Code plugin with 8 skills that
+**llm-wiki-skills** (plugin) — a Claude Code plugin with skills that
 teach agents how to use the engine. Also usable by any agent that reads
 SKILL.md files. Distributed via the Claude marketplace, git clone, or
 `--plugin-dir`.
@@ -221,18 +221,18 @@ validates the frontmatter and how fields are indexed.
 | ---------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
 | Knowledge  | `concept`, `query-result`, `section`                                                                    | What we know, what we concluded, navigation |
 | Sources    | `paper`, `article`, `documentation`, `clipping`, `transcript`, `note`, `data`, `book-chapter`, `thread` | What each source claims                     |
-| Extensions | `skill`, `doc`                                                                                          | Agent capabilities, reference documents     |
+| Extensions | `skill`, `doc`                                 ·                                                         | Agent capabilities, reference documents     |
 
-### Type registry in wiki.toml
+### Type registry
+
+Types are discovered automatically from `schemas/*.json` via
+`x-wiki-types`. Most wikis need no `[types.*]` entries in `wiki.toml`.
+Overrides are only needed to remap a type to a different schema file:
 
 ```toml
-[types.concept]
-schema = "schemas/concept.json"
-description = "Synthesized knowledge — one concept per page"
-
-[types.skill]
-schema = "schemas/skill.json"
-description = "Agent skill with workflow instructions"
+[types.paper]
+schema = "schemas/my-custom-paper.json"
+description = "Custom paper schema with extra fields"
 ```
 
 ### Field aliasing
@@ -289,15 +289,16 @@ traces back to both. The graph makes these relationships navigable.
 
 ---
 
-## The 16 Tools
+## The Tools
 
-The engine exposes 16 MCP/ACP tools in three groups:
+The engine exposes MCP/ACP tools in four groups:
 
-| Group              | Tools                                                                                              | Count |
-| ------------------ | -------------------------------------------------------------------------------------------------- | ----- |
-| Space management   | `wiki_init`, `wiki_spaces_list`, `wiki_spaces_remove`, `wiki_spaces_set_default`, `wiki_config`    | 5     |
-| Content operations | `wiki_read`, `wiki_write`, `wiki_new_page`, `wiki_new_section`, `wiki_commit`                      | 5     |
-| Search & index     | `wiki_search`, `wiki_list`, `wiki_ingest`, `wiki_graph`, `wiki_index_rebuild`, `wiki_index_status` | 6     |
+| Group              | Tools                                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Space management   | `wiki_spaces_create`, `wiki_spaces_list`, `wiki_spaces_remove`, `wiki_spaces_set_default`                              |
+| Configuration      | `wiki_config`, `wiki_schema`                                                                                           |
+| Content operations | `wiki_content_read`, `wiki_content_write`, `wiki_content_new`, `wiki_content_commit`                                   |
+| Search & index     | `wiki_search`, `wiki_list`, `wiki_ingest`, `wiki_graph`, `wiki_index_rebuild`, `wiki_index_status`                     |
 
 Every tool is available via MCP (stdio + SSE), ACP, and CLI. The same
 tool surface, three transports.
@@ -307,8 +308,8 @@ that a skill cannot replicate: filesystem writes, git operations,
 tantivy queries, or space registry mutations. Everything else — workflow
 orchestration, LLM prompting, multi-step procedures — belongs in skills.
 
-See [focused-llm-wiki-design.md](../focused-llm-wiki-design.md) for
-the complete tool surface specification.
+See [specifications/tools/overview.md](specifications/tools/overview.md)
+for the complete tool surface.
 
 ---
 
@@ -366,10 +367,11 @@ knowledge they depend on.
 ## The Plugin Skills (llm-wiki-skills)
 
 The `llm-wiki-skills` repository is a Claude Code plugin that teaches
-agents how to use the engine. It ships 8 skills:
+agents how to use the engine:
 
 | Skill         | Purpose                                                 |
 | ------------- | ------------------------------------------------------- |
+| `setup`       | Install llm-wiki, create and manage wiki spaces         |
 | `bootstrap`   | Session orientation — read config, understand structure |
 | `ingest`      | Process source files into synthesized wiki pages        |
 | `crystallize` | Distil a session into durable wiki pages                |
@@ -378,8 +380,10 @@ agents how to use the engine. It ships 8 skills:
 | `graph`       | Generate and interpret the concept graph                |
 | `frontmatter` | Reference for writing correct frontmatter               |
 | `skill`       | Find and activate skills stored in the wiki             |
+| `write-page`  | Create page of any type                                 |
+| `configure-hugo` | Configure wiki for Hugo rendering                    |
 
-Plugin skills are engine-level — they teach how to use the 16 tools.
+Plugin skills are engine-level — they teach how to use the tools.
 Wiki skills (`type: skill` pages) are domain-level — they teach how to
 do domain work. Both coexist. A wiki skill can extend a plugin skill.
 
@@ -410,9 +414,10 @@ do domain work. Both coexist. A wiki skill can extend a plugin skill.
 
 ## Further Reading
 
-| Document                                                        | What it covers                                                       |
-| --------------------------------------------------------------- | -------------------------------------------------------------------- |
-| [focused-llm-wiki-design.md](../focused-llm-wiki-design.md)     | Complete engine design — tool surface, index, plugin, skill registry |
-| [type-specific-frontmatter.md](../type-specific-frontmatter.md) | Type system — JSON Schema, wiki.toml registry, aliases, graph edges  |
-| [roadmap.md](../roadmap.md)                                     | Development roadmap — 4 phases from focused engine to skill registry |
-| [specifications/](../specifications/)                           | Detailed specifications per component                                |
+| Document                                          | What it covers                                              |
+| ------------------------------------------------- | ----------------------------------------------------------- |
+| [specifications/](specifications/README.md)       | Detailed specifications per component                       |
+| [implementation/](implementation/README.md)       | Implementation notes and module map                         |
+| [decisions/](decisions/README.md)                 | Architectural decisions and rationale                        |
+| [guides/](guides/README.md)                       | Installation, IDE integration, CI/CD                        |
+| [roadmap.md](roadmap.md)                          | Development roadmap                                         |

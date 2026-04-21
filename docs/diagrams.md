@@ -182,3 +182,131 @@ flowchart LR
 
 References:
 - [overview.md](overview.md)
+
+## 7. Typed Graph Edges
+
+How `x-graph-edges` declarations produce labeled edges in the concept
+graph.
+
+```mermaid
+graph TD
+    subgraph Schema["concept.json x-graph-edges"]
+        S1["sources → fed-by"]
+        S2["concepts → depends-on"]
+        S3["superseded_by → superseded-by"]
+    end
+
+    subgraph Index["tantivy index"]
+        F1["sources: keyword field"]
+        F2["concepts: keyword field"]
+        F3["body_links: keyword field"]
+    end
+
+    subgraph Graph["petgraph"]
+        E1["fed-by edges"]
+        E2["depends-on edges"]
+        E3["links-to edges"]
+    end
+
+    S1 --> F1
+    S2 --> F2
+    F1 --> E1
+    F2 --> E2
+    F3 --> E3
+
+    style Schema fill:#ffeeba
+    style Index fill:#cce5ff
+    style Graph fill:#d4edda
+```
+
+References:
+- [graph.md](specifications/engine/graph.md)
+- [type-system.md](specifications/model/type-system.md)
+
+## 8. Graph Example
+
+A concept page with sources and body links.
+
+```mermaid
+graph LR
+    moe["Mixture of Experts"]:::concept
+    switch["Switch Transformer"]:::paper
+    scaling["Scaling Laws"]:::concept
+
+    moe -->|fed-by| switch
+    switch -->|informs| moe
+    moe -->|depends-on| scaling
+    moe -->|links-to| scaling
+
+    classDef concept fill:#cce5ff
+    classDef paper fill:#d4edda
+```
+
+References:
+- [graph.md](specifications/tools/graph.md)
+
+## 9. Shutdown Flow
+
+Coordinated shutdown across all transports.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Main as serve()
+    participant Stdio as stdio
+    participant SSE as SSE
+    participant ACP as ACP thread
+    participant HB as heartbeat
+
+    User->>Main: ctrl_c
+    Main->>Main: watch::send(true) + AtomicBool::store(true)
+
+    par shutdown signal
+        Main-->>Stdio: watch::changed()
+        Stdio->>Stdio: exit loop
+    and
+        Main-->>SSE: watch::changed()
+        SSE->>SSE: exit loop
+    and
+        Main-->>HB: watch::changed()
+        HB->>HB: exit loop
+    and
+        Note over ACP: checks AtomicBool<br/>on next iteration
+        ACP->>ACP: exit loop
+    end
+
+    Main->>Main: log "server stopped"
+```
+
+References:
+- [server.md](specifications/engine/server.md)
+- [decisions/graceful-shutdown.md](decisions/graceful-shutdown.md)
+
+## 10. Engine Startup
+
+How `WikiEngine::build` mounts wikis.
+
+```mermaid
+flowchart TD
+    A[Load config.toml] --> B[For each registered wiki]
+    B --> C[mount_wiki]
+    C --> D[Build SpaceTypeRegistry\nfrom schemas/ + wiki.toml]
+    C --> E[Build IndexSchema\nfrom type registry]
+    C --> F[Create SpaceIndexManager]
+    F --> G{Staleness?}
+    G -->|Current| H[Open index]
+    G -->|CommitChanged| I[Incremental update]
+    G -->|TypesChanged| J[Partial rebuild]
+    G -->|FullRebuildNeeded| K[Full rebuild]
+    I --> H
+    J --> H
+    K --> H
+    H --> L[SpaceContext ready]
+
+    style A fill:#ffeeba
+    style L fill:#d4edda
+```
+
+References:
+- [engine.md](implementation/engine.md)
+- [index-management.md](specifications/engine/index-management.md)

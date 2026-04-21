@@ -1,37 +1,41 @@
----
-title: "Documentation"
-summary: "Index of all llm-wiki documentation."
-status: active
-last_updated: "2025-07-17"
----
-
 # Documentation
 
-## Design Documents
+## Guides
 
-| Document                                                     | Type   | Description                                             |
-| ------------------------------------------------------------ | ------ | ------------------------------------------------------- |
-| [overview.md](overview.md)                                   | design | Project introduction, architecture, core concepts       |
-| [focused-llm-wiki-design.md](focused-llm-wiki-design.md)     | design | Focused engine: 16 MCP tools, skills in separate repo   |
-| [type-specific-frontmatter.md](type-specific-frontmatter.md) | design | JSON Schema type profiles, wiki.toml registry, aliases  |
-| [roadmap.md](roadmap.md)                                     | design | Phased roadmap from spec cleanup through skill registry |
-| [skills-architecture.md](skills-architecture.md)             | design | Skills separation: engine vs plugin vs wiki skills      |
+User-facing documentation — start here.
 
-## Reference
+| Guide | Description |
+|-------|-------------|
+| [Getting started](guides/getting-started.md) | End-to-end walkthrough |
+| [Installation](guides/installation.md) | Install llm-wiki |
+| [IDE integration](guides/ide-integration.md) | Connect to editors and agents |
+| [Multi-wiki](guides/multi-wiki.md) | Manage multiple wikis |
+| [Custom types](guides/custom-types.md) | Add custom page types |
+| [CI/CD](guides/ci-cd.md) | Pipelines and pre-commit hooks |
+| [Release](guides/release.md) | Release process and channels |
 
-| Document                         | Type      | Description                    |
-| -------------------------------- | --------- | ------------------------------ |
-| [features.md](features.md)       | reference | What llm-wiki can do           |
-| [diagrams.md](diagrams.md)       | reference | Architecture and flow diagrams |
-| [release.md](release.md)         | reference | Release notes                  |
-| [improvments.md](improvments.md) | reference | Improvement ideas              |
+## Specifications
 
-## Directories
+Formal design contracts — what the engine does.
 
-| Directory                                   | Type           | Description                                                |
-| ------------------------------------------- | -------------- | ---------------------------------------------------------- |
-| [specifications/](specifications/README.md) | spec           | Formal specifications (model, tools, engine, integrations) |
-| [implementation/](implementation/)          | implementation | Implementation notes (Rust, ACP SDK)                       |
-| [decisions/](decisions/)                    | decision       | Architectural decisions and rationale                      |
-| [prompts/](prompts/)                        | prompt         | Session prompts for LLM-driven work                        |
-| [archive/](archive/)                        | archive        | Historical session logs and early ideas                    |
+→ [specifications/](specifications/README.md)
+
+## Implementation
+
+How the engine is built — module map, patterns, notes.
+
+→ [implementation/](implementation/README.md)
+
+## Decisions
+
+Architectural decisions and their rationale.
+
+→ [decisions/](decisions/README.md)
+
+## Other
+
+| Document | Description |
+|----------|-------------|
+| [overview.md](overview.md) | Architecture, core concepts, project map |
+| [roadmap.md](roadmap.md) | Development phases and status |
+| [diagrams.md](diagrams.md) | Architecture and flow diagrams |

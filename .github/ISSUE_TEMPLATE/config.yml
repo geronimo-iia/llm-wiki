@@ -1,13 +1,13 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Questions and architecture discussion
+  - name: Questions and discussion
     url: https://github.com/geronimo-iia/llm-wiki/discussions
     about: >
       For questions about usage, architecture, or design decisions,
       please open a Discussion rather than an Issue.
   - name: Contributing guide
     url: https://github.com/geronimo-iia/llm-wiki/blob/main/CONTRIBUTING.md
-    about: Build, test, lint, commit format, and the no-LLM-dependency rule.
-  - name: Design documentation
-    url: https://github.com/geronimo-iia/llm-wiki/blob/main/docs/design/design.md
-    about: Architecture, analysis.json contract, and implementation phases.
+    about: Build, test, lint, and the no-LLM-dependency rule.
+  - name: Documentation
+    url: https://github.com/geronimo-iia/llm-wiki/blob/main/docs/README.md
+    about: Guides, specifications, architecture, and decisions.
