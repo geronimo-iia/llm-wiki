@@ -65,7 +65,7 @@ chrono     = { version = "0.4", default-features = false, features = ["clock", "
 git2       = "0.20"
 
 # MCP server
-rmcp       = { version = "0.1", features = ["server", "transport-io", "transport-sse-server"] }
+rmcp       = { version = "1.5", features = ["server", "transport-io", "transport-sse-server"] }
 
 # ACP server
 agent-client-protocol = "0.10"
