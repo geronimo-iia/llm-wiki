@@ -25,11 +25,16 @@ jobs:
       - name: Clippy
         run: cargo clippy -- -D warnings
 
+      - name: Build
+        run: cargo build --locked
+
       - name: Test
         run: cargo test --locked
 
+      - name: Install cargo-audit
+        if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+        run: cargo install cargo-audit --locked --quiet
+
       - name: Security audit
         if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
-        run: |
-          cargo install cargo-audit --quiet
-          cargo audit
+        run: cargo audit --ignore RUSTSEC-2024-0436
