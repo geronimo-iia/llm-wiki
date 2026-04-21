@@ -29,7 +29,7 @@ jobs:
         run: cargo test --locked
 
       - name: Security audit
-        if: github.event_name == 'push'
-        run: |
-          cargo install cargo-audit --locked
-          cargo audit
+        if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
