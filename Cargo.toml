@@ -62,7 +62,7 @@ walkdir    = "2"
 chrono     = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 # Git
-git2       = "0.19"
+git2       = "0.20"
 
 # MCP server
 rmcp       = { version = "0.1", features = ["server", "transport-io", "transport-sse-server"] }
