@@ -6,10 +6,8 @@ use chrono::Utc;
 use git2::Delta;
 use serde::{Deserialize, Serialize};
 use tantivy::{
-    collector::TopDocs,
-    directory::MmapDirectory,
-    query::AllQuery,
-    Index, IndexReader, IndexWriter, Searcher, Term,
+    collector::TopDocs, directory::MmapDirectory, query::AllQuery, Index, IndexReader, IndexWriter,
+    Searcher, Term,
 };
 use walkdir::WalkDir;
 
@@ -139,7 +137,10 @@ impl SpaceIndexManager {
         };
 
         let reader = index.reader()?;
-        let mut inner = self.inner.write().map_err(|_| anyhow::anyhow!("index lock poisoned"))?;
+        let mut inner = self
+            .inner
+            .write()
+            .map_err(|_| anyhow::anyhow!("index lock poisoned"))?;
         inner.tantivy_index = Some(index);
         inner.index_reader = Some(reader);
         Ok(())
@@ -147,8 +148,12 @@ impl SpaceIndexManager {
 
     /// Get a searcher. Cheap — arc clone of current segment set.
     pub fn searcher(&self) -> Result<Searcher> {
-        let inner = self.inner.read().map_err(|_| anyhow::anyhow!("index lock poisoned"))?;
-        inner.index_reader
+        let inner = self
+            .inner
+            .read()
+            .map_err(|_| anyhow::anyhow!("index lock poisoned"))?;
+        inner
+            .index_reader
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("index not open"))
             .map(|r| r.searcher())
@@ -156,7 +161,10 @@ impl SpaceIndexManager {
 
     /// Get a writer from the held index, or open from disk if not held.
     fn writer(&self) -> Result<IndexWriter> {
-        let inner = self.inner.read().map_err(|_| anyhow::anyhow!("index lock poisoned"))?;
+        let inner = self
+            .inner
+            .read()
+            .map_err(|_| anyhow::anyhow!("index lock poisoned"))?;
         if let Some(ref idx) = inner.tantivy_index {
             Ok(idx.writer(50_000_000)?)
         } else {
@@ -324,8 +332,7 @@ impl SpaceIndexManager {
                     let head = git::current_head(repo_root).unwrap_or_default();
                     let (current_schema_hash, _) =
                         crate::type_registry::compute_disk_hashes(repo_root).unwrap_or_default();
-                    let stale =
-                        state.commit != head || state.schema_hash != current_schema_hash;
+                    let stale = state.commit != head || state.schema_hash != current_schema_hash;
                     (Some(state.built), state.pages, state.sections, stale)
                 }
                 None => (None, 0, 0, true),
@@ -442,8 +449,7 @@ impl SpaceIndexManager {
         }
 
         // Re-index pages matching those types
-        let type_set: std::collections::HashSet<&str> =
-            types.iter().map(|s| s.as_str()).collect();
+        let type_set: std::collections::HashSet<&str> = types.iter().map(|s| s.as_str()).collect();
         let mut pages = 0usize;
         let mut skipped = 0usize;
 
@@ -529,7 +535,10 @@ fn index_page(
     if extra_text.is_empty() {
         doc.add_text(is.field("body"), &page.body);
     } else {
-        doc.add_text(is.field("body"), format!("{}\n{}", page.body, extra_text.trim()));
+        doc.add_text(
+            is.field("body"),
+            format!("{}\n{}", page.body, extra_text.trim()),
+        );
     }
 
     for link in links::extract_body_wikilinks(&page.body) {
@@ -620,9 +629,7 @@ fn yaml_to_text(value: &serde_yaml::Value) -> String {
             })
             .collect::<Vec<_>>()
             .join(" "),
-        serde_yaml::Value::Mapping(_) => {
-            serde_json::to_string(value).unwrap_or_default()
-        }
+        serde_yaml::Value::Mapping(_) => serde_json::to_string(value).unwrap_or_default(),
         serde_yaml::Value::Null => String::new(),
         _ => String::new(),
     }

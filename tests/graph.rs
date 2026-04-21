@@ -3,8 +3,8 @@ use std::path::Path;
 
 use llm_wiki::git;
 use llm_wiki::graph::*;
-use llm_wiki::index_schema::IndexSchema;
 use llm_wiki::index_manager::SpaceIndexManager;
+use llm_wiki::index_schema::IndexSchema;
 use llm_wiki::space_builder;
 use llm_wiki::type_registry::SpaceTypeRegistry;
 
@@ -80,7 +80,13 @@ fn build_graph_creates_nodes_from_index() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter(), &registry()).unwrap();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
 
     assert_eq!(g.node_count(), 2);
 }
@@ -102,7 +108,13 @@ fn build_graph_creates_edges_from_body_links() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter(), &registry()).unwrap();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
 
     assert_eq!(g.edge_count(), 1);
     let edge = g.edge_indices().next().unwrap();
@@ -121,7 +133,13 @@ fn build_graph_skips_broken_references() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter(), &registry()).unwrap();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
 
     assert_eq!(g.node_count(), 1);
     assert_eq!(g.edge_count(), 0);
@@ -204,7 +222,13 @@ fn render_mermaid_includes_titles_and_relations() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter(), &registry()).unwrap();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
     let output = render_mermaid(&g);
 
     assert!(output.starts_with("graph LR\n"));
@@ -233,7 +257,13 @@ fn render_dot_includes_labels_and_relations() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter(), &registry()).unwrap();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
     let output = render_dot(&g);
 
     assert!(output.starts_with("digraph wiki {\n"));
@@ -330,7 +360,6 @@ fn wrap_graph_md_includes_frontmatter() {
     assert!(output.ends_with("```\n"));
 }
 
-
 // ── Phase 3: frontmatter edge tests ──────────────────────────────────────────
 
 fn concept_with_sources(title: &str, sources: &[&str]) -> String {
@@ -358,7 +387,13 @@ fn build_graph_creates_edges_from_frontmatter_sources() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter(), &registry()).unwrap();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
 
     // Should have a "fed-by" edge from concepts/moe → sources/paper-a
     let mut found = false;
@@ -371,7 +406,10 @@ fn build_graph_creates_edges_from_frontmatter_sources() {
             found = true;
         }
     }
-    assert!(found, "expected fed-by edge from concepts/moe to sources/paper-a");
+    assert!(
+        found,
+        "expected fed-by edge from concepts/moe to sources/paper-a"
+    );
 }
 
 #[test]
@@ -402,10 +440,7 @@ fn build_graph_relation_filter_with_declared_edges() {
     let g = build_graph(&mgr.searcher().unwrap(), &is, &filter, &registry()).unwrap();
 
     // Should have fed-by edge but NOT links-to
-    let relations: Vec<&str> = g
-        .edge_indices()
-        .map(|e| g[e].relation.as_str())
-        .collect();
+    let relations: Vec<&str> = g.edge_indices().map(|e| g[e].relation.as_str()).collect();
     assert!(relations.contains(&"fed-by"));
     assert!(!relations.contains(&"links-to"));
 }
@@ -426,7 +461,13 @@ fn build_graph_multiple_edge_types_from_same_page() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let g = build_graph(&mgr.searcher().unwrap(), &is, &default_filter(), &registry()).unwrap();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
 
     let mut has_fed_by = false;
     let mut has_depends_on = false;

@@ -10,7 +10,6 @@ use crate::markdown;
 use crate::search;
 use crate::space_builder;
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SchemaTypeEntry {
     pub name: String,
@@ -47,20 +46,29 @@ pub fn schema_show(engine: &EngineState, wiki_name: &str, type_name: &str) -> Re
         .with_context(|| format!("failed to read schema: {}", full_path.display()))
 }
 
-pub fn schema_show_template(engine: &EngineState, wiki_name: &str, type_name: &str) -> Result<String> {
+pub fn schema_show_template(
+    engine: &EngineState,
+    wiki_name: &str,
+    type_name: &str,
+) -> Result<String> {
     let content = schema_show(engine, wiki_name, type_name)?;
     let schema: serde_json::Value = serde_json::from_str(&content)?;
     Ok(generate_template(&schema, type_name))
 }
 
-pub fn schema_add(engine: &EngineState, wiki_name: &str, type_name: &str, src_path: &Path) -> Result<String> {
+pub fn schema_add(
+    engine: &EngineState,
+    wiki_name: &str,
+    type_name: &str,
+    src_path: &Path,
+) -> Result<String> {
     let space = engine.space(wiki_name)?;
 
     // Validate the schema file
     let content = std::fs::read_to_string(src_path)
         .with_context(|| format!("failed to read: {}", src_path.display()))?;
-    let schema_value: serde_json::Value = serde_json::from_str(&content)
-        .context("file is not valid JSON")?;
+    let schema_value: serde_json::Value =
+        serde_json::from_str(&content).context("file is not valid JSON")?;
     jsonschema::Validator::new(&schema_value)
         .map_err(|e| anyhow::anyhow!("file is not a valid JSON Schema: {e}"))?;
 
@@ -158,7 +166,9 @@ pub fn schema_remove(
 
     // Remove pages from index
     if pages_to_remove > 0 {
-        space.index_manager.delete_by_type(&space.index_schema, type_name)?;
+        space
+            .index_manager
+            .delete_by_type(&space.index_schema, type_name)?;
     }
 
     // Delete page files from disk if requested
@@ -223,7 +233,11 @@ pub fn schema_remove(
     })
 }
 
-pub fn schema_validate(engine: &EngineState, wiki_name: &str, type_name: Option<&str>) -> Result<Vec<String>> {
+pub fn schema_validate(
+    engine: &EngineState,
+    wiki_name: &str,
+    type_name: Option<&str>,
+) -> Result<Vec<String>> {
     let space = engine.space(wiki_name)?;
     let mut issues = Vec::new();
 
@@ -287,7 +301,9 @@ fn validate_schema_file(path: &Path, issues: &mut Vec<String>) {
     }
 
     if schema.get("x-wiki-types").is_none() {
-        issues.push(format!("{filename}: missing x-wiki-types (types won't be discovered)"));
+        issues.push(format!(
+            "{filename}: missing x-wiki-types (types won't be discovered)"
+        ));
     }
 }
 
@@ -327,7 +343,10 @@ fn generate_template(schema: &serde_json::Value, type_name: &str) -> String {
 }
 
 fn format_template_field(name: &str, prop: &serde_json::Value, type_name: &str) -> String {
-    let prop_type = prop.get("type").and_then(|v| v.as_str()).unwrap_or("string");
+    let prop_type = prop
+        .get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("string");
 
     match prop_type {
         "array" => {
@@ -343,7 +362,10 @@ fn format_template_field(name: &str, prop: &serde_json::Value, type_name: &str) 
             } else if name == "status" {
                 "status: active".to_string()
             } else if name == "last_updated" {
-                format!("last_updated: \"{}\"", chrono::Utc::now().format("%Y-%m-%d"))
+                format!(
+                    "last_updated: \"{}\"",
+                    chrono::Utc::now().format("%Y-%m-%d")
+                )
             } else {
                 format!("{name}: \"\"")
             }

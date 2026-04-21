@@ -73,7 +73,8 @@ impl SpaceTypeRegistry {
             // Inject embedded base.json as fallback
             let schemas = default_schemas::default_schemas();
             let base = schemas["base.json"];
-            let registered = compile_schema("schemas/base.json", "Fallback for unrecognized types", base)?;
+            let registered =
+                compile_schema("schemas/base.json", "Fallback for unrecognized types", base)?;
             types.insert("default".to_string(), registered);
         } else {
             validate_base_invariant(&types["default"])?;
@@ -221,18 +222,15 @@ impl Default for SpaceTypeRegistry {
     }
 }
 
-
 // ── Discovery ─────────────────────────────────────────────────────────────────
 
-fn discover_from_dir(schemas_dir: &Path, types: &mut HashMap<String, RegisteredType>) -> Result<()> {
+fn discover_from_dir(
+    schemas_dir: &Path,
+    types: &mut HashMap<String, RegisteredType>,
+) -> Result<()> {
     let mut entries: Vec<_> = std::fs::read_dir(schemas_dir)?
         .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.path()
-                .extension()
-                .and_then(|ext| ext.to_str())
-                == Some("json")
-        })
+        .filter(|e| e.path().extension().and_then(|ext| ext.to_str()) == Some("json"))
         .collect();
     entries.sort_by_key(|e| e.file_name());
 
@@ -289,7 +287,11 @@ fn discover_from_embedded(types: &mut HashMap<String, RegisteredType>) -> Result
     Ok(())
 }
 
-pub(crate) fn compile_schema(schema_path: &str, description: &str, content: &str) -> Result<RegisteredType> {
+pub(crate) fn compile_schema(
+    schema_path: &str,
+    description: &str,
+    content: &str,
+) -> Result<RegisteredType> {
     let content_hash = sha256_hex(content.as_bytes());
     let schema_value: serde_json::Value = serde_json::from_str(content)?;
     compile_schema_from_value(schema_path, description, &schema_value, &content_hash)
@@ -408,11 +410,20 @@ pub(crate) fn sha256_hex(data: &[u8]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-pub(crate) fn compute_hashes(types: &HashMap<String, RegisteredType>) -> (String, HashMap<String, String>) {
+pub(crate) fn compute_hashes(
+    types: &HashMap<String, RegisteredType>,
+) -> (String, HashMap<String, String>) {
     let entries: HashMap<String, (String, HashMap<String, String>, String)> = types
         .iter()
         .map(|(name, rt)| {
-            (name.clone(), (rt.schema_path.clone(), rt.aliases.clone(), rt.content_hash.clone()))
+            (
+                name.clone(),
+                (
+                    rt.schema_path.clone(),
+                    rt.aliases.clone(),
+                    rt.content_hash.clone(),
+                ),
+            )
         })
         .collect();
     hash_type_entries(&entries)

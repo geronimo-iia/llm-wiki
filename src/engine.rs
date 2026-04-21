@@ -72,7 +72,9 @@ impl WikiEngine {
 
         for entry in &config.wikis {
             match mount_wiki(entry, &state_dir, &config) {
-                Ok(ctx) => { spaces.insert(entry.name.clone(), ctx); }
+                Ok(ctx) => {
+                    spaces.insert(entry.name.clone(), ctx);
+                }
                 Err(e) => {
                     tracing::warn!(
                         wiki = %entry.name, error = %e,
@@ -139,17 +141,11 @@ impl WikiEngine {
         );
         Ok(report)
     }
-
-
 }
 
 // ── mount_wiki ────────────────────────────────────────────────────────────────
 
-fn mount_wiki(
-    entry: &WikiEntry,
-    state_dir: &Path,
-    config: &GlobalConfig,
-) -> Result<SpaceContext> {
+fn mount_wiki(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Result<SpaceContext> {
     let repo_root = PathBuf::from(&entry.path);
     let wiki_root = repo_root.join("wiki");
     let index_path = state_dir.join("indexes").join(&entry.name);
@@ -204,8 +200,12 @@ fn mount_wiki(
                     &type_registry,
                 ) {
                     tracing::warn!(wiki = %entry.name, error = %e, "partial rebuild failed, doing full");
-                    let _ =
-                        index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry);
+                    let _ = index_manager.rebuild(
+                        &wiki_root,
+                        &repo_root,
+                        &index_schema,
+                        &type_registry,
+                    );
                 }
             }
             Ok(StalenessKind::FullRebuildNeeded) => {

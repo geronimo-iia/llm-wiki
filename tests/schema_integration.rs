@@ -53,7 +53,10 @@ fn schema_show_returns_valid_json_schema() {
         schema["$schema"],
         "https://json-schema.org/draft/2020-12/schema"
     );
-    assert!(schema["required"].as_array().unwrap().contains(&serde_json::json!("read_when")));
+    assert!(schema["required"]
+        .as_array()
+        .unwrap()
+        .contains(&serde_json::json!("read_when")));
 }
 
 #[test]
@@ -130,7 +133,10 @@ fn schema_template_passes_own_validation() {
             }
         }
 
-        let yaml_content = filled.trim_start_matches("---").trim_end_matches("---").trim();
+        let yaml_content = filled
+            .trim_start_matches("---")
+            .trim_end_matches("---")
+            .trim();
         let fm: std::collections::BTreeMap<String, serde_yaml::Value> =
             serde_yaml::from_str(yaml_content).unwrap_or_default();
 
@@ -157,7 +163,10 @@ fn roundtrip_template_write_ingest() {
     // Fill in required values
     let filled = tmpl
         .replace("title: \"\"", "title: \"Test Concept\"")
-        .replace("read_when:\n  - \"\"", "read_when:\n  - \"Testing round-trip\"");
+        .replace(
+            "read_when:\n  - \"\"",
+            "read_when:\n  - \"Testing round-trip\"",
+        );
 
     let content = format!("{filled}\n\n## Body\n\nSome content.\n");
 
@@ -282,10 +291,7 @@ fn schema_change_makes_index_stale() {
     {
         let eng = mgr.state.read().unwrap();
         let space = eng.space("test").unwrap();
-        let status = space.index_manager.status(
-            &space.repo_root,
-        )
-        .unwrap();
+        let status = space.index_manager.status(&space.repo_root).unwrap();
         assert!(!status.stale, "index should not be stale after build");
     }
 
@@ -310,9 +316,6 @@ fn schema_change_makes_index_stale() {
     // The old state.toml has the old hash, new registry has new hash
     // So if we check with the OLD hash, it's not stale
     // But if we check with the NEW hash, it IS stale (hash mismatch)
-    let status = space2.index_manager.status(
-        &space2.repo_root,
-    )
-    .unwrap();
+    let status = space2.index_manager.status(&space2.repo_root).unwrap();
     assert!(status.stale, "index should be stale with wrong hash");
 }

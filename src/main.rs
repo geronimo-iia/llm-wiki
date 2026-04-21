@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use clap::Parser;
 
-use llm_wiki::cli::{Cli, Commands, ConfigAction, ContentAction, IndexAction, LogsAction, SchemaAction, SpacesAction};
+use llm_wiki::cli::{
+    Cli, Commands, ConfigAction, ContentAction, IndexAction, LogsAction, SchemaAction, SpacesAction,
+};
 use llm_wiki::config;
 use llm_wiki::engine::WikiEngine;
 use llm_wiki::ops;
@@ -445,7 +447,11 @@ fn main() -> Result<()> {
                         }
                     }
                 }
-                SchemaAction::Show { name, template, format: _ } => {
+                SchemaAction::Show {
+                    name,
+                    template,
+                    format: _,
+                } => {
                     if template {
                         let tmpl = ops::schema_show_template(&engine, &wiki_name, &name)?;
                         println!("{tmpl}");
@@ -458,9 +464,21 @@ fn main() -> Result<()> {
                     let msg = ops::schema_add(&engine, &wiki_name, &name, Path::new(&schema_path))?;
                     println!("{msg}");
                 }
-                SchemaAction::Remove { name, delete, delete_pages, dry_run } => {
+                SchemaAction::Remove {
+                    name,
+                    delete,
+                    delete_pages,
+                    dry_run,
+                } => {
                     drop(engine);
-                    let report = ops::schema_remove(&manager, &wiki_name, &name, delete, delete_pages, dry_run)?;
+                    let report = ops::schema_remove(
+                        &manager,
+                        &wiki_name,
+                        &name,
+                        delete,
+                        delete_pages,
+                        dry_run,
+                    )?;
                     if is_json(&None::<String>) {
                         println!("{}", serde_json::to_string_pretty(&report)?);
                     } else {
@@ -468,7 +486,10 @@ fn main() -> Result<()> {
                             println!("DRY RUN:");
                         }
                         println!("pages removed from index: {}", report.pages_removed);
-                        println!("page files deleted from disk: {}", report.pages_deleted_from_disk);
+                        println!(
+                            "page files deleted from disk: {}",
+                            report.pages_deleted_from_disk
+                        );
                         println!("wiki.toml updated: {}", report.wiki_toml_updated);
                         println!("schema file deleted: {}", report.schema_file_deleted);
                     }

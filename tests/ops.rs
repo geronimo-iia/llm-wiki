@@ -397,7 +397,6 @@ fn graph_build_dot_format() {
     assert!(result.rendered.contains("digraph wiki"));
 }
 
-
 // ── Schema ────────────────────────────────────────────────────────────────────
 
 #[test]
@@ -457,7 +456,11 @@ fn schema_validate_passes_default_schemas() {
     let engine = manager.state.read().unwrap();
 
     let issues = ops::schema_validate(&engine, "test", None).unwrap();
-    assert!(issues.is_empty(), "default schemas should validate: {:?}", issues);
+    assert!(
+        issues.is_empty(),
+        "default schemas should validate: {:?}",
+        issues
+    );
 }
 
 // ── Phase 3: edge target type warnings ───────────────────────────────────────
@@ -484,7 +487,10 @@ fn ingest_warns_on_wrong_edge_target_type() {
 
     // Should warn: concepts/moe is type "concept", but sources expects source types
     assert!(
-        report.warnings.iter().any(|w| w.contains("concepts/moe") && w.contains("concept")),
+        report
+            .warnings
+            .iter()
+            .any(|w| w.contains("concepts/moe") && w.contains("concept")),
         "expected warning about wrong target type, got: {:?}",
         report.warnings
     );

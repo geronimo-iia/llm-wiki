@@ -2,8 +2,8 @@ use std::fs;
 use std::path::Path;
 
 use llm_wiki::git;
-use llm_wiki::index_schema::IndexSchema;
 use llm_wiki::index_manager::SpaceIndexManager;
+use llm_wiki::index_schema::IndexSchema;
 use llm_wiki::search::*;
 use llm_wiki::space_builder;
 use llm_wiki::type_registry::SpaceTypeRegistry;
@@ -190,7 +190,13 @@ fn list_returns_sorted_by_slug() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let result = list(&ListOptions::default(), &mgr.searcher().unwrap(), "test", &is).unwrap();
+    let result = list(
+        &ListOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
 
     assert_eq!(result.total, 2);
     assert_eq!(result.pages[0].slug, "concepts/alpha");

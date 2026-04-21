@@ -249,7 +249,9 @@ fn section_rejects_missing_title() {
 #[test]
 fn skill_has_index_aliases() {
     let schema: Value = serde_json::from_str(default_schemas()["skill.json"]).unwrap();
-    let aliases = schema.get("x-index-aliases").expect("missing x-index-aliases");
+    let aliases = schema
+        .get("x-index-aliases")
+        .expect("missing x-index-aliases");
     assert_eq!(aliases["name"], "title");
     assert_eq!(aliases["description"], "summary");
     assert_eq!(aliases["when_to_use"], "read_when");

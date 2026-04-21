@@ -511,10 +511,7 @@ description = "Academic source"
     assert_eq!(config.types.len(), 3);
     assert_eq!(config.types["default"].schema, "schemas/base.json");
     assert_eq!(config.types["concept"].schema, "schemas/concept.json");
-    assert_eq!(
-        config.types["concept"].description,
-        "Synthesized knowledge"
-    );
+    assert_eq!(config.types["concept"].description, "Synthesized knowledge");
     assert_eq!(config.types["paper"].schema, "schemas/paper.json");
 }
 
@@ -548,8 +545,5 @@ fn save_wiki_roundtrips_types() {
     let loaded = load_wiki(dir.path()).unwrap();
     assert_eq!(loaded.types.len(), 1);
     assert_eq!(loaded.types["concept"].schema, "schemas/concept.json");
-    assert_eq!(
-        loaded.types["concept"].description,
-        "Synthesized knowledge"
-    );
+    assert_eq!(loaded.types["concept"].description, "Synthesized knowledge");
 }

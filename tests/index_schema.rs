@@ -49,7 +49,15 @@ fn from_embedded_schemas_has_base_fields() {
     fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
 
     let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
-    for name in &["title", "summary", "type", "status", "tags", "owner", "superseded_by"] {
+    for name in &[
+        "title",
+        "summary",
+        "type",
+        "status",
+        "tags",
+        "owner",
+        "superseded_by",
+    ] {
         assert!(is.try_field(name).is_some(), "missing base field: {name}");
     }
 }
@@ -60,8 +68,18 @@ fn from_embedded_schemas_has_concept_fields() {
     fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
 
     let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
-    for name in &["read_when", "tldr", "sources", "concepts", "confidence", "claims"] {
-        assert!(is.try_field(name).is_some(), "missing concept field: {name}");
+    for name in &[
+        "read_when",
+        "tldr",
+        "sources",
+        "concepts",
+        "confidence",
+        "claims",
+    ] {
+        assert!(
+            is.try_field(name).is_some(),
+            "missing concept field: {name}"
+        );
     }
 }
 
@@ -83,9 +101,18 @@ fn from_embedded_schemas_skips_aliased_fields() {
     let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
     // skill.json has name/description/when_to_use aliased to title/summary/read_when
     // The aliased source fields should NOT be in the index
-    assert!(is.try_field("name").is_none(), "aliased field 'name' should not be indexed");
-    assert!(is.try_field("description").is_none(), "aliased field 'description' should not be indexed");
-    assert!(is.try_field("when_to_use").is_none(), "aliased field 'when_to_use' should not be indexed");
+    assert!(
+        is.try_field("name").is_none(),
+        "aliased field 'name' should not be indexed"
+    );
+    assert!(
+        is.try_field("description").is_none(),
+        "aliased field 'description' should not be indexed"
+    );
+    assert!(
+        is.try_field("when_to_use").is_none(),
+        "aliased field 'when_to_use' should not be indexed"
+    );
     // But their canonical targets should exist
     assert!(is.try_field("title").is_some());
     assert!(is.try_field("summary").is_some());
@@ -120,8 +147,14 @@ fn from_disk_discovers_custom_fields() {
     fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
 
     let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
-    assert!(is.try_field("priority").is_some(), "custom enum field should exist");
-    assert!(is.try_field("assignee").is_some(), "custom string field should exist");
+    assert!(
+        is.try_field("priority").is_some(),
+        "custom enum field should exist"
+    );
+    assert!(
+        is.try_field("assignee").is_some(),
+        "custom string field should exist"
+    );
 }
 
 #[test]
@@ -208,7 +241,10 @@ description = "Special type"
     .unwrap();
 
     let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
-    assert!(is.try_field("extra_field").is_some(), "override schema field should be indexed");
+    assert!(
+        is.try_field("extra_field").is_some(),
+        "override schema field should be indexed"
+    );
 }
 
 // ── deduplication ─────────────────────────────────────────────────────────────
@@ -223,7 +259,8 @@ fn duplicate_fields_across_schemas_are_deduplicated() {
     for name in &["a.json", "b.json"] {
         fs::write(
             schemas_dir.join(name),
-            format!(r#"{{
+            format!(
+                r#"{{
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "x-wiki-types": {{"{name}-type": "Type from {name}"}},
                 "type": "object",
@@ -233,7 +270,8 @@ fn duplicate_fields_across_schemas_are_deduplicated() {
                     "type": {{"type": "string"}}
                 }},
                 "additionalProperties": true
-            }}"#),
+            }}"#
+            ),
         )
         .unwrap();
     }
@@ -269,8 +307,20 @@ fn repo_schemas_have_all_base_fields() {
     let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
 
     // From base.json
-    for name in &["title", "type", "summary", "status", "last_updated", "tags", "owner", "superseded_by"] {
-        assert!(is.try_field(name).is_some(), "missing base field from repo schemas: {name}");
+    for name in &[
+        "title",
+        "type",
+        "summary",
+        "status",
+        "last_updated",
+        "tags",
+        "owner",
+        "superseded_by",
+    ] {
+        assert!(
+            is.try_field(name).is_some(),
+            "missing base field from repo schemas: {name}"
+        );
     }
 }
 
@@ -281,8 +331,18 @@ fn repo_schemas_have_all_concept_fields() {
     let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
 
     // From concept.json
-    for name in &["read_when", "tldr", "sources", "concepts", "confidence", "claims"] {
-        assert!(is.try_field(name).is_some(), "missing concept field from repo schemas: {name}");
+    for name in &[
+        "read_when",
+        "tldr",
+        "sources",
+        "concepts",
+        "confidence",
+        "claims",
+    ] {
+        assert!(
+            is.try_field(name).is_some(),
+            "missing concept field from repo schemas: {name}"
+        );
     }
 }
 
@@ -305,11 +365,26 @@ fn repo_schemas_have_skill_specific_fields() {
     let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
 
     // From skill.json — fields that are NOT aliased
-    assert!(is.try_field("document_refs").is_some(), "missing skill field: document_refs");
-    assert!(is.try_field("disable-model-invocation").is_some(), "missing skill field: disable-model-invocation");
-    assert!(is.try_field("user-invocable").is_some(), "missing skill field: user-invocable");
-    assert!(is.try_field("allowed-tools").is_some(), "missing skill field: allowed-tools");
-    assert!(is.try_field("argument-hint").is_some(), "missing skill field: argument-hint");
+    assert!(
+        is.try_field("document_refs").is_some(),
+        "missing skill field: document_refs"
+    );
+    assert!(
+        is.try_field("disable-model-invocation").is_some(),
+        "missing skill field: disable-model-invocation"
+    );
+    assert!(
+        is.try_field("user-invocable").is_some(),
+        "missing skill field: user-invocable"
+    );
+    assert!(
+        is.try_field("allowed-tools").is_some(),
+        "missing skill field: allowed-tools"
+    );
+    assert!(
+        is.try_field("argument-hint").is_some(),
+        "missing skill field: argument-hint"
+    );
 }
 
 #[test]
@@ -319,9 +394,18 @@ fn repo_schemas_skip_skill_aliased_fields() {
     let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
 
     // skill.json aliases: name→title, description→summary, when_to_use→read_when
-    assert!(is.try_field("name").is_none(), "'name' should be skipped (aliased to title)");
-    assert!(is.try_field("description").is_none(), "'description' should be skipped (aliased to summary)");
-    assert!(is.try_field("when_to_use").is_none(), "'when_to_use' should be skipped (aliased to read_when)");
+    assert!(
+        is.try_field("name").is_none(),
+        "'name' should be skipped (aliased to title)"
+    );
+    assert!(
+        is.try_field("description").is_none(),
+        "'description' should be skipped (aliased to summary)"
+    );
+    assert!(
+        is.try_field("when_to_use").is_none(),
+        "'when_to_use' should be skipped (aliased to read_when)"
+    );
 }
 
 #[test]

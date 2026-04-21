@@ -17,9 +17,21 @@ fn fm(fields: &[(&str, &str)]) -> BTreeMap<String, Value> {
 fn embedded_knows_all_15_types() {
     let reg = SpaceTypeRegistry::from_embedded();
     for t in &[
-        "default", "concept", "query-result", "section", "paper", "article",
-        "documentation", "clipping", "transcript", "note", "data",
-        "book-chapter", "thread", "skill", "doc",
+        "default",
+        "concept",
+        "query-result",
+        "section",
+        "paper",
+        "article",
+        "documentation",
+        "clipping",
+        "transcript",
+        "note",
+        "data",
+        "book-chapter",
+        "thread",
+        "skill",
+        "doc",
     ] {
         assert!(reg.is_known(t), "should know type: {t}");
     }
@@ -156,7 +168,11 @@ description = "Custom paper"
     let reg = SpaceTypeRegistry::build(dir.path()).unwrap();
 
     // paper should now require custom_field (from schema B)
-    let valid = fm(&[("title", "Test"), ("type", "paper"), ("custom_field", "yes")]);
+    let valid = fm(&[
+        ("title", "Test"),
+        ("type", "paper"),
+        ("custom_field", "yes"),
+    ]);
     assert!(reg.validate(&valid, "strict").is_ok());
 
     let missing = fm(&[("title", "Test"), ("type", "paper")]);
@@ -180,7 +196,11 @@ fn validate_valid_concept() {
     let reg = SpaceTypeRegistry::from_embedded();
     let warnings = reg
         .validate(
-            &fm(&[("title", "Test"), ("type", "concept"), ("read_when", "test")]),
+            &fm(&[
+                ("title", "Test"),
+                ("type", "concept"),
+                ("read_when", "test"),
+            ]),
             "loose",
         )
         .unwrap();
@@ -259,7 +279,10 @@ fn build_injects_embedded_default_when_no_base_json() {
     fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
 
     let reg = SpaceTypeRegistry::build(dir.path()).unwrap();
-    assert!(reg.is_known("default"), "default type should be injected from embedded");
+    assert!(
+        reg.is_known("default"),
+        "default type should be injected from embedded"
+    );
     assert!(reg.is_known("custom"));
 }
 
@@ -350,7 +373,6 @@ fn build_rejects_base_missing_type_requirement() {
     assert!(msg.contains("type"), "error should mention type: {msg}");
 }
 
-
 // ── compute_disk_hashes ───────────────────────────────────────────────────────
 
 use llm_wiki::git;
@@ -388,7 +410,10 @@ fn disk_hashes_change_on_schema_file_modification() {
     fs::write(&concept_schema, content).unwrap();
 
     let (hash2, _) = compute_disk_hashes(dir.path()).unwrap();
-    assert_ne!(hash1, hash2, "hash should change when schema file is modified");
+    assert_ne!(
+        hash1, hash2,
+        "hash should change when schema file is modified"
+    );
 }
 
 #[test]

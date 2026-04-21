@@ -147,5 +147,3 @@ fn rebuild_index_works() {
 
     assert!(report.pages_indexed >= 1);
 }
-
-

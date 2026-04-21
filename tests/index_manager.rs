@@ -95,7 +95,9 @@ fn rebuild_report_fields() {
     git::commit(dir.path(), "pages").unwrap();
 
     let mgr = make_manager(dir.path());
-    let report = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry()).unwrap();
+    let report = mgr
+        .rebuild(&wiki_root, dir.path(), &schema(), &registry())
+        .unwrap();
 
     assert_eq!(report.wiki, "test");
     assert_eq!(report.pages_indexed, 2);
@@ -181,13 +183,24 @@ fn update_adds_new_page() {
     let mgr = make_manager(dir.path());
     mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
 
-    write_page(&wiki_root, "concepts/new.md", &concept_page("NewPage", "new body"));
+    write_page(
+        &wiki_root,
+        "concepts/new.md",
+        &concept_page("NewPage", "new body"),
+    );
 
     let report = mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
     assert_eq!(report.updated, 1);
 
     let searcher = open_searcher(&mgr, &is);
-    let results = search::search("NewPage", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
+    let results = search::search(
+        "NewPage",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
     assert!(results.iter().any(|r| r.title == "NewPage"));
 }
 
@@ -210,14 +223,25 @@ fn update_noop_when_no_changes() {
 fn update_deletes_removed_page() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
-    write_page(&wiki_root, "concepts/gone.md", &concept_page("Gone", "will be deleted"));
+    write_page(
+        &wiki_root,
+        "concepts/gone.md",
+        &concept_page("Gone", "will be deleted"),
+    );
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let reg = registry();
 
     let searcher = open_searcher(&mgr, &is);
-    let results = search::search("Gone", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
+    let results = search::search(
+        "Gone",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
     assert!(!results.is_empty());
 
     fs::remove_file(wiki_root.join("concepts/gone.md")).unwrap();
@@ -225,7 +249,14 @@ fn update_deletes_removed_page() {
     assert_eq!(report.deleted, 1);
 
     let searcher = open_searcher(&mgr, &is);
-    let results = search::search("Gone", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
+    let results = search::search(
+        "Gone",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
     assert!(results.is_empty());
 }
 
@@ -233,18 +264,33 @@ fn update_deletes_removed_page() {
 fn update_modifies_existing_page() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
-    write_page(&wiki_root, "concepts/evolve.md", &concept_page("Evolve", "original body"));
+    write_page(
+        &wiki_root,
+        "concepts/evolve.md",
+        &concept_page("Evolve", "original body"),
+    );
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let reg = registry();
 
-    write_page(&wiki_root, "concepts/evolve.md", &concept_page("Evolve", "updated body with unicorn"));
+    write_page(
+        &wiki_root,
+        "concepts/evolve.md",
+        &concept_page("Evolve", "updated body with unicorn"),
+    );
     let report = mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
     assert_eq!(report.updated, 1);
 
     let searcher = open_searcher(&mgr, &is);
-    let results = search::search("unicorn", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
+    let results = search::search(
+        "unicorn",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
     assert!(!results.is_empty());
 }
 
@@ -267,10 +313,24 @@ fn delete_by_type_removes_matching_pages() {
     mgr.delete_by_type(&is, "concept").unwrap();
 
     let searcher = open_searcher(&mgr, &is);
-    let results = search::search("Foo", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
+    let results = search::search(
+        "Foo",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
     assert!(results.is_empty());
 
-    let results = search::search("Bar", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
+    let results = search::search(
+        "Bar",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
     assert!(!results.is_empty());
 }
 
@@ -321,7 +381,8 @@ fn open_fails_without_recovery_on_corruption() {
 
     let mut mgr = make_manager(dir.path());
     git::commit(dir.path(), "pages").unwrap();
-    mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry()).unwrap();
+    mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry())
+        .unwrap();
 
     // Corrupt the index files
     let search_dir = mgr.index_path().join("search-index");
@@ -354,47 +415,102 @@ fn skill_page_with_title(name: &str, title: &str, description: &str, body: &str)
 fn alias_name_indexed_as_title() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
-    write_page(&wiki_root, "skills/ingest.md", &skill_page("ingest", "Process source files", "skill body"));
+    write_page(
+        &wiki_root,
+        "skills/ingest.md",
+        &skill_page("ingest", "Process source files", "skill body"),
+    );
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let searcher = mgr.searcher().unwrap();
 
-    let results = search::search("ingest", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
-    assert!(results.iter().any(|r| r.title == "ingest"), "skill name should be searchable as title");
+    let results = search::search(
+        "ingest",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert!(
+        results.iter().any(|r| r.title == "ingest"),
+        "skill name should be searchable as title"
+    );
 }
 
 #[test]
 fn alias_description_indexed_as_summary() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
-    write_page(&wiki_root, "skills/ingest.md", &skill_page("ingest", "Process source files into wiki", "body"));
+    write_page(
+        &wiki_root,
+        "skills/ingest.md",
+        &skill_page("ingest", "Process source files into wiki", "body"),
+    );
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let searcher = mgr.searcher().unwrap();
 
-    let results = search::search("Process source files", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
-    assert!(!results.is_empty(), "skill description should be searchable as summary");
+    let results = search::search(
+        "Process source files",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert!(
+        !results.is_empty(),
+        "skill description should be searchable as summary"
+    );
 }
 
 #[test]
 fn alias_canonical_wins_when_both_exist() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
-    write_page(&wiki_root, "skills/dual.md", &skill_page_with_title("aliased-name", "canonical-title", "desc", "body"));
+    write_page(
+        &wiki_root,
+        "skills/dual.md",
+        &skill_page_with_title("aliased-name", "canonical-title", "desc", "body"),
+    );
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let searcher = mgr.searcher().unwrap();
 
-    let results = search::search("canonical-title", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
-    assert!(results.iter().any(|r| r.title == "canonical-title"), "canonical title should win");
+    let results = search::search(
+        "canonical-title",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert!(
+        results.iter().any(|r| r.title == "canonical-title"),
+        "canonical title should win"
+    );
 
-    let results = search::search("aliased-name", &search::SearchOptions { top_k: 10, ..Default::default() }, &searcher, "test", &is).unwrap();
+    let results = search::search(
+        "aliased-name",
+        &search::SearchOptions {
+            top_k: 10,
+            ..Default::default()
+        },
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
     for r in &results {
         if r.slug == "skills/dual" {
-            assert_eq!(r.title, "canonical-title", "canonical should win over alias");
+            assert_eq!(
+                r.title, "canonical-title",
+                "canonical should win over alias"
+            );
         }
     }
 }
@@ -403,13 +519,26 @@ fn alias_canonical_wins_when_both_exist() {
 fn alias_source_field_not_double_indexed() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
-    write_page(&wiki_root, "skills/single.md", &skill_page("my-skill", "A skill", "body"));
+    write_page(
+        &wiki_root,
+        "skills/single.md",
+        &skill_page("my-skill", "A skill", "body"),
+    );
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let searcher = mgr.searcher().unwrap();
 
-    let result = search::list(&search::ListOptions { r#type: Some("skill".into()), ..Default::default() }, &searcher, "test", &is).unwrap();
+    let result = search::list(
+        &search::ListOptions {
+            r#type: Some("skill".into()),
+            ..Default::default()
+        },
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
     assert_eq!(result.total, 1);
     assert_eq!(result.pages[0].title, "my-skill");
 }
@@ -418,13 +547,24 @@ fn alias_source_field_not_double_indexed() {
 fn non_aliased_type_indexes_normally() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
-    write_page(&wiki_root, "concepts/moe.md", &concept_page("Mixture of Experts", "MoE body"));
+    write_page(
+        &wiki_root,
+        "concepts/moe.md",
+        &concept_page("Mixture of Experts", "MoE body"),
+    );
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let searcher = mgr.searcher().unwrap();
 
-    let results = search::search("Mixture of Experts", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
+    let results = search::search(
+        "Mixture of Experts",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
     assert!(results.iter().any(|r| r.title == "Mixture of Experts"));
 }
 
@@ -438,8 +578,18 @@ fn unrecognized_field_indexed_as_body_text() {
     let is = schema();
     let searcher = mgr.searcher().unwrap();
 
-    let results = search::search("unicorn rainbow", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
-    assert!(results.iter().any(|r| r.slug == "concepts/custom"), "unrecognized field should be searchable as body text");
+    let results = search::search(
+        "unicorn rainbow",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert!(
+        results.iter().any(|r| r.slug == "concepts/custom"),
+        "unrecognized field should be searchable as body text"
+    );
 }
 
 // ── schema hash staleness ─────────────────────────────────────────────────────
@@ -464,7 +614,10 @@ fn status_stale_on_schema_hash_mismatch() {
 
     let concept_schema = schemas_dir.join("concept.json");
     let mut content = std::fs::read_to_string(&concept_schema).unwrap();
-    content = content.replace("\"x-wiki-types\"", "\"x-graph-edges\": {\"related\": {}}, \"x-wiki-types\"");
+    content = content.replace(
+        "\"x-wiki-types\"",
+        "\"x-graph-edges\": {\"related\": {}}, \"x-wiki-types\"",
+    );
     std::fs::write(&concept_schema, content).unwrap();
 
     let status = mgr.status(dir.path()).unwrap();
@@ -489,7 +642,6 @@ fn round_trip_rebuild_then_not_stale() {
     let status = mgr.status(dir.path()).unwrap();
     assert!(!status.stale, "should not be stale right after rebuild");
 }
-
 
 // ── staleness_kind + partial rebuild ──────────────────────────────────────────
 
@@ -557,7 +709,11 @@ fn staleness_kind_types_changed() {
 fn rebuild_types_reindexes_only_changed_type() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
-    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "concept body"));
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        &concept_page("Foo", "concept body"),
+    );
     write_page(
         &wiki_root,
         "skills/bar.md",
@@ -570,21 +726,57 @@ fn rebuild_types_reindexes_only_changed_type() {
 
     // Verify both are searchable
     let searcher = mgr.searcher().unwrap();
-    let results = search::search("Foo", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
+    let results = search::search(
+        "Foo",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
     assert!(!results.is_empty());
-    let results = search::search("Bar", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
+    let results = search::search(
+        "Bar",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
     assert!(!results.is_empty());
 
     // Partial rebuild only "concept" type
-    let report = mgr.rebuild_types(&["concept".to_string()], &wiki_root, dir.path(), &is, &reg).unwrap();
+    let report = mgr
+        .rebuild_types(&["concept".to_string()], &wiki_root, dir.path(), &is, &reg)
+        .unwrap();
     assert_eq!(report.pages_indexed, 1);
 
     // Both should still be searchable (skill untouched, concept re-indexed)
     let searcher = open_searcher(&mgr, &is);
-    let results = search::search("Foo", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
-    assert!(!results.is_empty(), "concept should still be searchable after partial rebuild");
-    let results = search::search("Bar", &search::SearchOptions::default(), &searcher, "test", &is).unwrap();
-    assert!(!results.is_empty(), "skill should be untouched by partial rebuild");
+    let results = search::search(
+        "Foo",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert!(
+        !results.is_empty(),
+        "concept should still be searchable after partial rebuild"
+    );
+    let results = search::search(
+        "Bar",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert!(
+        !results.is_empty(),
+        "skill should be untouched by partial rebuild"
+    );
 }
 
 #[test]

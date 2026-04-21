@@ -48,7 +48,6 @@ pub fn search(
     )
 }
 
-
 pub fn list(
     engine: &EngineState,
     wiki_name: &str,
@@ -67,10 +66,5 @@ pub fn list(
         page_size: page_size.unwrap_or(resolved.defaults.list_page_size as usize),
     };
     let searcher = space.index_manager.searcher()?;
-    search::list(
-        &opts,
-        &searcher,
-        wiki_name,
-        &space.index_schema,
-    )
+    search::list(&opts, &searcher, wiki_name, &space.index_schema)
 }

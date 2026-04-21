@@ -50,7 +50,10 @@ pub fn arg_usize(args: &Map<String, Value>, key: &str) -> Option<usize> {
 
 /// Resolve the target wiki from Engine state + optional `wiki` arg.
 /// Resolve the target wiki from Engine state + optional `wiki` arg.
-pub fn resolve_wiki_name(engine: &EngineState, args: &Map<String, Value>) -> Result<String, String> {
+pub fn resolve_wiki_name(
+    engine: &EngineState,
+    args: &Map<String, Value>,
+) -> Result<String, String> {
     let name = arg_str(args, "wiki");
     Ok(engine.resolve_wiki_name(name.as_deref()).to_string())
 }

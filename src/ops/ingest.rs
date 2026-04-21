@@ -40,9 +40,7 @@ pub fn ingest(
     Ok(report)
 }
 
-fn validate_edge_targets(
-    space: &crate::engine::SpaceContext,
-) -> Result<Vec<String>> {
+fn validate_edge_targets(space: &crate::engine::SpaceContext) -> Result<Vec<String>> {
     use tantivy::schema::Value;
 
     let searcher = space.index_manager.searcher()?;
@@ -55,7 +53,8 @@ fn validate_edge_targets(
         &tantivy::query::AllQuery,
         &tantivy::collector::TopDocs::with_limit(100_000),
     )?;
-    let mut slug_types: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut slug_types: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
     for (_score, doc_addr) in &top_docs {
         let doc: tantivy::TantivyDocument = searcher.doc(*doc_addr)?;
         let slug = doc.get_first(f_slug).and_then(|v| v.as_str()).unwrap_or("");
@@ -70,8 +69,16 @@ fn validate_edge_targets(
     // For each page, check edge targets
     for (_score, doc_addr) in &top_docs {
         let doc: tantivy::TantivyDocument = searcher.doc(*doc_addr)?;
-        let slug = doc.get_first(f_slug).and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let page_type = doc.get_first(f_type).and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let slug = doc
+            .get_first(f_slug)
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let page_type = doc
+            .get_first(f_type)
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
 
         for decl in space.type_registry.edges(&page_type) {
             if decl.target_types.is_empty() {
@@ -96,4 +103,3 @@ fn validate_edge_targets(
 
     Ok(warnings)
 }
-

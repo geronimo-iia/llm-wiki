@@ -145,8 +145,10 @@ fn assemble(
     let mut types = HashMap::new();
     let mut schema_builder = SchemaBuilder::new(tokenizer);
     schema_builder.add_fixed_fields();
-    let mut seen_fields: HashSet<String> =
-        ["slug", "uri", "body", "body_links"].iter().map(|s| s.to_string()).collect();
+    let mut seen_fields: HashSet<String> = ["slug", "uri", "body", "body_links"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
 
     for pf in &parsed {
         // Build registry entries
@@ -184,7 +186,8 @@ fn assemble(
     for (type_name, entry) in &wiki_cfg.types {
         let schema_path = repo_root.join(&entry.schema);
         let content = std::fs::read_to_string(&schema_path)?;
-        let registered = type_registry::compile_schema(&entry.schema, &entry.description, &content)?;
+        let registered =
+            type_registry::compile_schema(&entry.schema, &entry.description, &content)?;
         types.insert(type_name.clone(), registered);
     }
 
@@ -192,8 +195,11 @@ fn assemble(
     if !types.contains_key("default") {
         let schemas = default_schemas::default_schemas();
         let base = schemas["base.json"];
-        let registered =
-            type_registry::compile_schema("schemas/base.json", "Fallback for unrecognized types", base)?;
+        let registered = type_registry::compile_schema(
+            "schemas/base.json",
+            "Fallback for unrecognized types",
+            base,
+        )?;
         types.insert("default".to_string(), registered);
     } else {
         validate_base_invariant(&types["default"])?;
@@ -213,8 +219,10 @@ fn assemble_without_overrides(
     let mut types = HashMap::new();
     let mut schema_builder = SchemaBuilder::new(tokenizer);
     schema_builder.add_fixed_fields();
-    let mut seen_fields: HashSet<String> =
-        ["slug", "uri", "body", "body_links"].iter().map(|s| s.to_string()).collect();
+    let mut seen_fields: HashSet<String> = ["slug", "uri", "body", "body_links"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
 
     for pf in &parsed {
         for (type_name, description) in &pf.wiki_types {

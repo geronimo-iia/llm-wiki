@@ -251,13 +251,8 @@ impl WikiAgent {
 
         match result {
             Ok(_) => {
-                self.send_tool_result(
-                    session_id,
-                    &tool_id,
-                    acp::ToolCallStatus::Completed,
-                    "",
-                )
-                .await?;
+                self.send_tool_result(session_id, &tool_id, acp::ToolCallStatus::Completed, "")
+                    .await?;
             }
             Err(e) => {
                 self.send_tool_result(
@@ -308,7 +303,9 @@ impl WikiAgent {
         self.send_message(session_id, &format!("Searching for: {query}..."))
             .await?;
 
-        let results = self.step_search(session_id, "research", query, wiki_name, 5).await?;
+        let results = self
+            .step_search(session_id, "research", query, wiki_name, 5)
+            .await?;
 
         if results.is_empty() {
             self.send_message(
@@ -317,8 +314,10 @@ impl WikiAgent {
             )
             .await?;
         } else {
-            self.step_read(session_id, "research", &results[0].slug, wiki_name).await?;
-            self.step_report_results(session_id, &results, wiki_name).await?;
+            self.step_read(session_id, "research", &results[0].slug, wiki_name)
+                .await?;
+            self.step_report_results(session_id, &results, wiki_name)
+                .await?;
         }
 
         self.clear_active_run(&session_id.to_string());

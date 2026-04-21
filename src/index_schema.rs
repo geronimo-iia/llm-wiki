@@ -25,10 +25,7 @@ impl IndexSchema {
     ///
     /// Reads each schema file once, extracts properties, classifies
     /// fields, builds the tantivy schema, then discards the raw JSON.
-    pub fn build_from_schemas(
-        repo_root: &Path,
-        tokenizer: &str,
-    ) -> Result<Self> {
+    pub fn build_from_schemas(repo_root: &Path, tokenizer: &str) -> Result<Self> {
         let schemas_dir = repo_root.join("schemas");
         let schema_sources = if schemas_dir.is_dir() {
             collect_schema_sources_from_dir(&schemas_dir, repo_root)?
@@ -48,7 +45,8 @@ impl IndexSchema {
 
         for source in &schema_sources {
             let aliases: HashSet<&str> = source.aliases.keys().map(|k| k.as_str()).collect();
-            let edge_fields: HashSet<&str> = source.edge_fields.iter().map(|s| s.as_str()).collect();
+            let edge_fields: HashSet<&str> =
+                source.edge_fields.iter().map(|s| s.as_str()).collect();
 
             for (field_name, field_def) in &source.properties {
                 // Skip aliased fields — they index under their canonical name
@@ -147,9 +145,7 @@ fn collect_schema_sources_from_dir(
     // Scan schemas/*.json
     let mut entries: Vec<_> = std::fs::read_dir(schemas_dir)?
         .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.path().extension().and_then(|ext| ext.to_str()) == Some("json")
-        })
+        .filter(|e| e.path().extension().and_then(|ext| ext.to_str()) == Some("json"))
         .collect();
     entries.sort_by_key(|e| e.file_name());
 
@@ -199,11 +195,7 @@ fn extract_schema_source(content: &str) -> Result<SchemaSource> {
     let properties = schema
         .get("properties")
         .and_then(|v| v.as_object())
-        .map(|obj| {
-            obj.iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect()
-        })
+        .map(|obj| obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
         .unwrap_or_default();
 
     let aliases = schema

@@ -315,8 +315,8 @@ pub fn handle_schema(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
                     .map_err(|e| format!("{e}"))?;
                 ok_text(tmpl)
             } else {
-                let content =
-                    ops::schema_show(&engine, &wiki_name, &type_name).map_err(|e| format!("{e}"))?;
+                let content = ops::schema_show(&engine, &wiki_name, &type_name)
+                    .map_err(|e| format!("{e}"))?;
                 ok_text(content)
             }
         }
@@ -335,12 +335,28 @@ pub fn handle_schema(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
         }
         "remove" => {
             let type_name = arg_str(args, "type").ok_or("type is required for remove")?;
-            let delete = args.get("delete").and_then(|v| v.as_bool()).unwrap_or(false);
-            let delete_pages = args.get("delete_pages").and_then(|v| v.as_bool()).unwrap_or(false);
-            let dry_run = args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
+            let delete = args
+                .get("delete")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let delete_pages = args
+                .get("delete_pages")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let dry_run = args
+                .get("dry_run")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             drop(engine);
-            let report = ops::schema_remove(&server.manager, &wiki_name, &type_name, delete, delete_pages, dry_run)
-                .map_err(|e| format!("{e}"))?;
+            let report = ops::schema_remove(
+                &server.manager,
+                &wiki_name,
+                &type_name,
+                delete,
+                delete_pages,
+                dry_run,
+            )
+            .map_err(|e| format!("{e}"))?;
             let s = serde_json::to_string_pretty(&report).map_err(|e| format!("{e}"))?;
             ok_text(s)
         }
