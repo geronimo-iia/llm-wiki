@@ -44,7 +44,7 @@ toml       = "0.8"
 jsonschema = "0.28"
 
 # Hashing
-sha2       = "0.10"
+sha2       = "0.11"
 
 # Markdown
 # (frontmatter crate removed — unused, pulled in unmaintained yaml-rust)
