@@ -51,7 +51,7 @@ fn validate_edge_targets(space: &crate::engine::SpaceContext) -> Result<Vec<Stri
     // Build a slug→type map from the index
     let top_docs = searcher.search(
         &tantivy::query::AllQuery,
-        &tantivy::collector::TopDocs::with_limit(100_000),
+        &tantivy::collector::TopDocs::with_limit(100_000).order_by_score(),
     )?;
     let mut slug_types: std::collections::HashMap<String, String> =
         std::collections::HashMap::new();

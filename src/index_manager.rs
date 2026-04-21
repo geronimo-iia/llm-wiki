@@ -352,7 +352,7 @@ impl SpaceIndexManager {
                         .reader()
                         .map(|r| {
                             r.searcher()
-                                .search(&AllQuery, &TopDocs::with_limit(1))
+                                .search(&AllQuery, &TopDocs::with_limit(1).order_by_score())
                                 .is_ok()
                         })
                         .unwrap_or(false);

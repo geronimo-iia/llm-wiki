@@ -125,7 +125,10 @@ pub fn search(
         Box::new(BooleanQuery::new(clauses))
     };
 
-    let top_docs = searcher.search(&final_query, &TopDocs::with_limit(options.top_k))?;
+    let top_docs = searcher.search(
+        &final_query,
+        &TopDocs::with_limit(options.top_k).order_by_score(),
+    )?;
 
     let snippet_gen = if !options.no_excerpt {
         Some(SnippetGenerator::create(searcher, &final_query, f_body)?)

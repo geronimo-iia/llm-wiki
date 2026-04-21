@@ -60,7 +60,7 @@ pub fn build_graph(
     let f_type = is.field("type");
     let f_body_links = is.field("body_links");
 
-    let top_docs = searcher.search(&AllQuery, &TopDocs::with_limit(100_000))?;
+    let top_docs = searcher.search(&AllQuery, &TopDocs::with_limit(100_000).order_by_score())?;
 
     let mut graph = WikiGraph::new();
     let mut slug_to_idx: HashMap<String, NodeIndex> = HashMap::new();
