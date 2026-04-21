@@ -17,15 +17,14 @@ last_updated: "2025-07-21"
 | 3     | Typed graph — `x-graph-edges`, labeled edges, target warnings | ✓      |
 | —     | Upgrade `agent-client-protocol` 0.10 → 0.11                  | ✓      |
 | —     | Replace `_slug_ord` with native string sort                   | ✓      |
+| —     | Upgrade rmcp 0.1 → 1.x (Streamable HTTP)                     | ✓      |
 
 357 tests. Single Rust binary. No runtime dependencies.
 
 ## Active
 
-| Task                                        | Prompt                                                 | Notes                                     |
-| ------------------------------------------- | ------------------------------------------------------ | ----------------------------------------- |
-| Upgrade rmcp 0.1 → 1.x                      | [upgrade-rmcp.md](prompts/upgrade-rmcp.md)             | SSE → Streamable HTTP, last audit warning |
-| Study ACP ↔ rmcp integration                | [study-acp-rmcp.md](prompts/study-acp-rmcp.md)        | MCP tools in ACP sessions via bridge crate |
+| Task                                        | Prompt                                                           | Notes                                          |
+| ------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------- |
 
 ## Next: Phase 4 — Skill Registry
 

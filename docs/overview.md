@@ -300,7 +300,7 @@ The engine exposes MCP/ACP tools in four groups:
 | Content operations | `wiki_content_read`, `wiki_content_write`, `wiki_content_new`, `wiki_content_commit`                                   |
 | Search & index     | `wiki_search`, `wiki_list`, `wiki_ingest`, `wiki_graph`, `wiki_index_rebuild`, `wiki_index_status`                     |
 
-Every tool is available via MCP (stdio + SSE), ACP, and CLI. The same
+Every tool is available via MCP (stdio + HTTP), ACP, and CLI. The same
 tool surface, three transports.
 
 A tool belongs in the engine if and only if it requires stateful access

@@ -254,7 +254,7 @@ sequenceDiagram
     participant User
     participant Main as serve()
     participant Stdio as stdio
-    participant SSE as SSE
+    participant HTTP as HTTP
     participant ACP as ACP thread
     participant HB as heartbeat
 
@@ -265,8 +265,8 @@ sequenceDiagram
         Main-->>Stdio: watch::changed()
         Stdio->>Stdio: exit loop
     and
-        Main-->>SSE: watch::changed()
-        SSE->>SSE: exit loop
+        Main-->>HTTP: cancel token
+        HTTP->>HTTP: exit loop
     and
         Main-->>HB: watch::changed()
         HB->>HB: exit loop
