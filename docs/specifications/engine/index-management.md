@@ -6,7 +6,7 @@ read_when:
   - Understanding staleness detection and auto-recovery
   - Understanding incremental vs full rebuild
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2025-07-21"
 ---
 
 # Index Management
@@ -63,10 +63,9 @@ How frontmatter fields map to roles:
 - **Unrecognized fields** (not in the schema) are indexed as generic
   text.
 - **Body text** is indexed as BM25 text.
-- **Slug** and **URI** are stored but not searched.
-- **`_slug_ord`** is a u64 FAST field encoding the first 8 bytes of
-  the slug as big-endian. Used by `wiki_list` for sorted pagination
-  via `order_by_fast_field`.
+- **Slug** is `STRING | STORED | FAST` — stored for results, FAST for
+  sorted pagination via `order_by_string_fast_field`.
+- **URI** is stored but not searched.
 
 The `slug` field is the unique key for delete+insert operations.
 

@@ -248,12 +248,14 @@ impl SchemaBuilder {
     }
 
     pub(crate) fn add_fixed_fields(&mut self) {
-        self.add_keyword("slug");
+        // slug needs FAST for sorted pagination via order_by_string_fast_field
+        let slug_field = self.builder.add_text_field("slug", STRING | STORED | FAST);
+        self.fields.insert("slug".to_string(), slug_field);
+        self.keyword_fields.insert("slug".to_string());
+
         self.add_keyword("uri");
         self.add_text("body");
         self.add_keyword("body_links");
-        let f = self.builder.add_u64_field("_slug_ord", FAST | STORED);
-        self.fields.insert("_slug_ord".to_string(), f);
     }
 
     pub(crate) fn add_text(&mut self, name: &str) {

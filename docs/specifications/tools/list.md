@@ -4,7 +4,7 @@ summary: "Paginated page listing with type and status filters."
 read_when:
   - Listing pages with filters
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2025-07-21"
 ---
 
 # List
@@ -21,9 +21,9 @@ llm-wiki list
          [--wiki <name>]
 ```
 
-Results ordered by slug alphabetically via the `_slug_ord` fast field.
-No search ranking. Only the requested page window is extracted from
-the index.
+Results ordered alphabetically by slug via `order_by_string_fast_field`
+on the `slug` FAST field. No search ranking. Only the requested page
+window is extracted from the index.
 
 Each entry includes slug, `wiki://` URI, title, type, status, and tags.
 
