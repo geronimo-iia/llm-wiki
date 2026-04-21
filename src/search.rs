@@ -232,7 +232,7 @@ pub fn list(
 
     let sorted_docs = searcher.search(
         &query,
-        &TopDocs::with_limit(limit).order_by_fast_field::<u64>("_slug_ord", Order::Asc),
+        &TopDocs::with_limit(limit).order_by_string_fast_field("slug", Order::Asc),
     )?;
 
     // Extract full fields only for the page window
@@ -243,7 +243,7 @@ pub fn list(
     };
 
     let mut summaries = Vec::with_capacity(window.len());
-    for (_ord, doc_addr) in window {
+    for (_slug_val, doc_addr) in window {
         let doc: tantivy::TantivyDocument = searcher.doc(*doc_addr)?;
 
         let slug = doc
@@ -288,9 +288,6 @@ pub fn list(
             tags,
         });
     }
-
-    // Stable sort within the window for ties (same 8-byte prefix)
-    summaries.sort_by(|a, b| a.slug.cmp(&b.slug));
 
     Ok(PageList {
         pages: summaries,

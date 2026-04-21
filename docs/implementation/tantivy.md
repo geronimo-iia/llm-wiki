@@ -2,7 +2,7 @@
 title: "Tantivy Implementation Notes"
 summary: "Tantivy-specific implementation details — dynamic schema, TopDocs, index writer, tokenizer, and segment management."
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2025-07-21"
 ---
 
 # Tantivy Implementation Notes
@@ -29,7 +29,7 @@ custom meeting-notes type), it becomes a new tantivy field.
    - `array` of `string` → `STRING | STORED` multi-valued (keyword per entry)
    - `string` with `format: date` → `DATE | STORED | FAST`
    - `object` / `array` of `object` → `JSON | STORED` (stored, not searched)
-5. Add fixed fields: `slug` (STRING | STORED), `uri` (STRING | STORED),
+5. Add fixed fields: `slug` (STRING | STORED | FAST), `uri` (STRING | STORED),
    `body` (TEXT)
 6. Build the tantivy schema
 
@@ -112,7 +112,8 @@ let combined = BooleanQuery::new(vec![
 
 ### Sorted pagination for list
 
-`wiki_list` uses `_slug_ord` (u64 FAST field) for sorted pagination:
+`wiki_list` uses the `slug` field (STRING | STORED | FAST) for native
+lexicographic pagination:
 
 ```rust
 use tantivy::collector::{Count, TopDocs};
@@ -122,13 +123,12 @@ let total = searcher.search(&query, &Count)?;
 let sorted = searcher.search(
     &query,
     &TopDocs::with_limit(offset + page_size)
-        .order_by_fast_field::<u64>("_slug_ord", Order::Asc),
+        .order_by_string_fast_field("slug", Order::Asc),
 )?;
 // Extract full fields only for sorted[offset..]
 ```
 
-`_slug_ord` encodes the first 8 bytes of the slug as big-endian u64.
-Ties (same 8-byte prefix) are broken by in-window slug sort.
+Native string sort — no encoding, no tie-breaking needed.
 
 ## Index Writer
 

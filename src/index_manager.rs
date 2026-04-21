@@ -523,7 +523,6 @@ fn index_page(
 
     doc.add_text(is.field("slug"), slug);
     doc.add_text(is.field("uri"), uri);
-    doc.add_u64(is.field("_slug_ord"), slug_ordinal(slug));
 
     let resolved = resolve_fields(page, registry);
     let mut extra_text = String::new();
@@ -650,15 +649,4 @@ fn yaml_to_strings(value: &serde_yaml::Value) -> Vec<String> {
         serde_yaml::Value::Null => vec![],
         _ => vec![yaml_to_text(value)],
     }
-}
-
-/// Order-preserving u64 encoding of a slug.
-/// Packs the first 8 bytes of the UTF-8 slug into a big-endian u64.
-/// Byte comparison matches lexicographic order for ASCII paths.
-fn slug_ordinal(slug: &str) -> u64 {
-    let bytes = slug.as_bytes();
-    let mut buf = [0u8; 8];
-    let len = bytes.len().min(8);
-    buf[..len].copy_from_slice(&bytes[..len]);
-    u64::from_be_bytes(buf)
 }

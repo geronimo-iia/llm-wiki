@@ -17,7 +17,7 @@ First release. Single Rust binary, 16 MCP tools, ACP agent.
 - Interior mutability in `SpaceIndexManager` (`RwLock<IndexInner>`)
 - Graceful shutdown via `watch` channel + `AtomicBool` across all transports
 - tantivy 0.25 for full-text search
-- `_slug_ord` u64 FAST field for sorted list pagination
+- Sorted list pagination via `order_by_string_fast_field` on slug
 
 ### ACP
 

@@ -27,7 +27,7 @@ Architectural decisions and their rationale.
 | --------------------------------------------------------- | -------------------------------------------------------------------- |
 | [engine-manager-redesign](engine-manager-redesign.md)     | Rename Engine→EngineState/WikiEngine, extract mount_wiki, interior mutability in SpaceIndexManager |
 | [graceful-shutdown](graceful-shutdown.md)                  | Coordinated shutdown via watch channel + AtomicBool                   |
-| [list-pagination](list-pagination.md)                      | _slug_ord u64 FAST field for sorted list pagination                  |
+| [list-pagination](list-pagination.md)                      | Native string fast field sort replaces _slug_ord u64 hack            |
 | [unspec-code](unspec-code.md)                              | Logs CLI and wiki-link extraction spec'd, rest is impl detail        |
 | [wiki-page-struct](wiki-page-struct.md)                    | Not needed — 3 call sites, all local to index_manager.rs             |
 | [index-query-pattern](index-query-pattern.md)              | Not worth it — 3 consumers with different return types               |
