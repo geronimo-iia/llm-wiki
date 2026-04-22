@@ -17,16 +17,16 @@ last_updated: "2025-07-21"
 | 3     | Typed graph — `x-graph-edges`, labeled edges, target warnings | ✓      |
 | —     | Upgrade `agent-client-protocol` 0.10 → 0.11                   | ✓      |
 | —     | Replace `_slug_ord` with native string sort                   | ✓      |
+| —     | `wiki_history` — git commit history for a page                | ✓      |
 | —     | Search facets — type/status/tag distributions                  | ✓      |
 
-361 tests. Single Rust binary. No runtime dependencies.
+372 tests. Single Rust binary. No runtime dependencies.
 
 ## Active
 
 | Task                             | Prompt                                                   | Notes                                           |
 | -------------------------------- | -------------------------------------------------------- | ----------------------------------------------- |
 | Cross-wiki links                 | `docs/prompts/study-cross-wiki-links.md`                 | `wiki://` URIs resolved in graph                |
-| `wiki_history`                   | `docs/prompts/study-wiki-history.md`                     | Git log for a page                              |
 
 ## Next: Phase 4 — Skill Registry
 
@@ -50,7 +50,6 @@ Engine improvements not tied to a phase:
 
 ### High value
 
-- `wiki_history` — git log for a specific page (trust, staleness, session tracking)
 - `wiki_watch` — filesystem watcher that auto-ingests on save
 - `wiki_search` hybrid/semantic search — BM25 + vector embeddings for terminology-independent retrieval
 - `wiki_suggest` — given a page, suggest related pages to link (graph + search candidates)

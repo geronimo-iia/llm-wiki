@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] — TBD
 
-First release. Single Rust binary, 16 MCP tools, ACP agent.
+First release. Single Rust binary, 17 MCP tools, ACP agent.
 
 ### Engine
 
@@ -51,6 +51,7 @@ First release. Single Rust binary, 16 MCP tools, ACP agent.
 ### Tools — Search & Index
 
 - `wiki_search` — BM25 search with type filter and cross-wiki support
+- `wiki_history` — git commit history for a page (trust, staleness, session tracking)
 - `wiki_search` facets — always-on type/status/tags distributions, hybrid filtering
 - `wiki_list` — paginated listing with type/status filters, sorted by slug, with facets
 - `wiki_ingest` — validate frontmatter, update index, commit

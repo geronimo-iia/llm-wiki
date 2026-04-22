@@ -15,6 +15,7 @@ Architectural decisions and their rationale.
 | [typed-graph-edges](typed-graph-edges.md)           | x-graph-edges in JSON Schema for labeled directed edges                    |
 | [dynamic-index-schema](dynamic-index-schema.md)     | Tantivy schema computed from type registry, not hardcoded                  |
 | [search-facets](search-facets.md)                   | Always-on facets, hybrid filtering, top-N tags                            |
+| [wiki-history](wiki-history.md)                     | Shell git log, follow config, NUL-delimited parsing                       |
 | [untyped-frontmatter](untyped-frontmatter.md)       | BTreeMap instead of fixed struct, type registry validates                  |
 | [engine-manager](engine-manager.md)                 | Centralized mutation handling with cascade reports                         |
 | [ops-module](ops-module.md)                         | Extract duplicated CLI/MCP business logic into src/ops.rs                  |
