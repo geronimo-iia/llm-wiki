@@ -41,6 +41,7 @@ search_sections = false
 page_mode       = "flat"
 list_page_size  = 20
 output_format   = "text"
+facets_top_tags = 10
 
 [read]
 no_frontmatter = false
@@ -109,6 +110,7 @@ These keys can appear in both `config.toml` (global) and `wiki.toml`
 | `defaults.page_mode`         | `flat`    | Default page creation mode: `flat` or `bundle`    |
 | `defaults.list_page_size`    | `20`      | Default page size for `wiki_list`                 |
 | `defaults.output_format`     | `text`    | Default output format: `text` or `json`           |
+| `defaults.facets_top_tags`   | `10`      | Max tag facet entries returned; `0` = all          |
 | `read.no_frontmatter`        | `false`   | Strip frontmatter from `wiki_content_read` output         |
 | `ingest.auto_commit`         | `true`    | Commit after ingest                               |
 | `validation.type_strictness` | `loose`   | `strict`: unknown type is error; `loose`: warning |

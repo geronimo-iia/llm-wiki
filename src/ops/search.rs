@@ -16,7 +16,7 @@ pub fn search(
     engine: &EngineState,
     wiki_name: &str,
     params: &SearchParams<'_>,
-) -> Result<Vec<search::PageRef>> {
+) -> Result<search::SearchResult> {
     let space = engine.space(wiki_name)?;
     let resolved = space.resolved_config(&engine.config);
 
@@ -27,6 +27,7 @@ pub fn search(
             .top_k
             .unwrap_or(resolved.defaults.search_top_k as usize),
         r#type: params.type_filter.map(|s| s.to_string()),
+        facets_top_tags: resolved.defaults.facets_top_tags as usize,
     };
 
     if params.cross_wiki {
@@ -64,6 +65,7 @@ pub fn list(
         status: status.map(|s| s.to_string()),
         page,
         page_size: page_size.unwrap_or(resolved.defaults.list_page_size as usize),
+        facets_top_tags: resolved.defaults.facets_top_tags as usize,
     };
     let searcher = space.index_manager.searcher()?;
     search::list(&opts, &searcher, wiki_name, &space.index_schema)

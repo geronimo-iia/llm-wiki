@@ -36,6 +36,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: "1.95"
           targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
@@ -91,6 +92,8 @@ jobs:
       - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.95"
 
       - name: Publish to crates.io
         run: cargo publish --locked --token ${{ secrets.CARGO_TOKEN }}

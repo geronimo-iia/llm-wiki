@@ -1,3 +1,6 @@
+use std::cmp::Reverse;
+use std::collections::HashMap;
+
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use tantivy::{
@@ -37,6 +40,33 @@ pub struct PageList {
     pub total: usize,
     pub page: usize,
     pub page_size: usize,
+    #[serde(default, skip_serializing_if = "FacetCounts::is_empty")]
+    pub facets: FacetCounts,
+}
+
+// ── Facets ────────────────────────────────────────────────────────────────────
+
+/// Distribution counts for type, status, and tags.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct FacetCounts {
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub r#type: HashMap<String, u64>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub status: HashMap<String, u64>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub tags: HashMap<String, u64>,
+}
+
+impl FacetCounts {
+    pub fn is_empty(&self) -> bool {
+        self.r#type.is_empty() && self.status.is_empty() && self.tags.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResult {
+    pub results: Vec<PageRef>,
+    pub facets: FacetCounts,
 }
 
 // ── Options ───────────────────────────────────────────────────────────────────
@@ -46,6 +76,7 @@ pub struct SearchOptions {
     pub include_sections: bool,
     pub top_k: usize,
     pub r#type: Option<String>,
+    pub facets_top_tags: usize,
 }
 
 impl Default for SearchOptions {
@@ -55,6 +86,7 @@ impl Default for SearchOptions {
             include_sections: false,
             top_k: 10,
             r#type: None,
+            facets_top_tags: 10,
         }
     }
 }
@@ -64,6 +96,7 @@ pub struct ListOptions {
     pub status: Option<String>,
     pub page: usize,
     pub page_size: usize,
+    pub facets_top_tags: usize,
 }
 
 impl Default for ListOptions {
@@ -73,6 +106,7 @@ impl Default for ListOptions {
             status: None,
             page: 1,
             page_size: 20,
+            facets_top_tags: 10,
         }
     }
 }
@@ -85,7 +119,7 @@ pub fn search(
     searcher: &Searcher,
     wiki_name: &str,
     is: &IndexSchema,
-) -> Result<Vec<PageRef>> {
+) -> Result<SearchResult> {
     let f_slug = is.field("slug");
     let f_title = is.field("title");
     let f_summary = is.field("summary");
@@ -98,6 +132,7 @@ pub fn search(
         .parse_query(query_str)
         .with_context(|| format!("failed to parse query: {query_str}"))?;
 
+    // Build the filtered query (with type filter)
     let final_query: Box<dyn tantivy::query::Query> = {
         let mut clauses: Vec<(Occur, Box<dyn tantivy::query::Query>)> = Vec::new();
         clauses.push((Occur::Must, parsed));
@@ -166,7 +201,38 @@ pub fn search(
         });
     }
 
-    Ok(results)
+    // Facets: type is unfiltered, status and tags are filtered
+    // Re-parse query for the unfiltered facet query
+    let unfiltered_query: Box<dyn tantivy::query::Query> = {
+        let parsed2 = query_parser
+            .parse_query(query_str)
+            .with_context(|| format!("failed to parse query: {query_str}"))?;
+        let mut clauses: Vec<(Occur, Box<dyn tantivy::query::Query>)> = Vec::new();
+        clauses.push((Occur::Must, parsed2));
+        if !options.include_sections {
+            clauses.push((
+                Occur::MustNot,
+                Box::new(TermQuery::new(
+                    Term::from_field_text(f_type, "section"),
+                    IndexRecordOption::Basic,
+                )),
+            ));
+        }
+        Box::new(BooleanQuery::new(clauses))
+    };
+
+    let type_facet = collect_facet(searcher, &unfiltered_query, is, "type", 0)?;
+    let status_facet = collect_facet(searcher, &final_query, is, "status", 0)?;
+    let tags_facet = collect_facet(searcher, &final_query, is, "tags", options.facets_top_tags)?;
+
+    Ok(SearchResult {
+        results,
+        facets: FacetCounts {
+            r#type: type_facet,
+            status: status_facet,
+            tags: tags_facet,
+        },
+    })
 }
 
 // ── list ──────────────────────────────────────────────────────────────────────
@@ -213,14 +279,26 @@ pub fn list(
         }
     };
 
+    // Unfiltered query for type facet (no type/status filter)
+    let unfiltered_query: Box<dyn tantivy::query::Query> = Box::new(AllQuery);
+
     // Count total matches
     let total = searcher.search(&query, &Count)?;
     if total == 0 {
+        // Still collect facets even with no results in the page window
+        let type_facet = collect_facet(searcher, &unfiltered_query, is, "type", 0)?;
+        let status_facet = collect_facet(searcher, &query, is, "status", 0)?;
+        let tags_facet = collect_facet(searcher, &query, is, "tags", options.facets_top_tags)?;
         return Ok(PageList {
             pages: Vec::new(),
             total: 0,
             page: options.page,
             page_size: options.page_size,
+            facets: FacetCounts {
+                r#type: type_facet,
+                status: status_facet,
+                tags: tags_facet,
+            },
         });
     }
 
@@ -294,6 +372,16 @@ pub fn list(
         total,
         page,
         page_size,
+        facets: {
+            let type_facet = collect_facet(searcher, &unfiltered_query, is, "type", 0)?;
+            let status_facet = collect_facet(searcher, &query, is, "status", 0)?;
+            let tags_facet = collect_facet(searcher, &query, is, "tags", options.facets_top_tags)?;
+            FacetCounts {
+                r#type: type_facet,
+                status: status_facet,
+                tags: tags_facet,
+            }
+        },
     })
 }
 
@@ -303,11 +391,23 @@ pub fn search_all(
     query_str: &str,
     options: &SearchOptions,
     wikis: &[(String, Searcher, &IndexSchema)],
-) -> Result<Vec<PageRef>> {
+) -> Result<SearchResult> {
     let mut all_results = Vec::new();
+    let mut merged_facets = FacetCounts::default();
     for (name, searcher, is) in wikis {
         match search(query_str, options, searcher, name, is) {
-            Ok(results) => all_results.extend(results),
+            Ok(sr) => {
+                all_results.extend(sr.results);
+                for (k, v) in sr.facets.r#type {
+                    *merged_facets.r#type.entry(k).or_insert(0) += v;
+                }
+                for (k, v) in sr.facets.status {
+                    *merged_facets.status.entry(k).or_insert(0) += v;
+                }
+                for (k, v) in sr.facets.tags {
+                    *merged_facets.tags.entry(k).or_insert(0) += v;
+                }
+            }
             Err(_) => continue,
         }
     }
@@ -317,5 +417,57 @@ pub fn search_all(
             .unwrap_or(std::cmp::Ordering::Equal)
     });
     all_results.truncate(options.top_k);
-    Ok(all_results)
+
+    // Re-cap tags after merging
+    if options.facets_top_tags > 0 && merged_facets.tags.len() > options.facets_top_tags {
+        let mut entries: Vec<_> = merged_facets.tags.into_iter().collect();
+        entries.sort_by_key(|e| Reverse(e.1));
+        entries.truncate(options.facets_top_tags);
+        merged_facets.tags = entries.into_iter().collect();
+    }
+
+    Ok(SearchResult {
+        results: all_results,
+        facets: merged_facets,
+    })
+}
+
+// ── Facet collection ──────────────────────────────────────────────────────────
+
+/// Collect term frequency counts for a keyword FAST field across matching docs.
+/// If `top_n` is 0, return all values. Otherwise return the top N by count.
+fn collect_facet(
+    searcher: &Searcher,
+    query: &dyn tantivy::query::Query,
+    is: &IndexSchema,
+    field_name: &str,
+    top_n: usize,
+) -> Result<HashMap<String, u64>> {
+    let field = match is.try_field(field_name) {
+        Some(f) => f,
+        None => return Ok(HashMap::new()),
+    };
+
+    let doc_addrs = searcher.search(query, &tantivy::collector::DocSetCollector)?;
+    let mut counts: HashMap<String, u64> = HashMap::new();
+
+    for doc_addr in &doc_addrs {
+        let doc: tantivy::TantivyDocument = searcher.doc(*doc_addr)?;
+        for val in doc.get_all(field) {
+            if let Some(s) = val.as_str() {
+                if !s.is_empty() {
+                    *counts.entry(s.to_string()).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+
+    if top_n > 0 && counts.len() > top_n {
+        let mut entries: Vec<_> = counts.into_iter().collect();
+        entries.sort_by_key(|e| Reverse(e.1));
+        entries.truncate(top_n);
+        return Ok(entries.into_iter().collect());
+    }
+
+    Ok(counts)
 }

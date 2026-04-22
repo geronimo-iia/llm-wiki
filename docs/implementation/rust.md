@@ -62,7 +62,7 @@ See [implementation/](../implementation/README.md) for per-module
 design docs.
 
 ```
-rust 1.93.0   (pinned in .tool-versions)
+rust 1.95.0   (pinned in .tool-versions)
 edition 2021
 ```
 

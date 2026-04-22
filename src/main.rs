@@ -254,7 +254,7 @@ fn main() -> Result<()> {
             if is_json(&format) {
                 println!("{}", serde_json::to_string_pretty(&results)?);
             } else {
-                for r in &results {
+                for r in &results.results {
                     println!("slug:  {}", r.slug);
                     println!("uri:   {}", r.uri);
                     println!("title: {}", r.title);

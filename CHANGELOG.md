@@ -51,7 +51,8 @@ First release. Single Rust binary, 16 MCP tools, ACP agent.
 ### Tools — Search & Index
 
 - `wiki_search` — BM25 search with type filter and cross-wiki support
-- `wiki_list` — paginated listing with type/status filters, sorted by slug
+- `wiki_search` facets — always-on type/status/tags distributions, hybrid filtering
+- `wiki_list` — paginated listing with type/status filters, sorted by slug, with facets
 - `wiki_ingest` — validate frontmatter, update index, commit
 - `wiki_graph` — concept graph in Mermaid or DOT with relation filtering
 - `wiki_index_rebuild` — full index rebuild from committed files
@@ -83,6 +84,8 @@ First release. Single Rust binary, 16 MCP tools, ACP agent.
 ### Index
 
 - Dynamic tantivy schema computed from type registry
+- FAST on all keyword fields for filtering and facet counting
+- Rust 1.95 MSRV
 - Incremental update via two-diff merge (working tree + committed changes)
 - Partial rebuild per changed type
 - Auto-recovery on index corruption

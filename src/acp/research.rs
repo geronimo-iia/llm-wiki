@@ -47,15 +47,15 @@ pub fn step_search(
     };
 
     match results {
-        Ok(results) => {
+        Ok(sr) => {
             send_tool_result(
                 cx,
                 session_id,
                 &tool_id,
                 ToolCallStatus::Completed,
-                &format!("{} results", results.len()),
+                &format!("{} results", sr.results.len()),
             )?;
-            Ok(results)
+            Ok(sr.results)
         }
         Err(e) => {
             send_tool_result(

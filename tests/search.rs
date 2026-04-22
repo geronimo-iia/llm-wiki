@@ -99,8 +99,8 @@ fn search_returns_ranked_results() {
     )
     .unwrap();
 
-    assert!(!results.is_empty());
-    for w in results.windows(2) {
+    assert!(!results.results.is_empty());
+    for w in results.results.windows(2) {
         assert!(w[0].score >= w[1].score);
     }
 }
@@ -128,8 +128,8 @@ fn search_type_filter() {
     };
     let results = search("MoE scaling", &opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
 
-    assert!(!results.is_empty());
-    for r in &results {
+    assert!(!results.results.is_empty());
+    for r in &results.results {
         assert_eq!(r.slug, "sources/switch");
     }
 }
@@ -156,7 +156,7 @@ fn search_excludes_sections_by_default() {
     )
     .unwrap();
 
-    for r in &results {
+    for r in &results.results {
         assert_ne!(r.slug, "concepts");
     }
 }
@@ -175,8 +175,8 @@ fn search_no_excerpt() {
     };
     let results = search("Foo", &opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
 
-    assert!(!results.is_empty());
-    assert!(results[0].excerpt.is_none());
+    assert!(!results.results.is_empty());
+    assert!(results.results[0].excerpt.is_none());
 }
 
 // ── list ──────────────────────────────────────────────────────────────────────
@@ -313,9 +313,15 @@ fn search_all_merges_wikis() {
     ];
     let results = search_all("MoE", &SearchOptions::default(), &wikis).unwrap();
 
-    assert!(results.len() >= 2);
-    assert!(results.iter().any(|r| r.uri.starts_with("wiki://a/")));
-    assert!(results.iter().any(|r| r.uri.starts_with("wiki://b/")));
+    assert!(results.results.len() >= 2);
+    assert!(results
+        .results
+        .iter()
+        .any(|r| r.uri.starts_with("wiki://a/")));
+    assert!(results
+        .results
+        .iter()
+        .any(|r| r.uri.starts_with("wiki://b/")));
 }
 
 #[test]
@@ -338,7 +344,7 @@ fn search_all_respects_top_k() {
     };
     let wikis = vec![("test".into(), mgr.searcher().unwrap(), &is)];
     let results = search_all("keyword", &opts, &wikis).unwrap();
-    assert!(results.len() <= 2);
+    assert!(results.results.len() <= 2);
 }
 
 #[test]
@@ -352,5 +358,5 @@ fn search_all_skips_missing_index() {
     // search_all with only the good wiki — bad wiki can't produce a Searcher
     let wikis = vec![("good".into(), mgr.searcher().unwrap(), &is)];
     let results = search_all("Foo", &SearchOptions::default(), &wikis).unwrap();
-    assert!(!results.is_empty());
+    assert!(!results.results.is_empty());
 }

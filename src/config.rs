@@ -35,6 +35,8 @@ pub struct Defaults {
     pub list_page_size: u32,
     #[serde(default = "default_output_format")]
     pub output_format: String,
+    #[serde(default = "default_facets_top_tags")]
+    pub facets_top_tags: u32,
 }
 
 impl Default for Defaults {
@@ -46,6 +48,7 @@ impl Default for Defaults {
             page_mode: "flat".into(),
             list_page_size: 20,
             output_format: "text".into(),
+            facets_top_tags: 10,
         }
     }
 }
@@ -264,6 +267,9 @@ fn default_list_page_size() -> u32 {
 fn default_output_format() -> String {
     "text".into()
 }
+fn default_facets_top_tags() -> u32 {
+    10
+}
 fn default_memory_budget_mb() -> u32 {
     50
 }
@@ -386,6 +392,7 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "defaults.page_mode" => global.defaults.page_mode = value.into(),
         "defaults.list_page_size" => global.defaults.list_page_size = value.parse()?,
         "defaults.output_format" => global.defaults.output_format = value.into(),
+        "defaults.facets_top_tags" => global.defaults.facets_top_tags = value.parse()?,
         "read.no_frontmatter" => global.read.no_frontmatter = value.parse()?,
         "index.auto_rebuild" => global.index.auto_rebuild = value.parse()?,
         "index.auto_recovery" => global.index.auto_recovery = value.parse()?,
@@ -424,6 +431,7 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "defaults.page_mode" => resolved.defaults.page_mode.clone(),
         "defaults.list_page_size" => resolved.defaults.list_page_size.to_string(),
         "defaults.output_format" => resolved.defaults.output_format.clone(),
+        "defaults.facets_top_tags" => resolved.defaults.facets_top_tags.to_string(),
         "read.no_frontmatter" => resolved.read.no_frontmatter.to_string(),
         "index.auto_rebuild" => resolved.index.auto_rebuild.to_string(),
         "index.auto_recovery" => global.index.auto_recovery.to_string(),
@@ -486,6 +494,12 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
                 .defaults
                 .get_or_insert_with(Defaults::default)
                 .output_format = value.into();
+        }
+        "defaults.facets_top_tags" => {
+            wiki_cfg
+                .defaults
+                .get_or_insert_with(Defaults::default)
+                .facets_top_tags = value.parse()?;
         }
         "read.no_frontmatter" => {
             wiki_cfg

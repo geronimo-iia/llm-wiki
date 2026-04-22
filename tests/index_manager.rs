@@ -201,7 +201,7 @@ fn update_adds_new_page() {
         &is,
     )
     .unwrap();
-    assert!(results.iter().any(|r| r.title == "NewPage"));
+    assert!(results.results.iter().any(|r| r.title == "NewPage"));
 }
 
 #[test]
@@ -242,7 +242,7 @@ fn update_deletes_removed_page() {
         &is,
     )
     .unwrap();
-    assert!(!results.is_empty());
+    assert!(!results.results.is_empty());
 
     fs::remove_file(wiki_root.join("concepts/gone.md")).unwrap();
     let report = mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
@@ -257,7 +257,7 @@ fn update_deletes_removed_page() {
         &is,
     )
     .unwrap();
-    assert!(results.is_empty());
+    assert!(results.results.is_empty());
 }
 
 #[test]
@@ -291,7 +291,7 @@ fn update_modifies_existing_page() {
         &is,
     )
     .unwrap();
-    assert!(!results.is_empty());
+    assert!(!results.results.is_empty());
 }
 
 // ── delete_by_type ────────────────────────────────────────────────────────────
@@ -321,7 +321,7 @@ fn delete_by_type_removes_matching_pages() {
         &is,
     )
     .unwrap();
-    assert!(results.is_empty());
+    assert!(results.results.is_empty());
 
     let results = search::search(
         "Bar",
@@ -331,7 +331,7 @@ fn delete_by_type_removes_matching_pages() {
         &is,
     )
     .unwrap();
-    assert!(!results.is_empty());
+    assert!(!results.results.is_empty());
 }
 
 // ── open with recovery ────────────────────────────────────────────────────────
@@ -434,7 +434,7 @@ fn alias_name_indexed_as_title() {
     )
     .unwrap();
     assert!(
-        results.iter().any(|r| r.title == "ingest"),
+        results.results.iter().any(|r| r.title == "ingest"),
         "skill name should be searchable as title"
     );
 }
@@ -462,7 +462,7 @@ fn alias_description_indexed_as_summary() {
     )
     .unwrap();
     assert!(
-        !results.is_empty(),
+        !results.results.is_empty(),
         "skill description should be searchable as summary"
     );
 }
@@ -490,7 +490,7 @@ fn alias_canonical_wins_when_both_exist() {
     )
     .unwrap();
     assert!(
-        results.iter().any(|r| r.title == "canonical-title"),
+        results.results.iter().any(|r| r.title == "canonical-title"),
         "canonical title should win"
     );
 
@@ -505,7 +505,7 @@ fn alias_canonical_wins_when_both_exist() {
         &is,
     )
     .unwrap();
-    for r in &results {
+    for r in &results.results {
         if r.slug == "skills/dual" {
             assert_eq!(
                 r.title, "canonical-title",
@@ -565,7 +565,10 @@ fn non_aliased_type_indexes_normally() {
         &is,
     )
     .unwrap();
-    assert!(results.iter().any(|r| r.title == "Mixture of Experts"));
+    assert!(results
+        .results
+        .iter()
+        .any(|r| r.title == "Mixture of Experts"));
 }
 
 #[test]
@@ -587,7 +590,7 @@ fn unrecognized_field_indexed_as_body_text() {
     )
     .unwrap();
     assert!(
-        results.iter().any(|r| r.slug == "concepts/custom"),
+        results.results.iter().any(|r| r.slug == "concepts/custom"),
         "unrecognized field should be searchable as body text"
     );
 }
@@ -734,7 +737,7 @@ fn rebuild_types_reindexes_only_changed_type() {
         &is,
     )
     .unwrap();
-    assert!(!results.is_empty());
+    assert!(!results.results.is_empty());
     let results = search::search(
         "Bar",
         &search::SearchOptions::default(),
@@ -743,7 +746,7 @@ fn rebuild_types_reindexes_only_changed_type() {
         &is,
     )
     .unwrap();
-    assert!(!results.is_empty());
+    assert!(!results.results.is_empty());
 
     // Partial rebuild only "concept" type
     let report = mgr
@@ -762,7 +765,7 @@ fn rebuild_types_reindexes_only_changed_type() {
     )
     .unwrap();
     assert!(
-        !results.is_empty(),
+        !results.results.is_empty(),
         "concept should still be searchable after partial rebuild"
     );
     let results = search::search(
@@ -774,7 +777,7 @@ fn rebuild_types_reindexes_only_changed_type() {
     )
     .unwrap();
     assert!(
-        !results.is_empty(),
+        !results.results.is_empty(),
         "skill should be untouched by partial rebuild"
     );
 }
