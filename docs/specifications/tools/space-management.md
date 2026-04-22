@@ -5,12 +5,14 @@ read_when:
   - Setting up a new wiki
   - Managing registered wiki spaces
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2025-07-21"
 ---
 
 # Space Management
 
-All space operations live under `llm-wiki spaces`:
+All space operations live under `llm-wiki spaces`. When called from a
+running server, create, remove, and set-default take effect immediately
+— no restart needed. See [server.md](../engine/server.md#hot-reload).
 
 | Subcommand           | MCP tool                  | Description                       |
 | -------------------- | ------------------------- | --------------------------------- |
@@ -57,6 +59,9 @@ Initial git commit: `create: <name>`.
 
 On first run, the wiki becomes the default one. Also ensures
 `~/.llm-wiki/` infrastructure exists (config.toml, indexes/, logs/).
+
+When called from a running server, the new wiki is mounted
+immediately — searchable and indexable without restart.
 
 ### Re-run behavior
 
@@ -120,6 +125,9 @@ llm-wiki spaces remove <name>
 
 Refuses if the wiki is the current default — set a new default first.
 
+When called from a running server, the wiki is unmounted immediately.
+In-flight requests complete normally.
+
 ## spaces set-default
 
 MCP tool: `wiki_spaces_set_default`
@@ -129,3 +137,5 @@ llm-wiki spaces set-default <name>
 ```
 
 Alias for `wiki_config set global.default_wiki <name>`.
+
+When called from a running server, the default updates immediately.

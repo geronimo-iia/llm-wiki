@@ -32,10 +32,10 @@ procedures — belongs in skills (the `llm-wiki-skills` repository).
 
 | Tool | Description |
 |------|-------------|
-| `wiki_spaces_create` | Create a new wiki repo + register space |
+| `wiki_spaces_create` | Create a new wiki repo + register (hot-reloaded if server running) |
 | `wiki_spaces_list` | List all registered wikis |
-| `wiki_spaces_remove` | Remove a wiki from the registry |
-| `wiki_spaces_set_default` | Set the default wiki |
+| `wiki_spaces_remove` | Remove a wiki from the registry (unmounted if server running) |
+| `wiki_spaces_set_default` | Set the default wiki (updated immediately if server running) |
 
 References:
 - [space-management.md](space-management.md)

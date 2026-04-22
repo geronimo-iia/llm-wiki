@@ -11,8 +11,9 @@ last_updated: "2025-07-21"
 # Server
 
 `llm-wiki serve` starts the engine server. It mounts all registered
-wikis at startup and exposes them via MCP tools. stdio is always active.
-SSE and ACP are opt-in and can run simultaneously.
+wikis at startup and exposes them via MCP tools. Wikis can be added
+or removed at runtime via space management tools. stdio is always
+active. SSE and ACP are opt-in and can run simultaneously.
 
 
 ## Transports
@@ -49,9 +50,11 @@ llm-wiki serve --http --acp        # all three
 ## Multi-Wiki
 
 All wikis registered in `~/.llm-wiki/config.toml` are mounted at
-startup. See [engine-state.md](engine-state.md) for the engine state
-layout and [global-config.md](../model/global-config.md) for the space
-registry. MCP resources are namespaced by wiki name:
+startup. Wikis can be added or removed at runtime — see
+[Hot Reload](#hot-reload). See [engine-state.md](engine-state.md)
+for the engine state layout and
+[global-config.md](../model/global-config.md) for the space registry.
+MCP resources are namespaced by wiki name:
 
 ```
 wiki://research/concepts/mixture-of-experts
@@ -66,15 +69,16 @@ wiki is used.
 
 ```
 1. Load ~/.llm-wiki/config.toml — spaces + global config
-2. Mount all registered wikis
-3. Check index staleness for each wiki (warn or auto-rebuild per config)
-4. Create shutdown channel (watch + AtomicBool)
-5. Start ctrl_c handler (sends shutdown signal)
-6. Start heartbeat task (debug level, configurable interval)
-7. Start stdio MCP server (always)
-8. If --http: start HTTP listener (retry on bind failure)
-9. If --acp: start ACP task
-10. Log: "llm-wiki serve — N wikis mounted [stdio] [http :8080] [acp]"
+2. Create wiki map: RwLock<HashMap<String, Arc<WikiHandle>>>
+3. Mount all registered wikis into the map
+4. Check index staleness for each wiki (warn or auto-rebuild per config)
+5. Create shutdown channel (watch + AtomicBool)
+6. Start ctrl_c handler (sends shutdown signal)
+7. Start heartbeat task (debug level, configurable interval)
+8. Start stdio MCP server (always)
+9. If --http: start HTTP listener (retry on bind failure)
+10. If --acp: start ACP task
+11. Log: "llm-wiki serve — N wikis mounted [stdio] [http :8080] [acp]"
 ```
 
 
@@ -198,6 +202,7 @@ reference.
 | stdio exit on disconnect is intentional   | stdio     |
 | Max restart limit prevents infinite loops | ACP       |
 | Coordinated shutdown on ctrl_c            | All       |
+| Hot reload does not interrupt transports  | All       |
 
 ### Shutdown
 
@@ -218,3 +223,57 @@ are dropped (best-effort, no grace period).
 - **Tool timeout** — blocking tool handler is not interrupted
 - **State recovery** — ACP sessions are in-memory only, lost on restart
 - **In-flight completion** — active requests are dropped on shutdown
+
+
+## Hot Reload
+
+Space management tools update the wiki map at runtime. No server
+restart needed.
+
+| Tool | Runtime effect |
+|------|----------------|
+| `wiki_spaces_create` | Mounts the new wiki immediately |
+| `wiki_spaces_remove` | Unmounts the wiki immediately |
+| `wiki_spaces_set_default` | Updates the default immediately |
+
+### Shared state
+
+The engine holds mounted wikis in a
+`RwLock<HashMap<String, Arc<WikiHandle>>>`. Read paths (search, list,
+read, graph) take a read lock, clone the `Arc<WikiHandle>`, release
+the lock, then operate on the handle. Mount/unmount takes a write
+lock.
+
+### Mount
+
+On `wiki_spaces_create`:
+
+1. Write `config.toml` (register the space)
+2. Open or create the tantivy index at `~/.llm-wiki/indexes/<name>/`
+3. Run staleness check (same rules as startup)
+4. Insert into wiki map under write lock
+5. Emit `notifications/resources/list_changed` (MCP notification)
+6. Log: `reload: mounted <name>`
+
+### Unmount
+
+On `wiki_spaces_remove`:
+
+1. Refuse if the wiki is the current default (same rule as the CLI)
+2. Remove from wiki map under write lock
+3. Close index reader/writer handles (do not delete index files)
+4. Write `config.toml` (unregister the space)
+5. If `--delete`: also delete index files at
+   `~/.llm-wiki/indexes/<name>/`
+6. Emit `notifications/resources/list_changed`
+7. Log: `reload: unmounted <name>`
+
+In-flight requests that already hold an `Arc<WikiHandle>` complete
+normally — the handle stays alive until the last reference is dropped.
+
+### MCP notification
+
+After mount, unmount, or set-default, the engine emits
+`notifications/resources/list_changed` on transports that support
+notifications. Agents can re-bootstrap if they care. Transports that
+don't support notifications (stdio batch) skip silently.

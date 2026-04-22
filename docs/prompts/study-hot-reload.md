@@ -133,14 +133,106 @@ same staleness check as startup:
 
 ## Open questions
 
-- Should unmounting a wiki that is the current default be allowed?
-  Currently `wiki_spaces_remove` refuses. Same rule for hot reload?
-- Should there be a `wiki_spaces_reload` tool for explicit reload,
-  or is tool-triggered sufficient?
-- Should the server emit an MCP notification on reload so agents
-  know the wiki set changed?
-- Performance: is `RwLock<HashMap>` sufficient, or does the read
-  path need to be lock-free (e.g. `arc-swap`)?
+- Should there be a `wiki_spaces_reload` tool for explicit full
+  reload, or is tool-triggered sufficient?
+- Does `RwLock` need tuning (fair vs unfair) for read-heavy
+  workloads?
+
+## Decisions
+
+- **Tool-triggered only** — no file watching. Space management tools
+  (`wiki_spaces_create`, `wiki_spaces_remove`, `wiki_spaces_set_default`)
+  mount/unmount immediately when called from the running server.
+- **`RwLock<HashMap>`** for shared wiki map. Contention is acceptable
+  — mount/unmount is rare, readers wait briefly if needed.
+- **MCP notification** — emit `notifications/resources/list_changed`
+  on reload if the transport supports it. Low cost, agents can
+  re-bootstrap if they care.
+- **Refuse unmount of default wiki** — same rule as
+  `wiki_spaces_remove`: set a new default first.
+
+## Tasks
+
+### 1. Update specifications
+
+- [ ] Update `docs/specifications/engine/server.md`:
+  - Add "Hot Reload" section describing tool-triggered mount/unmount
+  - Update startup sequence to mention `RwLock`-based wiki map
+  - Document MCP notification on wiki set change
+  - Update guarantees table (reload does not interrupt transports)
+- [ ] Update `docs/specifications/tools/space-management.md`:
+  - Document that `wiki_spaces_create` mounts immediately in a
+    running server
+  - Document that `wiki_spaces_remove` unmounts immediately
+  - Document that `wiki_spaces_set_default` updates immediately
+- [ ] Update `docs/specifications/tools/overview.md` if tool
+  descriptions change
+
+### 2. Refactor engine shared state
+
+- [ ] Wrap the wiki map in `RwLock<HashMap<String, Arc<WikiHandle>>>`
+- [ ] Wrap `default_wiki` in `RwLock<String>`
+- [ ] All read paths (search, list, read, graph) take a read lock,
+  clone the `Arc<WikiHandle>`, release the lock, then operate on
+  the handle
+- [ ] Verify existing tests pass with the new locking
+
+### 3. Implement mount/unmount
+
+- [ ] `Engine::mount_wiki(name, path)` — open or create tantivy
+  index, insert into wiki map under write lock, run staleness check
+- [ ] `Engine::unmount_wiki(name)` — remove from wiki map under
+  write lock, drop the `Arc` (in-flight requests keep their clone
+  alive)
+- [ ] `Engine::set_default(name)` — update default under write lock,
+  verify name exists in map
+- [ ] Refuse unmount if wiki is the current default (return error)
+
+### 4. Wire space management tools
+
+- [ ] `wiki_spaces_create` — after writing `config.toml`, call
+  `engine.mount_wiki(name, path)`
+- [ ] `wiki_spaces_remove` — after writing `config.toml`, call
+  `engine.unmount_wiki(name)`
+- [ ] `wiki_spaces_remove --delete` — also delete index files at
+  `~/.llm-wiki/indexes/<name>/`
+- [ ] `wiki_spaces_set_default` — after writing `config.toml`, call
+  `engine.set_default(name)`
+
+### 5. MCP notification
+
+- [ ] After mount/unmount/set-default, emit
+  `notifications/resources/list_changed` via the MCP transport
+- [ ] If the transport doesn't support notifications (stdio batch),
+  skip silently
+- [ ] Add test: notification is emitted after `wiki_spaces_create`
+
+### 6. Index lifecycle on mount
+
+- [ ] If index exists at `~/.llm-wiki/indexes/<name>/`, open it
+- [ ] If index doesn't exist, create it and run full rebuild
+- [ ] Apply staleness check per `index.auto_rebuild` config
+- [ ] On unmount, close reader/writer handles but do not delete
+  index files
+
+### 7. Tests
+
+- [ ] Unit test: mount a wiki, verify it appears in search
+- [ ] Unit test: unmount a wiki, verify search no longer finds it
+- [ ] Unit test: refuse unmount of default wiki
+- [ ] Unit test: in-flight request completes after unmount
+  (Arc keeps handle alive)
+- [ ] Unit test: cross-wiki search reflects updated wiki set
+- [ ] Integration test: `wiki_spaces_create` + `wiki_search` in
+  same server session without restart
+- [ ] Existing test suite passes unchanged
+
+### 8. Update skills
+
+- [ ] Update `llm-wiki-skills/skills/spaces/SKILL.md` — mention
+  that create/remove take effect immediately in a running server
+- [ ] Update `llm-wiki-skills/skills/setup/SKILL.md` — no restart
+  needed after creating the first wiki if server is already running
 
 ## Success criteria
 
