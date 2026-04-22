@@ -34,7 +34,7 @@ pub struct EngineState {
     pub config: GlobalConfig,
     pub config_path: PathBuf,
     pub state_dir: PathBuf,
-    pub spaces: HashMap<String, SpaceContext>,
+    pub spaces: HashMap<String, Arc<SpaceContext>>,
 }
 
 impl EngineState {
@@ -42,7 +42,7 @@ impl EngineState {
         &self.config.global.default_wiki
     }
 
-    pub fn space(&self, name: &str) -> Result<&SpaceContext> {
+    pub fn space(&self, name: &str) -> Result<&Arc<SpaceContext>> {
         self.spaces
             .get(name)
             .ok_or_else(|| anyhow::anyhow!("wiki \"{name}\" is not mounted"))
@@ -71,9 +71,9 @@ impl WikiEngine {
         let mut spaces = HashMap::new();
 
         for entry in &config.wikis {
-            match mount_wiki(entry, &state_dir, &config) {
+            match mount_space(entry, &state_dir, &config) {
                 Ok(ctx) => {
-                    spaces.insert(entry.name.clone(), ctx);
+                    spaces.insert(entry.name.clone(), Arc::new(ctx));
                 }
                 Err(e) => {
                     tracing::warn!(
@@ -141,11 +141,56 @@ impl WikiEngine {
         );
         Ok(report)
     }
+
+    /// Mount a wiki into the running engine. Called by space management
+    /// tools for hot reload.
+    pub fn mount_wiki(&self, entry: &WikiEntry) -> Result<()> {
+        let mut engine = self
+            .state
+            .write()
+            .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+        let ctx = mount_space(entry, &engine.state_dir, &engine.config)?;
+        tracing::info!(wiki = %entry.name, "reload: mounted");
+        engine.spaces.insert(entry.name.clone(), Arc::new(ctx));
+        Ok(())
+    }
+
+    /// Unmount a wiki from the running engine. Refuses if the wiki is
+    /// the current default. In-flight requests holding an Arc<SpaceContext>
+    /// complete normally.
+    pub fn unmount_wiki(&self, name: &str) -> Result<()> {
+        let mut engine = self
+            .state
+            .write()
+            .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+        if engine.default_wiki_name() == name {
+            anyhow::bail!("\"{name}\" is the default wiki \u{2014} set a new default first");
+        }
+        if engine.spaces.remove(name).is_none() {
+            anyhow::bail!("wiki \"{name}\" is not mounted");
+        }
+        tracing::info!(wiki = %name, "reload: unmounted");
+        Ok(())
+    }
+
+    /// Update the default wiki. The wiki must be mounted.
+    pub fn set_default(&self, name: &str) -> Result<()> {
+        let mut engine = self
+            .state
+            .write()
+            .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+        if !engine.spaces.contains_key(name) {
+            anyhow::bail!("wiki \"{name}\" is not mounted");
+        }
+        engine.config.global.default_wiki = name.to_string();
+        tracing::info!(wiki = %name, "reload: default updated");
+        Ok(())
+    }
 }
 
 // ── mount_wiki ────────────────────────────────────────────────────────────────
 
-fn mount_wiki(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Result<SpaceContext> {
+fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Result<SpaceContext> {
     let repo_root = PathBuf::from(&entry.path);
     let wiki_root = repo_root.join("wiki");
     let index_path = state_dir.join("indexes").join(&entry.name);
