@@ -110,6 +110,20 @@ pub enum Commands {
         #[command(subcommand)]
         action: IndexAction,
     },
+    /// Git commit history for a page
+    History {
+        /// Slug or wiki:// URI
+        slug: String,
+        /// Max entries to return
+        #[arg(long, short = 'n')]
+        limit: Option<usize>,
+        /// Disable rename tracking
+        #[arg(long)]
+        no_follow: bool,
+        /// Output format: text | json
+        #[arg(long)]
+        format: Option<String>,
+    },
     /// Inspect and manage type schemas
     Schema {
         #[command(subcommand)]

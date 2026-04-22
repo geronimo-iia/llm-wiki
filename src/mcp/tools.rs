@@ -232,6 +232,19 @@ pub fn tool_list() -> Vec<Tool> {
             ),
         ),
         Tool::new(
+            "wiki_history",
+            "Git commit history for a page",
+            schema(
+                json!({
+                    "slug": str_prop("Slug or wiki:// URI"),
+                    "limit": opt_int("Max entries to return"),
+                    "follow": opt_bool("Track renames (default: from config)"),
+                    "wiki": opt_str("Target wiki name"),
+                }),
+                &["slug"],
+            ),
+        ),
+        Tool::new(
             "wiki_schema",
             "Inspect and manage type schemas",
             schema(
@@ -271,6 +284,7 @@ pub fn call(server: &McpServer, name: &str, args: &Map<String, Value>) -> ToolRe
         "wiki_index_rebuild" => handlers::handle_index_rebuild(server, args),
         "wiki_index_status" => handlers::handle_index_status(server, args),
         "wiki_graph" => handlers::handle_graph(server, args),
+        "wiki_history" => handlers::handle_history(server, args),
         "wiki_schema" => handlers::handle_schema(server, args),
         _ => Err(format!("unknown tool: {name}")),
     }));

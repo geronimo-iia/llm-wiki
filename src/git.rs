@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use git2::{Delta, Repository, Signature};
+use serde::{Deserialize, Serialize};
 
 pub fn init_repo(path: &Path) -> Result<()> {
     Repository::init(path)
@@ -178,4 +179,65 @@ pub fn collect_changed_files(
     }
 
     Ok(changes)
+}
+
+// ── Page history ──────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HistoryEntry {
+    pub hash: String,
+    pub date: String,
+    pub message: String,
+    pub author: String,
+}
+
+/// Return git commit history for a file path relative to repo root.
+/// Uses `git log` (shell) for simplicity and built-in `--follow` support.
+pub fn page_history(
+    repo_root: &Path,
+    rel_path: &Path,
+    limit: usize,
+    follow: bool,
+) -> Result<Vec<HistoryEntry>> {
+    let mut cmd = std::process::Command::new("git");
+    cmd.current_dir(repo_root)
+        .args(["log", "--format=%H%x00%aI%x00%s%x00%an"]);
+    if follow {
+        cmd.arg("--follow");
+    }
+    if limit > 0 {
+        cmd.args(["-n", &limit.to_string()]);
+    }
+    cmd.arg("--").arg(rel_path);
+
+    let output = cmd
+        .output()
+        .context("failed to run git log — is git installed?")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // Empty history is not an error (new file, no commits yet)
+        if stderr.is_empty() {
+            return Ok(Vec::new());
+        }
+        anyhow::bail!("git log failed: {stderr}");
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut entries = Vec::new();
+    for line in stdout.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.splitn(4, '\0').collect();
+        if parts.len() == 4 {
+            entries.push(HistoryEntry {
+                hash: parts[0].to_string(),
+                date: parts[1].to_string(),
+                message: parts[2].to_string(),
+                author: parts[3].to_string(),
+            });
+        }
+    }
+    Ok(entries)
 }

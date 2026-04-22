@@ -1,6 +1,7 @@
 mod config;
 mod content;
 mod graph;
+mod history;
 mod index;
 mod ingest;
 mod logs;
@@ -11,6 +12,7 @@ mod spaces;
 pub use config::*;
 pub use content::*;
 pub use graph::*;
+pub use history::*;
 pub use index::*;
 pub use ingest::*;
 pub use logs::*;

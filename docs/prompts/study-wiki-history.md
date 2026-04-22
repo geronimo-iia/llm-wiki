@@ -127,37 +127,34 @@ commit messages containing special characters.
 
 ### 2. Config
 
-- [ ] `src/config.rs` — add `HistoryConfig { follow: bool,
-  default_limit: u32 }` with defaults
-- [ ] Add to `GlobalConfig`, `WikiConfig` (optional), `ResolvedConfig`
-- [ ] Wire get/set for `history.follow` and `history.default_limit`
+- [x] `src/config.rs` — add `HistoryConfig { follow, default_limit }`
+- [x] Add to `GlobalConfig`, `WikiConfig` (optional), `ResolvedConfig`
+- [x] Wire get/set for `history.follow` and `history.default_limit`
 
 ### 3. Git history
 
-- [ ] `src/git.rs` — add `HistoryEntry { hash, date, message, author }`
-- [ ] `src/git.rs` — add `page_history(repo_root, rel_path, limit,
-  follow) -> Result<Vec<HistoryEntry>>`
-- [ ] Implement via `Command::new("git")` with `--format=%H%x00%aI%x00%s%x00%an`
-- [ ] Parse NUL-delimited output into `HistoryEntry` vec
-- [ ] `--follow` passed to `git log` when enabled
+- [x] `src/git.rs` — add `HistoryEntry { hash, date, message, author }`
+- [x] `src/git.rs` — add `page_history(repo_root, rel_path, limit, follow)`
+- [x] Implement via `Command::new("git")` with `--format=%H%x00%aI%x00%s%x00%an`
+- [x] Parse NUL-delimited output into `HistoryEntry` vec
+- [x] `--follow` passed to `git log` when enabled
 
 ### 4. Ops layer
 
-- [ ] `src/ops/history.rs` — resolve slug to file path, call
+- [x] `src/ops/history.rs` — resolve slug to file path, call
   `git::page_history`, return structured result
-- [ ] `src/ops/mod.rs` — export history
+- [x] `src/ops/mod.rs` — export history
 
 ### 5. MCP
 
-- [ ] `src/mcp/tools.rs` — add `wiki_history` tool schema (slug,
-  limit, follow, wiki)
-- [ ] `src/mcp/handlers.rs` — `handle_history` handler
+- [x] `src/mcp/tools.rs` — add `wiki_history` tool schema
+- [x] `src/mcp/handlers.rs` — `handle_history` handler
 
 ### 6. CLI
 
-- [ ] `src/cli.rs` — add `History` command with `--limit`,
+- [x] `src/cli.rs` — add `History` command with `--limit`,
   `--no-follow`, `--format`
-- [ ] `src/main.rs` — render history in text and JSON
+- [x] `src/main.rs` — render history in text and JSON
 
 ### 7. Tests
 

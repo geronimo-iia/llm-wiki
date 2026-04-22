@@ -431,6 +431,33 @@ fn main() -> Result<()> {
             }
         },
 
+        // ── History ────────────────────────────────────────────────────
+        Commands::History {
+            slug,
+            limit,
+            no_follow,
+            format,
+        } => {
+            let manager = WikiEngine::build(&config_path)?;
+            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
+            let follow = if no_follow { Some(false) } else { None };
+            let result = ops::history(&engine, &slug, cli.wiki.as_deref(), limit, follow)?;
+
+            if is_json(&format) {
+                println!("{}", serde_json::to_string_pretty(&result)?);
+            } else {
+                for e in &result.entries {
+                    println!(
+                        "{}  {}  {:<40}  {}",
+                        &e.hash[..7.min(e.hash.len())],
+                        &e.date[..10.min(e.date.len())],
+                        e.message,
+                        e.author
+                    );
+                }
+            }
+        }
+
         // ── Serve ─────────────────────────────────────────────────────
         Commands::Schema { action } => {
             let manager = WikiEngine::build(&config_path)?;

@@ -186,6 +186,23 @@ impl Default for IngestConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HistoryConfig {
+    #[serde(default = "default_true")]
+    pub follow: bool,
+    #[serde(default = "default_history_limit")]
+    pub default_limit: u32,
+}
+
+impl Default for HistoryConfig {
+    fn default() -> Self {
+        Self {
+            follow: true,
+            default_limit: 10,
+        }
+    }
+}
+
 // ── Composite configs ─────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -208,6 +225,8 @@ pub struct GlobalConfig {
     pub validation: ValidationConfig,
     #[serde(default)]
     pub ingest: IngestConfig,
+    #[serde(default)]
+    pub history: HistoryConfig,
     #[serde(default)]
     pub logging: LoggingConfig,
 }
@@ -237,6 +256,8 @@ pub struct WikiConfig {
     pub ingest: Option<IngestConfig>,
     #[serde(default)]
     pub graph: Option<GraphConfig>,
+    #[serde(default)]
+    pub history: Option<HistoryConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -248,6 +269,7 @@ pub struct ResolvedConfig {
     pub serve: ServeConfig,
     pub ingest: IngestConfig,
     pub validation: ValidationConfig,
+    pub history: HistoryConfig,
 }
 
 // ── Default value helpers ─────────────────────────────────────────────────────
@@ -317,6 +339,9 @@ fn default_log_max_files() -> u32 {
 fn default_log_format() -> String {
     "text".into()
 }
+fn default_history_limit() -> u32 {
+    10
+}
 
 // ── Functions ─────────────────────────────────────────────────────────────────
 
@@ -341,6 +366,10 @@ pub fn resolve(global: &GlobalConfig, per_wiki: &WikiConfig) -> ResolvedConfig {
             .validation
             .clone()
             .unwrap_or_else(|| global.validation.clone()),
+        history: per_wiki
+            .history
+            .clone()
+            .unwrap_or_else(|| global.history.clone()),
     }
 }
 
@@ -412,6 +441,8 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "serve.restart_backoff" => global.serve.restart_backoff = value.parse()?,
         "serve.heartbeat_secs" => global.serve.heartbeat_secs = value.parse()?,
         "ingest.auto_commit" => global.ingest.auto_commit = value.parse()?,
+        "history.follow" => global.history.follow = value.parse()?,
+        "history.default_limit" => global.history.default_limit = value.parse()?,
         "validation.type_strictness" => global.validation.type_strictness = value.into(),
         "logging.log_path" => global.logging.log_path = value.into(),
         "logging.log_rotation" => global.logging.log_rotation = value.into(),
@@ -453,6 +484,8 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "logging.log_max_files" => global.logging.log_max_files.to_string(),
         "logging.log_format" => global.logging.log_format.clone(),
         "ingest.auto_commit" => resolved.ingest.auto_commit.to_string(),
+        "history.follow" => resolved.history.follow.to_string(),
+        "history.default_limit" => resolved.history.default_limit.to_string(),
         _ => format!("unknown key: {key}"),
     }
 }
@@ -518,6 +551,18 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
                 .ingest
                 .get_or_insert_with(IngestConfig::default)
                 .auto_commit = value.parse()?;
+        }
+        "history.follow" => {
+            wiki_cfg
+                .history
+                .get_or_insert_with(HistoryConfig::default)
+                .follow = value.parse()?;
+        }
+        "history.default_limit" => {
+            wiki_cfg
+                .history
+                .get_or_insert_with(HistoryConfig::default)
+                .default_limit = value.parse()?;
         }
         "graph.format" => {
             wiki_cfg
