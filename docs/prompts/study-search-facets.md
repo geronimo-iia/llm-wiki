@@ -12,23 +12,44 @@ multiple filtered queries.
 
 Facets solve this by returning distribution counts in a single query.
 
+## Decisions
+
+- **Always returned** — facets are included in every search and list
+  response. No `--facets` flag needed.
+- **Fixed fields** — always facet on `type`, `status`, `tags`. No
+  `defaults.facets_fields` config (fields are fixed in base schema).
+- **Top-N tags** — `defaults.facets_top_tags = 10` in config. `type`
+  and `status` return all values (low cardinality).
+- **Hybrid filtering** — `type` facet is always unfiltered (shows
+  full distribution even when `--type` filter is active, so the user
+  can see what else is available). `status` and `tags` facets are
+  filtered (describe the current result set).
+- **`wiki_list`** — always includes facets, no flag.
+
+## Open questions
+
+- Tantivy implementation: `FacetCollector` vs `column_values()` on
+  FAST fields — needs prototyping.
+
 ## What facets would look like
 
 ### CLI
 
 ```
-llm-wiki search "mixture of experts" --facets
-llm-wiki search "mixture of experts" --facets type,status,tags
+llm-wiki search "mixture of experts"
 ```
+
+Facets are always included in the response. No flag needed.
 
 ### MCP
 
 ```json
 {
-  "query": "mixture of experts",
-  "facets": ["type", "status", "tags"]
+  "query": "mixture of experts"
 }
 ```
+
+Facets are always included in the response. No parameter needed.
 
 ### Response (JSON)
 
@@ -104,24 +125,34 @@ Investigate which approach is simpler and more performant.
 
 ## Interaction with existing filters
 
-Facets should reflect the full result set, not the filtered subset.
-Or should they? Two options:
+Hybrid approach:
 
-1. **Unfiltered facets** — facets show the full distribution, filters
-   narrow results only. Useful for "what else is there?"
-2. **Filtered facets** — facets reflect the current filter. Useful
-   for drill-down ("of the concepts, how many are draft?")
+- **`type` facet is always unfiltered** — shows the full distribution
+  even when `--type concept` is active. This lets the user see
+  "there are also 8 papers" and switch filters.
+- **`status` and `tags` facets are filtered** — they describe the
+  current result set after type filtering.
 
-Most search UIs use filtered facets (option 2). The user applies
-`--type concept` and facets update to show only concept distributions.
+Example: `wiki_search --type concept "moe"` returns:
+
+```json
+{
+  "facets": {
+    "type": { "concept": 12, "paper": 8, "article": 3 },
+    "status": { "active": 11, "draft": 1 },
+    "tags": { "mixture-of-experts": 10, "scaling": 5 }
+  }
+}
+```
+
+`type` shows all types (unfiltered). `status` and `tags` show only
+the concept results (filtered).
 
 ## Interaction with wiki_list
 
-`wiki_list` could also benefit from facets — "how many concepts vs
-papers in the wiki?" without paginating through everything. Same
-implementation, different query (match-all instead of BM25).
-
-Consider adding `--facets` to `wiki_list` as well.
+`wiki_list` always includes facets — same implementation, match-all
+query instead of BM25. Gives wiki composition for free (useful for
+bootstrap).
 
 ## Impact on skills
 
@@ -130,57 +161,76 @@ Consider adding `--facets` to `wiki_list` as well.
 - **research** — show result distribution to help narrow queries
 - **lint** — use facets to find status distribution (how many drafts?)
 
-## Open questions
-
-- Should facets be opt-in (`--facets`) or always returned?
-- Top-N tags or all tags? For wikis with hundreds of tags, returning
-  all is noisy. Default to top 10?
-- Should `wiki_list` also support facets?
-- Performance: is facet collection cheap enough to always include,
-  or should it be opt-in for large wikis?
-
 ## Tasks
 
-### Spec updates
+### 1. Update specifications
 
-- [ ] `docs/specifications/tools/search.md` — add `--facets` flag, faceted JSON/text output format
-- [ ] `docs/specifications/tools/list.md` — add `--facets` flag, faceted JSON/text output format
-- [ ] `docs/specifications/engine/index-management.md` — document FAST requirement on `type`, `status`, `tags` fields
+- [ ] `docs/specifications/tools/search.md` — facets always in response, hybrid filtering
+- [ ] `docs/specifications/tools/list.md` — facets always in response
+- [ ] `docs/specifications/engine/index-management.md` — document FAST requirement on `type`, `status`, `tags`
+- [ ] `docs/specifications/model/global-config.md` — add `defaults.facets_top_tags`
 
-### Index schema
+### 2. Index schema
 
-- [ ] `src/index_schema.rs` — add FAST to keyword fields (`type`, `status`, `tags`) in `add_keyword`
-- [ ] Verify index rebuild picks up the FAST change (may require `wiki_index_rebuild`)
+- [ ] Ensure `type`, `status`, `tags` are FAST keyword fields
+- [ ] Verify index rebuild picks up the FAST change
 
-### Core search
+### 3. Core search
 
-- [ ] `src/search.rs` — add `FacetCounts` struct (`HashMap<String, HashMap<String, u64>>`)
-- [ ] `src/search.rs` — add `facets: Option<Vec<String>>` to `SearchOptions` and `ListOptions`
-- [ ] `src/search.rs` — implement facet collection via `column_values()` on FAST fields after query
-- [ ] `src/search.rs` — return `SearchResult { results, facets }` instead of bare `Vec<PageRef>`
-- [ ] `src/search.rs` — return `PageList { pages, total, page, page_size, facets }` with optional facets
-- [ ] `src/search.rs` — cap tag facets to top N (default 10)
+- [ ] Add `FacetCounts` struct (`HashMap<String, HashMap<String, u64>>`)
+- [ ] Implement facet collection via `column_values()` on FAST fields
+- [ ] `type` facet: always unfiltered (run against full query without type filter)
+- [ ] `status` and `tags` facets: filtered (run against current result set)
+- [ ] Cap tag facets to top N (from `defaults.facets_top_tags`)
+- [ ] Return facets in `SearchResult` and `PageList`
 
-### Ops layer
+### 4. Config
 
-- [ ] `src/ops/search.rs` — add `facets: Option<&str>` to `SearchParams`, thread through to `SearchOptions`
+- [ ] Add `defaults.facets_top_tags` (default: 10) to global config
+- [ ] Wire through to search/list ops
 
-### MCP
+### 5. Ops layer
 
-- [ ] `src/mcp/tools.rs` — add `facets` param (string array) to `wiki_search` and `wiki_list` schemas
-- [ ] `src/mcp/handlers.rs` — parse `facets` arg, pass to ops layer
+- [ ] Thread `facets_top_tags` config value to search and list
 
-### CLI
+### 6. MCP
 
-- [ ] `src/cli.rs` — add `--facets` flag to `Search` and `List` variants
-- [ ] `src/main.rs` — render facet block in text and JSON output for search and list
+- [ ] Update `wiki_search` and `wiki_list` response schemas to include facets
 
-### Tests
+### 7. CLI
 
-- [ ] Test facet counts match expected distribution on a small index
-- [ ] Test facets with active filters (filtered facets)
-- [ ] Test empty facets when no results match
-- [ ] Test top-N tag capping
+- [ ] Render facet block in text and JSON output for search and list
+
+### 8. Tests
+
+- [ ] Facet counts match expected distribution
+- [ ] Hybrid filtering: `type` unfiltered, `status`/`tags` filtered
+- [ ] Empty facets when no results
+- [ ] Top-N tag capping
+
+### 9. Decision record
+
+- [ ] `docs/decisions/search-facets.md` — always-on facets, hybrid
+  filtering rationale, top-N tags, no `--facets` flag
+
+### 10. Update skills
+
+- [ ] `llm-wiki-skills/skills/research/SKILL.md` — mention facets
+  in search results, use type facet to suggest narrowing
+- [ ] `llm-wiki-skills/skills/bootstrap/SKILL.md` — use list facets
+  to report wiki composition (page count per type) instead of
+  paginating
+- [ ] `llm-wiki-skills/skills/lint/SKILL.md` — use status facet to
+  find draft count
+- [ ] `llm-wiki-skills/skills/content/SKILL.md` — mention facets in
+  list output
+
+### 11. Finalize
+
+- [ ] `cargo fmt && cargo clippy --all-targets`
+- [ ] Update `CHANGELOG.md`
+- [ ] Update `docs/roadmap.md` — move facets from Active to Completed
+- [ ] Remove `docs/prompts/study-search-facets.md`
 
 ## Success criteria
 
