@@ -4,7 +4,7 @@ summary: "Config snippets for Cursor, VS Code, Windsurf, and generic MCP clients
 read_when:
   - Connecting an editor or agent to the wiki via MCP
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2025-07-21"
 ---
 
 # MCP Clients
@@ -76,12 +76,12 @@ command: llm-wiki
 args:    ["serve"]
 ```
 
-## Generic MCP Client (SSE)
+## Generic MCP Client (HTTP)
 
 ```
 command: llm-wiki
-args:    ["serve", "--sse", ":8080"]
-endpoint: http://localhost:8080/sse
+args:    ["serve", "--http", ":8080"]
+endpoint: http://localhost:8080/mcp
 ```
 
 

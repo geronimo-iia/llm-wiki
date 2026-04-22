@@ -405,9 +405,7 @@ pub(crate) fn validate_base_invariant(rt: &RegisteredType) -> Result<()> {
 
 /// SHA-256 of bytes, returned as lowercase hex (64 chars).
 pub(crate) fn sha256_hex(data: &[u8]) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(data);
-    format!("{:x}", hasher.finalize())
+    hex::encode(Sha256::digest(data))
 }
 
 pub(crate) fn compute_hashes(
@@ -448,12 +446,12 @@ fn hash_type_entries(
             h.update(v.as_bytes());
         }
         h.update(content_hash.as_bytes());
-        let type_hash = format!("{:x}", h.finalize());
+        let type_hash = hex::encode(h.finalize());
         type_hashes.insert(name.to_string(), type_hash.clone());
         global_hasher.update(type_hash.as_bytes());
     }
 
-    (format!("{:x}", global_hasher.finalize()), type_hashes)
+    (hex::encode(global_hasher.finalize()), type_hashes)
 }
 
 /// Compute schema hashes directly from disk without building a full registry.

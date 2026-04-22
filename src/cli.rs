@@ -117,9 +117,9 @@ pub enum Commands {
     },
     /// Start the wiki MCP/ACP server
     Serve {
-        /// Enable SSE transport (optional port, e.g. :8080)
+        /// Enable HTTP transport (optional port, e.g. :8080)
         #[arg(long, value_name = "PORT")]
-        sse: Option<Option<String>>,
+        http: Option<Option<String>>,
         /// Enable ACP transport
         #[arg(long)]
         acp: bool,
@@ -169,6 +169,8 @@ pub enum SpacesAction {
     },
     /// List all registered wikis
     List {
+        /// Wiki name (omit for all)
+        name: Option<String>,
         /// Output format: text | json
         #[arg(long)]
         format: Option<String>,

@@ -27,9 +27,11 @@ Architectural decisions and their rationale.
 | --------------------------------------------------------- | -------------------------------------------------------------------- |
 | [engine-manager-redesign](engine-manager-redesign.md)     | Rename Engine→EngineState/WikiEngine, extract mount_wiki, interior mutability in SpaceIndexManager |
 | [graceful-shutdown](graceful-shutdown.md)                  | Coordinated shutdown via watch channel + AtomicBool                   |
-| [list-pagination](list-pagination.md)                      | _slug_ord u64 FAST field for sorted list pagination                  |
+| [list-pagination](list-pagination.md)                      | Native string fast field sort replaces _slug_ord u64 hack            |
 | [unspec-code](unspec-code.md)                              | Logs CLI and wiki-link extraction spec'd, rest is impl detail        |
 | [wiki-page-struct](wiki-page-struct.md)                    | Not needed — 3 call sites, all local to index_manager.rs             |
 | [index-query-pattern](index-query-pattern.md)              | Not worth it — 3 consumers with different return types               |
 | [rename-ops-ingest](rename-ops-ingest.md)                  | Left as-is — stutter is 1 internal line                              |
 | [yaml-value-extraction](yaml-value-extraction.md)          | Left as-is — intentionally different Sequence handling               |
+| [rmcp-streamable-http](rmcp-streamable-http.md)            | rmcp 1.x, SSE → Streamable HTTP, config rename, ACP bridge deferred |
+| [acp-builder-pattern](acp-builder-pattern.md)              | Agent builder replaces Agent trait, no LocalSet/channel/thread       |

@@ -105,9 +105,11 @@ impl Default for GraphConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServeConfig {
     #[serde(default)]
-    pub sse: bool,
-    #[serde(default = "default_sse_port")]
-    pub sse_port: u16,
+    pub http: bool,
+    #[serde(default = "default_http_port")]
+    pub http_port: u16,
+    #[serde(default = "default_http_allowed_hosts")]
+    pub http_allowed_hosts: Vec<String>,
     #[serde(default)]
     pub acp: bool,
     #[serde(default = "default_max_restarts")]
@@ -121,8 +123,9 @@ pub struct ServeConfig {
 impl Default for ServeConfig {
     fn default() -> Self {
         Self {
-            sse: false,
-            sse_port: 8080,
+            http: false,
+            http_port: 8080,
+            http_allowed_hosts: default_http_allowed_hosts(),
             acp: false,
             max_restarts: 10,
             restart_backoff: 1,
@@ -273,8 +276,11 @@ fn default_graph_format() -> String {
 fn default_graph_depth() -> u32 {
     3
 }
-fn default_sse_port() -> u16 {
+fn default_http_port() -> u16 {
     8080
+}
+fn default_http_allowed_hosts() -> Vec<String> {
+    vec!["localhost".into(), "127.0.0.1".into(), "::1".into()]
 }
 fn default_max_restarts() -> u32 {
     10
@@ -388,8 +394,12 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "graph.format" => global.graph.format = value.into(),
         "graph.depth" => global.graph.depth = value.parse()?,
         "graph.output" => global.graph.output = value.into(),
-        "serve.sse" => global.serve.sse = value.parse()?,
-        "serve.sse_port" => global.serve.sse_port = value.parse()?,
+        "serve.http" => global.serve.http = value.parse()?,
+        "serve.http_port" => global.serve.http_port = value.parse()?,
+        "serve.http_allowed_hosts" => {
+            global.serve.http_allowed_hosts =
+                value.split(',').map(|s| s.trim().to_string()).collect();
+        }
         "serve.acp" => global.serve.acp = value.parse()?,
         "serve.max_restarts" => global.serve.max_restarts = value.parse()?,
         "serve.restart_backoff" => global.serve.restart_backoff = value.parse()?,
@@ -422,8 +432,9 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "graph.format" => resolved.graph.format.clone(),
         "graph.depth" => resolved.graph.depth.to_string(),
         "graph.output" => resolved.graph.output.clone(),
-        "serve.sse" => resolved.serve.sse.to_string(),
-        "serve.sse_port" => resolved.serve.sse_port.to_string(),
+        "serve.http" => resolved.serve.http.to_string(),
+        "serve.http_port" => resolved.serve.http_port.to_string(),
+        "serve.http_allowed_hosts" => resolved.serve.http_allowed_hosts.join(","),
         "serve.acp" => resolved.serve.acp.to_string(),
         "serve.max_restarts" => global.serve.max_restarts.to_string(),
         "serve.restart_backoff" => global.serve.restart_backoff.to_string(),
@@ -517,8 +528,9 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
         | "index.auto_recovery"
         | "index.memory_budget_mb"
         | "index.tokenizer"
-        | "serve.sse"
-        | "serve.sse_port"
+        | "serve.http"
+        | "serve.http_port"
+        | "serve.http_allowed_hosts"
         | "serve.acp"
         | "serve.max_restarts"
         | "serve.restart_backoff"

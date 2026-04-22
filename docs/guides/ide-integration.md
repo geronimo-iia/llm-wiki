@@ -1,6 +1,6 @@
 # IDE Integration
 
-llm-wiki exposes its tools via MCP (stdio or SSE) and ACP. Any
+llm-wiki exposes its tools via MCP (stdio or HTTP) and ACP. Any
 MCP-compatible editor connects by pointing at `llm-wiki serve`.
 
 ## Quick Setup
@@ -181,15 +181,15 @@ Agent: "Read wiki://research/concepts/moe"
   → wiki_content_read("wiki://research/concepts/moe")
 ```
 
-## SSE Transport (Remote)
+## HTTP Transport (Remote)
 
-For remote or multi-client access, start with SSE:
+For remote or multi-client access, start with HTTP:
 
 ```bash
-llm-wiki serve --sse :8080
+llm-wiki serve --http :8080
 ```
 
-Point the IDE at `http://localhost:8080/sse` instead of stdio.
+Point the IDE at `http://localhost:8080/mcp` instead of stdio.
 
 ## Available Tools
 

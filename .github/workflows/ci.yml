@@ -25,11 +25,16 @@ jobs:
       - name: Clippy
         run: cargo clippy -- -D warnings
 
+      - name: Build
+        run: cargo build --locked
+
       - name: Test
         run: cargo test --locked
 
+      - name: Install cargo-audit
+        if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+        run: cargo install cargo-audit --locked --quiet
+
       - name: Security audit
         if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
-        uses: rustsec/audit-check@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo audit

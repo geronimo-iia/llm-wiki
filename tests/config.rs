@@ -148,7 +148,7 @@ fn resolve_global_only_sections_always_from_global() {
             ..Default::default()
         },
         serve: ServeConfig {
-            sse_port: 9090,
+            http_port: 9090,
             ..Default::default()
         },
         ..Default::default()
@@ -156,7 +156,7 @@ fn resolve_global_only_sections_always_from_global() {
     let resolved = resolve(&global, &WikiConfig::default());
     assert_eq!(resolved.index.memory_budget_mb, 100);
     assert_eq!(resolved.index.tokenizer, "default");
-    assert_eq!(resolved.serve.sse_port, 9090);
+    assert_eq!(resolved.serve.http_port, 9090);
 }
 
 #[test]
@@ -315,8 +315,9 @@ fn set_wiki_sets_ingest_auto_commit() {
 fn set_wiki_rejects_global_only_keys() {
     let mut cfg = WikiConfig::default();
     for key in &[
-        "serve.sse",
-        "serve.sse_port",
+        "serve.http",
+        "serve.http_port",
+        "serve.http_allowed_hosts",
         "serve.acp",
         "serve.max_restarts",
         "serve.restart_backoff",
@@ -419,7 +420,7 @@ fn get_config_value_reads_global_only_keys() {
             ..Default::default()
         },
         serve: ServeConfig {
-            sse_port: 9090,
+            http_port: 9090,
             ..Default::default()
         },
         logging: LoggingConfig {
@@ -439,7 +440,7 @@ fn get_config_value_reads_global_only_keys() {
         "default"
     );
     assert_eq!(
-        get_config_value(&resolved, &global, "serve.sse_port"),
+        get_config_value(&resolved, &global, "serve.http_port"),
         "9090"
     );
     assert_eq!(

@@ -59,7 +59,12 @@ pub fn tool_list() -> Vec<Tool> {
         Tool::new(
             "wiki_spaces_list",
             "List all registered wiki spaces",
-            schema(json!({}), &[]),
+            schema(
+                json!({
+                    "name": opt_str("Wiki name (omit for all)"),
+                }),
+                &[],
+            ),
         ),
         Tool::new(
             "wiki_spaces_remove",

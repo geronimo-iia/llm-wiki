@@ -51,9 +51,9 @@ fn main() -> Result<()> {
                     println!("Initial commit: create: {}", report.name);
                 }
             }
-            SpacesAction::List { format } => {
+            SpacesAction::List { name, format } => {
                 let global = config::load_global(&config_path)?;
-                let entries = ops::spaces_list(&global);
+                let entries = ops::spaces_list(&global, name.as_deref());
                 if is_json(&format) {
                     println!("{}", serde_json::to_string_pretty(&entries)?);
                 } else if entries.is_empty() {
@@ -508,11 +508,11 @@ fn main() -> Result<()> {
             }
         }
 
-        Commands::Serve { sse, acp, dry_run } => {
+        Commands::Serve { http, acp, dry_run } => {
             if dry_run {
                 let mut transports = vec!["stdio".to_string()];
-                if sse.is_some() {
-                    transports.push("sse".to_string());
+                if http.is_some() {
+                    transports.push("http".to_string());
                 }
                 if acp {
                     transports.push("acp".to_string());
@@ -521,11 +521,11 @@ fn main() -> Result<()> {
                 return Ok(());
             }
 
-            let sse_port =
-                sse.and_then(|opt| opt.and_then(|s| s.trim_start_matches(':').parse::<u16>().ok()));
+            let http_port = http
+                .and_then(|opt| opt.and_then(|s| s.trim_start_matches(':').parse::<u16>().ok()));
 
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(llm_wiki::server::serve(&config_path, sse_port, acp))?;
+            rt.block_on(llm_wiki::server::serve(&config_path, http_port, acp))?;
         }
 
         Commands::Logs { action } => match action {

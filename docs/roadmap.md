@@ -2,7 +2,7 @@
 title: "Roadmap"
 summary: "Development roadmap for llm-wiki."
 status: ready
-last_updated: "2025-07-20"
+last_updated: "2025-07-21"
 ---
 
 # Roadmap
@@ -12,11 +12,19 @@ last_updated: "2025-07-20"
 | Phase | What                                                          | Status |
 | ----- | ------------------------------------------------------------- | ------ |
 | 0     | Specification rationalization                                 | ✓      |
-| 1     | Focused engine — 16 tools, MCP/ACP, tantivy 0.25              | ✓      |
+| 1     | Focused engine — 16 tools, MCP/ACP, tantivy 0.26              | ✓      |
 | 2     | Type system — JSON Schema, discovery, aliasing, `wiki_schema` | ✓      |
 | 3     | Typed graph — `x-graph-edges`, labeled edges, target warnings | ✓      |
+| —     | Upgrade `agent-client-protocol` 0.10 → 0.11                  | ✓      |
+| —     | Replace `_slug_ord` with native string sort                   | ✓      |
+| —     | Upgrade rmcp 0.1 → 1.x (Streamable HTTP)                     | ✓      |
 
 357 tests. Single Rust binary. No runtime dependencies.
+
+## Active
+
+| Task                                        | Prompt                                                           | Notes                                          |
+| ------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------- |
 
 ## Next: Phase 4 — Skill Registry
 

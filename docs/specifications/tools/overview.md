@@ -11,7 +11,7 @@ last_updated: "2025-07-18"
 # Tool Surface Overview
 
 The engine exposes 16 tools. Every tool is available via MCP
-(stdio + SSE), ACP, and CLI. Same tool surface, three transports.
+(stdio + HTTP), ACP, and CLI. Same tool surface, three transports.
 
 ## Design Principle
 

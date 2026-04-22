@@ -418,7 +418,7 @@ fn repo_schemas_field_count_is_reasonable() {
     // Should be roughly 25-35 fields
     let count = is.fields.len();
     assert!(
-        count >= 20 && count <= 50,
+        (20..=50).contains(&count),
         "unexpected field count: {count} (expected 20-50)"
     );
 }
