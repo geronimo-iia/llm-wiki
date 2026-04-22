@@ -119,13 +119,11 @@ commit messages containing special characters.
 
 ### 1. Update specifications
 
-- [ ] Create `docs/specifications/tools/history.md` — CLI, MCP,
-  response format, follow behavior, limit
-- [ ] Update `docs/specifications/model/global-config.md` — add
-  `history.follow` (default: true) and `history.default_limit`
-  (default: 10) to overridable defaults
-- [ ] Update `docs/specifications/tools/overview.md` — add
-  `wiki_history` to the tool list (17 tools)
+- [x] Create `docs/specifications/tools/history.md`
+- [x] Update `docs/specifications/model/global-config.md` — add
+  `history.follow` and `history.default_limit`
+- [x] Update `docs/specifications/tools/overview.md` — add
+  `wiki_history` (17 tools)
 
 ### 2. Config
 

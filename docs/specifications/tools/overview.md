@@ -10,7 +10,7 @@ last_updated: "2025-07-18"
 
 # Tool Surface Overview
 
-The engine exposes 16 tools. Every tool is available via MCP
+The engine exposes 17 tools. Every tool is available via MCP
 (stdio + HTTP), ACP, and CLI. Same tool surface, three transports.
 
 ## Design Principle
@@ -67,7 +67,7 @@ References:
 References:
 - [content-operations.md](content-operations.md)
 
-### Search & index (6 tools)
+### Search & index (7 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -75,6 +75,7 @@ References:
 | `wiki_list` | Paginated page listing with type/status filters |
 | `wiki_ingest` | Validate frontmatter + update index + commit |
 | `wiki_graph` | Generate concept graph (Mermaid/DOT) |
+| `wiki_history` | Git commit history for a page |
 | `wiki_index_rebuild` | Rebuild tantivy index from committed files |
 | `wiki_index_status` | Check index health |
 
@@ -83,6 +84,7 @@ References:
 - [list.md](list.md)
 - [ingest.md](ingest.md)
 - [graph.md](graph.md)
+- [history.md](history.md)
 - [index.md](index.md)
 
 ## Global Flags

@@ -56,6 +56,10 @@ type_strictness = "loose"
 format = "mermaid"
 depth  = 3
 
+[history]
+follow        = true
+default_limit = 10
+
 # ── Global-only settings ──────────────────────────────────────────────────────
 
 [index]
@@ -111,6 +115,8 @@ These keys can appear in both `config.toml` (global) and `wiki.toml`
 | `defaults.list_page_size`    | `20`      | Default page size for `wiki_list`                 |
 | `defaults.output_format`     | `text`    | Default output format: `text` or `json`           |
 | `defaults.facets_top_tags`   | `10`      | Max tag facet entries returned; `0` = all          |
+| `history.follow`             | `true`    | Track renames in `wiki_history`                    |
+| `history.default_limit`      | `10`      | Default entry count for `wiki_history`             |
 | `read.no_frontmatter`        | `false`   | Strip frontmatter from `wiki_content_read` output         |
 | `ingest.auto_commit`         | `true`    | Commit after ingest                               |
 | `validation.type_strictness` | `loose`   | `strict`: unknown type is error; `loose`: warning |
