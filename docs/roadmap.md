@@ -17,16 +17,15 @@ last_updated: "2025-07-21"
 | 3     | Typed graph — `x-graph-edges`, labeled edges, target warnings | ✓      |
 | —     | Upgrade `agent-client-protocol` 0.10 → 0.11                   | ✓      |
 | —     | Replace `_slug_ord` with native string sort                   | ✓      |
-| —     | Upgrade rmcp 0.1 → 1.x (Streamable HTTP)                      | ✓      |
+| —     | Hot reload — add/remove wikis without restart                 | ✓      |
 
-357 tests. Single Rust binary. No runtime dependencies.
+361 tests. Single Rust binary. No runtime dependencies.
 
 ## Active
 
 | Task                             | Prompt                                                   | Notes                                           |
 | -------------------------------- | -------------------------------------------------------- | ----------------------------------------------- |
 | `wiki_search` facets             | `docs/prompts/study-search-facets.md`                    | Type/status/tag distributions in search results |
-| Hot reload                       | `docs/prompts/study-hot-reload.md`                       | Add/remove wikis without restart                |
 | Skill registry (llm-wiki-skills) | `llm-wiki-skills/docs/prompts/phase-4-skill-registry.md` | Transform skills repo into a llm-wiki           |
 
 ## Next: Phase 4 — Skill Registry
@@ -57,7 +56,6 @@ Engine improvements not tied to a phase:
 - Webhook on ingest — notify external systems
 - `wiki_watch` — filesystem watcher that auto-ingests on save
 - Persistent graph index — avoid rebuilding petgraph on every call
-- Hot reload — add/remove wikis without restart
 - ACP workflows beyond `research` (ingest, explore, summarize)
 
 ## Related Projects

@@ -14,6 +14,8 @@ First release. Single Rust binary, 16 MCP tools, ACP agent.
 ### Engine
 
 - `WikiEngine` / `EngineState` architecture with `mount_wiki` per space
+- `Arc<SpaceContext>` in wiki map — in-flight requests survive unmount
+- Hot reload — `mount_wiki` / `unmount_wiki` / `set_default` at runtime
 - Interior mutability in `SpaceIndexManager` (`RwLock<IndexInner>`)
 - Graceful shutdown via `watch` channel + `AtomicBool` across all transports
 - tantivy 0.25 for full-text search
@@ -29,10 +31,10 @@ First release. Single Rust binary, 16 MCP tools, ACP agent.
 
 ### Tools — Space Management
 
-- `wiki_spaces_create` — initialize wiki repo + register space
+- `wiki_spaces_create` — initialize wiki repo + register space (hot-reloaded if server running)
 - `wiki_spaces_list` — list registered wikis
-- `wiki_spaces_remove` — unregister (optionally delete)
-- `wiki_spaces_set_default` — set default wiki
+- `wiki_spaces_remove` — unregister (optionally delete, unmounted if server running)
+- `wiki_spaces_set_default` — set default wiki (updated immediately if server running)
 
 ### Tools — Configuration
 
@@ -76,6 +78,7 @@ First release. Single Rust binary, 16 MCP tools, ACP agent.
 - File logging with rotation (daily/hourly/never, max files, text/json)
 - Heartbeat task (configurable interval)
 - MCP resource listing and update notifications
+- MCP `notifications/resources/list_changed` on space operations
 
 ### Index
 
