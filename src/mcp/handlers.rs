@@ -15,14 +15,18 @@ pub fn handle_spaces_create(server: &McpServer, args: &Map<String, Value>) -> To
     let force = arg_bool(args, "force");
     let set_default = arg_bool(args, "set_default");
 
-    let engine = server.engine();
+    let config_path = {
+        let engine = server.engine();
+        engine.config_path.clone()
+    };
     let report = ops::spaces_create(
         &std::path::PathBuf::from(&path),
         &name,
         description.as_deref(),
         force,
         set_default,
-        &engine.config_path,
+        &config_path,
+        Some(&server.manager),
     )
     .map_err(|e| format!("{e}"))?;
 
@@ -48,8 +52,12 @@ pub fn handle_spaces_list(server: &McpServer, args: &Map<String, Value>) -> Tool
 pub fn handle_spaces_remove(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let name = arg_str_req(args, "name")?;
     let delete = arg_bool(args, "delete");
-    let engine = server.engine();
-    ops::spaces_remove(&name, delete, &engine.config_path).map_err(|e| format!("{e}"))?;
+    let config_path = {
+        let engine = server.engine();
+        engine.config_path.clone()
+    };
+    ops::spaces_remove(&name, delete, &config_path, Some(&server.manager))
+        .map_err(|e| format!("{e}"))?;
     ok_text(format!("Removed wiki \"{name}\""))
 }
 
@@ -58,8 +66,12 @@ pub fn handle_spaces_set_default(
     args: &Map<String, Value>,
 ) -> ToolHandlerResult {
     let name = arg_str_req(args, "name")?;
-    let engine = server.engine();
-    ops::spaces_set_default(&name, &engine.config_path).map_err(|e| format!("{e}"))?;
+    let config_path = {
+        let engine = server.engine();
+        engine.config_path.clone()
+    };
+    ops::spaces_set_default(&name, &config_path, Some(&server.manager))
+        .map_err(|e| format!("{e}"))?;
     ok_text(format!("Default wiki set to \"{name}\""))
 }
 

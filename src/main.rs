@@ -38,6 +38,7 @@ fn main() -> Result<()> {
                     force,
                     set_default,
                     &config_path,
+                    None,
                 )?;
                 if report.created {
                     println!("Created wiki \"{}\" at {}", report.name, report.path);
@@ -72,14 +73,14 @@ fn main() -> Result<()> {
                 }
             }
             SpacesAction::Remove { name, delete } => {
-                ops::spaces_remove(&name, delete, &config_path)?;
+                ops::spaces_remove(&name, delete, &config_path, None)?;
                 println!("Removed wiki \"{name}\"");
                 if delete {
                     println!("Deleted wiki directory");
                 }
             }
             SpacesAction::SetDefault { name } => {
-                ops::spaces_set_default(&name, &config_path)?;
+                ops::spaces_set_default(&name, &config_path, None)?;
                 println!("Default wiki set to \"{name}\"");
             }
         },
