@@ -165,15 +165,15 @@ bootstrap).
 
 ### 1. Update specifications
 
-- [ ] `docs/specifications/tools/search.md` — facets always in response, hybrid filtering
-- [ ] `docs/specifications/tools/list.md` — facets always in response
-- [ ] `docs/specifications/engine/index-management.md` — document FAST requirement on `type`, `status`, `tags`
-- [ ] `docs/specifications/model/global-config.md` — add `defaults.facets_top_tags`
+- [x] `docs/specifications/tools/search.md` — facets always in response, hybrid filtering
+- [x] `docs/specifications/tools/list.md` — facets always in response
+- [x] `docs/specifications/engine/index-management.md` — document FAST requirement on `type`, `status`, `tags`
+- [x] `docs/specifications/model/global-config.md` — add `defaults.facets_top_tags`
 
 ### 2. Index schema
 
-- [ ] Ensure `type`, `status`, `tags` are FAST keyword fields
-- [ ] Verify index rebuild picks up the FAST change
+- [x] Ensure `type`, `status`, `tags` are FAST keyword fields
+- [x] Verify index rebuild picks up the FAST change
 
 ### 3. Core search
 

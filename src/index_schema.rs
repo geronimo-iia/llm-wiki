@@ -267,7 +267,7 @@ impl SchemaBuilder {
 
     pub(crate) fn add_keyword(&mut self, name: &str) {
         if !self.fields.contains_key(name) {
-            let field = self.builder.add_text_field(name, STRING | STORED);
+            let field = self.builder.add_text_field(name, STRING | STORED | FAST);
             self.fields.insert(name.to_string(), field);
             self.keyword_fields.insert(name.to_string());
         }
