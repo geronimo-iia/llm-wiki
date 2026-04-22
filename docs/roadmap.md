@@ -25,6 +25,7 @@ last_updated: "2025-07-21"
 
 | Task                             | Prompt                                                   | Notes                                           |
 | -------------------------------- | -------------------------------------------------------- | ----------------------------------------------- |
+| Cross-wiki links                 | `docs/prompts/study-cross-wiki-links.md`                 | `wiki://` URIs resolved in graph                |
 | Skill registry (llm-wiki-skills) | `llm-wiki-skills/docs/prompts/phase-4-skill-registry.md` | Transform skills repo into a llm-wiki           |
 
 ## Next: Phase 4 — Skill Registry
