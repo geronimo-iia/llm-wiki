@@ -51,9 +51,9 @@ fn main() -> Result<()> {
                     println!("Initial commit: create: {}", report.name);
                 }
             }
-            SpacesAction::List { format } => {
+            SpacesAction::List { name, format } => {
                 let global = config::load_global(&config_path)?;
-                let entries = ops::spaces_list(&global);
+                let entries = ops::spaces_list(&global, name.as_deref());
                 if is_json(&format) {
                     println!("{}", serde_json::to_string_pretty(&entries)?);
                 } else if entries.is_empty() {

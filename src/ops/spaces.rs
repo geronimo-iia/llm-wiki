@@ -16,8 +16,12 @@ pub fn spaces_create(
     spaces::create(path, name, description, force, set_default, config_path)
 }
 
-pub fn spaces_list(config: &GlobalConfig) -> Vec<config::WikiEntry> {
-    spaces::load_all(config)
+pub fn spaces_list(config: &GlobalConfig, name: Option<&str>) -> Vec<config::WikiEntry> {
+    let all = spaces::load_all(config);
+    match name {
+        Some(n) => all.into_iter().filter(|e| e.name == n).collect(),
+        None => all,
+    }
 }
 
 pub fn spaces_remove(name: &str, delete: bool, config_path: &Path) -> Result<()> {

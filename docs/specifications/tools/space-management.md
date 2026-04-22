@@ -73,8 +73,13 @@ MCP tool: `wiki_spaces_list`
 
 ```
 llm-wiki spaces list
+             [<name>]             # omit for all, provide to filter
              [--format <fmt>]     # text | json (default: text)
 ```
+
+When `<name>` is omitted, lists all registered wikis.
+When `<name>` is provided, returns a list with only that wiki's info.
+If the name is not found, returns an empty list.
 
 Text (default):
 

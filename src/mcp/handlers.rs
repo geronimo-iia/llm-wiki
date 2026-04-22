@@ -37,9 +37,10 @@ pub fn handle_spaces_create(server: &McpServer, args: &Map<String, Value>) -> To
     ok_text(json)
 }
 
-pub fn handle_spaces_list(server: &McpServer, _args: &Map<String, Value>) -> ToolHandlerResult {
+pub fn handle_spaces_list(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let engine = server.engine();
-    let entries = ops::spaces_list(&engine.config);
+    let name = arg_str(args, "name");
+    let entries = ops::spaces_list(&engine.config, name.as_deref());
     let s = serde_json::to_string_pretty(&entries).map_err(|e| format!("{e}"))?;
     ok_text(s)
 }

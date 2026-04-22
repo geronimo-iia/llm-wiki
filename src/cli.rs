@@ -169,6 +169,8 @@ pub enum SpacesAction {
     },
     /// List all registered wikis
     List {
+        /// Wiki name (omit for all)
+        name: Option<String>,
         /// Output format: text | json
         #[arg(long)]
         format: Option<String>,
