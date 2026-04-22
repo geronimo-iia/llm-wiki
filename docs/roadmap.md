@@ -17,7 +17,7 @@ last_updated: "2025-07-21"
 | 3     | Typed graph — `x-graph-edges`, labeled edges, target warnings | ✓      |
 | —     | Upgrade `agent-client-protocol` 0.10 → 0.11                   | ✓      |
 | —     | Replace `_slug_ord` with native string sort                   | ✓      |
-| —     | Hot reload — add/remove wikis without restart                 | ✓      |
+| —     | Search facets — type/status/tag distributions                  | ✓      |
 
 361 tests. Single Rust binary. No runtime dependencies.
 
@@ -25,7 +25,6 @@ last_updated: "2025-07-21"
 
 | Task                             | Prompt                                                   | Notes                                           |
 | -------------------------------- | -------------------------------------------------------- | ----------------------------------------------- |
-| `wiki_search` facets             | `docs/prompts/study-search-facets.md`                    | Type/status/tag distributions in search results |
 | Skill registry (llm-wiki-skills) | `llm-wiki-skills/docs/prompts/phase-4-skill-registry.md` | Transform skills repo into a llm-wiki           |
 
 ## Next: Phase 4 — Skill Registry
@@ -50,7 +49,6 @@ Engine improvements not tied to a phase:
 
 - `wiki_diff` — changes between two commits for a page
 - `wiki_history` — git log for a specific page
-- `wiki_search` facets — type/status/tag distributions
 - `wiki_export` — static site, PDF, or EPUB
 - Cross-wiki links — `wiki://` URIs resolved in graph and search
 - Webhook on ingest — notify external systems
