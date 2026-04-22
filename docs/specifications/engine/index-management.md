@@ -65,6 +65,8 @@ How frontmatter fields map to roles:
 - **Body text** is indexed as BM25 text.
 - **Slug** is `STRING | STORED | FAST` — stored for results, FAST for
   sorted pagination via `order_by_string_fast_field`.
+- **Keyword fields** (`type`, `status`, `tags`) are `STRING | FAST` —
+  FAST enables both exact-match filtering and facet counting.
 - **URI** is stored but not searched.
 
 The `slug` field is the unique key for delete+insert operations.

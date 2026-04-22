@@ -1,10 +1,10 @@
 ---
 title: "Search"
-summary: "Full-text search with optional type filter."
+summary: "Full-text search with optional type filter and facets."
 read_when:
   - Searching the wiki
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2025-07-22"
 ---
 
 # Search
@@ -24,6 +24,12 @@ llm-wiki search "<query>"
 
 BM25 ranks across `title`, `summary`, `read_when`, `tldr`, `tags`, and
 body text. `--type` adds a keyword filter on the `type` field.
+
+Facets (`type`, `status`, `tags` distributions) are always included in
+the response. The `type` facet is unfiltered (shows full distribution
+even when `--type` is active). `status` and `tags` facets are filtered
+(reflect the current result set). Tag facets are capped to top N
+(default from `defaults.facets_top_tags`).
 
 ### Examples
 
@@ -48,13 +54,38 @@ sources/switch-transformer-2021  0.81  Switch Transformer (2021)
 JSON (`--format json`):
 
 ```json
-[
-  {
-    "slug": "concepts/mixture-of-experts",
-    "uri": "wiki://research/concepts/mixture-of-experts",
-    "title": "Mixture of Experts",
-    "score": 0.94,
-    "excerpt": "Sparse routing of tokens to expert subnetworks, trading compute..."
+{
+  "results": [
+    {
+      "slug": "concepts/mixture-of-experts",
+      "uri": "wiki://research/concepts/mixture-of-experts",
+      "title": "Mixture of Experts",
+      "score": 0.94,
+      "excerpt": "Sparse routing of tokens to expert subnetworks, trading compute..."
+    }
+  ],
+  "facets": {
+    "type": {
+      "concept": 12,
+      "paper": 8,
+      "article": 3
+    },
+    "status": {
+      "active": 20,
+      "draft": 3
+    },
+    "tags": {
+      "mixture-of-experts": 15,
+      "scaling": 9,
+      "transformers": 7
+    }
   }
-]
+}
 ```
+
+The `type` facet is always unfiltered — it shows the full distribution
+across all matching pages regardless of `--type` filter. This lets
+agents suggest "there are also 8 papers on this topic".
+
+`status` and `tags` facets are filtered — they describe the current
+result set after type filtering.

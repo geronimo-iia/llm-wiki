@@ -1,10 +1,10 @@
 ---
 title: "List"
-summary: "Paginated page listing with type and status filters."
+summary: "Paginated page listing with type and status filters and facets."
 read_when:
   - Listing pages with filters
 status: ready
-last_updated: "2025-07-21"
+last_updated: "2025-07-22"
 ---
 
 # List
@@ -26,6 +26,11 @@ on the `slug` FAST field. No search ranking. Only the requested page
 window is extracted from the index.
 
 Each entry includes slug, `wiki://` URI, title, type, status, and tags.
+
+Facets (`type`, `status`, `tags` distributions) are always included.
+Same hybrid filtering as `wiki_search` — `type` facet is unfiltered,
+`status` and `tags` are filtered. Tag facets capped to top N (from
+`defaults.facets_top_tags`).
 
 ### Output
 
@@ -55,6 +60,23 @@ JSON (`--format json`):
   ],
   "total": 42,
   "page": 1,
-  "page_size": 20
+  "page_size": 20,
+  "facets": {
+    "type": {
+      "concept": 25,
+      "paper": 10,
+      "article": 5,
+      "section": 2
+    },
+    "status": {
+      "active": 40,
+      "draft": 2
+    },
+    "tags": {
+      "mixture-of-experts": 8,
+      "scaling": 6,
+      "transformers": 5
+    }
+  }
 }
 ```
