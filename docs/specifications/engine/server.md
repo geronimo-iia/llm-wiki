@@ -34,6 +34,7 @@ on any transport sees the same pages and state.
 llm-wiki serve
           [--http [:<port>]]         # enable HTTP (default port: from config)
           [--acp]                   # enable ACP
+          [--watch]                 # enable filesystem watcher
 ```
 
 ### Examples
@@ -44,6 +45,8 @@ llm-wiki serve --http              # stdio + HTTP on default port
 llm-wiki serve --http :9090        # stdio + HTTP on port 9090
 llm-wiki serve --acp               # stdio + ACP
 llm-wiki serve --http --acp        # all three
+llm-wiki serve --watch             # stdio + filesystem watcher
+llm-wiki serve --http --watch      # stdio + HTTP + watcher
 ```
 
 
@@ -78,7 +81,8 @@ wiki is used.
 8. Start stdio MCP server (always)
 9. If --http: start HTTP listener (retry on bind failure)
 10. If --acp: start ACP task
-11. Log: "llm-wiki serve — N wikis mounted [stdio] [http :8080] [acp]"
+11. If --watch: start filesystem watcher task
+12. Log: "llm-wiki serve — N wikis mounted [stdio] [http :8080] [acp] [watch]"
 ```
 
 

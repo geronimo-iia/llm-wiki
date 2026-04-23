@@ -110,5 +110,11 @@ These commands are available via CLI only (no MCP/ACP equivalent).
 | `llm-wiki logs list` | List log files |
 | `llm-wiki logs clear` | Delete all log files |
 
+### Filesystem watcher
+
+| Command | Description |
+|---------|-------------|
+| `llm-wiki watch [--wiki <name>]` | Auto-ingest on file save (standalone mode) |
+
 Operates on `~/.llm-wiki/logs/`. Only useful when `llm-wiki serve`
 has file logging enabled (see [server.md](../engine/server.md)).

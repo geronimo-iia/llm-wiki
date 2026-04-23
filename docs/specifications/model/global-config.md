@@ -80,6 +80,9 @@ log_path      = "~/.llm-wiki/logs"
 log_rotation  = "daily"
 log_max_files = 7
 log_format    = "text"
+
+[watch]
+debounce_ms = 500
 ```
 
 
@@ -143,6 +146,7 @@ is rejected.
 | `serve.max_restarts`    | `10`               | Max transport restarts; `0` = no restart  |
 | `serve.restart_backoff` | `1`                | Initial backoff seconds; doubles, cap 30s |
 | `serve.heartbeat_secs`  | `60`               | Heartbeat interval; `0` = disabled        |
+| `watch.debounce_ms`    | `500`              | Filesystem watcher debounce interval in ms |
 | `logging.log_path`      | `~/.llm-wiki/logs` | Log file directory; empty = stderr only   |
 | `logging.log_rotation`  | `daily`            | `daily`, `hourly`, `never`                |
 | `logging.log_max_files` | `7`                | Max rotated files; `0` = unlimited        |
