@@ -17,13 +17,17 @@ A wiki repository is a git repo with a fixed top-level structure:
 my-wiki/                    ← git root (repository root)
 ├── README.md               ← for humans (name, description, usage)
 ├── wiki.toml               ← wiki config + type registry
-├── schemas/                ← JSON Schema per page type
+├── schemas/                ← JSON Schema + body templates per page type
 │   ├── base.json
 │   ├── concept.json
+│   ├── concept.md          ← body template (optional)
 │   ├── paper.json
+│   ├── paper.md            ← body template (optional)
 │   ├── skill.json
 │   ├── doc.json
-│   └── section.json
+│   ├── doc.md              ← body template (optional)
+│   ├── section.json
+│   └── section.md          ← body template (optional)
 ├── inbox/                  ← drop zone (human puts files here)
 ├── raw/                    ← immutable archive (originals preserved)
 └── wiki/                   ← compiled knowledge (authors write here)
@@ -43,6 +47,8 @@ type overrides. The LLM reads it via `wiki_config`.
 frontmatter per page type. Each schema declares which types it serves
 via `x-wiki-types`. The engine discovers types by scanning this
 directory — no registration in `wiki.toml` needed for the common case.
+Optional `.md` files alongside schemas provide body templates for
+`wiki_content_new` (e.g. `concept.md` next to `concept.json`).
 
 **`inbox/`** — human interface. Drop files here for the LLM to process.
 

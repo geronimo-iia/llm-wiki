@@ -45,7 +45,8 @@ Runs the watcher without MCP transports. Ctrl+C to stop.
 - `inbox/`, `raw/` — not wiki content
 - Non-`.md` files in `wiki/` — assets don't need ingesting
 - `.git/` — internal git operations
-- Non-`.json` files in `schemas/`
+- Non-`.json` files in `schemas/` — body templates (`.md`) and other
+  files do not affect the index
 
 ## Debouncing
 

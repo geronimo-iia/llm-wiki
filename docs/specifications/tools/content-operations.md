@@ -77,7 +77,16 @@ Creates a page by default, or a section with `--section`. Does not
 commit.
 
 Pages get scaffolded frontmatter (title derived from slug, type
-defaults to `page`, status `draft`). Sections get `type: section`.
+defaults to `page`, status `draft`). If a body template exists at
+`schemas/<type>.md`, it is appended after the frontmatter. Otherwise
+the body is empty.
+
+Template resolution order:
+1. `schemas/<type>.md` in the wiki repo (owner-defined)
+2. Embedded default template (shipped with engine)
+3. Empty body (no template)
+
+Sections get `type: section`.
 
 `--bundle` creates a folder with `index.md` instead of a flat file.
 Only valid for pages, not sections (sections are always directories).
