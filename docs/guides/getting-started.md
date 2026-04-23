@@ -55,7 +55,15 @@ llm-wiki spaces list
 llm-wiki content new concepts/mixture-of-experts --name "Mixture of Experts"
 ```
 
-This scaffolds `wiki/concepts/mixture-of-experts.md` with frontmatter:
+This scaffolds `wiki/concepts/mixture-of-experts.md` with frontmatter
+and a body template based on the type. Add `--type concept` for a
+concept-specific body structure:
+
+```bash
+llm-wiki content new concepts/mixture-of-experts --name "Mixture of Experts" --type concept
+```
+
+Frontmatter:
 
 ```yaml
 ---

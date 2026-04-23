@@ -78,14 +78,41 @@ pub fn content_new(
     type_: Option<&str>,
 ) -> Result<String> {
     let (entry, slug) = WikiUri::resolve(uri, wiki_flag, &engine.config)?;
-    let wiki_root = PathBuf::from(&entry.path).join("wiki");
+    let repo_root = PathBuf::from(&entry.path);
+    let wiki_root = repo_root.join("wiki");
+
+    let type_name = if section {
+        "section"
+    } else {
+        type_.unwrap_or("page")
+    };
+    let body_template = resolve_body_template(&repo_root, type_name);
 
     if section {
-        markdown::create_section(&slug, &wiki_root)?;
+        markdown::create_section(&slug, &wiki_root, body_template.as_deref())?;
     } else {
-        markdown::create_page(&slug, bundle, &wiki_root, name, type_)?;
+        markdown::create_page(
+            &slug,
+            bundle,
+            &wiki_root,
+            name,
+            type_,
+            body_template.as_deref(),
+        )?;
     }
     Ok(format!("wiki://{}/{slug}", entry.name))
+}
+
+/// Resolve a body template for a type.
+/// 1. `schemas/<type>.md` in the wiki repo
+/// 2. Embedded default template
+/// 3. None
+fn resolve_body_template(repo_root: &Path, type_name: &str) -> Option<String> {
+    let template_path = repo_root.join("schemas").join(format!("{type_name}.md"));
+    if template_path.is_file() {
+        return std::fs::read_to_string(&template_path).ok();
+    }
+    crate::default_schemas::embedded_body_template(type_name).map(|s| s.to_string())
 }
 
 pub fn content_commit(

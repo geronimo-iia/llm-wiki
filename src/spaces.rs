@@ -126,6 +126,14 @@ fn ensure_structure(path: &Path, name: &str, description: Option<&str>) -> Resul
         }
     }
 
+    // Write embedded default body templates
+    for (filename, content) in crate::default_schemas::default_templates() {
+        let dest = schemas_dir.join(filename);
+        if !dest.exists() {
+            std::fs::write(&dest, content)?;
+        }
+    }
+
     let readme = path.join("README.md");
     if !readme.exists() {
         let desc_line = description.map(|d| format!("\n{d}\n")).unwrap_or_default();

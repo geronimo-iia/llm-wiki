@@ -92,6 +92,7 @@ pub fn create_page(
     wiki_root: &Path,
     name_override: Option<&str>,
     type_override: Option<&str>,
+    body_template: Option<&str>,
 ) -> Result<PathBuf> {
     let slug_str = slug.as_str();
 
@@ -118,7 +119,8 @@ pub fn create_page(
     if let Some(t) = type_override {
         fm.insert("type".into(), serde_yaml::Value::String(t.to_string()));
     }
-    let content = frontmatter::write(&fm, "");
+    let body = body_template.unwrap_or("");
+    let content = frontmatter::write(&fm, body);
 
     let path = if bundle {
         let dir = wiki_root.join(slug_str);
@@ -139,12 +141,17 @@ pub fn create_page(
 }
 
 /// Create a new section (directory + index.md with type: section).
-pub fn create_section(slug: &Slug, wiki_root: &Path) -> Result<PathBuf> {
+pub fn create_section(
+    slug: &Slug,
+    wiki_root: &Path,
+    body_template: Option<&str>,
+) -> Result<PathBuf> {
     let dir = wiki_root.join(slug.as_str());
     std::fs::create_dir_all(&dir)?;
 
     let fm = frontmatter::scaffold(slug, true);
-    let content = frontmatter::write(&fm, "");
+    let body = body_template.unwrap_or("");
+    let content = frontmatter::write(&fm, body);
     let path = dir.join("index.md");
     std::fs::write(&path, content)?;
     Ok(path)

@@ -10,4 +10,5 @@ mod ingest;
 mod schema;
 mod search;
 mod spaces;
+mod templates;
 mod watch;

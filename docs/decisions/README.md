@@ -17,6 +17,7 @@ Architectural decisions and their rationale.
 | [search-facets](search-facets.md)                   | Always-on facets, hybrid filtering, top-N tags                            |
 | [wiki-history](wiki-history.md)                     | Shell git log, follow config, NUL-delimited parsing                       |
 | [wiki-watch](wiki-watch.md)                         | Notify crate, debounce, smart schema rebuild, CLI flag only               |
+| [page-body-templates](page-body-templates.md)       | Naming convention in schemas/, fallback chain, watcher ignores .md        |
 | [untyped-frontmatter](untyped-frontmatter.md)       | BTreeMap instead of fixed struct, type registry validates                  |
 | [engine-manager](engine-manager.md)                 | Centralized mutation handling with cascade reports                         |
 | [ops-module](ops-module.md)                         | Extract duplicated CLI/MCP business logic into src/ops.rs                  |

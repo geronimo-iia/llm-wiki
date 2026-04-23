@@ -219,6 +219,27 @@ llm-wiki schema show meeting
 llm-wiki schema show meeting --template
 ```
 
+## Body Template
+
+Add a body template at `schemas/meeting.md` to scaffold page structure
+when creating pages with `wiki_content_new`:
+
+```markdown
+## Attendees
+
+
+
+## Agenda
+
+
+
+## Action Items
+
+```
+
+The template is plain Markdown (no frontmatter). The engine prepends
+the scaffolded frontmatter automatically.
+
 ## Reference
 
 - [Type system spec](../specifications/model/type-system.md)

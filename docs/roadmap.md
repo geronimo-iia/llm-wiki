@@ -17,6 +17,7 @@ last_updated: "2025-07-21"
 | 3     | Typed graph — `x-graph-edges`, labeled edges, target warnings | ✓      |
 | —     | Upgrade `agent-client-protocol` 0.10 → 0.11                   | ✓      |
 | —     | Replace `_slug_ord` with native string sort                   | ✓      |
+| —     | Page body templates — `schemas/<type>.md` naming convention     | ✓      |
 | —     | `wiki_watch` — filesystem watcher, auto-ingest on save          | ✓      |
 | —     | `wiki_history` — git commit history for a page                | ✓      |
 | —     | Search facets — type/status/tag distributions                  | ✓      |
@@ -57,7 +58,6 @@ Engine improvements not tied to a phase:
 
 ### Medium value
 
-- Page body templates via `wiki_content_new --type` — scaffold full page body, not just frontmatter
 - Persistent graph index — maintain petgraph across ingests, avoid rebuilding on every call
 - Incremental graph — update petgraph on ingest instead of full rebuild
 - `wiki_diff` — changes between two commits for a page

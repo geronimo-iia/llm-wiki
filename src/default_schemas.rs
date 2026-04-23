@@ -7,6 +7,12 @@ const SKILL: &str = include_str!("../schemas/skill.json");
 const DOC: &str = include_str!("../schemas/doc.json");
 const SECTION: &str = include_str!("../schemas/section.json");
 
+const TMPL_CONCEPT: &str = include_str!("../schemas/concept.md");
+const TMPL_PAPER: &str = include_str!("../schemas/paper.md");
+const TMPL_DOC: &str = include_str!("../schemas/doc.md");
+const TMPL_SECTION: &str = include_str!("../schemas/section.md");
+const TMPL_QUERY_RESULT: &str = include_str!("../schemas/query-result.md");
+
 /// Returns a map of schema filename → embedded JSON content.
 pub fn default_schemas() -> HashMap<&'static str, &'static str> {
     HashMap::from([
@@ -17,6 +23,23 @@ pub fn default_schemas() -> HashMap<&'static str, &'static str> {
         ("doc.json", DOC),
         ("section.json", SECTION),
     ])
+}
+
+/// Returns a map of template filename → embedded Markdown content.
+pub fn default_templates() -> HashMap<&'static str, &'static str> {
+    HashMap::from([
+        ("concept.md", TMPL_CONCEPT),
+        ("paper.md", TMPL_PAPER),
+        ("doc.md", TMPL_DOC),
+        ("section.md", TMPL_SECTION),
+        ("query-result.md", TMPL_QUERY_RESULT),
+    ])
+}
+
+/// Resolve a body template for a type name. Checks embedded templates.
+pub fn embedded_body_template(type_name: &str) -> Option<&'static str> {
+    let filename = format!("{type_name}.md");
+    default_templates().get(filename.as_str()).copied()
 }
 
 /// A default type entry extracted from `x-wiki-types` in a schema.

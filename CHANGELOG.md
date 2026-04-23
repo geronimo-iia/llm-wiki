@@ -52,6 +52,7 @@ First release. Single Rust binary, 17 MCP tools, ACP agent.
 
 - `wiki_search` — BM25 search with type filter and cross-wiki support
 - `wiki_watch` — filesystem watcher, auto-ingest on save, smart schema rebuild
+- Page body templates — `schemas/<type>.md` naming convention, fallback chain
 - `wiki_history` — git commit history for a page (trust, staleness, session tracking)
 - `wiki_search` facets — always-on type/status/tags distributions, hybrid filtering
 - `wiki_list` — paginated listing with type/status filters, sorted by slug, with facets
