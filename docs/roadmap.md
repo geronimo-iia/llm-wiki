@@ -52,10 +52,10 @@ activate them by injecting the body into context.
 
 Engine improvements not tied to a phase:
 
-### TurboQuant integration
+### QJL Sketch integration
 
 Attention-based reranking using the `qjl-sketch` crate. See
-[design-origins/turboquant-pipeline.md](design-origins/turboquant-pipeline.md).
+[design-origins/qjl-sketch-pipeline.md](design-origins/qjl-sketch-pipeline.md).
 
 - [ ] Add `qjl-sketch` as a dependency
 - [ ] `src/pipeline.rs`: `Pipeline` struct

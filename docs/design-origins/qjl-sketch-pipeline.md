@@ -1,22 +1,22 @@
 ---
-title: "TurboQuant Pipeline"
-summary: "Search query → BM25 pre-filter → TurboQuant attention scoring → ranked pages. No LLM needed for retrieval."
+title: "QJL-Sketch Pipeline"
+summary: "Search query → BM25 pre-filter → QJL attention scoring → ranked pages. No LLM needed for retrieval."
 read_when:
-  - Understanding how TurboQuant integrates with llm-wiki
+  - Understanding how qjl-sketch integrates with llm-wiki
   - Understanding the alternative to RAG
 status: proposal
 last_updated: "2025-07-23"
 ---
 
-# TurboQuant Pipeline
+# QJL-Sketch Pipeline
 
-Integrates the `turboquant` crate with llm-wiki to replace vector DB
+Integrates the `qjl-sketch` crate with llm-wiki to replace vector DB
 retrieval with attention-based scoring over compressed KV stores.
 
 ## Overview
 
 The search query is the attention goal. BM25 (tantivy) does the coarse
-pre-filter. TurboQuant scores the candidates using a frozen attention
+pre-filter. QJL scores the candidates using a frozen attention
 head — no LLM, no embedding model, no vector DB.
 
 ```
@@ -30,14 +30,14 @@ User query
                │ top-k slugs
                ▼
 ┌──────────────────────────────────────────────────┐
-│  2. COMPRESS — build TurboQuant KV store         │
+│  2. COMPRESS — build QJL KV store         │
 │                                                  │
 │     Each page is projected into K and V vectors  │
 │     using a frozen attention head (no full LLM): │
 │     - K = W_k · page_tokens                      │
 │     - V = W_v · page_tokens                      │
 │                                                  │
-│     Then TurboQuant compresses:                  │
+│     Then qjl-sketch compresses:                  │
 │     - QJL sign hashing (keys)                    │
 │     - Min-max quantization (values)              │
 │                                                  │
@@ -82,7 +82,7 @@ Attention is Q·Kᵀ → softmax → weighted V. Three matrix operations.
 You need:
 
 - Projection weights W_q, W_k, W_v (frozen, from any pretrained model)
-- The TurboQuant score kernel (from the `turboquant` crate)
+- The QJL score kernel (from the `qjl-sketch` crate)
 - A softmax
 
 No autoregressive decoding. No token generation. No sampling. No
@@ -98,7 +98,7 @@ LLM-free.
 ### Ingest path
 
 `wiki_ingest` already validates frontmatter, updates the tantivy index,
-and commits to git. The TurboQuant step hooks in after indexing:
+and commits to git. The qjl-sketch step hooks in after indexing:
 
 ```
 wiki_ingest
@@ -114,9 +114,9 @@ The compressed KV store lives alongside the tantivy index:
 ```
 ~/.llm-wiki/indexes/<wiki-name>/
 ├── tantivy/            ← existing search index
-├── keys.bin            ← TurboQuant compressed keys
+├── keys.bin            ← qjl-sketch compressed keys
 ├── keys.idx
-├── values.bin          ← TurboQuant compressed values
+├── values.bin          ← qjl-sketch compressed values
 └── values.idx
 ```
 
@@ -124,13 +124,13 @@ The compressed KV store lives alongside the tantivy index:
 
 `wiki_search` returns BM25 results. A new `wiki_rerank` tool (or a
 `--rerank` flag on `wiki_search`) scores the BM25 candidates with
-TurboQuant:
+qjl-sketch:
 
 ```
 wiki_search "mixture of experts" --top-k 50
     │
     ▼ 50 BM25 candidates
-wiki_rerank (TurboQuant attention scores)
+wiki_rerank (QJL attention scores)
     │
     ▼ re-ranked top 10
 ```
@@ -175,12 +175,12 @@ Add linked pages that fit within remaining budget
 | Context fragments | Chunks, often missing context | Full synthesized pages |
 | Provenance | Chunk ID → hope it maps back | wiki:// URI, frontmatter |
 | Knowledge freshness | Re-embed on update | Re-compress on page change |
-| Infrastructure | Vector DB + embedding service | tantivy + turboquant (compiled in) |
+| Infrastructure | Vector DB + embedding service | tantivy + qjl-sketch (compiled in) |
 | LLM required | Yes (for generation) | No. Optional for answer generation. |
 
 ## Dependencies
 
-The `turboquant` crate provides:
+The `qjl-sketch` crate provides:
 - `QJLSketch` — projection, quantization, scoring
 - `KeyStore` / `ValueStore` — persistence with mmap
 - `CompressedKeys` / `CompressedValues` — data structures

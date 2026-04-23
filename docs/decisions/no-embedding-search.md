@@ -54,7 +54,7 @@ is a one-time weight extraction (not a runtime dependency) and the
 scoring is pure math — no model inference at query time.
 
 The pipeline: BM25 pre-filter → QJL attention-based reranking. See
-[design-origins/turboquant-pipeline.md](../design-origins/turboquant-pipeline.md).
+[design-origins/qjl-sketch-pipeline.md](../design-origins/qjl-sketch-pipeline.md).
 
 ## Trade-offs
 
