@@ -89,7 +89,7 @@ Each project has its own roadmap:
 
 | Project                                                                | Roadmap                                     |
 | ---------------------------------------------------------------------- | ------------------------------------------- |
-| [turboquant](https://github.com/geronimo-iia/turboquant)               | `docs/roadmap.md` — vector compression crate |
+| [qjl-sketch](https://github.com/geronimo-iia/qjl-sketch)               | `docs/roadmap.md` — vector compression crate |
 | [llm-wiki-skills](https://github.com/geronimo-iia/llm-wiki-skills)     | `docs/roadmap.md` — skill sync + new skills |
 | [llm-wiki-hugo-cms](https://github.com/geronimo-iia/llm-wiki-hugo-cms) | `docs/roadmap.md` — Hugo site scaffold      |
 | [homebrew-tap](https://github.com/geronimo-iia/homebrew-tap)           | Formula updates per release                 |
