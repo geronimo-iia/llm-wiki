@@ -17,6 +17,7 @@ last_updated: "2025-07-21"
 | 3     | Typed graph — `x-graph-edges`, labeled edges, target warnings | ✓      |
 | —     | Upgrade `agent-client-protocol` 0.10 → 0.11                   | ✓      |
 | —     | Replace `_slug_ord` with native string sort                   | ✓      |
+| —     | `wiki_watch` — filesystem watcher, auto-ingest on save          | ✓      |
 | —     | `wiki_history` — git commit history for a page                | ✓      |
 | —     | Search facets — type/status/tag distributions                  | ✓      |
 
@@ -50,7 +51,6 @@ Engine improvements not tied to a phase:
 
 ### High value
 
-- `wiki_watch` — filesystem watcher that auto-ingests on save
 - `wiki_search` hybrid/semantic search — BM25 + vector embeddings for terminology-independent retrieval
 - `wiki_suggest` — given a page, suggest related pages to link (graph + search candidates)
 - `wiki_stats` — wiki health dashboard (page count, orphans, avg connections, staleness)

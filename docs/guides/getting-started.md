@@ -223,6 +223,13 @@ Start the MCP server:
 llm-wiki serve
 ```
 
+Add `--watch` for live indexing — external edits are picked up
+automatically:
+
+```bash
+llm-wiki serve --watch
+```
+
 Connect your editor — see [ide-integration.md](ide-integration.md).
 Now the agent can search, read, write, and ingest through the wiki
 tools.

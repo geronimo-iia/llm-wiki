@@ -196,3 +196,14 @@ Point the IDE at `http://localhost:8080/mcp` instead of stdio.
 Tools are available via MCP. See
 [docs/specifications/tools/overview.md](../specifications/tools/overview.md)
 for the full list.
+
+## Live Indexing
+
+Add `--watch` to any `serve` configuration for live indexing —
+external edits are picked up automatically within ~500ms:
+
+```json
+"args": ["serve", "--watch"]
+```
+
+Or standalone: `llm-wiki watch`.
