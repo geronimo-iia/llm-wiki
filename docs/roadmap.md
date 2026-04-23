@@ -29,6 +29,8 @@ last_updated: "2025-07-21"
 
 | Task                             | Prompt                                                   | Notes                                           |
 | -------------------------------- | -------------------------------------------------------- | ----------------------------------------------- |
+| `wiki_suggest`                   | `docs/prompts/study-wiki-suggest.md`                     | Suggest related pages to link                   |
+| Semantic search                  | `docs/prompts/study-semantic-search.md`                  | BM25 + vector embeddings                        |
 | Cross-wiki links                 | `docs/prompts/study-cross-wiki-links.md`                 | `wiki://` URIs resolved in graph                |
 
 ## Next: Phase 4 — Skill Registry
@@ -53,8 +55,7 @@ Engine improvements not tied to a phase:
 
 ### High value
 
-- `wiki_search` hybrid/semantic search — BM25 + vector embeddings for terminology-independent retrieval
-- `wiki_suggest` — given a page, suggest related pages to link (graph + search candidates)
+- `wiki_export` — static site, PDF, or EPUB
 
 ### Medium value
 
