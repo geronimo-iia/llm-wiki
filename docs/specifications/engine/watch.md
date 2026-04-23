@@ -66,6 +66,13 @@ The watcher sends events, a single consumer processes them:
 
 Priority: rebuild > incremental ingest.
 
+## Git commits
+
+The watcher updates the tantivy index only — it does not commit to
+git. External edits are already on disk; the user manages git through
+their own workflow (IDE, CLI). The `ingest.auto_commit` setting
+applies to `wiki_ingest`, not to the watcher.
+
 ## MCP notifications
 
 After successful ingest, the watcher emits

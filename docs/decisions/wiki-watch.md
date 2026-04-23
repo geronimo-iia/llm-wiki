@@ -20,6 +20,10 @@ After editing a wiki page externally, the user must manually run
   (partial when possible, full when necessary) via `schema_rebuild`.
 - **Serialized operations** — all index operations go through a single
   async channel. Rebuild takes priority over incremental ingest.
+- **Index only, no git commit** — the watcher updates the tantivy
+  index, not git. External edits are already on disk; the user manages
+  git through their own workflow. `ingest.auto_commit` applies to
+  `wiki_ingest`, not to the watcher.
 - **No new MCP tool** — the watcher is a server/CLI feature, not a
   tool. It uses existing ingest and rebuild paths.
 
