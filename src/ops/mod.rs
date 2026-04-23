@@ -9,6 +9,7 @@ mod schema;
 mod search;
 mod spaces;
 mod stats;
+mod suggest;
 
 pub use config::*;
 pub use content::*;
@@ -21,3 +22,4 @@ pub use schema::*;
 pub use search::*;
 pub use spaces::*;
 pub use stats::*;
+pub use suggest::*;

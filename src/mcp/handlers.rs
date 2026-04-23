@@ -329,6 +329,17 @@ pub fn handle_stats(server: &McpServer, args: &Map<String, Value>) -> ToolHandle
     ok_text(s)
 }
 
+pub fn handle_suggest(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
+    let slug = arg_str_req(args, "slug")?;
+    let limit = arg_usize(args, "limit");
+    let wiki_flag = arg_str(args, "wiki");
+    let engine = server.engine();
+    let result =
+        ops::suggest(&engine, &slug, wiki_flag.as_deref(), limit).map_err(|e| format!("{e}"))?;
+    let s = serde_json::to_string_pretty(&result).map_err(|e| format!("{e}"))?;
+    ok_text(s)
+}
+
 pub fn handle_schema(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let action = arg_str(args, "action").ok_or("action is required")?;
     let engine = server.engine();

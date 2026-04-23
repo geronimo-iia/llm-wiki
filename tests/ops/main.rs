@@ -11,5 +11,6 @@ mod schema;
 mod search;
 mod spaces;
 mod stats;
+mod suggest;
 mod templates;
 mod watch;

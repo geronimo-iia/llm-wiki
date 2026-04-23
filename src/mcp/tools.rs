@@ -255,6 +255,18 @@ pub fn tool_list() -> Vec<Tool> {
             ),
         ),
         Tool::new(
+            "wiki_suggest",
+            "Suggest related pages to link",
+            schema(
+                json!({
+                    "slug": str_prop("Slug or wiki:// URI"),
+                    "limit": opt_int("Max suggestions"),
+                    "wiki": opt_str("Target wiki name"),
+                }),
+                &["slug"],
+            ),
+        ),
+        Tool::new(
             "wiki_schema",
             "Inspect and manage type schemas",
             schema(
@@ -296,6 +308,7 @@ pub fn call(server: &McpServer, name: &str, args: &Map<String, Value>) -> ToolRe
         "wiki_graph" => handlers::handle_graph(server, args),
         "wiki_history" => handlers::handle_history(server, args),
         "wiki_stats" => handlers::handle_stats(server, args),
+        "wiki_suggest" => handlers::handle_suggest(server, args),
         "wiki_schema" => handlers::handle_schema(server, args),
         _ => Err(format!("unknown tool: {name}")),
     }));

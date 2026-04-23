@@ -215,6 +215,23 @@ impl Default for WatchConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SuggestConfig {
+    #[serde(default = "default_suggest_limit")]
+    pub default_limit: u32,
+    #[serde(default = "default_suggest_min_score")]
+    pub min_score: f32,
+}
+
+impl Default for SuggestConfig {
+    fn default() -> Self {
+        Self {
+            default_limit: 5,
+            min_score: 0.1,
+        }
+    }
+}
+
 // ── Composite configs ─────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -239,6 +256,8 @@ pub struct GlobalConfig {
     pub ingest: IngestConfig,
     #[serde(default)]
     pub history: HistoryConfig,
+    #[serde(default)]
+    pub suggest: SuggestConfig,
     #[serde(default)]
     pub logging: LoggingConfig,
     #[serde(default)]
@@ -272,6 +291,8 @@ pub struct WikiConfig {
     pub graph: Option<GraphConfig>,
     #[serde(default)]
     pub history: Option<HistoryConfig>,
+    #[serde(default)]
+    pub suggest: Option<SuggestConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -284,6 +305,7 @@ pub struct ResolvedConfig {
     pub ingest: IngestConfig,
     pub validation: ValidationConfig,
     pub history: HistoryConfig,
+    pub suggest: SuggestConfig,
 }
 
 // ── Default value helpers ─────────────────────────────────────────────────────
@@ -359,6 +381,12 @@ fn default_history_limit() -> u32 {
 fn default_debounce_ms() -> u32 {
     500
 }
+fn default_suggest_limit() -> u32 {
+    5
+}
+fn default_suggest_min_score() -> f32 {
+    0.1
+}
 
 // ── Functions ─────────────────────────────────────────────────────────────────
 
@@ -387,6 +415,10 @@ pub fn resolve(global: &GlobalConfig, per_wiki: &WikiConfig) -> ResolvedConfig {
             .history
             .clone()
             .unwrap_or_else(|| global.history.clone()),
+        suggest: per_wiki
+            .suggest
+            .clone()
+            .unwrap_or_else(|| global.suggest.clone()),
     }
 }
 
@@ -460,6 +492,8 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "ingest.auto_commit" => global.ingest.auto_commit = value.parse()?,
         "history.follow" => global.history.follow = value.parse()?,
         "history.default_limit" => global.history.default_limit = value.parse()?,
+        "suggest.default_limit" => global.suggest.default_limit = value.parse()?,
+        "suggest.min_score" => global.suggest.min_score = value.parse()?,
         "validation.type_strictness" => global.validation.type_strictness = value.into(),
         "logging.log_path" => global.logging.log_path = value.into(),
         "logging.log_rotation" => global.logging.log_rotation = value.into(),
@@ -505,6 +539,8 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "ingest.auto_commit" => resolved.ingest.auto_commit.to_string(),
         "history.follow" => resolved.history.follow.to_string(),
         "history.default_limit" => resolved.history.default_limit.to_string(),
+        "suggest.default_limit" => resolved.suggest.default_limit.to_string(),
+        "suggest.min_score" => resolved.suggest.min_score.to_string(),
         _ => format!("unknown key: {key}"),
     }
 }
@@ -582,6 +618,18 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
                 .history
                 .get_or_insert_with(HistoryConfig::default)
                 .default_limit = value.parse()?;
+        }
+        "suggest.default_limit" => {
+            wiki_cfg
+                .suggest
+                .get_or_insert_with(SuggestConfig::default)
+                .default_limit = value.parse()?;
+        }
+        "suggest.min_score" => {
+            wiki_cfg
+                .suggest
+                .get_or_insert_with(SuggestConfig::default)
+                .min_score = value.parse()?;
         }
         "graph.format" => {
             wiki_cfg

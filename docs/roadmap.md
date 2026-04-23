@@ -19,6 +19,7 @@ last_updated: "2025-07-21"
 | —     | Replace `_slug_ord` with native string sort                   | ✓      |
 | —     | Page body templates — `schemas/<type>.md` naming convention     | ✓      |
 | —     | `wiki_stats` — wiki health dashboard                           | ✓      |
+| —     | `wiki_suggest` — suggest related pages to link                 | ✓      |
 | —     | `wiki_watch` — filesystem watcher, auto-ingest on save          | ✓      |
 | —     | `wiki_history` — git commit history for a page                | ✓      |
 | —     | Search facets — type/status/tag distributions                  | ✓      |
@@ -29,7 +30,6 @@ last_updated: "2025-07-21"
 
 | Task                             | Prompt                                                   | Notes                                           |
 | -------------------------------- | -------------------------------------------------------- | ----------------------------------------------- |
-| `wiki_suggest`                   | `docs/prompts/study-wiki-suggest.md`                     | Suggest related pages to link                   |
 | Semantic search                  | `docs/prompts/study-semantic-search.md`                  | BM25 + vector embeddings                        |
 | Cross-wiki links                 | `docs/prompts/study-cross-wiki-links.md`                 | `wiki://` URIs resolved in graph                |
 

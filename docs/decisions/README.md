@@ -20,6 +20,7 @@ Architectural decisions and their rationale.
 | [page-body-templates](page-body-templates.md)       | Naming convention in schemas/, fallback chain, watcher ignores .md        |
 | [wiki-stats](wiki-stats.md)                         | Composed from existing primitives, fixed staleness buckets                |
 | [wiki-diff-not-a-tool](wiki-diff-not-a-tool.md)     | git diff via bash, not a tool — design principle                          |
+| [wiki-suggest](wiki-suggest.md)                     | Three strategies, edge field suggestion, suggest only                     |
 | [untyped-frontmatter](untyped-frontmatter.md)       | BTreeMap instead of fixed struct, type registry validates                  |
 | [engine-manager](engine-manager.md)                 | Centralized mutation handling with cascade reports                         |
 | [ops-module](ops-module.md)                         | Extract duplicated CLI/MCP business logic into src/ops.rs                  |

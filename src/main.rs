@@ -607,6 +607,28 @@ fn main() -> Result<()> {
             }
         }
 
+        // ── Suggest ────────────────────────────────────────────────────
+        Commands::Suggest {
+            slug,
+            limit,
+            format,
+        } => {
+            let manager = WikiEngine::build(&config_path)?;
+            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
+            let result = ops::suggest(&engine, &slug, cli.wiki.as_deref(), limit)?;
+
+            if is_json(&format) {
+                println!("{}", serde_json::to_string_pretty(&result)?);
+            } else if result.is_empty() {
+                println!("No suggestions.");
+            } else {
+                for s in &result {
+                    println!("{:<40} {:.2}  {}", s.slug, s.score, s.title);
+                    println!("  → {}  ({})", s.field, s.reason);
+                }
+            }
+        }
+
         Commands::Watch { wiki } => {
             let manager = std::sync::Arc::new(WikiEngine::build(&config_path)?);
             let debounce = {

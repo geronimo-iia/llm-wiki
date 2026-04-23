@@ -130,6 +130,17 @@ pub enum Commands {
         #[arg(long)]
         format: Option<String>,
     },
+    /// Suggest related pages to link
+    Suggest {
+        /// Slug or wiki:// URI
+        slug: String,
+        /// Max suggestions
+        #[arg(long, short = 'n')]
+        limit: Option<usize>,
+        /// Output format: text | json
+        #[arg(long)]
+        format: Option<String>,
+    },
     /// Inspect and manage type schemas
     Schema {
         #[command(subcommand)]

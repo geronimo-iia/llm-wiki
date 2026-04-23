@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] — TBD
 
-First release. Single Rust binary, 18 MCP tools, ACP agent.
+First release. Single Rust binary, 19 MCP tools, ACP agent.
 
 ### Engine
 
@@ -54,6 +54,7 @@ First release. Single Rust binary, 18 MCP tools, ACP agent.
 - `wiki_watch` — filesystem watcher, auto-ingest on save, smart schema rebuild
 - Page body templates — `schemas/<type>.md` naming convention, fallback chain
 - `wiki_stats` — wiki health dashboard (orphans, connectivity, staleness)
+- `wiki_suggest` — suggest related pages to link (tag overlap, graph, BM25)
 - `wiki_history` — git commit history for a page (trust, staleness, session tracking)
 - `wiki_search` facets — always-on type/status/tags distributions, hybrid filtering
 - `wiki_list` — paginated listing with type/status filters, sorted by slug, with facets
