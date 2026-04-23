@@ -30,7 +30,6 @@ last_updated: "2025-07-21"
 
 | Task                             | Prompt                                                   | Notes                                           |
 | -------------------------------- | -------------------------------------------------------- | ----------------------------------------------- |
-| Semantic search                  | `docs/prompts/study-semantic-search.md`                  | BM25 + vector embeddings                        |
 | Cross-wiki links                 | `docs/prompts/study-cross-wiki-links.md`                 | `wiki://` URIs resolved in graph                |
 
 ## Next: Phase 4 — Skill Registry
@@ -55,10 +54,10 @@ Engine improvements not tied to a phase:
 
 ### TurboQuant integration
 
-Attention-based reranking using the `turboquant` crate. See
+Attention-based reranking using the `qjl-sketch` crate. See
 [design-origins/turboquant-pipeline.md](design-origins/turboquant-pipeline.md).
 
-- [ ] Add `turboquant` as a dependency
+- [ ] Add `qjl-sketch` as a dependency
 - [ ] `src/pipeline.rs`: `Pipeline` struct
 - [ ] `Pipeline::compress_page(tokens, slug) → ()` — project + quantize + store
 - [ ] `Pipeline::query(query_tokens, top_k) → Vec<PageScore>` — project
