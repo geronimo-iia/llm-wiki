@@ -62,7 +62,7 @@ walkdir    = "2"
 chrono     = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 # Git
-git2       = "0.20"
+git2       = { version = "0.20", features = ["vendored-libgit2"] }
 
 # MCP server
 rmcp       = { version = "1.5", features = ["server", "transport-io", "transport-streamable-http-server"] }
