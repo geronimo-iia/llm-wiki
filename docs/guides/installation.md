@@ -28,7 +28,7 @@ LLM_WIKI_INSTALL_DIR=~/.local/bin curl -fsSL .../install.sh | bash
 Requires [Rust](https://www.rust-lang.org/tools/install) 1.95+.
 
 ```bash
-cargo install llm-wiki
+cargo install llm-wiki-engine
 ```
 
 ## Pre-built Binary (cargo-binstall)

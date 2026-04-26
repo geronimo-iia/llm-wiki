@@ -12,7 +12,7 @@ any CI environment that has `git`.
 
 # Or from source (slower, no cargo-binstall needed)
 - name: Install llm-wiki
-  run: cargo install llm-wiki --locked
+  run: cargo install llm-wiki-engine --locked
 ```
 
 ## Schema Validation on PR

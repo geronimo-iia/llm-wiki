@@ -10,7 +10,7 @@ searchable pages and a concept graph.
 curl -fsSL https://raw.githubusercontent.com/geronimo-iia/llm-wiki/main/install.sh | bash
 
 # Or via cargo
-cargo install llm-wiki
+cargo install llm-wiki-engine
 ```
 
 Verify:

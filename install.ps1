@@ -23,7 +23,7 @@ function Get-Target {
         "X64"   { return "x86_64-pc-windows-msvc" }
         "Arm64" { 
             Write-Host "error: Windows ARM64 binaries are not available" -ForegroundColor Red
-            Write-Host "Use 'cargo install llm-wiki' instead"
+            Write-Host "Use 'cargo install llm-wiki-engine' instead"
             exit 1
         }
         default {

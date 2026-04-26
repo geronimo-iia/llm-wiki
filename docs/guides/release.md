@@ -4,7 +4,7 @@
 
 | Channel          | Command                                  | Notes               |
 | ---------------- | ---------------------------------------- | ------------------- |
-| Source build     | `cargo install llm-wiki`                 | Always available    |
+| Source build     | `cargo install llm-wiki-engine`          | Always available    |
 | Pre-built binary | `cargo binstall llm-wiki`                | Via GitHub releases |
 | Homebrew         | `brew install geronimo-iia/tap/llm-wiki` | macOS/Linux         |
 | asdf             | `asdf install llm-wiki latest`           | Version manager     |

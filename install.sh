@@ -36,7 +36,7 @@ detect_platform() {
         Darwin*) os="apple-darwin" ;;
         *)
             red "error: unsupported OS: $(uname -s)"
-            echo "Use 'cargo install llm-wiki' instead"
+            echo "Use 'cargo install llm-wiki-engine' instead"
             exit 1
             ;;
     esac
@@ -46,7 +46,7 @@ detect_platform() {
         aarch64|arm64) arch="aarch64" ;;
         *)
             red "error: unsupported architecture: $(uname -m)"
-            echo "Use 'cargo install llm-wiki' instead"
+            echo "Use 'cargo install llm-wiki-engine' instead"
             exit 1
             ;;
     esac

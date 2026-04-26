@@ -19,7 +19,7 @@ curl -fsSL https://raw.githubusercontent.com/geronimo-iia/llm-wiki/main/install.
 irm https://raw.githubusercontent.com/geronimo-iia/llm-wiki/main/install.ps1 | iex
 
 # Or via cargo
-cargo install llm-wiki
+cargo install llm-wiki-engine
 ```
 
 → [All installation options](docs/guides/installation.md)

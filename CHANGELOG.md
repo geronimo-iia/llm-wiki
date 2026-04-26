@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-04-26
+
+### Fixed
+
+- Renamed crate to `llm-wiki-engine` on crates.io (name `llm-wiki` was
+  unavailable); binary name `llm-wiki` is unchanged
+- Updated `cargo install` instructions in README and install scripts
+- Vendored libgit2 and disabled SSH feature to remove OpenSSL system
+  dependency (fixes cross-platform CI builds)
+- Committed `Cargo.lock` — required for reproducible binary builds
+
 ## [0.1.0] — 2026-04-26
 
 First release. Single Rust binary, 19 MCP tools, ACP agent.
