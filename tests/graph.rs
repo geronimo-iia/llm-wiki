@@ -706,9 +706,7 @@ fn add_cluster(
     fs::create_dir_all(wiki_root.join(prefix)).unwrap();
     fs::write(
         wiki_root.join(&hub),
-        &format!(
-            "---\ntitle: \"{prefix} hub\"\ntype: concept\nstatus: active\n---\n\nHub.\n"
-        ),
+        format!("---\ntitle: \"{prefix} hub\"\ntype: concept\nstatus: active\n---\n\nHub.\n"),
     )
     .unwrap();
     for i in 1..size {
@@ -721,7 +719,7 @@ fn add_cluster(
         };
         fs::write(
             wiki_root.join(format!("{slug}.md")),
-            &format!(
+            format!(
                 "---\ntitle: \"{prefix} node {i}\"\ntype: concept\nstatus: active\n---\n\n{link}"
             ),
         )
@@ -842,5 +840,8 @@ fn compute_communities_deterministic() {
     let s2 = compute_communities(&g, 30).unwrap();
 
     assert_eq!(s1.count, s2.count, "count must be deterministic");
-    assert_eq!(s1.isolated, s2.isolated, "isolated list must be deterministic");
+    assert_eq!(
+        s1.isolated, s2.isolated,
+        "isolated list must be deterministic"
+    );
 }

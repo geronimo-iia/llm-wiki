@@ -272,10 +272,7 @@ pub fn compute_communities(graph: &WikiGraph, min_nodes: usize) -> Option<Commun
 }
 
 /// Returns slug → community id map, or `None` when below threshold.
-pub fn node_community_map(
-    graph: &WikiGraph,
-    min_nodes: usize,
-) -> Option<HashMap<String, usize>> {
+pub fn node_community_map(graph: &WikiGraph, min_nodes: usize) -> Option<HashMap<String, usize>> {
     let local_nodes: Vec<NodeIndex> = {
         let mut v: Vec<NodeIndex> = graph
             .node_indices()
