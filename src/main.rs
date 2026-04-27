@@ -323,8 +323,9 @@ fn main() -> Result<()> {
                 println!("{}", serde_json::to_string_pretty(&report)?);
             } else {
                 println!(
-                    "Ingested: {} pages, {} assets, {} warnings",
+                    "Ingested: {} pages, {} unchanged, {} assets, {} warnings",
                     report.pages_validated,
+                    report.unchanged_count,
                     report.assets_found,
                     report.warnings.len()
                 );

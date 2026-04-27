@@ -1,4 +1,6 @@
+use std::collections::HashSet;
 use std::path::Path;
+use std::path::PathBuf;
 
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
@@ -18,6 +20,9 @@ pub fn normalize_line_endings(input: &str) -> String {
 pub struct IngestOptions {
     pub dry_run: bool,
     pub auto_commit: bool,
+    /// When `Some`, only files in this set are validated; others increment `unchanged_count`.
+    /// When `None`, all files are validated.
+    pub changed_paths: Option<HashSet<PathBuf>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -26,6 +31,8 @@ pub struct IngestReport {
     pub assets_found: usize,
     pub warnings: Vec<String>,
     pub commit: String,
+    #[serde(default)]
+    pub unchanged_count: usize,
 }
 
 pub fn ingest(
@@ -59,13 +66,22 @@ pub fn ingest(
     let mut report = IngestReport::default();
 
     if full_path.is_file() {
-        validate_file(&full_path, registry, validation, &mut report)?;
+        let skip = should_skip(&full_path, wiki_root, &options.changed_paths);
+        if skip {
+            report.unchanged_count += 1;
+        } else {
+            validate_file(&full_path, registry, validation, &mut report)?;
+        }
     } else {
         for entry in WalkDir::new(&full_path).into_iter().filter_map(|e| e.ok()) {
             let p = entry.path();
             if p.is_file() {
                 if p.extension().and_then(|e| e.to_str()) == Some("md") {
-                    validate_file(p, registry, validation, &mut report)?;
+                    if should_skip(p, wiki_root, &options.changed_paths) {
+                        report.unchanged_count += 1;
+                    } else {
+                        validate_file(p, registry, validation, &mut report)?;
+                    }
                 } else {
                     report.assets_found += 1;
                 }
@@ -85,6 +101,15 @@ pub fn ingest(
     }
 
     Ok(report)
+}
+
+fn should_skip(abs_path: &Path, wiki_root: &Path, changed: &Option<HashSet<PathBuf>>) -> bool {
+    let Some(set) = changed else { return false };
+    if set.is_empty() {
+        return false;
+    }
+    let rel = abs_path.strip_prefix(wiki_root).unwrap_or(abs_path);
+    !set.contains(rel)
 }
 
 fn validate_file(
