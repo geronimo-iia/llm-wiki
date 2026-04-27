@@ -257,6 +257,23 @@ impl Default for SearchConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LintConfig {
+    #[serde(default = "default_stale_days")]
+    pub stale_days: u32,
+    #[serde(default = "default_stale_confidence_threshold")]
+    pub stale_confidence_threshold: f32,
+}
+
+impl Default for LintConfig {
+    fn default() -> Self {
+        Self {
+            stale_days: default_stale_days(),
+            stale_confidence_threshold: default_stale_confidence_threshold(),
+        }
+    }
+}
+
 // ── Composite configs ─────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -285,6 +302,8 @@ pub struct GlobalConfig {
     pub suggest: SuggestConfig,
     #[serde(default)]
     pub search: SearchConfig,
+    #[serde(default)]
+    pub lint: LintConfig,
     #[serde(default)]
     pub logging: LoggingConfig,
     #[serde(default)]
@@ -322,6 +341,8 @@ pub struct WikiConfig {
     pub suggest: Option<SuggestConfig>,
     #[serde(default)]
     pub search: Option<SearchConfig>,
+    #[serde(default)]
+    pub lint: Option<LintConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -336,6 +357,7 @@ pub struct ResolvedConfig {
     pub history: HistoryConfig,
     pub suggest: SuggestConfig,
     pub search: SearchConfig,
+    pub lint: LintConfig,
 }
 
 // ── Default value helpers ─────────────────────────────────────────────────────
@@ -417,6 +439,12 @@ fn default_suggest_limit() -> u32 {
 fn default_suggest_min_score() -> f32 {
     0.1
 }
+fn default_stale_days() -> u32 {
+    90
+}
+fn default_stale_confidence_threshold() -> f32 {
+    0.4
+}
 // ── Functions ─────────────────────────────────────────────────────────────────
 
 pub fn resolve(global: &GlobalConfig, per_wiki: &WikiConfig) -> ResolvedConfig {
@@ -457,6 +485,7 @@ pub fn resolve(global: &GlobalConfig, per_wiki: &WikiConfig) -> ResolvedConfig {
             }
             SearchConfig { status: merged }
         },
+        lint: per_wiki.lint.clone().unwrap_or_else(|| global.lint.clone()),
     }
 }
 

@@ -132,6 +132,8 @@ These keys can appear in both `config.toml` (global) and `wiki.toml`
 | `history.default_limit`      | `10`      | Default entry count for `wiki_history`             |
 | `suggest.default_limit`      | `5`       | Max suggestions for `wiki_suggest`                 |
 | `suggest.min_score`          | `0.1`     | Minimum score threshold for suggestions            |
+| `lint.stale_days`            | `90`      | Days before a page's `last_updated` is considered old |
+| `lint.stale_confidence_threshold` | `0.4` | Confidence below this threshold (AND old) = stale finding |
 | `search.status`              | `{ active=1.0, draft=0.8, archived=0.3, unknown=0.9 }` | Status multiplier map. `unknown` is the reserved fallback for absent or unmapped statuses. Add custom entries (`stub`, `verified`, …) alongside built-ins. Per-wiki resolution merges key-by-key — a `wiki.toml` only needs to declare what differs. |
 | `read.no_frontmatter`        | `false`   | Strip frontmatter from `wiki_content_read` output         |
 | `ingest.auto_commit`         | `true`    | Commit after ingest                               |

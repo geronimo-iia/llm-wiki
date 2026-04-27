@@ -607,6 +607,36 @@ fn main() -> Result<()> {
             }
         }
 
+        // ── Lint ───────────────────────────────────────────────────────
+        Commands::Lint {
+            rules,
+            severity,
+            format,
+        } => {
+            let manager = WikiEngine::build(&config_path)?;
+            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
+            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref()).to_string();
+            let report = ops::run_lint(&engine, &wiki_name, rules.as_deref(), severity.as_deref())?;
+
+            if is_json(&format) {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else if report.findings.is_empty() {
+                println!("wiki {wiki_name}: ok (no findings)");
+            } else {
+                for f in &report.findings {
+                    println!("[{}] {} — {} ({})", f.severity, f.slug, f.message, f.rule);
+                }
+                println!(
+                    "\n{} finding(s): {} error(s), {} warning(s)",
+                    report.total, report.errors, report.warnings
+                );
+            }
+
+            if report.errors > 0 {
+                std::process::exit(1);
+            }
+        }
+
         // ── Suggest ────────────────────────────────────────────────────
         Commands::Suggest {
             slug,

@@ -1,7 +1,7 @@
 ---
 title: "Lint System"
 summary: "wiki_lint MCP tool: deterministic index-based rules. Skill lint layer calls wiki_lint and adds judgment-based rules on top."
-status: proposed
+status: implemented
 last_updated: "2026-04-27"
 ---
 
@@ -112,35 +112,35 @@ findings in the same grouped report.
 ## Tasks
 
 ### Engine — `src/ops/lint.rs`
-- [ ] Add `src/ops/lint.rs`; define `LintFinding`, `Severity`, `run_lint()` skeleton.
-- [ ] Implement `orphan` rule: reverse `body_links` term query across all pages; flag slugs with zero incoming links; exclude `type: section` pages.
-- [ ] Implement `broken-link` rule: for each page, check every slug in `body_links` and frontmatter slug-list fields (`sources`, `concepts`, `superseded_by`) exists in the index.
-- [ ] Implement `missing-fields` rule: for each page, load its type schema; validate required fields against parsed frontmatter.
-- [ ] Implement `stale` rule: parse `last_updated`; compare to `now - stale_days`; if confidence field is indexed, also require `confidence < stale_confidence_threshold`; both conditions must hold.
-- [ ] Implement `unknown-type` rule: check `type` field against `TypeRegistry::known_types()`.
+- [x] Add `src/ops/lint.rs`; define `LintFinding`, `Severity`, `run_lint()` skeleton.
+- [x] Implement `orphan` rule: reverse `body_links` term query across all pages; flag slugs with zero incoming links; exclude `type: section` pages.
+- [x] Implement `broken-link` rule: for each page, check every slug in `body_links` and frontmatter slug-list fields (`sources`, `concepts`, `superseded_by`) exists in the index.
+- [x] Implement `missing-fields` rule: for each page, load its type schema; validate required fields against parsed frontmatter.
+- [x] Implement `stale` rule: parse `last_updated`; compare to `now - stale_days`; if confidence field is indexed, also require `confidence < stale_confidence_threshold`; both conditions must hold.
+- [x] Implement `unknown-type` rule: check `type` field against `TypeRegistry::known_types()`.
 
 ### Engine — config
-- [ ] Add `LintConfig` to `src/config.rs` with `stale_days: u32` (default 90) and `stale_confidence_threshold: f32` (default 0.4).
-- [ ] Wire into `WikiConfig` under `[lint]`; expose via `ResolvedConfig`.
+- [x] Add `LintConfig` to `src/config.rs` with `stale_days: u32` (default 90) and `stale_confidence_threshold: f32` (default 0.4).
+- [x] Wire into `WikiConfig` under `[lint]`; expose via `ResolvedConfig`.
 
 ### Engine — MCP + CLI
-- [ ] Add `wiki_lint` to `src/tools.rs` with parameters `wiki`, `rules`, `severity`.
-- [ ] Add `lint` subcommand to `src/cli.rs`; wire `--format json|text`.
-- [ ] CLI exits non-zero when any `Error` findings exist.
+- [x] Add `wiki_lint` to `src/tools.rs` with parameters `wiki`, `rules`, `severity`.
+- [x] Add `lint` subcommand to `src/cli.rs`; wire `--format json|text`.
+- [x] CLI exits non-zero when any `Error` findings exist.
 
 ### Skill — `llm-wiki-skills/skills/lint/SKILL.md`
-- [ ] Replace manual orphan detection (`wiki_graph` walk) with `wiki_lint(rules: "orphan")`.
-- [ ] Replace manual broken-link detection (`wiki_list` + `wiki_content_read` per page) with `wiki_lint(rules: "broken-link")`.
-- [ ] Add `wiki_lint()` as the first step in the audit workflow; merge findings into the grouped report.
+- [x] Replace manual orphan detection (`wiki_graph` walk) with `wiki_lint(rules: "orphan")`.
+- [x] Replace manual broken-link detection (`wiki_list` + `wiki_content_read` per page) with `wiki_lint(rules: "broken-link")`.
+- [x] Add `wiki_lint()` as the first step in the audit workflow; merge findings into the grouped report.
 
 ### Config spec docs
-- [ ] Update `docs/specifications/model/global-config.md`: add `[lint]` to overridable defaults table.
-- [ ] Update `docs/specifications/model/wiki-toml.md`: add `[lint]` to per-wiki overridable settings.
+- [x] Update `docs/specifications/model/global-config.md`: add `[lint]` to overridable defaults table.
+- [x] Update `docs/specifications/model/wiki-toml.md`: add `[lint]` to per-wiki overridable settings.
 
 ### Tool spec docs
-- [ ] Create `docs/specifications/tools/lint.md`.
+- [x] Create `docs/specifications/tools/lint.md`.
 
 ### Tests
-- [ ] Unit test per rule: pass and fail case each.
-- [ ] Integration test: create wiki with known issues; run `wiki_lint`; assert expected findings.
-- [ ] `stale` rule: page old + low confidence → stale; page old + high confidence → not stale; page recent + low confidence → stale.
+- [x] Unit test per rule: pass and fail case each.
+- [x] Integration test: create wiki with known issues; run `wiki_lint`; assert expected findings.
+- [x] `stale` rule: page old + low confidence → stale; page old + high confidence → not stale; page recent + low confidence → stale.
