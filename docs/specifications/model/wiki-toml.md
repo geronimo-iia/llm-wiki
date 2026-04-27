@@ -38,6 +38,10 @@ auto_commit = true
 
 [validation]
 type_strictness = "loose"
+
+[search.status]
+archived = 0.0   # suppress archived for this wiki
+stub     = 0.6   # add a custom status
 ```
 
 
@@ -78,3 +82,17 @@ from `x-wiki-types` in a schema file.
 Any key from the global config that is not global-only can be overridden
 here. See [global-config.md](global-config.md) for the full key
 reference.
+
+Commonly overridden per-wiki:
+
+| Section          | Keys / notes                                                                 |
+| ---------------- | ---------------------------------------------------------------------------- |
+| `[search.status]` | Status multiplier map. Only declare keys that differ from the global baseline. Built-ins (`active`, `draft`, `archived`, `unknown`) are inherited automatically. |
+| `[suggest]`      | `default_limit`, `min_score`                                                 |
+| `[ingest]`       | `auto_commit`                                                                |
+| `[graph]`        | `format`, `depth`                                                            |
+
+`[search.status]` is the only section resolved **key-by-key**: a
+`wiki.toml` block merges over the global map rather than replacing it.
+A wiki that sets `archived = 0.0` and `stub = 0.6` still inherits
+`active`, `draft`, and `unknown` from the global config unchanged.

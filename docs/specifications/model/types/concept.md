@@ -27,7 +27,7 @@ Two types share this schema:
 | `tldr`       | string       | no       | none    | One-sentence key takeaway                       |
 | `sources`    | list[string] | no       | `[]`    | Slugs of source pages that contributed claims   |
 | `concepts`   | list[string] | no       | `[]`    | Slugs of concept pages this page depends on     |
-| `confidence` | string       | no       | none    | `high`, `medium`, `low`                         |
+| `confidence` | float 0.0–1.0 | no      | `0.5`   | Certainty of page content. See [base.md](base.md). Legacy strings `high`/`medium`/`low` are read as `0.9`/`0.5`/`0.2`. |
 | `claims`     | list[claim]  | no       | `[]`    | Structured claims extracted from sources        |
 
 ## Claims
@@ -38,7 +38,7 @@ confidence and location:
 | Field        | Type   | Required | Description                                   |
 | ------------ | ------ | -------- | --------------------------------------------- |
 | `text`       | string | yes      | The claim as a factual statement              |
-| `confidence` | string | no       | `high`, `medium`, `low`                       |
+| `confidence` | string | no       | `high`, `medium`, `low` — claim-level confidence, distinct from page-level `confidence` |
 | `source`     | string | no       | Slug of the source page                       |
 | `section`    | string | no       | Section in the source where the claim appears |
 
@@ -49,6 +49,8 @@ claims:
     source: sources/switch-transformer-2021
     section: "Results"
 ```
+
+> `claims[].confidence` is a string enum (`high`/`medium`/`low`) scoped to the claim object. It is distinct from the page-level `confidence` float field.
 
 ## Edge Declarations
 
@@ -72,7 +74,7 @@ last_updated: "2025-07-17"
 tags: [mixture-of-experts, scaling, transformers]
 sources: [sources/switch-transformer-2021]
 concepts: [concepts/scaling-laws]
-confidence: high
+confidence: 0.9
 claims:
   - text: "Sparse MoE reduces effective compute 8x"
     confidence: high

@@ -35,7 +35,7 @@ distinction. Classify by the source material's nature, not its topic.
 | `tldr` | string | no | none | One-sentence key takeaway |
 | `sources` | list[string] | no | `[]` | Slugs of other source pages (e.g. papers cited by a survey) |
 | `concepts` | list[string] | no | `[]` | Slugs of concept pages this source informs |
-| `confidence` | string | no | none | `high`, `medium`, `low` |
+| `confidence` | float 0.0–1.0 | no | `0.5` | Certainty of page content. See [base.md](base.md). Legacy strings `high`/`medium`/`low` are read as `0.9`/`0.5`/`0.2`. |
 | `claims` | list[claim] | no | `[]` | Structured claims (see [concept.md](concept.md) for claim format) |
 
 ## Edge Declarations
@@ -59,7 +59,7 @@ type: paper
 last_updated: "2025-07-17"
 tags: [mixture-of-experts, switch-transformer, scaling]
 concepts: [concepts/mixture-of-experts, concepts/scaling-laws]
-confidence: high
+confidence: 0.9
 claims:
   - text: "Switch routing achieves 4x speedup"
     confidence: high

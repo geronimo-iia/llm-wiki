@@ -96,6 +96,22 @@ is 500ms. Lower for faster feedback, higher for busy editors:
 llm-wiki config set watch.debounce_ms 300 --global
 ```
 
+### Tune search ranking
+
+Search results are scored as `bm25 × status_multiplier × confidence`.
+Adjust multipliers per-wiki in `wiki.toml` (or globally in `config.toml`):
+
+```toml
+# wiki.toml
+[search.status]
+archived = 0.0   # suppress archived pages entirely
+stub     = 0.6   # demote stubs without hiding them
+```
+
+Only declare the entries that differ from the global defaults — the rest
+are inherited automatically. See [search-ranking.md](search-ranking.md)
+for the full reference.
+
 ### Change graph output format
 
 Default is Mermaid. Switch to DOT for Graphviz:

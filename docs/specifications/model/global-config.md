@@ -64,6 +64,12 @@ default_limit = 10
 default_limit = 5
 min_score     = 0.1
 
+[search.status]
+active   = 1.0
+draft    = 0.8
+archived = 0.3
+unknown  = 0.9
+
 # ── Global-only settings ──────────────────────────────────────────────────────
 
 [index]
@@ -126,6 +132,7 @@ These keys can appear in both `config.toml` (global) and `wiki.toml`
 | `history.default_limit`      | `10`      | Default entry count for `wiki_history`             |
 | `suggest.default_limit`      | `5`       | Max suggestions for `wiki_suggest`                 |
 | `suggest.min_score`          | `0.1`     | Minimum score threshold for suggestions            |
+| `search.status`              | `{ active=1.0, draft=0.8, archived=0.3, unknown=0.9 }` | Status multiplier map. `unknown` is the reserved fallback for absent or unmapped statuses. Add custom entries (`stub`, `verified`, …) alongside built-ins. Per-wiki resolution merges key-by-key — a `wiki.toml` only needs to declare what differs. |
 | `read.no_frontmatter`        | `false`   | Strip frontmatter from `wiki_content_read` output         |
 | `ingest.auto_commit`         | `true`    | Commit after ingest                               |
 | `validation.type_strictness` | `loose`   | `strict`: unknown type is error; `loose`: warning |
@@ -167,3 +174,10 @@ is rejected.
 3. Global config     (config.toml)
 4. Built-in default
 ```
+
+Most sections resolve all-or-nothing: if a section is present in
+`wiki.toml`, it replaces the global section entirely. The one exception
+is `[search.status]`, which merges **key by key** — the global map
+provides the baseline, and per-wiki entries override or extend
+individual keys. A `wiki.toml` only needs to declare the entries it
+wants to change or add.

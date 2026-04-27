@@ -11,5 +11,6 @@ llm-wiki.
 | [ide-integration.md](ide-integration.md) | Connect to VS Code, Cursor, Windsurf, Zed, Claude Code            |
 | [multi-wiki.md](multi-wiki.md)           | Manage multiple wikis, cross-wiki search, wiki:// URIs            |
 | [custom-types.md](custom-types.md)       | Add custom page types with JSON Schema                            |
+| [search-ranking.md](search-ranking.md)   | Tune search ranking: status multipliers, custom statuses, per-wiki overrides |
 | [ci-cd.md](ci-cd.md)                     | Schema validation, index rebuild, and ingest in CI pipelines      |
 | [release.md](release.md)                 | Release process and distribution channels                         |

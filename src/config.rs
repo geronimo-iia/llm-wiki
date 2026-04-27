@@ -232,6 +232,31 @@ impl Default for SuggestConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchConfig {
+    #[serde(default = "default_search_status")]
+    pub status: std::collections::HashMap<String, f32>,
+}
+
+fn default_search_status() -> std::collections::HashMap<String, f32> {
+    [
+        ("active".into(), 1.0_f32),
+        ("draft".into(), 0.8),
+        ("archived".into(), 0.3),
+        ("unknown".into(), 0.9),
+    ]
+    .into_iter()
+    .collect()
+}
+
+impl Default for SearchConfig {
+    fn default() -> Self {
+        Self {
+            status: default_search_status(),
+        }
+    }
+}
+
 // ── Composite configs ─────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -258,6 +283,8 @@ pub struct GlobalConfig {
     pub history: HistoryConfig,
     #[serde(default)]
     pub suggest: SuggestConfig,
+    #[serde(default)]
+    pub search: SearchConfig,
     #[serde(default)]
     pub logging: LoggingConfig,
     #[serde(default)]
@@ -293,6 +320,8 @@ pub struct WikiConfig {
     pub history: Option<HistoryConfig>,
     #[serde(default)]
     pub suggest: Option<SuggestConfig>,
+    #[serde(default)]
+    pub search: Option<SearchConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -306,6 +335,7 @@ pub struct ResolvedConfig {
     pub validation: ValidationConfig,
     pub history: HistoryConfig,
     pub suggest: SuggestConfig,
+    pub search: SearchConfig,
 }
 
 // ── Default value helpers ─────────────────────────────────────────────────────
@@ -387,7 +417,6 @@ fn default_suggest_limit() -> u32 {
 fn default_suggest_min_score() -> f32 {
     0.1
 }
-
 // ── Functions ─────────────────────────────────────────────────────────────────
 
 pub fn resolve(global: &GlobalConfig, per_wiki: &WikiConfig) -> ResolvedConfig {
@@ -419,6 +448,15 @@ pub fn resolve(global: &GlobalConfig, per_wiki: &WikiConfig) -> ResolvedConfig {
             .suggest
             .clone()
             .unwrap_or_else(|| global.suggest.clone()),
+        search: {
+            let mut merged = global.search.status.clone();
+            if let Some(wiki_search) = &per_wiki.search {
+                for (k, v) in &wiki_search.status {
+                    merged.insert(k.clone(), *v);
+                }
+            }
+            SearchConfig { status: merged }
+        },
     }
 }
 

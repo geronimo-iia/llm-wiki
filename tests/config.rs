@@ -481,6 +481,78 @@ fn get_config_value_unknown_key() {
     assert!(get_config_value(&resolved, &global, "nonexistent.key").contains("unknown"));
 }
 
+// ── SearchConfig ──────────────────────────────────────────────────────────────
+
+#[test]
+fn search_config_default_has_four_built_ins() {
+    let sc = SearchConfig::default();
+    assert_eq!(sc.status.get("active").copied(), Some(1.0_f32));
+    assert_eq!(sc.status.get("draft").copied(), Some(0.8_f32));
+    assert_eq!(sc.status.get("archived").copied(), Some(0.3_f32));
+    assert_eq!(sc.status.get("unknown").copied(), Some(0.9_f32));
+}
+
+#[test]
+fn search_config_roundtrips_custom_entries() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(
+        &path,
+        r#"
+[search.status]
+active     = 1.0
+draft      = 0.8
+archived   = 0.3
+unknown    = 0.9
+verified   = 1.0
+stub       = 0.6
+deprecated = 0.1
+"#,
+    )
+    .unwrap();
+
+    let config = load_global(&path).unwrap();
+    let sc = &config.search;
+    assert_eq!(sc.status.get("active").copied(), Some(1.0_f32));
+    assert_eq!(sc.status.get("stub").copied(), Some(0.6_f32));
+    assert_eq!(sc.status.get("deprecated").copied(), Some(0.1_f32));
+    assert_eq!(sc.status.get("verified").copied(), Some(1.0_f32));
+}
+
+#[test]
+fn resolve_search_status_merges_per_wiki() {
+    let global = GlobalConfig {
+        search: SearchConfig {
+            status: [
+                ("active".into(), 1.0_f32),
+                ("draft".into(), 0.8),
+                ("archived".into(), 0.3),
+                ("unknown".into(), 0.9),
+            ]
+            .into_iter()
+            .collect(),
+        },
+        ..Default::default()
+    };
+    let per_wiki = WikiConfig {
+        search: Some(SearchConfig {
+            status: [
+                ("archived".into(), 0.0_f32), // override
+                ("stub".into(), 0.6),         // add
+            ]
+            .into_iter()
+            .collect(),
+        }),
+        ..Default::default()
+    };
+    let resolved = resolve(&global, &per_wiki);
+    assert_eq!(resolved.search.status.get("active").copied(), Some(1.0_f32), "active inherited");
+    assert_eq!(resolved.search.status.get("draft").copied(), Some(0.8_f32), "draft inherited");
+    assert_eq!(resolved.search.status.get("archived").copied(), Some(0.0_f32), "archived overridden");
+    assert_eq!(resolved.search.status.get("unknown").copied(), Some(0.9_f32), "unknown inherited");
+    assert_eq!(resolved.search.status.get("stub").copied(), Some(0.6_f32), "stub added by wiki");
+}
+
 // ── types registry in wiki.toml ──────────────────────────────────────────────
 
 #[test]

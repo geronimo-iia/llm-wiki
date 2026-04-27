@@ -3,7 +3,8 @@ use std::path::Path;
 
 use anyhow::Result;
 use tantivy::schema::{
-    FAST, Field, IndexRecordOption, STORED, STRING, Schema, TextFieldIndexing, TextOptions,
+    FAST, Field, IndexRecordOption, NumericOptions, STORED, STRING, Schema, TextFieldIndexing,
+    TextOptions,
 };
 
 use crate::config;
@@ -18,6 +19,7 @@ pub struct IndexSchema {
     pub schema: Schema,
     pub fields: HashMap<String, Field>,
     keyword_fields: HashSet<String>,
+    numeric_fields: HashSet<String>,
 }
 
 impl IndexSchema {
@@ -65,6 +67,7 @@ impl IndexSchema {
                 match classification {
                     FieldClass::Text => builder.add_text(field_name),
                     FieldClass::Keyword => builder.add_keyword(field_name),
+                    FieldClass::Numeric => builder.add_numeric(field_name),
                 }
             }
         }
@@ -74,6 +77,10 @@ impl IndexSchema {
 
     pub fn is_keyword(&self, name: &str) -> bool {
         self.keyword_fields.contains(name)
+    }
+
+    pub fn is_numeric(&self, name: &str) -> bool {
+        self.numeric_fields.contains(name)
     }
 
     pub fn field(&self, name: &str) -> Field {
@@ -91,6 +98,7 @@ impl IndexSchema {
 pub(crate) enum FieldClass {
     Text,
     Keyword,
+    Numeric,
 }
 
 pub(crate) fn classify_field(prop: &serde_json::Value, is_slug_field: bool) -> FieldClass {
@@ -120,7 +128,8 @@ pub(crate) fn classify_field(prop: &serde_json::Value, is_slug_field: bool) -> F
             }
             FieldClass::Text
         }
-        // object, number, integer, or unknown → text (serialized)
+        "number" | "integer" => FieldClass::Numeric,
+        // object or unknown → text (serialized)
         _ => FieldClass::Text,
     }
 }
@@ -227,6 +236,7 @@ pub(crate) struct SchemaBuilder {
     builder: tantivy::schema::SchemaBuilder,
     fields: HashMap<String, Field>,
     keyword_fields: HashSet<String>,
+    numeric_fields: HashSet<String>,
     text_opts: TextOptions,
 }
 
@@ -243,6 +253,7 @@ impl SchemaBuilder {
             builder: Schema::builder(),
             fields: HashMap::new(),
             keyword_fields: HashSet::new(),
+            numeric_fields: HashSet::new(),
             text_opts,
         }
     }
@@ -273,11 +284,21 @@ impl SchemaBuilder {
         }
     }
 
+    pub(crate) fn add_numeric(&mut self, name: &str) {
+        if !self.fields.contains_key(name) {
+            let opts = NumericOptions::default() | FAST | STORED;
+            let field = self.builder.add_f64_field(name, opts);
+            self.fields.insert(name.to_string(), field);
+            self.numeric_fields.insert(name.to_string());
+        }
+    }
+
     pub(crate) fn finish(self) -> IndexSchema {
         IndexSchema {
             schema: self.builder.build(),
             fields: self.fields,
             keyword_fields: self.keyword_fields,
+            numeric_fields: self.numeric_fields,
         }
     }
 }

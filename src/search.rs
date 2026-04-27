@@ -4,13 +4,14 @@ use std::collections::HashMap;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use tantivy::{
-    Order, Searcher, Term,
+    DocId, Order, Score, Searcher, Term,
     collector::{Count, TopDocs},
     query::{AllQuery, BooleanQuery, Occur, QueryParser, TermQuery},
     schema::{IndexRecordOption, Value},
     snippet::{Snippet, SnippetGenerator},
 };
 
+use crate::config::SearchConfig;
 use crate::index_schema::IndexSchema;
 
 // ── Return types ──────────────────────────────────────────────────────────────
@@ -22,6 +23,7 @@ pub struct PageRef {
     pub uri: String,
     pub title: String,
     pub score: f32,
+    pub confidence: f32,
     pub excerpt: Option<String>,
 }
 
@@ -34,6 +36,7 @@ pub struct PageSummary {
     pub r#type: String,
     pub status: String,
     pub tags: Vec<String>,
+    pub confidence: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,6 +82,7 @@ pub struct SearchOptions {
     pub top_k: usize,
     pub r#type: Option<String>,
     pub facets_top_tags: usize,
+    pub search_config: SearchConfig,
 }
 
 impl Default for SearchOptions {
@@ -89,6 +93,7 @@ impl Default for SearchOptions {
             top_k: 10,
             r#type: None,
             facets_top_tags: 10,
+            search_config: SearchConfig::default(),
         }
     }
 }
@@ -162,16 +167,51 @@ pub fn search(
         Box::new(BooleanQuery::new(clauses))
     };
 
-    let top_docs = searcher.search(
-        &final_query,
-        &TopDocs::with_limit(options.top_k).order_by_score(),
-    )?;
+    let sc = options.search_config.clone();
+    let has_confidence = is.try_field("confidence").is_some();
+    let collector = TopDocs::with_limit(options.top_k).tweak_score(
+        move |segment_reader: &tantivy::SegmentReader| {
+            let status_col = segment_reader
+                .fast_fields()
+                .str("status")
+                .ok()
+                .flatten();
+            let conf_col = if has_confidence {
+                segment_reader.fast_fields().f64("confidence").ok()
+            } else {
+                None
+            };
+            let status_map = sc.status.clone();
+            move |doc: DocId, score: Score| {
+                let unknown_mult = status_map.get("unknown").copied().unwrap_or(0.9);
+                let status_mult = match &status_col {
+                    Some(col) => match col.term_ords(doc).next() {
+                        Some(ord) => {
+                            let mut buf = String::new();
+                            col.ord_to_str(ord, &mut buf).ok();
+                            status_map.get(buf.as_str()).copied().unwrap_or(unknown_mult)
+                        }
+                        None => unknown_mult,
+                    },
+                    None => unknown_mult,
+                };
+                let confidence = conf_col
+                    .as_ref()
+                    .and_then(|c| c.first(doc))
+                    .unwrap_or(0.5) as f32;
+                score * status_mult * confidence
+            }
+        },
+    );
+    let top_docs = searcher.search(&final_query, &collector)?;
 
     let snippet_gen = if !options.no_excerpt {
         Some(SnippetGenerator::create(searcher, &final_query, f_body)?)
     } else {
         None
     };
+
+    let f_confidence = is.try_field("confidence");
 
     let mut results = Vec::new();
     for (score, doc_addr) in top_docs {
@@ -189,6 +229,11 @@ pub fn search(
             .to_string();
         let uri = format!("wiki://{wiki_name}/{slug}");
 
+        let confidence = f_confidence
+            .and_then(|f| doc.get_first(f))
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.5) as f32;
+
         let excerpt = snippet_gen.as_ref().map(|sg| {
             let snippet: Snippet = sg.snippet_from_doc(&doc);
             snippet.to_html()
@@ -199,6 +244,7 @@ pub fn search(
             uri,
             title,
             score,
+            confidence,
             excerpt,
         });
     }
@@ -250,6 +296,7 @@ pub fn list(
     let f_type = is.field("type");
     let f_status = is.field("status");
     let f_tags = is.field("tags");
+    let f_confidence = is.try_field("confidence");
 
     let query: Box<dyn tantivy::query::Query> = {
         let mut clauses: Vec<(Occur, Box<dyn tantivy::query::Query>)> = Vec::new();
@@ -357,6 +404,11 @@ pub fn list(
             .map(|s| s.to_string())
             .collect();
 
+        let confidence = f_confidence
+            .and_then(|f| doc.get_first(f))
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.5) as f32;
+
         let uri = format!("wiki://{wiki_name}/{slug}");
 
         summaries.push(PageSummary {
@@ -366,6 +418,7 @@ pub fn list(
             r#type: page_type,
             status,
             tags,
+            confidence,
         });
     }
 

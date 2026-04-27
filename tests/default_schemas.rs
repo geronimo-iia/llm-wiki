@@ -78,7 +78,7 @@ fn concept_accepts_full_template() {
         "tags": ["mixture-of-experts", "scaling"],
         "sources": ["sources/switch-transformer-2021"],
         "concepts": ["concepts/scaling-laws"],
-        "confidence": "high",
+        "confidence": 0.9,
         "claims": [{
             "text": "Sparse MoE reduces effective compute 8x",
             "confidence": "high",
@@ -109,7 +109,7 @@ fn paper_accepts_source_template() {
         "status": "active",
         "read_when": ["Looking for MoE benchmark results"],
         "concepts": ["concepts/mixture-of-experts"],
-        "confidence": "high",
+        "confidence": 0.9,
         "claims": [{"text": "Switch routing achieves 4x speedup", "confidence": "high"}]
     })));
 }

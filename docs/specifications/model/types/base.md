@@ -33,6 +33,7 @@ field (registered as `[types.default]` in `wiki.toml`).
 | `tags`          | list[string] | Lowercase hyphenated search terms                |
 | `owner`         | string       | Person, team, or agent responsible               |
 | `superseded_by` | string       | Slug of replacement page                         |
+| `confidence`    | float 0.0–1.0 | Certainty of this page's content. Default `0.5`. `0.0–0.3` = speculative, `0.4–0.6` = partial, `0.7–0.9` = reviewed, `1.0` = verified. Used as a search ranking multiplier. |
 
 Uses `additionalProperties: true` — unrecognized fields are preserved
 on disk and indexed as text.

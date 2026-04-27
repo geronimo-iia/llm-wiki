@@ -60,9 +60,11 @@
       "description": "Slugs of concept pages this page depends on"
     },
     "confidence": {
-      "type": "string",
-      "description": "Confidence level",
-      "enum": ["high", "medium", "low"]
+      "type": "number",
+      "description": "Certainty of this page's content. 0.0=speculative, 1.0=verified.",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "default": 0.5
     },
     "claims": {
       "type": "array",

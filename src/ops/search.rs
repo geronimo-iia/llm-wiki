@@ -28,6 +28,7 @@ pub fn search(
             .unwrap_or(resolved.defaults.search_top_k as usize),
         r#type: params.type_filter.map(|s| s.to_string()),
         facets_top_tags: resolved.defaults.facets_top_tags as usize,
+        search_config: resolved.search.clone(),
     };
 
     if params.cross_wiki {

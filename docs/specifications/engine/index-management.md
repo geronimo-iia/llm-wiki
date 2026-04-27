@@ -67,6 +67,12 @@ How frontmatter fields map to roles:
   sorted pagination via `order_by_string_fast_field`.
 - **Keyword fields** (`type`, `status`, `tags`) are `STRING | FAST` —
   FAST enables both exact-match filtering and facet counting.
+- **Numeric fields** (`confidence`) are `f64 | FAST | STORED` — stored
+  for result output, FAST for per-document score access inside the
+  `tweak_score` collector. `confidence` is written via the dedicated
+  `frontmatter::confidence()` getter (not the generic text path), so
+  legacy string values (`"high"` → 0.9, `"medium"` → 0.5, `"low"` → 0.2)
+  are normalised to floats at index time.
 - **URI** is stored but not searched.
 
 The `slug` field is the unique key for delete+insert operations.

@@ -135,6 +135,71 @@ fn scaffold_section() {
     assert_eq!(fm.get("type").unwrap().as_str(), Some("section"));
 }
 
+#[test]
+fn scaffold_emits_confidence_half() {
+    let slug = Slug::try_from("concepts/test").unwrap();
+    let fm = scaffold(&slug, false);
+    let c = fm.get("confidence").unwrap().as_f64().unwrap();
+    assert!((c - 0.5).abs() < f64::EPSILON);
+}
+
+// ── confidence getter ─────────────────────────────────────────────────────────
+
+#[test]
+fn confidence_maps_legacy_strings() {
+    use std::collections::BTreeMap;
+    use serde_yaml::Value;
+
+    let mut fm = BTreeMap::new();
+    fm.insert("confidence".to_string(), Value::String("high".to_string()));
+    assert!((confidence(&fm) - 0.9).abs() < f32::EPSILON);
+
+    fm.insert("confidence".to_string(), Value::String("medium".to_string()));
+    assert!((confidence(&fm) - 0.5).abs() < f32::EPSILON);
+
+    fm.insert("confidence".to_string(), Value::String("low".to_string()));
+    assert!((confidence(&fm) - 0.2).abs() < f32::EPSILON);
+}
+
+#[test]
+fn confidence_absent_returns_default() {
+    use std::collections::BTreeMap;
+    let fm = BTreeMap::new();
+    assert!((confidence(&fm) - 0.5).abs() < f32::EPSILON);
+}
+
+#[test]
+fn confidence_numeric_value() {
+    use std::collections::BTreeMap;
+    use serde_yaml::Value;
+
+    let mut fm = BTreeMap::new();
+    fm.insert(
+        "confidence".to_string(),
+        Value::Number(serde_yaml::Number::from(0.8f64)),
+    );
+    assert!((confidence(&fm) - 0.8).abs() < 1e-6);
+}
+
+#[test]
+fn confidence_out_of_range_clamped() {
+    use std::collections::BTreeMap;
+    use serde_yaml::Value;
+
+    let mut fm = BTreeMap::new();
+    fm.insert(
+        "confidence".to_string(),
+        Value::Number(serde_yaml::Number::from(1.5f64)),
+    );
+    assert!((confidence(&fm) - 1.0).abs() < f32::EPSILON);
+
+    fm.insert(
+        "confidence".to_string(),
+        Value::Number(serde_yaml::Number::from(-0.5f64)),
+    );
+    assert!((confidence(&fm) - 0.0).abs() < f32::EPSILON);
+}
+
 // ── title_from_body_or_filename ───────────────────────────────────────────────
 
 #[test]

@@ -25,7 +25,7 @@ Results ordered alphabetically by slug via `order_by_string_fast_field`
 on the `slug` FAST field. No search ranking. Only the requested page
 window is extracted from the index.
 
-Each entry includes slug, `wiki://` URI, title, type, status, and tags.
+Each entry includes slug, `wiki://` URI, title, type, status, tags, and `confidence`.
 
 Facets (`type`, `status`, `tags` distributions) are always included.
 Same hybrid filtering as `wiki_search` — `type` facet is unfiltered,
@@ -55,7 +55,8 @@ JSON (`--format json`):
       "title": "Mixture of Experts",
       "type": "concept",
       "status": "active",
-      "tags": ["mixture-of-experts", "scaling"]
+      "tags": ["mixture-of-experts", "scaling"],
+      "confidence": 0.9
     }
   ],
   "total": 42,
@@ -80,3 +81,17 @@ JSON (`--format json`):
   }
 }
 ```
+
+### PageSummary fields
+
+Each page object (`PageSummary`) contains:
+
+| Field        | Type         | Description                             |
+| ------------ | ------------ | --------------------------------------- |
+| `slug`       | string       | Page slug                               |
+| `uri`        | string       | `wiki://<name>/<slug>`                 |
+| `title`      | string       | Page title                              |
+| `type`       | string       | Page type                               |
+| `status`     | string       | Lifecycle status                        |
+| `tags`       | list[string] | Tags                                    |
+| `confidence` | float        | Page `confidence` value (default `0.5`) |

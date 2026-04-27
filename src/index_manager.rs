@@ -524,10 +524,20 @@ fn index_page(
     doc.add_text(is.field("slug"), slug);
     doc.add_text(is.field("uri"), uri);
 
+    // Write confidence as f64 FAST field using the dedicated getter
+    if let Some(conf_field) = is.try_field("confidence") {
+        let conf = frontmatter::confidence(&page.frontmatter) as f64;
+        doc.add_f64(conf_field, conf);
+    }
+
     let resolved = resolve_fields(page, registry);
     let mut extra_text = String::new();
 
     for (canonical, value) in &resolved {
+        // confidence is already written above as a numeric field; skip text indexing
+        if canonical == "confidence" {
+            continue;
+        }
         index_value(&mut doc, &mut extra_text, is, canonical, value);
     }
 

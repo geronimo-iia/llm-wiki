@@ -177,6 +177,7 @@ fn assemble(
             match classify_field(field_def, is_slug) {
                 FieldClass::Text => schema_builder.add_text(field_name),
                 FieldClass::Keyword => schema_builder.add_keyword(field_name),
+                FieldClass::Numeric => schema_builder.add_numeric(field_name),
             }
         }
     }
@@ -249,6 +250,7 @@ fn assemble_without_overrides(
             match classify_field(field_def, is_slug) {
                 FieldClass::Text => schema_builder.add_text(field_name),
                 FieldClass::Keyword => schema_builder.add_keyword(field_name),
+                FieldClass::Numeric => schema_builder.add_numeric(field_name),
             }
         }
     }

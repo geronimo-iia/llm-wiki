@@ -1,7 +1,7 @@
 ---
 title: "Lifecycle-Aware Search Ranking"
 summary: "Apply status and confidence multipliers inside the tantivy collector via tweak_score, not as a post-retrieval sort."
-status: proposed
+status: implemented
 last_updated: "2026-04-27"
 depends_on: confidence
 ---
@@ -113,24 +113,24 @@ and passed into the `tweak_score` closure by copy — no change to the closure s
 ## Tasks
 
 ### Config
-- [ ] Add `SearchConfig` struct to `src/config.rs` with four `f32` multiplier fields and `Default` impl matching the table above.
-- [ ] Wire `SearchConfig` into `WikiConfig` under `[search]`; expose via `ResolvedConfig`.
-- [ ] Update `wiki.toml` spec (`docs/specifications/model/wiki-toml.md`): add `[search]` section with multiplier fields.
+- [x] Add `SearchConfig` struct to `src/config.rs` with four `f32` multiplier fields and `Default` impl matching the table above.
+- [x] Wire `SearchConfig` into `WikiConfig` under `[search]`; expose via `ResolvedConfig`.
+- [x] Update `wiki.toml` spec (`docs/specifications/model/wiki-toml.md`): add `[search]` section with multiplier fields.
 
 ### Source code
-- [ ] Add `add_numeric` method to `SchemaBuilder` in `src/index_schema.rs`: `f64 | FAST | STORED`; use it to register the `confidence` field (coordinate with improvement #1).
-- [ ] Replace `TopDocs::with_limit(...).order_by_score()` in `src/search.rs::search()` with `TopDocs::with_limit(...).tweak_score(...)`; pass resolved `SearchConfig` multipliers into the closure by copy.
-- [ ] In the `tweak_score` closure: read `status` via `fast_fields().str()` and `confidence` via `fast_fields().f64()`; apply multipliers from config.
-- [ ] Populate `confidence` on `PageRef` from the stored field (already a task in improvement #1).
+- [x] Add `add_numeric` method to `SchemaBuilder` in `src/index_schema.rs`: `f64 | FAST | STORED`; use it to register the `confidence` field (coordinate with improvement #1).
+- [x] Replace `TopDocs::with_limit(...).order_by_score()` in `src/search.rs::search()` with `TopDocs::with_limit(...).tweak_score(...)`; pass resolved `SearchConfig` multipliers into the closure by copy.
+- [x] In the `tweak_score` closure: read `status` via `fast_fields().str()` and `confidence` via `fast_fields().f64()`; apply multipliers from config.
+- [x] Populate `confidence` on `PageRef` from the stored field (already a task in improvement #1).
 
 ### Tests
-- [ ] Index three pages with identical body text, `status: active/draft/archived`; assert active ranks first, archived last (default config).
-- [ ] Index two pages with identical body and status; `confidence: 0.9` vs `confidence: 0.2`; assert high-confidence ranks first.
-- [ ] Combined: `archived + confidence 1.0` ranks below `active + confidence 0.5` (0.3 × 1.0 = 0.3 < 1.0 × 0.5 = 0.5).
-- [ ] Custom config: set `status_archived = 0.0`; assert archived pages never appear in results.
+- [x] Index three pages with identical body text, `status: active/draft/archived`; assert active ranks first, archived last (default config).
+- [x] Index two pages with identical body and status; `confidence: 0.9` vs `confidence: 0.2`; assert high-confidence ranks first.
+- [x] Combined: `archived + confidence 1.0` ranks below `active + confidence 0.5` (0.3 × 1.0 = 0.3 < 1.0 × 0.5 = 0.5).
+- [x] Custom config: set `status_archived = 0.0`; assert archived pages never appear in results.
 
 ### Spec docs
-- [ ] Update `docs/specifications/tools/search.md`: document ranking formula, multiplier table, and `[search]` config keys.
-- [ ] Update `docs/specifications/model/global-config.md`: add `[search]` to the overridable defaults table with all four keys and their defaults.
-- [ ] Update `docs/specifications/model/wiki-toml.md`: add `[search]` to the per-wiki overridable settings section.
-- [ ] Update `docs/specifications/model/global-config.md` example block: add `[search]` section.
+- [x] Update `docs/specifications/tools/search.md`: document ranking formula, multiplier table, and `[search]` config keys.
+- [x] Update `docs/specifications/model/global-config.md`: add `[search]` to the overridable defaults table with all four keys and their defaults.
+- [x] Update `docs/specifications/model/wiki-toml.md`: add `[search]` to the per-wiki overridable settings section.
+- [x] Update `docs/specifications/model/global-config.md` example block: add `[search]` section.

@@ -1,7 +1,7 @@
 ---
 title: "Confidence Field"
 summary: "Add confidence: 0.0–1.0 to the base page schema; index as a numeric field; use as a search ranking multiplier."
-status: proposed
+status: implemented
 last_updated: "2026-04-27"
 ---
 
@@ -100,31 +100,31 @@ with `confidence: high` should not crash on read. Map legacy strings on read:
 ## Tasks
 
 ### Schemas (JSON)
-- [ ] Add `confidence` float field to `schemas/base.json`: `type: number`, `minimum: 0.0`, `maximum: 1.0`, `default: 0.5`.
-- [ ] Change `confidence` in `schemas/concept.json` from string enum to `number` with same range and default; leave `claims[].confidence` string enum untouched (different scope).
-- [ ] Change `confidence` in `schemas/paper.json` from string enum to `number` with same range and default; same caveat for `claims[].confidence`.
+- [x] Add `confidence` float field to `schemas/base.json`: `type: number`, `minimum: 0.0`, `maximum: 1.0`, `default: 0.5`. *(done via concept.json + paper.json; base.json deferred — no base.json schema file)*
+- [x] Change `confidence` in `schemas/concept.json` from string enum to `number` with same range and default; leave `claims[].confidence` string enum untouched (different scope).
+- [x] Change `confidence` in `schemas/paper.json` from string enum to `number` with same range and default; same caveat for `claims[].confidence`.
 
 ### Source code
-- [ ] Add `fn confidence(fm: &BTreeMap<String, Value>) -> f32` to `src/frontmatter.rs`; return `0.5` when absent; map legacy strings (`"high" → 0.9`, `"medium" → 0.5`, `"low" → 0.2`); clamp result to `[0.0, 1.0]`.
-- [ ] Add `confidence` as a `f64 | FAST | STORED` numeric field in `src/index_schema.rs` via a new `add_numeric` method on `SchemaBuilder`; populate during index build via the `confidence()` getter. Tantivy 0.26 exposes numeric fast fields only as `f64` — store and read as `f64`, cast to `f32` at the `PageRef` boundary.
-- [ ] Add `confidence: f32` to `PageRef` struct in `src/search.rs`; populate from stored field (default `0.5`).
-- [ ] Add `confidence: f32` to `PageSummary` struct in `src/search.rs`; populate from stored field.
-- [ ] Update `src/ops/search.rs` to read `confidence` from the stored field and apply as score multiplier after the status multiplier (improvement #2 wires this in).
-- [ ] Add `confidence: 0.5` to `fn scaffold()` in `src/frontmatter.rs` so `wiki_content_new` emits it by default.
+- [x] Add `fn confidence(fm: &BTreeMap<String, Value>) -> f32` to `src/frontmatter.rs`; return `0.5` when absent; map legacy strings (`"high" → 0.9`, `"medium" → 0.5`, `"low" → 0.2`); clamp result to `[0.0, 1.0]`.
+- [x] Add `confidence` as a `f64 | FAST | STORED` numeric field in `src/index_schema.rs` via a new `add_numeric` method on `SchemaBuilder`; populate during index build via the `confidence()` getter. Tantivy 0.26 exposes numeric fast fields only as `f64` — store and read as `f64`, cast to `f32` at the `PageRef` boundary.
+- [x] Add `confidence: f32` to `PageRef` struct in `src/search.rs`; populate from stored field (default `0.5`).
+- [x] Add `confidence: f32` to `PageSummary` struct in `src/search.rs`; populate from stored field.
+- [x] Update `src/ops/search.rs` to read `confidence` from the stored field and apply as score multiplier after the status multiplier (improvement #2 wires this in).
+- [x] Add `confidence: 0.5` to `fn scaffold()` in `src/frontmatter.rs` so `wiki_content_new` emits it by default.
 
 ### Schema body templates
-- [ ] Add `confidence: 0.5` to `schemas/concept.md` frontmatter template if it contains a frontmatter block; otherwise leave (body template, not frontmatter).
-- [ ] Same for `schemas/paper.md`.
+- [x] Add `confidence: 0.5` to `schemas/concept.md` frontmatter template if it contains a frontmatter block; otherwise leave (body template, not frontmatter). *(body-only template — no frontmatter block, nothing to add)*
+- [x] Same for `schemas/paper.md`. *(body-only template — no frontmatter block, nothing to add)*
 
 ### Specification docs
-- [ ] `docs/specifications/model/types/base.md`: add `confidence` to optional fields table (`float 0.0–1.0`, default `0.5`).
-- [ ] `docs/specifications/model/types/concept.md`: change `confidence` field type from string enum to `float 0.0–1.0`; update all `confidence: high` examples to `confidence: 0.9`; note `claims[].confidence` remains a string enum.
-- [ ] `docs/specifications/model/types/source.md`: same — change table entry and examples.
-- [ ] `docs/specifications/engine/index-management.md`: note `confidence` is now a dedicated numeric FAST field, not an arbitrary text field.
-- [ ] `docs/specifications/tools/search.md`: document `confidence: float` in the `PageRef` result schema.
-- [ ] `docs/specifications/tools/list.md`: document `confidence: float` in the `PageSummary` result schema.
+- [x] `docs/specifications/model/types/base.md`: add `confidence` to optional fields table (`float 0.0–1.0`, default `0.5`).
+- [x] `docs/specifications/model/types/concept.md`: change `confidence` field type from string enum to `float 0.0–1.0`; update all `confidence: high` examples to `confidence: 0.9`; note `claims[].confidence` remains a string enum.
+- [x] `docs/specifications/model/types/source.md`: same — change table entry and examples.
+- [x] `docs/specifications/engine/index-management.md`: note `confidence` is now a dedicated numeric FAST field, not an arbitrary text field.
+- [x] `docs/specifications/tools/search.md`: document `confidence: float` in the `PageRef` result schema.
+- [x] `docs/specifications/tools/list.md`: document `confidence: float` in the `PageSummary` result schema.
 
 ### Tests
-- [ ] `fn scaffold()` emits `confidence: 0.5`.
-- [ ] `fn confidence()` maps `"high" → 0.9`, `"medium" → 0.5`, `"low" → 0.2`, absent → `0.5`, out-of-range float clamped.
-- [ ] Search ranks `confidence: 0.9` page above `confidence: 0.2` page with identical body text.
+- [x] `fn scaffold()` emits `confidence: 0.5`.
+- [x] `fn confidence()` maps `"high" → 0.9`, `"medium" → 0.5`, `"low" → 0.2`, absent → `0.5`, out-of-range float clamped.
+- [x] Search ranks `confidence: 0.9` page above `confidence: 0.2` page with identical body text.
