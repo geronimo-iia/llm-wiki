@@ -130,6 +130,18 @@ pub enum Commands {
         #[arg(long)]
         format: Option<String>,
     },
+    /// Run deterministic lint rules on the wiki index
+    Lint {
+        /// Comma-separated rule names: orphan, broken-link, missing-fields, stale, unknown-type
+        #[arg(long)]
+        rules: Option<String>,
+        /// Filter output by severity: error | warning
+        #[arg(long)]
+        severity: Option<String>,
+        /// Output format: text | json
+        #[arg(long)]
+        format: Option<String>,
+    },
     /// Suggest related pages to link
     Suggest {
         /// Slug or wiki:// URI

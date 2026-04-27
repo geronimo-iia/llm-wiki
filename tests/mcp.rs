@@ -1,9 +1,9 @@
 use llm_wiki::mcp::tools;
 
 #[test]
-fn tool_list_returns_19_tools() {
+fn tool_list_returns_20_tools() {
     let tools = tools::tool_list();
-    assert_eq!(tools.len(), 19);
+    assert_eq!(tools.len(), 20);
 }
 
 #[test]
@@ -28,6 +28,7 @@ fn tool_list_contains_expected_names() {
         "wiki_graph",
         "wiki_history",
         "wiki_stats",
+        "wiki_lint",
         "wiki_suggest",
     ];
     for name in &expected {
@@ -46,7 +47,6 @@ fn tool_list_no_removed_tools() {
         "wiki_new_page",
         "wiki_new_section",
         "wiki_commit",
-        "wiki_lint",
         "wiki_index_check",
     ];
     for name in &removed {

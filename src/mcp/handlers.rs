@@ -347,6 +347,17 @@ pub fn handle_stats(server: &McpServer, args: &Map<String, Value>) -> ToolHandle
     ok_text(s)
 }
 
+pub fn handle_lint(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
+    let engine = server.engine();
+    let wiki_name = resolve_wiki_name(&engine, args)?;
+    let rules = arg_str(args, "rules");
+    let severity = arg_str(args, "severity");
+    let result = ops::run_lint(&engine, &wiki_name, rules.as_deref(), severity.as_deref())
+        .map_err(|e| format!("{e}"))?;
+    let s = serde_json::to_string_pretty(&result).map_err(|e| format!("{e}"))?;
+    ok_text(s)
+}
+
 pub fn handle_suggest(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let slug = arg_str_req(args, "slug")?;
     let limit = arg_usize(args, "limit");

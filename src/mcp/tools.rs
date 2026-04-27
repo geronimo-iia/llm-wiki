@@ -38,7 +38,7 @@ fn opt_int(desc: &str) -> Value {
     json!({"type": "integer", "description": desc})
 }
 
-// ── Tool definitions (19 tools) ───────────────────────────────────────────────
+// ── Tool definitions (20 tools) ───────────────────────────────────────────────
 
 pub fn tool_list() -> Vec<Tool> {
     vec![
@@ -268,6 +268,18 @@ pub fn tool_list() -> Vec<Tool> {
             ),
         ),
         Tool::new(
+            "wiki_lint",
+            "Run deterministic lint rules on the wiki index",
+            schema(
+                json!({
+                    "rules": opt_str("Comma-separated rule names: orphan, broken-link, missing-fields, stale, unknown-type (omit for all)"),
+                    "severity": opt_str("Filter output: error | warning (omit for all)"),
+                    "wiki": opt_str("Target wiki name"),
+                }),
+                &[],
+            ),
+        ),
+        Tool::new(
             "wiki_schema",
             "Inspect and manage type schemas",
             schema(
@@ -309,6 +321,7 @@ pub fn call(server: &McpServer, name: &str, args: &Map<String, Value>) -> ToolRe
         "wiki_graph" => handlers::handle_graph(server, args),
         "wiki_history" => handlers::handle_history(server, args),
         "wiki_stats" => handlers::handle_stats(server, args),
+        "wiki_lint" => handlers::handle_lint(server, args),
         "wiki_suggest" => handlers::handle_suggest(server, args),
         "wiki_schema" => handlers::handle_schema(server, args),
         _ => Err(format!("unknown tool: {name}")),
