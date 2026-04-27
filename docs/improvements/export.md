@@ -204,6 +204,72 @@ type grouping and summaries are richer input for gap analysis.
 natural language output surfaces clusters, hubs, and isolated nodes
 directly without requiring the LLM to parse Mermaid syntax.
 
+## Branch & PR — `llm-wiki`
+
+```bash
+git checkout -b feat/llms-export
+```
+
+When implementation is complete and all tests pass:
+
+```bash
+cargo fmt --all
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
+```bash
+git push -u origin feat/llms-export
+gh pr create \
+  --title "feat: llms format on wiki_list/search/graph + wiki_export tool" \
+  --milestone "v0.2.0" \
+  --body "$(cat <<'EOF'
+Implements imp-9 (llms format + wiki_export).
+
+- Add format: "llms" to wiki_list, wiki_search, wiki_graph
+- Add wiki_export MCP tool and CLI export subcommand
+- Formats: llms-txt (default), llms-full, json
+- Path resolution relative to wiki root; default llms.txt
+
+Closes geronimo-iia/llm-wiki#22 (imp-9)
+
+Spec: docs/improvements/export.md
+EOF
+)"
+```
+
+## Branch & PR — `llm-wiki-skills`
+
+```bash
+# in llm-wiki-skills repo
+git checkout -b feat/llms-export
+```
+
+When done:
+
+```bash
+git push -u origin feat/llms-export
+gh pr create \
+  --repo geronimo-iia/llm-wiki-skills \
+  --milestone "v0.4.0" \
+  --title "feat: adopt llms format in crystallize, ingest, research, lint, graph skills" \
+  --body "$(cat <<'EOF'
+Aligns skill documentation with the llms format feature added in llm-wiki imp-9.
+
+- crystallize/SKILL.md: wiki_list(format: "llms") as first orientation step
+- ingest/SKILL.md: wiki_list(format: "llms") for first-file orientation
+- research/SKILL.md: Orient section using wiki_list(format: "llms") for broad queries
+- lint/SKILL.md: replace wiki_list(page_size: 100) with wiki_list(format: "llms")
+- graph/SKILL.md: wiki_graph(format: "llms") for Interpret section
+
+Companion to llm-wiki feat/llms-export (imp-9).
+Closes geronimo-iia/llm-wiki-skills#1 (imp-9)
+EOF
+)"
+```
+
+> Merge timing: skills PR requires `llm-wiki` imp-9 to be merged first.
+
 ## Tasks
 
 ### Engine — `src/graph.rs`
@@ -307,3 +373,8 @@ directly without requiring the LLM to parse Mermaid syntax.
 - [ ] Path resolution: relative path resolves to wiki root.
 - [ ] `wiki_export(status: "all")` includes archived pages;
   default excludes them.
+
+### Issue update
+After merging:
+- Check off imp-9 in `geronimo-iia/llm-wiki#22` and `geronimo-iia/llm-wiki-skills#1`
+- Mark `status: implemented` in this file
