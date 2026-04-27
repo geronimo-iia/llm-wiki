@@ -174,6 +174,11 @@ nothing is coupled to a specific AI provider.
 
 ## Technology
 
+The file format is Markdown. The history store is git. Both predate llm-wiki
+and will outlive it — your wiki is readable, diffable, and portable with zero
+dependency on this tool. The engine itself is a single Rust binary with no
+runtime, no database, and nothing to keep running between sessions.
+
 Single Rust binary. No runtime, no database, no Docker.
 
 | Component | Technology |
