@@ -1,7 +1,7 @@
 ---
 title: "Backlinks"
 summary: "Expose incoming links on wiki_content_read via an index query, no file writes."
-status: proposed
+status: implemented
 last_updated: "2026-04-27"
 ---
 
@@ -59,6 +59,12 @@ git checkout -b feat/backlinks
 When implementation is complete and all tests pass:
 
 ```bash
+cargo fmt --all
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
+```bash
 git push -u origin feat/backlinks
 gh pr create \
   --title "feat: backlinks param on wiki_content_read" \
@@ -110,15 +116,15 @@ EOF
 
 ### Engine — `llm-wiki` (branch: `feat/backlinks`)
 
-- [ ] Add `BacklinkRef { slug: String, title: String }` struct to content ops return types; derive `Serialize`.
-- [ ] Add `backlinks_for(slug: &str, searcher: &Searcher, is: &IndexSchema) -> Vec<BacklinkRef>` in `src/ops/content.rs`; term query on `body_links` keyword field.
-- [ ] Add `backlinks: bool` parameter to `wiki_content_read` MCP tool definition in `src/tools.rs`.
-- [ ] In `handlers::handle_content_read`, when `backlinks: true`, call `backlinks_for` and include the result in the JSON response.
-- [ ] Update `wiki_content_read` response schema in `docs/specifications/tools/content-operations.md`.
-- [ ] Unit test: two pages link to a third; `backlinks_for` returns both; a page with no incoming links returns an empty vec.
-- [ ] Unit test: `backlinks: false` (default) returns no `backlinks` field in the response (no overhead for the common case).
+- [x] Add `BacklinkRef { slug: String, title: String }` struct to content ops return types; derive `Serialize`.
+- [x] Add `backlinks_for(slug: &str, searcher: &Searcher, is: &IndexSchema) -> Vec<BacklinkRef>` in `src/ops/content.rs`; term query on `body_links` keyword field.
+- [x] Add `backlinks: bool` parameter to `wiki_content_read` MCP tool definition in `src/tools.rs`.
+- [x] In `handlers::handle_content_read`, when `backlinks: true`, call `backlinks_for` and include the result in the JSON response.
+- [x] Update `wiki_content_read` response schema in `docs/specifications/tools/content-operations.md`.
+- [x] Unit test: two pages link to a third; `backlinks_for` returns both; a page with no incoming links returns an empty vec.
+- [x] Unit test: `backlinks: false` (default) returns no `backlinks` field in the response (no overhead for the common case).
 
 ### Skills — `llm-wiki-skills` (branch: `feat/backlinks`)
 
-- [ ] `skills/content/SKILL.md`: document `backlinks: true` parameter on `wiki_content_read`; show example response with `backlinks` array.
-- [ ] `skills/research/SKILL.md`: add backlinks as a discovery technique (when tracing what references a page).
+- [x] `skills/content/SKILL.md`: document `backlinks: true` parameter on `wiki_content_read`; show example response with `backlinks` array.
+- [x] `skills/research/SKILL.md`: add backlinks as a discovery technique (when tracing what references a page).

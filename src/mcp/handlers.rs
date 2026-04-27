@@ -113,6 +113,7 @@ pub fn handle_content_read(server: &McpServer, args: &Map<String, Value>) -> Too
     let wiki_flag = arg_str(args, "wiki");
     let no_frontmatter = arg_bool(args, "no_frontmatter");
     let list_assets = arg_bool(args, "list_assets");
+    let include_backlinks = arg_bool(args, "backlinks");
 
     match ops::content_read(
         &engine,
@@ -123,7 +124,24 @@ pub fn handle_content_read(server: &McpServer, args: &Map<String, Value>) -> Too
     )
     .map_err(|e| format!("{e}"))?
     {
-        ops::ContentReadResult::Page(content) => ok_text(content),
+        ops::ContentReadResult::Page(content) => {
+            if include_backlinks {
+                use crate::slug::WikiUri;
+                let wiki_name = engine.resolve_wiki_name(wiki_flag.as_deref()).to_string();
+                let (_entry, slug) = WikiUri::resolve(&uri, wiki_flag.as_deref(), &engine.config)
+                    .map_err(|e| format!("{e}"))?;
+                let backlinks = ops::backlinks_for(&engine, &wiki_name, slug.as_str())
+                    .map_err(|e| format!("{e}"))?;
+                let response = serde_json::json!({
+                    "content": content,
+                    "backlinks": backlinks,
+                });
+                let s = serde_json::to_string_pretty(&response).map_err(|e| format!("{e}"))?;
+                ok_text(s)
+            } else {
+                ok_text(content)
+            }
+        }
         ops::ContentReadResult::Assets(assets) => ok_text(assets.join("\n")),
         ops::ContentReadResult::Binary => {
             Err("asset is binary — access it directly from the filesystem".into())

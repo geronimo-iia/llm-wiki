@@ -109,6 +109,7 @@ pub fn tool_list() -> Vec<Tool> {
                     "uri": str_prop("Slug or wiki:// URI"),
                     "no_frontmatter": opt_bool("Strip frontmatter from output"),
                     "list_assets": opt_bool("List co-located assets instead of content"),
+                    "backlinks": opt_bool("Include incoming links — pages that link to this page"),
                     "wiki": opt_str("Target wiki name"),
                 }),
                 &["uri"],
