@@ -38,7 +38,7 @@ ordered by priority:
 | 9   | ✅ | `llms` format + `wiki_export` (file-writing, default `llms.txt` at wiki root) |   ✦    |   ✦    |
 | 10  | — | Cross-wiki links (`wiki://` URIs in graph, `wiki_graph(cross_wiki: true)`)    |   ✦    |   ✦    |
 | 11  | ✅ | Ingest two-step: analysis pass before write (entities, contradictions, plan)  |   —    |   ✦    |
-| 12  | — | Review skill: prioritized queue from lint + draft/low-confidence pages        |   —    |   ✦    |
+| 12  | ✅ | Review skill: prioritized queue from lint + draft/low-confidence pages        |   —    |   ✦    |
 | —   | — | **Pre-release doc pass** — rustdocs, spec/guide audit, CHANGELOG date         |   ✦    |   ✦    |
 
 Full specs, task lists, and dependency order: [`docs/improvements/README.md`](improvements/README.md).

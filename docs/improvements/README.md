@@ -18,7 +18,7 @@ items that follow it.
 | 9   | ✅ | [export.md](export.md)                                 | `format: "llms"` on `wiki_list`/`wiki_search`/`wiki_graph`; `wiki_export(path:)` writes full wiki to file | #1    |
 | 10  | — | [cross-wiki-links.md](cross-wiki-links.md)             | `wiki://` URIs as link targets; cross-wiki edges resolved at graph build time; `wiki_graph(cross_wiki: true)` | — |
 | 11  | ✅ | [ingest-two-step.md](ingest-two-step.md)               | Explicit analysis pass in `ingest` skill before writes: enumerate entities, detect contradictions, produce ingest plan | — |
-| 12  | — | [review-skill.md](review-skill.md)                     | New `review` skill: prioritized queue from `wiki_lint` + draft/low-confidence pages; guided review loop per page | #1, #4 |
+| 12  | ✅ | [review-skill.md](review-skill.md)                     | New `review` skill: prioritized queue from `wiki_lint` + draft/low-confidence pages; guided review loop per page | #1, #4 |
 
 Items 1–2 are coupled: implement confidence first, then wire it into search ranking
 in the same pass. Items 3, 5, 6 are fully independent. Item 4 (lint) can start
