@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Lint guide** — `docs/guides/lint.md` covering all 5 rules, fix guidance, CI usage, and stale rule tuning
 - **Redaction guide** — `docs/guides/redaction.md` covering built-in patterns, per-wiki config, and lossy-by-design warning
 - **Search ranking guide** — `docs/guides/search-ranking.md` covering the formula, status map, per-wiki overrides, and custom status examples
+- **Graph guide** — `docs/guides/graph.md` covering community detection, cross-cluster suggestions, and threshold tuning
+- **Graph community detection** — Louvain clustering on `petgraph::DiGraph`; `communities` field in `wiki_stats` output (`count`, `largest`, `smallest`, `isolated` slugs); suppressed below `graph.min_nodes_for_communities` (default 30); deterministic via sorted-slug processing order
+- **Community-aware suggestions** — strategy 4 in `wiki_suggest`: pages in the same Louvain community not already linked; score 0.4, reason `"same knowledge cluster"`; `graph.community_suggestions_limit` (default 2)
+- **Cross-wiki links** — `wiki://name/slug` URIs as first-class link targets in frontmatter edge fields and body `[[wikilinks]]`; `ParsedLink` enum in `links.rs`; external placeholder nodes in single-wiki graph (dashed border); `build_graph_cross_wiki` for unified multi-wiki graph; `cross_wiki: bool` param on `wiki_graph` MCP tool and `--cross-wiki` CLI flag
+- **`broken-cross-wiki-link` lint rule** — detects `wiki://` URIs pointing to unmounted wikis; reported as `Warning` (unmounted ≠ wrong)
+- **Integration test fixtures** — `tests/fixtures/` with two wiki spaces (`research`, `notes`), 8 pre-built pages, and 5 inbox source documents covering paper, article, note, data, redaction, cross-wiki, and contradiction scenarios
+- **Engine validation script** — `docs/testing/scripts/validate-engine.sh`; end-to-end CLI coverage of all 19+ tools including every v0.2.0 feature; pass/fail/skip report
+- **Skills validation guide** — `docs/testing/validate-skills.md`; 12 interactive scenarios for validating the Claude plugin against the test fixtures
 
 ## [0.1.1] — 2026-04-26
 

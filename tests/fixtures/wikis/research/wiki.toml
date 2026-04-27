@@ -1,0 +1,16 @@
+[wiki]
+name = "research"
+description = "Integration test wiki — research space"
+
+[ingest]
+auto_commit = true
+
+[graph]
+min_nodes_for_communities = 5
+
+[lint]
+stale_days = 90
+stale_confidence_threshold = 0.3
+
+[redact]
+disable = []

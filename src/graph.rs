@@ -17,11 +17,13 @@ use crate::type_registry::SpaceTypeRegistry;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/// A node in the concept graph representing one wiki page.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageNode {
     pub slug: String,
     pub title: String,
     pub r#type: String,
+    /// True for cross-wiki placeholder nodes not present in the local index.
     #[serde(default)]
     pub external: bool,
 }
@@ -93,11 +95,16 @@ pub fn compute_metrics(graph: &WikiGraph) -> GraphMetrics {
 
 // ── Community detection (Louvain) ─────────────────────────────────────────────
 
+/// Louvain community detection results for a wiki graph.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommunityStats {
+    /// Number of distinct clusters found.
     pub count: usize,
+    /// Size (node count) of the largest cluster.
     pub largest: usize,
+    /// Size (node count) of the smallest cluster.
     pub smallest: usize,
+    /// Slugs of pages in communities of size ≤ 2 — weakly connected pages.
     pub isolated: Vec<String>,
 }
 
@@ -192,8 +199,8 @@ fn louvain_phase1(
     moved
 }
 
-/// Run Louvain on `graph`. Returns `None` when `graph.node_count() < min_nodes`.
-/// Processes non-external nodes only, in sorted-slug order for determinism.
+/// Run Louvain community detection on `graph`. Returns `None` when local node count < `min_nodes`.
+/// External placeholder nodes are excluded. Processing order is sorted by slug for determinism.
 pub fn compute_communities(graph: &WikiGraph, min_nodes: usize) -> Option<CommunityStats> {
     // Only count non-external nodes
     let local_nodes: Vec<NodeIndex> = {
@@ -271,7 +278,7 @@ pub fn compute_communities(graph: &WikiGraph, min_nodes: usize) -> Option<Commun
     })
 }
 
-/// Returns slug → community id map, or `None` when below threshold.
+/// Returns slug → community id map, or `None` when below threshold. Used by `suggest.rs` strategy 4.
 pub fn node_community_map(graph: &WikiGraph, min_nodes: usize) -> Option<HashMap<String, usize>> {
     let local_nodes: Vec<NodeIndex> = {
         let mut v: Vec<NodeIndex> = graph
@@ -325,8 +332,8 @@ pub fn node_community_map(graph: &WikiGraph, min_nodes: usize) -> Option<HashMap
 // ── build_graph ───────────────────────────────────────────────────────────────
 
 /// Build the concept graph from the tantivy index. No file I/O.
-/// Edge relations are read from  declarations in the
-/// type registry. Body  get a generic  relation.
+/// Edge relations come from `x-graph-edges` declarations in the type registry.
+/// Body `[[wikilinks]]` get a generic `links-to` relation.
 pub fn build_graph(
     searcher: &Searcher,
     is: &IndexSchema,

@@ -6,7 +6,7 @@ read_when:
   - Visualizing wiki structure
   - Interpreting wiki structure for LLM consumption
 status: ready
-last_updated: "2026-04-27"
+last_updated: "2026-04-28"
 ---
 
 # Graph
@@ -21,6 +21,7 @@ llm-wiki graph
           [--type <types>]          # comma-separated page types
           [--relation <label>]      # filter edges by relation
           [--output <path>]         # file path (default: stdout)
+          [--cross-wiki]            # merge all mounted wikis into a unified graph
           [--wiki <name>]
 ```
 
@@ -95,3 +96,28 @@ A summary line is printed to stderr:
 ```
 graph: 3 nodes, 2 edges
 ```
+
+### Cross-wiki graph (`--cross-wiki`)
+
+When `--cross-wiki` is set, all mounted wikis contribute nodes. Cross-wiki edges
+declared via `wiki://` URIs are fully resolved. Nodes from different wikis are
+disambiguated by wiki name prefix in the output.
+
+Without `--cross-wiki`, pages that link to other wikis via `wiki://` URIs produce
+**external placeholder nodes** — visually distinct (dashed border in Mermaid, `style="dashed"` in DOT):
+
+```
+graph LR
+  concepts/moe["MoE"]:::concept
+  wiki__notes__concepts__attention["notes/concepts/attention"]:::external
+  concepts/moe -->|links-to| wiki__notes__concepts__attention
+
+  classDef concept fill:#cce5ff
+  classDef external fill:#eee,stroke:#999,stroke-dasharray:5 5
+```
+
+External nodes carry no metadata (title, type) from the local index — they are
+rendered with the slug as label and `:::external` CSS class.
+
+In `--cross-wiki` mode, external nodes become fully resolved nodes from the
+remote wiki if it is currently mounted.

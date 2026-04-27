@@ -2,7 +2,7 @@
 title: "Diagrams"
 summary: "Mermaid diagrams for llm-wiki architecture and flows."
 status: active
-last_updated: "2025-07-17"
+last_updated: "2026-04-28"
 ---
 
 # Diagrams

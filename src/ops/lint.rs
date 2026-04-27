@@ -45,6 +45,8 @@ pub struct LintReport {
     pub findings: Vec<LintFinding>,
 }
 
+/// Run lint rules against a wiki. `rules` is a comma-separated list; `None` runs all rules.
+/// `severity_filter` restricts output to `"error"` or `"warning"`.
 pub fn run_lint(
     engine: &EngineState,
     wiki_name: &str,

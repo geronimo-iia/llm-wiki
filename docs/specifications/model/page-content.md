@@ -6,7 +6,7 @@ read_when:
   - Understanding how slugs map to disk paths
   - Writing page body content
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2026-04-28"
 ---
 
 # Page Content
@@ -85,10 +85,16 @@ CommonMark + GFM (GitHub Flavored Markdown). Parsed by comrak.
 
 ### Wiki Links
 
-`[[slug]]` links to another wiki page:
+`[[slug]]` links to another page in the same wiki:
 
 ```markdown
 See [[concepts/scaling-laws]] for background.
+```
+
+`[[wiki://name/slug]]` links to a page in another wiki:
+
+```markdown
+See [[wiki://notes/concepts/attention-mechanism]] for details.
 ```
 
 Wiki links create graph edges (generic `links-to` relation). See
@@ -105,6 +111,22 @@ Wiki links create graph edges (generic `links-to` relation). See
 - Deduplicated per page — each slug appears once in the link list
 - Extracted from body text only (frontmatter slug-list fields like
   `sources` and `concepts` are handled separately)
+- `wiki://` URIs are stored as-is in the index; cross-wiki targets
+  appear as external nodes in `wiki_graph` (see [graph.md](../engine/graph.md))
+
+### Cross-wiki links in frontmatter
+
+Frontmatter edge fields (`sources`, `concepts`, etc.) also accept `wiki://` URIs:
+
+```yaml
+sources:
+  - sources/local-paper          # same wiki
+  - wiki://notes/concepts/foo    # page in the "notes" wiki
+```
+
+Cross-wiki targets that cannot be resolved locally produce external placeholder
+nodes in the graph. `wiki_lint(rules: "broken-cross-wiki-link")` warns when the
+referenced wiki name is not mounted.
 
 ### Headings
 

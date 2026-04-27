@@ -20,28 +20,16 @@ last_updated: "2026-04-27"
 
 ## v0.2.0 — In progress
 
-Improvements specified in [`docs/improvements/`](improvements/README.md),
-ordered by priority:
-
-| #   | Status | Improvement                                                                   | Engine | Skills |
-| --- | :----: | ----------------------------------------------------------------------------- | :----: | :----: |
-| 1   | ✅ | Confidence field (`confidence: 0.0–1.0` in base schema)                       |   ✦    |   —    |
-| 1b  | ✅ | `claims[].confidence` aligned to float                                        |   ✦    |   ✦    |
-| 2   | ✅ | Lifecycle-aware search ranking (`tweak_score`)                                |   ✦    |   —    |
-| 2b  | ✅ | Flat `[search.status]` map for arbitrary status multipliers                   |   ✦    |   —    |
-| 3   | ✅ | Backlinks (`backlinks:` param on `wiki_content_read`)                         |   ✦    |   ✦    |
-| 4   | ✅ | Lint system (`wiki_lint` tool, 5 deterministic rules)                         |   ✦    |   ✦    |
-| 5   | ✅ | Incremental validation (git-diff scoped)                                      |   ✦    |   —    |
-| 6   | ✅ | Privacy redaction (`redact:` flag on `wiki_ingest`)                           |   ✦    |   —    |
-| 7   | ✅ | Crystallize skill improvements (two-step extraction, confidence calibration)  |   —    |   ✦    |
-| 8   | ✅ | Graph community detection (Louvain, `wiki_stats` + `wiki_suggest`)            |   ✦    |   ✦    |
-| 9   | ✅ | `llms` format + `wiki_export` (file-writing, default `llms.txt` at wiki root) |   ✦    |   ✦    |
-| 10  | ✅ | Cross-wiki links (`wiki://` URIs in graph, `wiki_graph(cross_wiki: true)`)    |   ✦    |   ✦    |
-| 11  | ✅ | Ingest two-step: analysis pass before write (entities, contradictions, plan)  |   —    |   ✦    |
-| 12  | ✅ | Review skill: prioritized queue from lint + draft/low-confidence pages        |   —    |   ✦    |
-| —   | — | **Pre-release doc pass** — rustdocs, spec/guide audit, CHANGELOG date         |   ✦    |   ✦    |
-
-Full specs, task lists, and dependency order: [`docs/improvements/README.md`](improvements/README.md).
+| Area        | What                                                                          |
+| ----------- | ----------------------------------------------------------------------------- |
+| Type system | `confidence: 0.0–1.0` field; `claims[].confidence` as float                  |
+| Search      | Lifecycle-aware ranking; flat `[search.status]` multiplier map                |
+| Content     | Backlinks on `wiki_content_read`; incremental validation (git-diff scoped)    |
+| Lint        | `wiki_lint` tool with 5 rules; `broken-cross-wiki-link` rule                  |
+| Redaction   | `redact:` flag on `wiki_ingest`; built-in and custom patterns                 |
+| Graph       | Louvain community detection; `wiki://` cross-wiki edges; `--cross-wiki` flag  |
+| Export      | `wiki_export` + `llms` format on list, search, and graph                      |
+| Skills      | Crystallize two-step; ingest analysis pass; review skill                      |
 
 ## Related Projects
 

@@ -4,9 +4,12 @@ use crate::frontmatter::ParsedPage;
 
 // ── ParsedLink ────────────────────────────────────────────────────────────────
 
+/// A link value from a frontmatter edge field or body `[[wikilink]]`, classified by scope.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParsedLink {
+    /// Bare slug resolved within the current wiki.
     Local(String),
+    /// `wiki://name/slug` URI resolved in another mounted wiki.
     CrossWiki { wiki: String, slug: String },
 }
 

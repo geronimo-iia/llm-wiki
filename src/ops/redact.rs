@@ -1,3 +1,7 @@
+//! Opt-in secret redaction for page bodies. Enabled per-ingest via `redact: true`.
+//! Built-in patterns cover common API keys, tokens, and emails. Custom patterns
+//! are added via `[redact.patterns]` in config. Redaction is lossy by design.
+
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -11,6 +15,7 @@ pub struct RedactionMatch {
     pub line_number: usize,
 }
 
+/// Report of all redaction substitutions applied to a single page body.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedactionReport {
     pub slug: String,
