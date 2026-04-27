@@ -30,15 +30,16 @@ For the full pipeline, see
 Text (default):
 
 ```
-ingest: concepts/mixture-of-experts.md — 1 page, 0 assets
-commit: a3f9c12
+Ingested: 3 pages, 497 unchanged, 0 assets, 0 warnings
+Commit: a3f9c12
 ```
 
 JSON (`--format json`):
 
 ```json
 {
-  "pages_validated": 1,
+  "pages_validated": 3,
+  "unchanged_count": 497,
   "assets_found": 0,
   "warnings": [],
   "commit": "a3f9c12"
@@ -46,3 +47,19 @@ JSON (`--format json`):
 ```
 
 `commit` is empty when `ingest.auto_commit` is false.
+
+### Validation scope
+
+Normal ingest (`dry_run: false`) narrows validation to files that are new or
+modified since the last indexed commit. `unchanged_count` reports how many
+`.md` files were skipped. Files already in git passed validation when first
+ingested — the commit is the proof of prior validation.
+
+| Call site | Validated files |
+|---|---|
+| `wiki_ingest <path>` (normal) | Git-changed since last indexed commit |
+| `wiki_ingest <path> --dry-run` | All files (explicit full audit) |
+| `wiki_index_rebuild` | None — index rebuild only |
+
+**Fallback:** when `last_commit` is absent (fresh wiki, first ingest) or the
+git query returns an error, all files are validated.

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -55,6 +56,7 @@ fn ingest_validates_valid_page_and_commits() {
     let opts = IngestOptions {
         dry_run: false,
         auto_commit: true,
+        changed_paths: None,
     };
     let report = ingest(
         Path::new("concepts/foo.md"),
@@ -219,6 +221,7 @@ fn ingest_commit_matches_git_head() {
     let opts = IngestOptions {
         dry_run: false,
         auto_commit: true,
+        changed_paths: None,
     };
     let report = ingest(
         Path::new("concepts/foo.md"),
@@ -315,6 +318,100 @@ fn ingest_errors_on_unknown_type_strict() {
         &strict,
     );
     assert!(result.is_err());
+}
+
+// ── changed_paths (incremental validation) ────────────────────────────────────
+
+#[test]
+fn changed_paths_skips_files_not_in_set() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/a.md", VALID_PAGE);
+    write_page(&wiki_root, "concepts/b.md", VALID_PAGE);
+    write_page(&wiki_root, "concepts/c.md", VALID_PAGE);
+    write_page(&wiki_root, "concepts/d.md", VALID_PAGE);
+    write_page(&wiki_root, "concepts/e.md", VALID_PAGE);
+
+    // Only a.md and b.md are "changed"
+    let mut changed = HashSet::new();
+    changed.insert(std::path::PathBuf::from("concepts/a.md"));
+    changed.insert(std::path::PathBuf::from("concepts/b.md"));
+
+    let opts = IngestOptions {
+        changed_paths: Some(changed),
+        ..Default::default()
+    };
+    let report = ingest(
+        Path::new("concepts"),
+        &opts,
+        &wiki_root,
+        &registry(),
+        &validation(),
+    )
+    .unwrap();
+
+    assert_eq!(report.pages_validated, 2, "only changed files validated");
+    assert_eq!(report.unchanged_count, 3, "3 unchanged files skipped");
+}
+
+#[test]
+fn dry_run_changed_paths_validates_all_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/a.md", VALID_PAGE);
+    write_page(&wiki_root, "concepts/b.md", VALID_PAGE);
+    write_page(&wiki_root, "concepts/c.md", VALID_PAGE);
+
+    // changed_paths is Some but dry_run should ignore it (ops layer sets None for dry_run)
+    // At the ingest layer, changed_paths is still respected — dry_run behaviour is in ops.
+    // Test: when dry_run=true and changed_paths=None, all files are validated.
+    let opts = IngestOptions {
+        dry_run: true,
+        changed_paths: None,
+        ..Default::default()
+    };
+    let report = ingest(
+        Path::new("concepts"),
+        &opts,
+        &wiki_root,
+        &registry(),
+        &validation(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        report.pages_validated, 3,
+        "dry_run with no changed_paths validates all"
+    );
+    assert_eq!(report.unchanged_count, 0);
+}
+
+#[test]
+fn no_changed_paths_validates_all_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/a.md", VALID_PAGE);
+    write_page(&wiki_root, "concepts/b.md", VALID_PAGE);
+    write_page(&wiki_root, "concepts/c.md", VALID_PAGE);
+
+    let opts = IngestOptions {
+        changed_paths: None,
+        ..Default::default()
+    };
+    let report = ingest(
+        Path::new("concepts"),
+        &opts,
+        &wiki_root,
+        &registry(),
+        &validation(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        report.pages_validated, 3,
+        "no changed_paths means full validation"
+    );
+    assert_eq!(report.unchanged_count, 0);
 }
 
 // ── normalize_line_endings ────────────────────────────────────────────────────

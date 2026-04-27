@@ -1,8 +1,10 @@
+use std::collections::HashSet;
 use std::path::Path;
 
 use anyhow::Result;
 
 use crate::engine::{EngineState, WikiEngine};
+use crate::git;
 use crate::ingest;
 
 pub fn ingest(
@@ -15,9 +17,33 @@ pub fn ingest(
     let space = engine.space(wiki_name)?;
     let resolved = space.resolved_config(&engine.config);
 
+    // Build changed-paths set from git diff (normal ingest only; dry_run validates all).
+    // Paths from collect_changed_files are relative to repo_root; strip the wiki prefix
+    // so they match paths relative to wiki_root used inside the walk loop.
+    let changed_paths = if dry_run {
+        None
+    } else {
+        let last = space.index_manager.last_commit();
+        let wiki_rel = space
+            .wiki_root
+            .strip_prefix(&space.repo_root)
+            .unwrap_or(&space.wiki_root);
+        match git::collect_changed_files(&space.repo_root, &space.wiki_root, last.as_deref()) {
+            Ok(map) => {
+                let set: HashSet<_> = map
+                    .into_keys()
+                    .filter_map(|p| p.strip_prefix(wiki_rel).map(|r| r.to_path_buf()).ok())
+                    .collect();
+                Some(set)
+            }
+            Err(_) => None,
+        }
+    };
+
     let opts = ingest::IngestOptions {
         dry_run,
         auto_commit: resolved.ingest.auto_commit,
+        changed_paths,
     };
     let mut report = ingest::ingest(
         Path::new(path),

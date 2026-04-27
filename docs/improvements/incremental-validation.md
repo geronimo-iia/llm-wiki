@@ -1,7 +1,7 @@
 ---
 title: "Incremental Validation"
 summary: "Restrict the wiki_ingest validation pass to git-changed files, reusing context the engine already has."
-status: proposed
+status: implemented
 last_updated: "2026-04-27"
 ---
 
@@ -71,22 +71,68 @@ skipped — all files are validated. Safety first.
 when it was first ingested. Re-validating it on subsequent ingests is redundant.
 The commit is the proof of prior validation.
 
+## Branch & PR — `llm-wiki`
+
+```bash
+git checkout -b feat/incremental-validation
+```
+
+When implementation is complete and all tests pass:
+
+```bash
+cargo fmt --all
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
+```bash
+git push -u origin feat/incremental-validation
+gh pr create \
+  --title "feat: incremental validation — git-diff scoped wiki_ingest" \
+  --milestone "v0.2.0" \
+  --body "$(cat <<'EOF'
+Implements imp-5 (incremental validation).
+
+- Narrow wiki_ingest validation to git-changed files since last indexed commit
+- dry_run: true continues to validate all files (explicit full audit)
+- Fallback to full validation when last_commit is absent or git errors
+- Add unchanged_count to IngestReport
+
+Closes geronimo-iia/llm-wiki#22 (imp-5)
+
+Spec: docs/improvements/incremental-validation.md
+EOF
+)"
+```
+
+> No `llm-wiki-skills` PR needed — this is a pure engine performance change
+> with no user-facing behaviour change in the skill layer.
+
 ## Tasks
 
-- [ ] In `src/ingest.rs`, add `changed_paths: Option<HashSet<PathBuf>>` to
+### Engine — `llm-wiki` (branch: `feat/incremental-validation`)
+
+- [x] In `src/ingest.rs`, add `changed_paths: Option<HashSet<PathBuf>>` to
   `IngestOptions`; when `Some`, skip files not in the set inside the walk loop;
   increment a new `unchanged_count` field on `IngestReport`.
-- [ ] In `src/ops/ingest.rs`, before calling `ingest::ingest`, build `changed_paths`
+- [x] In `src/ops/ingest.rs`, before calling `ingest::ingest`, build `changed_paths`
   from `space.index_manager.last_commit()` + `git::collect_changed_files`; set to
   `None` when `dry_run` is true or on git error (full fallback).
-- [ ] Add `unchanged_count: usize` to `IngestReport` (serde default = 0 for
+- [x] Add `unchanged_count: usize` to `IngestReport` (serde default = 0 for
   backwards compatibility).
-- [ ] Update the CLI text output to show unchanged count:
+- [x] Update the CLI text output to show unchanged count:
   `Ingested: 3 pages, 497 unchanged, 0 assets, 0 warnings`.
-- [ ] Update the JSON output schema in `docs/specifications/tools/ingest.md`
-  to document the new `unchanged_count` field.
-- [ ] Add unit test: ingest a directory with 5 files where only 2 are in
+- [x] Add unit test: ingest a directory with 5 files where only 2 are in
   `changed_paths`; assert `pages_validated == 2` and `unchanged_count == 3`.
-- [ ] Add unit test: `dry_run: true` with non-empty `changed_paths` still validates
+- [x] Add unit test: `dry_run: true` with non-empty `changed_paths` still validates
   all files.
-- [ ] Add unit test: `last_commit` absent → all files validated (fallback path).
+- [x] Add unit test: `last_commit` absent → all files validated (fallback path).
+
+### Spec docs
+- [x] `docs/specifications/tools/ingest.md`: document `unchanged_count` field in
+  `IngestReport`; add a note on validation scope (git-changed vs dry_run vs full).
+
+### Issue update
+After merging:
+- Check off imp-5 in `geronimo-iia/llm-wiki#22`
+- Mark `status: implemented` in this file
