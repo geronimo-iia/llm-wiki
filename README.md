@@ -1,13 +1,81 @@
 # llm-wiki
 
+A headless wiki engine for agents. 19 MCP tools. One Rust binary. No LLM inside.
+
 **Build knowledge that compounds — not answers that evaporate.**
 
-A git-backed wiki engine that turns a folder of Markdown files into a
-searchable, structured knowledge base. Accessible from the command line,
-from any MCP-compatible agent, or from any IDE via ACP.
+A git-backed Markdown wiki — searchable, typed, graph-linked. Accessible from
+the command line, from any MCP-compatible agent, or from any IDE via ACP.
 
-The engine has no LLM dependency. It manages files, git history,
-full-text search, and knowledge structure. The LLM is always external.
+---
+
+## The problem with RAG
+
+Most AI knowledge tools retrieve and generate on every query. Each answer is
+disposable — nothing is learned, nothing is kept. Ask the same question twice
+and the LLM reasons from scratch.
+
+llm-wiki implements a different pattern — the **Dynamic Knowledge Repository**
+(DKR), introduced by Andrej Karpathy:
+
+> Process sources at ingest time, not query time. The LLM integrates each
+> source into the wiki — updating concept pages, creating source summaries,
+> flagging contradictions — and commits the result. Knowledge compounds with
+> every addition.
+
+|                         | Traditional RAG       | llm-wiki (DKR)              |
+| ----------------------- | --------------------- | --------------------------- |
+| When knowledge is built | At query time         | At ingest time              |
+| Cross-references        | Ad hoc or missed      | Pre-built, typed graph      |
+| Knowledge accumulation  | Resets each query     | Compounds over time         |
+| Audit trail             | None                  | Git history per page        |
+| Data ownership          | Provider systems      | Your files, your git repo   |
+
+---
+
+## How it works
+
+The engine is pure infrastructure. It manages files, git, full-text search,
+and graph structure. The LLM is always external — it calls the engine's tools
+via MCP, reads pages, writes pages, and commits knowledge. Intelligence flows
+through skills, not the binary.
+
+```
+LLM agent
+  │
+  ├── wiki_search("mixture of experts")     → ranked results + facets
+  ├── wiki_content_read("concepts/moe")     → full page + frontmatter
+  ├── wiki_graph(root: "concepts/moe")      → typed graph in Mermaid/DOT
+  ├── wiki_suggest("concepts/moe")          → pages worth linking
+  ├── wiki_content_write(...)               → write synthesized knowledge
+  └── wiki_ingest(path: "concepts/")        → validate, index, commit
+```
+
+A wiki page is a plain Markdown file with typed frontmatter:
+
+```yaml
+---
+type: concept
+title: Mixture of Experts
+status: active
+confidence: 0.9
+tags: [routing, scaling, efficiency]
+sources:
+  - sources/switch-transformer-2021
+  - sources/mixtral-2024
+concepts:
+  - concepts/sparse-routing
+  - concepts/scaling-laws
+---
+
+Sparse routing of tokens to expert subnetworks...
+```
+
+The engine validates frontmatter against a JSON Schema, extracts typed graph
+edges from `sources` and `concepts`, and indexes everything in tantivy. The
+graph is live the moment a page is committed.
+
+---
 
 ## Install
 
@@ -18,94 +86,118 @@ curl -fsSL https://raw.githubusercontent.com/geronimo-iia/llm-wiki/main/install.
 # Windows (PowerShell)
 irm https://raw.githubusercontent.com/geronimo-iia/llm-wiki/main/install.ps1 | iex
 
-# Or via cargo
+# Homebrew
+brew install geronimo-iia/tap/llm-wiki
+
+# Cargo
 cargo install llm-wiki-engine
 ```
 
 → [All installation options](docs/guides/installation.md)
 
-## Quick Start
+---
+
+## Quick start
 
 ```bash
-# Create a wiki
+# Create a wiki space
 llm-wiki spaces create ~/wikis/research --name research
 
 # Start the MCP server
 llm-wiki serve
 ```
 
-Connect your editor ([VS Code, Cursor, Windsurf, Zed, Claude Code](docs/guides/ide-integration.md)),
-then use the tools to create pages, ingest sources, search, and build
-knowledge.
+Connect your agent or editor — VS Code, Cursor, Windsurf, Zed, Claude Code —
+via the MCP config. The 19 tools are immediately available.
 
-→ [Getting started guide](docs/guides/getting-started.md)
+→ [Getting started guide](docs/guides/getting-started.md) · [IDE integration](docs/guides/ide-integration.md)
 
-## Why Not RAG?
+---
 
-Most AI knowledge tools retrieve and generate on every query. Knowledge
-doesn't accumulate.
+## What agents can do
 
-llm-wiki implements a **Dynamic Knowledge Repository** (DKR): process
-sources at ingest time, not query time. The LLM integrates each source
-into the wiki — updating concept pages, creating source summaries,
-flagging contradictions — and commits the result. Knowledge compounds
-with every addition.
+| Tool | What it does |
+| ---- | ------------ |
+| `wiki_search` | BM25 full-text search across one or all wikis, with type/status/tag facets |
+| `wiki_list` | Paginated page listing with filters; `format: "llms"` for LLM-readable output |
+| `wiki_content_read` | Read a page with optional backlinks |
+| `wiki_content_write` | Write a page (validates frontmatter against type schema) |
+| `wiki_content_new` | Scaffold a new page from its type template |
+| `wiki_ingest` | Validate a path, update the index, commit to git |
+| `wiki_graph` | Typed concept graph — Mermaid, DOT, or natural-language `llms` format |
+| `wiki_suggest` | Find pages worth linking by tag overlap, graph distance, BM25 similarity |
+| `wiki_stats` | Wiki health: page counts, type distribution, staleness, graph density |
+| `wiki_lint` | Deterministic quality rules: orphans, broken links, missing fields, stale pages |
+| `wiki_export` | Write full wiki to `llms.txt` at wiki root — for ecosystem publishing or audit |
+| `wiki_history` | Git commit history for a page, with rename following |
+| `wiki_schema` | Show, validate, or template a type schema |
+| `wiki_spaces_*` | Create, list, mount, unmount wiki spaces |
 
-|                         | Traditional RAG   | llm-wiki (DKR)            |
-| ----------------------- | ----------------- | ------------------------- |
-| When knowledge is built | At query time     | At ingest time            |
-| Cross-references        | Ad hoc or missed  | Pre-built, maintained     |
-| Knowledge accumulation  | Resets each query | Compounds over time       |
-| Activity log            | None              | Git history               |
-| Data ownership          | Provider systems  | Your files, your git repo |
+Full tool reference: [`docs/specifications/tools/`](docs/specifications/tools/)
 
-## What It Does
+---
 
-- **Search** — full-text BM25 search across one or all wikis
-- **Type system** — JSON Schema validation per page type, field aliasing,
-  custom types via `schemas/`
-- **Concept graph** — typed nodes, labeled edges (`fed-by`, `depends-on`,
-  `cites`), Mermaid and DOT output
-- **Git-backed** — every change is a commit, full history, diffable
-- **Multi-wiki** — manage multiple wikis from one process
-- **MCP + ACP** — stdio, HTTP, and ACP transports for any agent
+## Skills
 
-## What It Is Not
+The engine exposes tools. Skills tell agents how to use them.
 
-- Not an LLM — makes no AI calls
-- Not a RAG system — does not retrieve and generate on demand
-- Not a note-taking app — it is an engine, you bring your own interface
-- Not a static site generator — but [llm-wiki-hugo-cms](https://github.com/geronimo-iia/llm-wiki-hugo-cms) can render the wiki as a website
+[llm-wiki-skills](https://github.com/geronimo-iia/llm-wiki-skills) is a
+Claude Code plugin that ships ready-to-use workflows:
+
+| Skill | What it does |
+| ----- | ------------ |
+| `crystallize` | Distil a session into durable wiki pages — decisions, findings, open questions |
+| `ingest` | Process source files from `inbox/` into synthesized, cross-referenced pages |
+| `research` | Search the wiki and synthesize an answer from existing knowledge |
+| `lint` | Structural audit — orphans, broken links, schema issues, under-linked pages |
+| `graph` | Explore and interpret the concept graph |
+
+Skills are plain Markdown files — readable by the LLM, replaceable, forkable.
+Write your own for your own workflows.
+
+---
+
+## Architecture
+
+```
+llm-wiki-engine          pure Rust binary — tools, git, index, graph
+llm-wiki-skills          Claude Code plugin — workflow skills (Markdown)
+llm-wiki-hugo-cms        Hugo scaffold — render the wiki as a website
+```
+
+The engine has no opinions about workflows, LLM providers, or interfaces.
+Every LLM call happens outside the binary. Every workflow lives in a skill.
+The separation means skills ship independently, the engine stays stable, and
+nothing is coupled to a specific AI provider.
+
+---
 
 ## Technology
 
 Single Rust binary. No runtime, no database, no Docker.
 
-| Component | Technology                                                              |
-| --------- | ----------------------------------------------------------------------- |
-| Search    | [tantivy](https://crates.io/crates/tantivy) (BM25, Lucene-class)        |
-| Git       | [git2](https://crates.io/crates/git2) (libgit2)                         |
-| Graph     | [petgraph](https://crates.io/crates/petgraph)                           |
-| MCP       | [rmcp](https://crates.io/crates/rmcp) (stdio + Streamable HTTP)         |
-| ACP       | [agent-client-protocol](https://crates.io/crates/agent-client-protocol) |
+| Component | Technology |
+| --------- | ---------- |
+| Search | [tantivy](https://crates.io/crates/tantivy) — BM25, Lucene-class performance |
+| Git | [git2](https://crates.io/crates/git2) — libgit2 bindings |
+| Graph | [petgraph](https://crates.io/crates/petgraph) — typed DiGraph |
+| MCP | [rmcp](https://crates.io/crates/rmcp) — stdio + Streamable HTTP |
+| ACP | [agent-client-protocol](https://crates.io/crates/agent-client-protocol) |
+
+---
 
 ## Documentation
 
-|                                                   |                                                    |
-| ------------------------------------------------- | -------------------------------------------------- |
-| [Getting started](docs/guides/getting-started.md) | End-to-end walkthrough                             |
-| [Guides](docs/guides/README.md)                   | Installation, IDE, custom types, CI/CD, multi-wiki |
-| [Specifications](docs/specifications/README.md)   | Formal design contracts                            |
-| [Architecture](docs/overview.md)                  | Core concepts, project map                         |
-| [Roadmap](docs/roadmap.md)                        | Development phases                                 |
-| [Decisions](docs/decisions/README.md)             | Architectural decisions                            |
+| | |
+| - | - |
+| [Getting started](docs/guides/getting-started.md) | End-to-end walkthrough |
+| [Guides](docs/guides/README.md) | Installation, IDE, custom types, CI/CD, multi-wiki |
+| [Specifications](docs/specifications/README.md) | Formal tool and model contracts |
+| [Architecture](docs/overview.md) | Core concepts, project map |
+| [Roadmap](docs/roadmap.md) | What shipped, what's next |
+| [Decisions](docs/decisions/README.md) | Architectural decision records |
 
-## Related Projects
-
-| Repository                                                             | Description                                         |
-| ---------------------------------------------------------------------- | --------------------------------------------------- |
-| [llm-wiki-skills](https://github.com/geronimo-iia/llm-wiki-skills)     | Claude Code plugin — workflow skills for the engine |
-| [llm-wiki-hugo-cms](https://github.com/geronimo-iia/llm-wiki-hugo-cms) | Hugo site scaffold — render wiki as a website       |
+---
 
 ## Acknowledgments
 
@@ -118,6 +210,8 @@ Single Rust binary. No runtime, no database, no Docker.
 
 llm-wiki is a continuation of
 [agent-foundation](https://github.com/geronimo-iia/agent-foundation).
+
+---
 
 ## Contributing
 
