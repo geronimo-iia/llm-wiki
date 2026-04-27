@@ -317,13 +317,13 @@ EOF
 
 ### Spec docs
 
-- [ ] Update `docs/specifications/tools/list.md`: add `llms` to `--format`
+- [x] Update `docs/specifications/tools/list.md`: add `llms` to `--format`
   options; document grouped output format.
-- [ ] Update `docs/specifications/tools/search.md`: add `llms` to
+- [x] Update `docs/specifications/tools/search.md`: add `llms` to
   `--format` options; document `- [title](uri): summary` output.
-- [ ] Update `docs/specifications/tools/graph.md`: add `llms` to
+- [x] Update `docs/specifications/tools/graph.md`: add `llms` to
   `--format` options; document natural language output structure.
-- [ ] Create `docs/specifications/tools/export.md`: document `wiki_export`
+- [x] Create `docs/specifications/tools/export.md`: document `wiki_export`
   parameters, formats, path resolution, response struct.
 
 ### Skill — `llm-wiki-skills/skills/crystallize/SKILL.md`

@@ -5,7 +5,7 @@ read_when:
   - Finding the right spec for a concept or component
   - Checking specification progress
 status: active
-last_updated: "2025-07-17"
+last_updated: "2026-04-27"
 ---
 
 # Specifications
@@ -37,11 +37,16 @@ Data model and knowledge structure.
 | [space-management.md](tools/space-management.md)       | init, spaces list/remove/set-default (4 tools)                     |
 | [config-management.md](tools/config-management.md)     | wiki_config tool — get/set/list                                    |
 | [content-operations.md](tools/content-operations.md)   | read, write, new-page, new-section, commit (5 tools)               |
-| [search.md](tools/search.md)                           | Full-text search with optional type filter         |
-| [list.md](tools/list.md)                               | Paginated page listing with type and status filters |
-| [ingest.md](tools/ingest.md)                           | Validate, index, and optionally commit             |
-| [graph.md](tools/graph.md)                             | Generate concept graph (Mermaid/DOT)               |
-| [index.md](tools/index.md)                             | Rebuild and inspect the search index               |
+| [search.md](tools/search.md)                           | Full-text search with optional type filter and `format: "llms"`    |
+| [list.md](tools/list.md)                               | Paginated page listing with type and status filters and `format: "llms"` |
+| [ingest.md](tools/ingest.md)                           | Validate, index, and optionally commit                             |
+| [graph.md](tools/graph.md)                             | Generate concept graph (Mermaid, DOT, or `format: "llms"`)         |
+| [export.md](tools/export.md)                           | Export full wiki to file — llms-txt, llms-full, json               |
+| [history.md](tools/history.md)                         | Git commit history for a page                                      |
+| [lint.md](tools/lint.md)                               | Deterministic index-based lint rules (orphan, broken-link, …)      |
+| [stats.md](tools/stats.md)                             | Wiki health dashboard — page counts, orphans, connectivity         |
+| [suggest.md](tools/suggest.md)                         | Suggest related pages to link                                      |
+| [index.md](tools/index.md)                             | Rebuild and inspect the search index                               |
 
 ## Engine
 
@@ -89,6 +94,11 @@ How external tools connect.
 | `tools/list.md`                     | ready    |
 | `tools/ingest.md`                   | ready    |
 | `tools/graph.md`                    | ready    |
+| `tools/export.md`                   | ready    |
+| `tools/history.md`                  | ready    |
+| `tools/lint.md`                     | ready    |
+| `tools/stats.md`                    | ready    |
+| `tools/suggest.md`                  | ready    |
 | `tools/index.md`                    | ready    |
 | `engine/engine-state.md`            | ready    |
 | `engine/index-management.md`        | ready    |

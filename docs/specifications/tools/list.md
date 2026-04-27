@@ -4,7 +4,7 @@ summary: "Paginated page listing with type and status filters and facets."
 read_when:
   - Listing pages with filters
 status: ready
-last_updated: "2025-07-22"
+last_updated: "2026-04-27"
 ---
 
 # List
@@ -17,7 +17,7 @@ llm-wiki list
          [--status <status>]
          [--page <n>]               # 1-based (default: 1)
          [--page-size <n>]          # default: from config
-         [--format <fmt>]           # text | json (default: text)
+         [--format <fmt>]           # text | json | llms (default: text)
          [--wiki <name>]
 ```
 
@@ -82,6 +82,27 @@ JSON (`--format json`):
 }
 ```
 
+LLM (`--format llms`):
+
+Pages grouped by type (count desc), one line per page, with summary.
+Archived pages rendered with `~~strikethrough~~`. Pagination footer
+included when more than one page of results exists.
+
+```markdown
+## concept (25)
+
+- [Mixture of Experts](wiki://research/concepts/mixture-of-experts): Sparse routing of tokens to expert subnetworks.
+- [Scaling Laws](wiki://research/concepts/scaling-laws): Empirical laws relating model size, data, and compute to performance.
+- ~~[Old Concept](wiki://research/concepts/old-concept): Superseded by newer understanding.~~
+
+## paper (10)
+
+- [Switch Transformer](wiki://research/sources/switch-transformer-2021): Scales to trillion parameters using sparse MoE routing.
+```
+
+Within each type group, pages are ordered by `confidence` desc, then title asc.
+Pagination is unchanged — call `wiki_list(format: "llms", page: 2)` etc.
+
 ### PageSummary fields
 
 Each page object (`PageSummary`) contains:
@@ -95,3 +116,4 @@ Each page object (`PageSummary`) contains:
 | `status`     | string       | Lifecycle status                        |
 | `tags`       | list[string] | Tags                                    |
 | `confidence` | float        | Page `confidence` value (default `0.5`) |
+| `summary`    | string       | Page summary (omitted when empty)       |

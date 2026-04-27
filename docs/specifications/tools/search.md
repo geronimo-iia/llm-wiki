@@ -4,7 +4,7 @@ summary: "Full-text search with optional type filter and facets."
 read_when:
   - Searching the wiki
 status: ready
-last_updated: "2025-07-22"
+last_updated: "2026-04-27"
 ---
 
 # Search
@@ -18,7 +18,7 @@ llm-wiki search "<query>"
             [--top-k <n>]             # default: from config
             [--include-sections]      # include section index pages
             [--all]                   # search across all registered wikis
-            [--format <fmt>]          # text | json (default: text)
+            [--format <fmt>]          # text | json | llms (default: text)
             [--wiki <name>]
 ```
 
@@ -112,6 +112,16 @@ agents suggest "there are also 8 papers on this topic".
 `status` and `tags` facets are filtered — they describe the current
 result set after type filtering.
 
+LLM (`--format llms`):
+
+One line per result: `- [title](uri): summary`. No score, no excerpt
+block. When `format: "llms"` is set, excerpts are suppressed.
+
+```markdown
+- [Mixture of Experts](wiki://research/concepts/mixture-of-experts): Sparse routing of tokens to expert subnetworks.
+- [Switch Transformer](wiki://research/sources/switch-transformer-2021): Scales to trillion parameters using sparse MoE routing.
+```
+
 ### PageRef fields
 
 Each result object (`PageRef`) contains:
@@ -124,6 +134,7 @@ Each result object (`PageRef`) contains:
 | `score`      | float  | Combined final score (`bm25 × status × conf`) |
 | `confidence` | float  | Page `confidence` value (default `0.5`)       |
 | `excerpt`    | string | Highlighted body excerpt (omitted with `--no-excerpt`) |
+| `summary`    | string | Page summary (omitted when empty)             |
 
 ### `[search.status]` config
 

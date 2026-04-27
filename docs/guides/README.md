@@ -12,6 +12,7 @@ llm-wiki.
 | [multi-wiki.md](multi-wiki.md)           | Manage multiple wikis, cross-wiki search, wiki:// URIs            |
 | [custom-types.md](custom-types.md)       | Add custom page types with JSON Schema                            |
 | [search-ranking.md](search-ranking.md)   | Tune search ranking: status multipliers, custom statuses, per-wiki overrides |
+| [llms-format.md](llms-format.md)         | LLM-optimized output: when and how to use `format: "llms"` and `wiki_export` |
 | [lint.md](lint.md)                       | Catch broken links, orphans, missing fields, stale pages, and unknown types  |
 | [redaction.md](redaction.md)             | Scrub secrets from page bodies before commit with `redact: true`             |
 | [ci-cd.md](ci-cd.md)                     | Schema validation, index rebuild, and ingest in CI pipelines      |
