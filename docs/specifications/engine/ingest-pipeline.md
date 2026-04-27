@@ -28,6 +28,9 @@ The engine walks `wiki/` recursively. No exclusions needed — `raw/` and
 ## Pipeline Steps
 
 ```
+0. (optional) Redaction pass — body only, when redact: true
+   Replace secret patterns with [REDACTED:name] placeholders;
+   write file back to disk; record matches in RedactionReport.
 1. Parse YAML frontmatter
 2. Read `type` field (default: "page" if missing)
 3. Look up type in discovered registry (schemas/*.json x-wiki-types,
@@ -42,6 +45,10 @@ The engine walks `wiki/` recursively. No exclusions needed — `raw/` and
 11. Store original frontmatter as-is (no rewriting)
 12. Commit to git (if auto_commit)
 ```
+
+Step 0 is **opt-in** (`redact: true` parameter on `wiki_ingest`). When
+disabled (default), files are passed through to step 1 unmodified. Scope:
+body only — frontmatter is never redacted.
 
 For aliasing and graph edges, see
 [type-system.md](../model/type-system.md). For the index schema, see

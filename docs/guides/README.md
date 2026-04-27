@@ -13,5 +13,6 @@ llm-wiki.
 | [custom-types.md](custom-types.md)       | Add custom page types with JSON Schema                            |
 | [search-ranking.md](search-ranking.md)   | Tune search ranking: status multipliers, custom statuses, per-wiki overrides |
 | [lint.md](lint.md)                       | Catch broken links, orphans, missing fields, stale pages, and unknown types  |
+| [redaction.md](redaction.md)             | Scrub secrets from page bodies before commit with `redact: true`             |
 | [ci-cd.md](ci-cd.md)                     | Schema validation, index rebuild, and ingest in CI pipelines      |
 | [release.md](release.md)                 | Release process and distribution channels                         |

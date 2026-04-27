@@ -14,6 +14,17 @@ pub fn ingest(
     dry_run: bool,
     wiki_name: &str,
 ) -> Result<ingest::IngestReport> {
+    ingest_with_redact(engine, manager, path, dry_run, false, wiki_name)
+}
+
+pub fn ingest_with_redact(
+    engine: &EngineState,
+    manager: &WikiEngine,
+    path: &str,
+    dry_run: bool,
+    redact: bool,
+    wiki_name: &str,
+) -> Result<ingest::IngestReport> {
     let space = engine.space(wiki_name)?;
     let resolved = space.resolved_config(&engine.config);
 
@@ -40,10 +51,17 @@ pub fn ingest(
         }
     };
 
+    let redact_cfg = if redact {
+        Some(resolved.redact.clone())
+    } else {
+        None
+    };
+
     let opts = ingest::IngestOptions {
         dry_run,
         auto_commit: resolved.ingest.auto_commit,
         changed_paths,
+        redact: redact_cfg,
     };
     let mut report = ingest::ingest(
         Path::new(path),
