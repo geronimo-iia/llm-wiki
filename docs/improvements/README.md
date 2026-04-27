@@ -14,9 +14,9 @@ items that follow it.
 | 5   | ✅ | [incremental-validation.md](incremental-validation.md) | Restrict `wiki_ingest` validation to git-changed files via `collect_changed_files`                   | —          |
 | 6   | ✅ | [redaction.md](redaction.md)                           | Opt-in `redact: true` on `wiki_ingest`; built-in patterns + per-wiki `wiki.toml` config              | —          |
 | 7   | ✅ | [crystallize.md](crystallize.md)                       | Two-step extraction pass, confidence calibration table, post-ingest lint step in `crystallize` skill | #1, #4     |
-| 8   | — | [community-detection.md](community-detection.md)       | Louvain clustering on `petgraph::DiGraph`; `communities` in `wiki_stats`; strategy 4 in `wiki_suggest` | —        |
+| 8   | ✅ | [community-detection.md](community-detection.md)       | Louvain clustering on `petgraph::DiGraph`; `communities` in `wiki_stats`; strategy 4 in `wiki_suggest` | —        |
 | 9   | ✅ | [export.md](export.md)                                 | `format: "llms"` on `wiki_list`/`wiki_search`/`wiki_graph`; `wiki_export(path:)` writes full wiki to file | #1    |
-| 10  | — | [cross-wiki-links.md](cross-wiki-links.md)             | `wiki://` URIs as link targets; cross-wiki edges resolved at graph build time; `wiki_graph(cross_wiki: true)` | — |
+| 10  | ✅ | [cross-wiki-links.md](cross-wiki-links.md)             | `wiki://` URIs as link targets; cross-wiki edges resolved at graph build time; `wiki_graph(cross_wiki: true)` | — |
 | 11  | ✅ | [ingest-two-step.md](ingest-two-step.md)               | Explicit analysis pass in `ingest` skill before writes: enumerate entities, detect contradictions, produce ingest plan | — |
 | 12  | ✅ | [review-skill.md](review-skill.md)                     | New `review` skill: prioritized queue from `wiki_lint` + draft/low-confidence pages; guided review loop per page | #1, #4 |
 

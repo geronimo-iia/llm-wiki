@@ -91,6 +91,237 @@ pub fn compute_metrics(graph: &WikiGraph) -> GraphMetrics {
     }
 }
 
+// ── Community detection (Louvain) ─────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommunityStats {
+    pub count: usize,
+    pub largest: usize,
+    pub smallest: usize,
+    pub isolated: Vec<String>,
+}
+
+/// Build undirected adjacency by symmetrizing the directed graph. External nodes excluded.
+fn build_adjacency(graph: &WikiGraph) -> HashMap<NodeIndex, HashSet<NodeIndex>> {
+    let mut adj: HashMap<NodeIndex, HashSet<NodeIndex>> = HashMap::new();
+    for idx in graph.node_indices() {
+        if !graph[idx].external {
+            adj.entry(idx).or_default();
+        }
+    }
+    for edge in graph.edge_indices() {
+        let (a, b) = graph.edge_endpoints(edge).unwrap();
+        if graph[a].external || graph[b].external {
+            continue;
+        }
+        adj.entry(a).or_default().insert(b);
+        adj.entry(b).or_default().insert(a);
+    }
+    adj
+}
+
+/// Louvain phase 1: assign each node to its best neighboring community.
+/// Returns community assignments map (node -> community id) and whether any moves occurred.
+fn louvain_phase1(
+    adj: &HashMap<NodeIndex, HashSet<NodeIndex>>,
+    community: &mut HashMap<NodeIndex, usize>,
+    degrees: &HashMap<NodeIndex, usize>,
+    m: usize,
+) -> bool {
+    if m == 0 {
+        return false;
+    }
+    let m_f = m as f64;
+
+    let mut sorted_nodes: Vec<NodeIndex> = adj.keys().copied().collect();
+    // Sort by slug for determinism — we need the graph ref here; use NodeIndex raw id as proxy
+    // (caller guarantees deterministic ordering via node insertion order from sorted-slug pass)
+    sorted_nodes.sort_by_key(|n| n.index());
+
+    let mut moved = false;
+
+    loop {
+        let mut any_move = false;
+        for &node in &sorted_nodes {
+            let current_c = *community.get(&node).unwrap();
+            let k_i = *degrees.get(&node).unwrap_or(&0) as f64;
+
+            // Gather neighboring communities and k_i_in for each
+            let mut neighbor_c_edges: HashMap<usize, usize> = HashMap::new();
+            for &nb in adj.get(&node).into_iter().flatten() {
+                let nb_c = *community.get(&nb).unwrap();
+                *neighbor_c_edges.entry(nb_c).or_default() += 1;
+            }
+
+            // sigma_tot per community (sum of degrees)
+            let mut sigma_tot: HashMap<usize, f64> = HashMap::new();
+            for (&n2, &c2) in community.iter() {
+                if n2 == node {
+                    continue;
+                }
+                let d = *degrees.get(&n2).unwrap_or(&0) as f64;
+                *sigma_tot.entry(c2).or_default() += d;
+            }
+
+            // Find best community
+            let mut best_c = current_c;
+            let mut best_gain = 0.0_f64;
+
+            for (&c, &k_i_in) in &neighbor_c_edges {
+                if c == current_c {
+                    continue;
+                }
+                let st = *sigma_tot.get(&c).unwrap_or(&0.0);
+                let gain = (k_i_in as f64) / m_f - st * k_i / (2.0 * m_f * m_f);
+                if gain > best_gain {
+                    best_gain = gain;
+                    best_c = c;
+                }
+            }
+
+            if best_c != current_c {
+                community.insert(node, best_c);
+                any_move = true;
+                moved = true;
+            }
+        }
+        if !any_move {
+            break;
+        }
+    }
+    moved
+}
+
+/// Run Louvain on `graph`. Returns `None` when `graph.node_count() < min_nodes`.
+/// Processes non-external nodes only, in sorted-slug order for determinism.
+pub fn compute_communities(graph: &WikiGraph, min_nodes: usize) -> Option<CommunityStats> {
+    // Only count non-external nodes
+    let local_nodes: Vec<NodeIndex> = {
+        let mut v: Vec<NodeIndex> = graph
+            .node_indices()
+            .filter(|&idx| !graph[idx].external)
+            .collect();
+        v.sort_by_key(|&idx| graph[idx].slug.clone());
+        v
+    };
+
+    if local_nodes.len() < min_nodes {
+        return None;
+    }
+
+    let adj = build_adjacency(graph);
+
+    // Degree per node (undirected, local only)
+    let degrees: HashMap<NodeIndex, usize> =
+        local_nodes.iter().map(|&n| (n, adj[&n].len())).collect();
+
+    let m: usize = adj.values().map(|s| s.len()).sum::<usize>() / 2;
+
+    // Initial assignment: each node in its own community
+    let mut community: HashMap<NodeIndex, usize> = local_nodes
+        .iter()
+        .enumerate()
+        .map(|(i, &n)| (n, i))
+        .collect();
+
+    louvain_phase1(&adj, &mut community, &degrees, m);
+
+    // Normalize community ids to contiguous 0..k
+    let mut id_remap: HashMap<usize, usize> = HashMap::new();
+    let mut next_id = 0usize;
+    for &n in &local_nodes {
+        let c = *community.get(&n).unwrap();
+        id_remap.entry(c).or_insert_with(|| {
+            let id = next_id;
+            next_id += 1;
+            id
+        });
+    }
+    for val in community.values_mut() {
+        *val = *id_remap.get(val).unwrap();
+    }
+
+    let count = next_id;
+
+    // Compute sizes
+    let mut sizes: HashMap<usize, usize> = HashMap::new();
+    for &c in community.values() {
+        *sizes.entry(c).or_default() += 1;
+    }
+
+    let largest = sizes.values().copied().max().unwrap_or(0);
+    let smallest = sizes.values().copied().min().unwrap_or(0);
+
+    // Isolated: slugs in communities of size <= 2, sorted
+    let mut isolated: Vec<String> = local_nodes
+        .iter()
+        .filter(|&&n| {
+            let c = *community.get(&n).unwrap();
+            *sizes.get(&c).unwrap_or(&0) <= 2
+        })
+        .map(|&n| graph[n].slug.clone())
+        .collect();
+    isolated.sort();
+
+    Some(CommunityStats {
+        count,
+        largest,
+        smallest,
+        isolated,
+    })
+}
+
+/// Returns slug → community id map, or `None` when below threshold.
+pub fn node_community_map(graph: &WikiGraph, min_nodes: usize) -> Option<HashMap<String, usize>> {
+    let local_nodes: Vec<NodeIndex> = {
+        let mut v: Vec<NodeIndex> = graph
+            .node_indices()
+            .filter(|&idx| !graph[idx].external)
+            .collect();
+        v.sort_by_key(|&idx| graph[idx].slug.clone());
+        v
+    };
+
+    if local_nodes.len() < min_nodes {
+        return None;
+    }
+
+    let adj = build_adjacency(graph);
+    let degrees: HashMap<NodeIndex, usize> =
+        local_nodes.iter().map(|&n| (n, adj[&n].len())).collect();
+    let m: usize = adj.values().map(|s| s.len()).sum::<usize>() / 2;
+
+    let mut community: HashMap<NodeIndex, usize> = local_nodes
+        .iter()
+        .enumerate()
+        .map(|(i, &n)| (n, i))
+        .collect();
+
+    louvain_phase1(&adj, &mut community, &degrees, m);
+
+    // Normalize
+    let mut id_remap: HashMap<usize, usize> = HashMap::new();
+    let mut next_id = 0usize;
+    for &n in &local_nodes {
+        let c = *community.get(&n).unwrap();
+        id_remap.entry(c).or_insert_with(|| {
+            let id = next_id;
+            next_id += 1;
+            id
+        });
+    }
+
+    Some(
+        local_nodes
+            .iter()
+            .map(|&n| {
+                let c = *id_remap.get(community.get(&n).unwrap()).unwrap();
+                (graph[n].slug.clone(), c)
+            })
+            .collect(),
+    )
+}
+
 // ── build_graph ───────────────────────────────────────────────────────────────
 
 /// Build the concept graph from the tantivy index. No file I/O.

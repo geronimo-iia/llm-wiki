@@ -15,5 +15,6 @@ llm-wiki.
 | [llms-format.md](llms-format.md)         | LLM-optimized output: when and how to use `format: "llms"` and `wiki_export` |
 | [lint.md](lint.md)                       | Catch broken links, orphans, missing fields, stale pages, and unknown types  |
 | [redaction.md](redaction.md)             | Scrub secrets from page bodies before commit with `redact: true`             |
+| [graph.md](graph.md)                     | Community detection, cross-cluster suggestions, threshold tuning  |
 | [ci-cd.md](ci-cd.md)                     | Schema validation, index rebuild, and ingest in CI pipelines      |
 | [release.md](release.md)                 | Release process and distribution channels                         |

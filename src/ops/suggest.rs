@@ -192,6 +192,41 @@ pub fn suggest(
         }
     }
 
+    // Strategy 4: Community peers (same Louvain community, not already linked)
+    if let Some(community_map) =
+        graph::node_community_map(&wiki_graph, resolved.graph.min_nodes_for_communities)
+        && let Some(&my_community) = community_map.get(slug.as_str())
+    {
+        let mut peers: Vec<&str> = community_map
+            .keys()
+            .filter(|s| {
+                let ns: &str = s;
+                community_map.get(ns).copied() == Some(my_community)
+                    && ns != slug.as_str()
+                    && !existing_links.contains(ns)
+                    && !candidates.contains_key(ns)
+            })
+            .map(|s| s.as_str())
+            .collect();
+        peers.sort_unstable();
+        for (added, node_slug) in peers.into_iter().enumerate() {
+            if added >= resolved.graph.community_suggestions_limit {
+                break;
+            }
+            let doc = find_doc_by_slug(&searcher, is, node_slug)?;
+            candidates.insert(
+                node_slug.to_string(),
+                CandidateScore {
+                    slug: node_slug.to_string(),
+                    title: doc.title.clone(),
+                    page_type: doc.page_type.clone(),
+                    score: 0.4,
+                    reason: "same knowledge cluster".to_string(),
+                },
+            );
+        }
+    }
+
     // Rank, filter, cap
     let mut ranked: Vec<CandidateScore> = candidates.into_values().collect();
     ranked.sort_by(|a, b| {

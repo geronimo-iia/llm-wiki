@@ -55,6 +55,8 @@ type_strictness = "loose"
 [graph]
 format = "mermaid"
 depth  = 3
+min_nodes_for_communities   = 30  # suppress below this; default 30
+community_suggestions_limit = 2   # extra suggest results from community strategy
 
 [history]
 follow        = true
@@ -142,6 +144,8 @@ These keys can appear in both `config.toml` (global) and `wiki.toml`
 | `graph.depth`                | `3`       | Default hop limit when `--root` is set            |
 | `graph.type`                 | `[]`      | Page types to include; empty = all                |
 | `graph.output`               | `""`      | Default output path; empty = stdout               |
+| `graph.min_nodes_for_communities` | `30` | Suppress community detection below this node count |
+| `graph.community_suggestions_limit` | `2` | Max extra results from community strategy in `wiki_suggest` |
 | `index.memory_budget_mb`     | `50`      | Tantivy writer memory budget in MB                |
 | `index.tokenizer`            | `en_stem` | Tantivy tokenizer for text fields                 |
 

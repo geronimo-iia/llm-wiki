@@ -53,7 +53,21 @@ JSON (`--format json`):
   "index": {
     "stale": false,
     "built": "2025-07-21T14:32:01Z"
+  },
+  "communities": {
+    "count": 7,
+    "largest": 34,
+    "smallest": 3,
+    "isolated": ["tangent-thought-xyz", "draft-stub-abc"]
   }
+}
+```
+
+`communities` is `null` when the wiki has fewer pages than `graph.min_nodes_for_communities` (default 30):
+
+```json
+{
+  "communities": null
 }
 ```
 
@@ -70,6 +84,22 @@ JSON (`--format json`):
 | `graph_density` | graph | edges / (nodes * (nodes-1)) |
 | `staleness` | `last_updated` | Fixed buckets: fresh (<7d), stale_7d (7-30d), stale_30d (>30d) |
 | `index` | index status | Stale flag and last build time |
+| `communities` | Louvain (graph) | Cluster stats; `null` when pages < `min_nodes_for_communities` (default 30) |
+
+### communities
+
+Louvain community detection run on the undirected wiki graph. Present only when
+`page_count >= graph.min_nodes_for_communities`.
+
+| Field | Description |
+|-------|-------------|
+| `count` | Number of distinct knowledge clusters found |
+| `largest` | Size of the biggest cluster (node count) |
+| `smallest` | Size of the smallest cluster |
+| `isolated` | Slugs in communities of size ≤ 2 — weakly connected pages; sorted alphabetically |
+
+`isolated` pages are the highest-priority candidates for new links. Run
+`wiki_suggest(slug: "<isolated-slug>")` to find the best connections.
 
 ## MCP Tool Definition
 

@@ -25,13 +25,16 @@ frontmatter field to use based on `x-graph-edges` declarations.
 
 ### Strategies
 
-Three strategies are combined:
+Four strategies are combined:
 
 1. **Tag overlap** — pages sharing tags. Score = shared / total.
 2. **Graph neighborhood** — pages within 2 hops not directly linked.
    Score = 1 / hops.
 3. **BM25 similarity** — input page's title + summary as query.
    Score = normalized BM25.
+4. **Community peers** — pages in the same Louvain community not already linked.
+   Score = 0.4, reason = "same knowledge cluster". Suppressed when
+   `node_count < min_nodes_for_communities`.
 
 Results are merged, deduplicated, ranked by max score, filtered by
 `suggest.min_score`, and capped to limit.
@@ -85,6 +88,8 @@ JSON (`--format json`):
 |-----|---------|-------------|
 | `suggest.default_limit` | `5` | Max suggestions returned |
 | `suggest.min_score` | `0.1` | Minimum score threshold |
+| `graph.min_nodes_for_communities` | `30` | Suppress community strategy below this node count |
+| `graph.community_suggestions_limit` | `2` | Max extra results from the community strategy |
 
 Overridable per wiki.
 

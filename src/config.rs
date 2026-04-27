@@ -92,6 +92,10 @@ pub struct GraphConfig {
     pub r#type: Vec<String>,
     #[serde(default)]
     pub output: String,
+    #[serde(default = "default_min_nodes_for_communities")]
+    pub min_nodes_for_communities: usize,
+    #[serde(default = "default_community_suggestions_limit")]
+    pub community_suggestions_limit: usize,
 }
 
 impl Default for GraphConfig {
@@ -101,8 +105,18 @@ impl Default for GraphConfig {
             depth: 3,
             r#type: Vec::new(),
             output: String::new(),
+            min_nodes_for_communities: default_min_nodes_for_communities(),
+            community_suggestions_limit: default_community_suggestions_limit(),
         }
     }
+}
+
+fn default_min_nodes_for_communities() -> usize {
+    30
+}
+
+fn default_community_suggestions_limit() -> usize {
+    2
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -692,3 +692,156 @@ fn render_mermaid_external_node_has_class_def() {
         "external node should have :::external class"
     );
 }
+
+// ── compute_communities ───────────────────────────────────────────────────────
+
+/// Build a dense cluster: `size` nodes all linked to node 0.
+fn add_cluster(
+    wiki_root: &Path,
+    prefix: &str,
+    size: usize,
+    hub_links: bool, // if true, all link to the hub; otherwise form a chain
+) {
+    let hub = format!("{prefix}/node-00.md");
+    fs::create_dir_all(wiki_root.join(prefix)).unwrap();
+    fs::write(
+        wiki_root.join(&hub),
+        format!("---\ntitle: \"{prefix} hub\"\ntype: concept\nstatus: active\n---\n\nHub.\n"),
+    )
+    .unwrap();
+    for i in 1..size {
+        let slug = format!("{prefix}/node-{i:02}");
+        let link = if hub_links {
+            format!("See [[{prefix}/node-00]].\n")
+        } else {
+            let prev = i - 1;
+            format!("See [[{prefix}/node-{prev:02}]].\n")
+        };
+        fs::write(
+            wiki_root.join(format!("{slug}.md")),
+            format!(
+                "---\ntitle: \"{prefix} node {i}\"\ntype: concept\nstatus: active\n---\n\n{link}"
+            ),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+fn compute_communities_three_dense_clusters() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    // 3 clusters of 10 nodes each (30 total, all linked to their cluster hub)
+    add_cluster(&wiki_root, "clust-a", 10, true);
+    add_cluster(&wiki_root, "clust-b", 10, true);
+    add_cluster(&wiki_root, "clust-c", 10, true);
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
+
+    let stats = compute_communities(&g, 30).expect("should compute at 30 nodes");
+    assert_eq!(stats.count, 3, "should find 3 communities");
+    assert!(stats.isolated.is_empty(), "no isolated nodes expected");
+}
+
+#[test]
+fn compute_communities_below_threshold_returns_none() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    // 29 nodes (below default threshold of 30)
+    add_cluster(&wiki_root, "clust-a", 10, true);
+    add_cluster(&wiki_root, "clust-b", 10, true);
+    add_cluster(&wiki_root, "clust-c", 9, true);
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
+
+    assert!(
+        compute_communities(&g, 30).is_none(),
+        "should be None below threshold"
+    );
+}
+
+#[test]
+fn compute_communities_isolated_pair_appears_in_isolated_list() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    // One big cluster of 30 nodes + 2 nodes only linked to each other
+    add_cluster(&wiki_root, "main", 30, true);
+    fs::create_dir_all(wiki_root.join("orphans")).unwrap();
+    fs::write(
+        wiki_root.join("orphans/alpha.md"),
+        "---\ntitle: \"Alpha\"\ntype: concept\nstatus: active\n---\n\nSee [[orphans/beta]].\n",
+    )
+    .unwrap();
+    fs::write(
+        wiki_root.join("orphans/beta.md"),
+        "---\ntitle: \"Beta\"\ntype: concept\nstatus: active\n---\n\nSee [[orphans/alpha]].\n",
+    )
+    .unwrap();
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
+
+    let stats = compute_communities(&g, 30).expect("should compute at ≥ 30 nodes");
+    assert!(
+        stats.isolated.contains(&"orphans/alpha".to_string()),
+        "orphans/alpha should be isolated"
+    );
+    assert!(
+        stats.isolated.contains(&"orphans/beta".to_string()),
+        "orphans/beta should be isolated"
+    );
+}
+
+#[test]
+fn compute_communities_deterministic() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    add_cluster(&wiki_root, "clust-a", 15, true);
+    add_cluster(&wiki_root, "clust-b", 15, true);
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
+
+    let s1 = compute_communities(&g, 30).unwrap();
+    let s2 = compute_communities(&g, 30).unwrap();
+
+    assert_eq!(s1.count, s2.count, "count must be deterministic");
+    assert_eq!(
+        s1.isolated, s2.isolated,
+        "isolated list must be deterministic"
+    );
+}
