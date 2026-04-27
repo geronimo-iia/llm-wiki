@@ -4,15 +4,21 @@
 
 User-facing documentation — start here.
 
-| Guide                                        | Description                    |
-| -------------------------------------------- | ------------------------------ |
-| [Getting started](guides/getting-started.md) | End-to-end walkthrough         |
-| [Installation](guides/installation.md)       | Install llm-wiki               |
-| [IDE integration](guides/ide-integration.md) | Connect to editors and agents  |
-| [Multi-wiki](guides/multi-wiki.md)           | Manage multiple wikis          |
-| [Custom types](guides/custom-types.md)       | Add custom page types          |
-| [CI/CD](guides/ci-cd.md)                     | Pipelines and pre-commit hooks |
-| [Release](guides/release.md)                 | Release process and channels   |
+| Guide                                              | Description                                          |
+| -------------------------------------------------- | ---------------------------------------------------- |
+| [Getting started](guides/getting-started.md)       | End-to-end walkthrough                               |
+| [Installation](guides/installation.md)             | Install llm-wiki                                     |
+| [Configuration](guides/configuration.md)           | Common settings, per-wiki overrides, troubleshooting |
+| [IDE integration](guides/ide-integration.md)       | Connect to editors and agents                        |
+| [Multi-wiki](guides/multi-wiki.md)                 | Manage multiple wikis, cross-wiki search             |
+| [Custom types](guides/custom-types.md)             | Add custom page types                                |
+| [Search ranking](guides/search-ranking.md)         | Tune ranking: status multipliers, custom statuses    |
+| [LLM-optimized output](guides/llms-format.md)      | When and how to use `format: "llms"` and `wiki_export` |
+| [Lint](guides/lint.md)                             | Catch broken links, orphans, stale pages             |
+| [Redaction](guides/redaction.md)                   | Scrub secrets before commit                          |
+| [Graph](guides/graph.md)                           | Community detection, cross-cluster suggestions       |
+| [CI/CD](guides/ci-cd.md)                           | Pipelines and pre-commit hooks                       |
+| [Release](guides/release.md)                       | Release process and channels                         |
 
 ## Specifications
 

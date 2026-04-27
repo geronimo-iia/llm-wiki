@@ -2,7 +2,7 @@
 title: "MCP Tool Implementation"
 summary: "Patterns for adding new MCP tools — tool definition, handler, dispatch, and testing."
 status: ready
-last_updated: "2025-07-18"
+last_updated: "2026-04-28"
 ---
 
 # MCP Tool Implementation
@@ -17,7 +17,7 @@ pattern across 4 files.
 | `src/mcp/tools.rs` | Tool definition (name, description, parameter schema) |
 | `src/mcp/handlers.rs` | Handler function (parse args, call ops, format result) |
 | `src/mcp/tools.rs` (dispatch) | Match arm in `call()` function |
-| `src/ops.rs` | Business logic (shared with CLI) |
+| `src/ops/<module>.rs` | Business logic (shared with CLI) |
 | `src/cli.rs` | CLI subcommand (if the tool has a CLI equivalent) |
 | `tests/mcp.rs` | Update tool count assertion |
 
@@ -111,11 +111,12 @@ Add a match arm in the `call()` function:
 "wiki_my_tool" => handlers::handle_my_tool(server, args),
 ```
 
-## 4. Business logic (ops.rs)
+## 4. Business logic (ops/<module>.rs)
 
 The handler calls an `ops::` function that contains the actual logic.
-This function is shared with the CLI — same code, different entry
-point.
+This function is shared with the CLI — same code, different entry point.
+Add the function to the most relevant existing module under `src/ops/`,
+or create a new one and declare it in `src/ops/mod.rs`.
 
 ```rust
 pub fn my_operation(engine: &EngineState, wiki_name: &str, param: &str) -> Result<MyResult> {
@@ -149,7 +150,7 @@ assert_eq!(tools.len(), N);  // increment by 1
 - [ ] Tool definition in `tools.rs` with correct parameter schema
 - [ ] Handler in `handlers.rs` following the pattern
 - [ ] Dispatch match arm in `tools.rs` `call()`
-- [ ] Business logic in `ops.rs`
+- [ ] Business logic in `src/ops/<module>.rs`
 - [ ] CLI subcommand in `cli.rs` (if applicable)
 - [ ] CLI dispatch in `main.rs` (if applicable)
 - [ ] Tool count test updated in `tests/mcp.rs`

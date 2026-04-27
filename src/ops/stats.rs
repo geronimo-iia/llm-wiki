@@ -21,6 +21,7 @@ pub struct IndexHealth {
     pub built: Option<String>,
 }
 
+/// Aggregate statistics for a single wiki space.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WikiStats {
     pub wiki: String,
@@ -33,6 +34,7 @@ pub struct WikiStats {
     pub graph_density: f64,
     pub staleness: StalenessBuckets,
     pub index: IndexHealth,
+    /// Louvain community detection results; `None` when graph is below `min_nodes_for_communities`.
     pub communities: Option<CommunityStats>,
 }
 

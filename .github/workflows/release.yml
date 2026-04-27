@@ -80,12 +80,14 @@ jobs:
 
       - uses: softprops/action-gh-release@v3
         with:
+          prerelease: ${{ contains(github.ref, '-rc') }}
           files: |
             */*.tar.gz
             */*.zip
 
   publish:
     needs: release
+    if: ${{ !contains(github.ref, '-rc') }}
     runs-on: ubuntu-latest
 
     steps:

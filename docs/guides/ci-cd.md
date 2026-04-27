@@ -34,6 +34,8 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    env:
+      LLM_WIKI_CONFIG: ${{ runner.temp }}/llm-wiki.toml
     steps:
       - uses: actions/checkout@v4
 
@@ -69,6 +71,8 @@ on:
 jobs:
   rebuild:
     runs-on: ubuntu-latest
+    env:
+      LLM_WIKI_CONFIG: ${{ runner.temp }}/llm-wiki.toml
     steps:
       - uses: actions/checkout@v4
 
@@ -103,6 +107,8 @@ on:
 jobs:
   ingest:
     runs-on: ubuntu-latest
+    env:
+      LLM_WIKI_CONFIG: ${{ runner.temp }}/llm-wiki.toml
     steps:
       - uses: actions/checkout@v4
 
@@ -155,7 +161,13 @@ Generate a concept graph as a build artifact or commit it to the repo:
 
 ## Environment Notes
 
-- llm-wiki creates state at `~/.llm-wiki/` — this is ephemeral in CI
+- llm-wiki writes its space registry to `~/.llm-wiki/config.toml` by default
+- In CI, set `LLM_WIKI_CONFIG` to a temp path to avoid touching `~/.llm-wiki/`:
+  ```yaml
+  env:
+    LLM_WIKI_CONFIG: ${{ runner.temp }}/llm-wiki.toml
+  ```
+  Or pass `--config` to individual commands when env vars are not practical.
 - `spaces create` is idempotent — safe to run on every build
 - `--dry-run` on ingest validates without committing
 - The wiki repo must be a git repository (`checkout@v4` handles this)

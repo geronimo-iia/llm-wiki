@@ -2,7 +2,7 @@
 title: "Engine Implementation"
 summary: "Top-level engine structs, space mounting, and how registries and indexes compose at runtime."
 status: ready
-last_updated: "2025-07-20"
+last_updated: "2026-04-28"
 ---
 
 # Engine Implementation

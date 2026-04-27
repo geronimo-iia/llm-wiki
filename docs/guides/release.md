@@ -83,6 +83,19 @@ Tagging triggers `.github/workflows/release.yml`:
 2. Creates GitHub release with tarballs
 3. Publishes to crates.io
 
+Tags containing `-rc` (e.g. `v0.2.0-rc1`) follow the same build path but:
+- The GitHub release is marked as **pre-release** (not shown as latest)
+- The `publish` job is **skipped** — nothing is sent to crates.io
+
+Install an RC binary directly:
+
+```bash
+cargo binstall llm-wiki@0.2.0-rc1   # reads GitHub releases
+```
+
+Or download the tarball manually from the GitHub releases page and put
+`llm-wiki` on your `PATH`.
+
 ## Post-Release
 
 ### Homebrew formula

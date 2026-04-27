@@ -211,7 +211,7 @@ impl WikiEngine {
     }
 
     /// Unmount a wiki from the running engine. Refuses if the wiki is
-    /// the current default. In-flight requests holding an Arc<SpaceContext>
+    /// the current default. In-flight requests holding an `Arc<SpaceContext>`
     /// complete normally.
     pub fn unmount_wiki(&self, name: &str) -> Result<()> {
         let mut engine = self

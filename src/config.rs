@@ -82,6 +82,7 @@ impl Default for IndexConfig {
     }
 }
 
+/// Graph rendering and community detection configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphConfig {
     #[serde(default = "default_graph_format")]
@@ -92,8 +93,10 @@ pub struct GraphConfig {
     pub r#type: Vec<String>,
     #[serde(default)]
     pub output: String,
+    /// Minimum local node count before Louvain community detection runs (default 30).
     #[serde(default = "default_min_nodes_for_communities")]
     pub min_nodes_for_communities: usize,
+    /// Maximum community-peer suggestions returned by `wiki_suggest` strategy 4 (default 2).
     #[serde(default = "default_community_suggestions_limit")]
     pub community_suggestions_limit: usize,
 }
@@ -271,10 +274,13 @@ impl Default for SearchConfig {
     }
 }
 
+/// Configuration for the `stale` lint rule.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LintConfig {
+    /// Pages not updated within this many days are candidates for the `stale` rule (default 90).
     #[serde(default = "default_stale_days")]
     pub stale_days: u32,
+    /// `stale` only fires when `confidence` is also below this threshold (default 0.4).
     #[serde(default = "default_stale_confidence_threshold")]
     pub stale_confidence_threshold: f32,
 }

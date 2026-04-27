@@ -1,49 +1,33 @@
 # Implementation
 
-Implementation notes and design references for llm-wiki. These are not
-specifications — see [specifications/](../specifications/README.md) for
-the design.
+Implementation notes for llm-wiki — non-obvious architecture, patterns,
+and external crate usage. These lag behind the code; treat as orientation,
+not ground truth. For design contracts see [specifications/](../specifications/README.md).
 
 ## Architecture
 
-| Document                                 | Description                                                |
-| ---------------------------------------- | ---------------------------------------------------------- |
-| [engine.md](engine.md)                   | EngineState, WikiEngine, space mounting              |
-| [manager-pattern.md](manager-pattern.md) | Shared pattern: detect, refresh, cascade                   |
+| Document                                 | Description                                       |
+| ---------------------------------------- | ------------------------------------------------- |
+| [engine.md](engine.md)                   | EngineState, WikiEngine, space mounting           |
+| [manager-pattern.md](manager-pattern.md) | Shared pattern: detect, refresh, cascade          |
 
 ## Modules
 
-| Document                                       | Description                                              |
-| ---------------------------------------------- | -------------------------------------------------------- |
-| [type-registry.md](type-registry.md)                     | SpaceTypeRegistry, validators, caching, change detection |
-| [index-schema-building.md](index-schema-building.md)     | Deriving tantivy schema from type schemas                |
-| [ingest-validation.md](ingest-validation.md)             | Validation and alias resolution at indexing time         |
-| [schema-change-detection.md](schema-change-detection.md) | Schema hash, staleness, per-wiki registry                |
-| [index-manager.md](index-manager.md)                     | SpaceIndexManager, rebuild, staleness, recovery          |
-| [tantivy.md](tantivy.md)                       | Dynamic schema, TopDocs, index writer, tokenizer         |
-| [graph-builder.md](graph-builder.md)           | Petgraph from index, typed edges, Mermaid/DOT rendering  |
-| [frontmatter-parser.md](frontmatter-parser.md) | YAML extraction, untyped parsing, body splitting         |
-| [slug.md](slug.md)                             | Slug and WikiUri types, resolution, URI parsing          |
-| [git.md](git.md)                               | git2 wrappers: init, commit, diff, HEAD                  |
-| [config-loader.md](config-loader.md)           | Two-level config, resolution order, get/set by key       |
+| Document                                                 | Description                                         |
+| -------------------------------------------------------- | --------------------------------------------------- |
+| [type-registry.md](type-registry.md)                     | SpaceTypeRegistry, validators, caching              |
+| [schema-change-detection.md](schema-change-detection.md) | Schema hash, staleness, per-wiki registry           |
+| [index-manager.md](index-manager.md)                     | SpaceIndexManager, rebuild, staleness, recovery     |
+| [tantivy.md](tantivy.md)                                 | Dynamic schema, TopDocs, index writer, tokenizer    |
 
-## Servers
+## MCP
 
-| Document                       | Description                                                      |
-| ------------------------------ | ---------------------------------------------------------------- |
-| [mcp-server.md](mcp-server.md)   | rmcp setup, tool registration, resource namespacing, stdio + SSE |
-| [mcp-tool-pattern.md](mcp-tool-pattern.md) | Patterns for adding new MCP tools                        |
-| [acp-server.md](acp-server.md) | WikiAgent, session management, streaming, prompt dispatch        |
+| Document                                         | Description                        |
+| ------------------------------------------------ | ---------------------------------- |
+| [mcp-tool-pattern.md](mcp-tool-pattern.md)       | Patterns for adding new MCP tools  |
 
-## CLI and Toolchain
+## Toolchain
 
 | Document           | Description                                            |
 | ------------------ | ------------------------------------------------------ |
-| [cli.md](cli.md)   | Clap derive structure, subcommand hierarchy            |
 | [rust.md](rust.md) | Toolchain, dependencies, code quality, release process |
-
-## SDK References
-
-| Document                 | Description                       |
-| ------------------------ | --------------------------------- |
-| [acp-sdk.md](acp-sdk.md) | agent-client-protocol crate notes |

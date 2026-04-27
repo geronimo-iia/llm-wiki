@@ -13,6 +13,11 @@ pub struct Cli {
     /// Target a specific wiki
     #[arg(long, global = true)]
     pub wiki: Option<String>,
+
+    /// Path to global config file (default: ~/.llm-wiki/config.toml).
+    /// Overrides the LLM_WIKI_CONFIG environment variable.
+    #[arg(long, global = true)]
+    pub config: Option<std::path::PathBuf>,
 }
 
 #[derive(Subcommand)]

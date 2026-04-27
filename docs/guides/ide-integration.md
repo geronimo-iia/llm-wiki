@@ -197,6 +197,38 @@ Tools are available via MCP. See
 [docs/specifications/tools/overview.md](../specifications/tools/overview.md)
 for the full list.
 
+## Custom Config Path
+
+By default `llm-wiki serve` reads `~/.llm-wiki/config.toml`. Override
+it in your MCP config using `--config` or `LLM_WIKI_CONFIG`:
+
+```json
+{
+  "llm-wiki": {
+    "command": "llm-wiki",
+    "args": ["--config", "/path/to/config.toml", "serve"]
+  }
+}
+```
+
+Or via environment variable (useful when the same config applies to
+multiple tools in the same session):
+
+```json
+{
+  "llm-wiki": {
+    "command": "llm-wiki",
+    "args": ["serve"],
+    "env": {
+      "LLM_WIKI_CONFIG": "/path/to/config.toml"
+    }
+  }
+}
+```
+
+This lets you run multiple isolated wiki environments on the same
+machine — each with its own registered wikis.
+
 ## Live Indexing
 
 Add `--watch` to any `serve` configuration for live indexing —

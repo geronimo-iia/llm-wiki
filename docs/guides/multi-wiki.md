@@ -1,3 +1,15 @@
+---
+title: "Multi-Wiki"
+summary: "Manage multiple wikis, cross-wiki search, wiki:// URIs, and cross-wiki graph."
+read_when:
+  - Setting up multiple wikis
+  - Using wiki:// URIs in links or frontmatter
+  - Querying across wikis
+  - Understanding cross-wiki graph behavior
+status: ready
+last_updated: "2026-04-28"
+---
+
 # Multi-Wiki
 
 llm-wiki manages multiple wiki repositories from a single process.
@@ -58,12 +70,47 @@ llm-wiki content read wiki://research/concepts/moe
 llm-wiki content write wiki://work/projects/new-project
 ```
 
-And in frontmatter references:
+And in frontmatter edge fields (`sources`, `concepts`, etc.):
 
 ```yaml
 sources:
   - wiki://research/sources/switch-transformer
+concepts:
+  - wiki://research/concepts/mixture-of-experts
 ```
+
+Wiki links in page bodies use the same URI scheme:
+
+```markdown
+See [[wiki://research/concepts/mixture-of-experts]] for details.
+```
+
+Body `[[wiki://...]]` links create graph edges (generic `links-to` relation),
+just like local `[[slug]]` links.
+
+## Cross-Wiki Graph
+
+`wiki_graph --cross-wiki` merges all mounted wikis into a unified graph.
+Cross-wiki edges from `wiki://` URIs become fully resolved when both wikis
+are mounted:
+
+```bash
+llm-wiki graph --cross-wiki --format mermaid
+llm-wiki graph --cross-wiki --format llms
+```
+
+Without `--cross-wiki`, cross-wiki link targets appear as **external
+placeholder nodes** — styled with a dashed border in Mermaid, `style="dashed"`
+in DOT — because the remote wiki's index is not consulted.
+
+The `broken-cross-wiki-link` lint rule warns when a `wiki://` URI names a
+wiki that is not currently mounted:
+
+```bash
+llm-wiki lint --rules broken-cross-wiki-link
+```
+
+This is advisory — the referenced wiki may simply be unmounted, not wrong.
 
 ## Cross-Wiki Search
 

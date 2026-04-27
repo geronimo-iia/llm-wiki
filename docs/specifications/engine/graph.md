@@ -5,7 +5,7 @@ read_when:
   - Understanding how the concept graph is built
   - Understanding typed nodes and labeled edges
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2026-04-28"
 ---
 
 # Graph
@@ -45,8 +45,9 @@ For the `x-graph-edges` format, see
 declarations, see the individual type docs under
 [types/](../model/types/).
 
-Only pages that exist in the index are included. Broken references are
-silently skipped.
+Only pages that exist in the local index are included as full nodes.
+Cross-wiki references (`wiki://` URIs) produce external placeholder nodes — see
+[Cross-wiki edges](#cross-wiki-edges) below.
 
 ### Build process
 
@@ -59,6 +60,50 @@ silently skipped.
 5. Optionally warn when edge target has wrong type (per `target_types`)
 
 
+
+## Cross-wiki edges
+
+Links to pages in other wikis use `wiki://name/slug` URI syntax. These are stored
+as-is in the tantivy index and handled at graph build time.
+
+### `ParsedLink` enum
+
+Link values from frontmatter edge fields and body `[[wikilinks]]` are classified
+during graph construction:
+
+```
+ParsedLink::Local(slug)                      — bare slug, resolves within this wiki
+ParsedLink::CrossWiki { wiki, slug }         — wiki:// URI, resolves in another wiki
+```
+
+### Single-wiki graph
+
+When building a single-wiki graph, `CrossWiki` targets that have no matching local
+node are added as **external placeholder nodes**:
+
+- `PageNode.external = true`
+- `slug` = the slug portion of the URI
+- `title` = the full `wiki://name/slug` string
+- `type` = `"external"`
+
+External nodes are rendered with distinct styling (dashed border). They carry no
+metadata from the local index.
+
+### Unified graph (`cross_wiki: true`)
+
+`build_graph_cross_wiki` accepts a slice of `(wiki_name, Searcher, IndexSchema,
+TypeRegistry)` tuples. It:
+
+1. Builds a per-wiki node set with slugs prefixed by wiki name
+2. Constructs a unified `wiki_name/slug → NodeIndex` map
+3. Re-resolves cross-wiki edges from the merged map — previously external nodes
+   become fully resolved nodes when both wikis are mounted
+
+### Lint rule
+
+`wiki_lint(rules: "broken-cross-wiki-link")` reports a `Warning` when a `wiki://`
+URI references a wiki name not currently in the space registry. Unmounted does not
+mean wrong — the warning is advisory.
 
 ## Filtering
 
@@ -113,11 +158,28 @@ with `status: generated`.
 The graph is built from the tantivy index — no file reads. Construction
 is O(pages + edges). Rendering is O(filtered nodes + filtered edges).
 
+## Community detection
+
+Louvain clustering runs on a symmetrized view of the directed graph (each directed
+edge `A→B` treated as undirected `A—B`). Results are returned as `CommunityStats`
+in `wiki_stats`:
+
+| Field | Description |
+|---|---|
+| `count` | Number of distinct clusters found |
+| `largest` | Size of the biggest cluster |
+| `smallest` | Size of the smallest cluster |
+| `isolated` | Slugs in communities of size ≤ 2 — weakly connected pages |
+
+`compute_communities` returns `None` when `node_count < min_nodes_for_communities`
+(default 30). Processing order is sorted by slug for deterministic output.
+
+`node_community_map` returns a `HashMap<slug, community_id>` for use by
+`wiki_suggest` strategy 4 (community peers).
+
 ## Future Improvements
 
 - Persistent graph index alongside tantivy to avoid rebuilding petgraph
   on every call
 - Graph queries beyond rendering: shortest path, connected components,
   orphan detection
-- Type constraint validation at ingest time (warn when edge target has
-  wrong type)
