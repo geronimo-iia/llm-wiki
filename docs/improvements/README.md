@@ -12,7 +12,7 @@ items that follow it.
 | 3   | ✅ | [backlinks.md](backlinks.md)                           | `backlinks: bool` on `wiki_content_read`; tantivy term query on `body_links`                         | —          |
 | 4   | ✅ | [lint.md](lint.md)                                     | `wiki_lint` engine tool (5 deterministic rules) + skill update to call it                            | #1         |
 | 5   | ✅ | [incremental-validation.md](incremental-validation.md) | Restrict `wiki_ingest` validation to git-changed files via `collect_changed_files`                   | —          |
-| 6   | — | [redaction.md](redaction.md)                           | Opt-in `redact: true` on `wiki_ingest`; built-in patterns + per-wiki `wiki.toml` config              | —          |
+| 6   | ✅ | [redaction.md](redaction.md)                           | Opt-in `redact: true` on `wiki_ingest`; built-in patterns + per-wiki `wiki.toml` config              | —          |
 | 7   | — | [crystallize.md](crystallize.md)                       | Two-step extraction pass, confidence calibration table, post-ingest lint step in `crystallize` skill | #1, #4     |
 | 8   | — | [community-detection.md](community-detection.md)       | Louvain clustering on `petgraph::DiGraph`; `communities` in `wiki_stats`; strategy 4 in `wiki_suggest` | —        |
 | 9   | — | [export.md](export.md)                                 | `format: "llms"` on `wiki_list`/`wiki_search`/`wiki_graph`; `wiki_export(path:)` writes full wiki to file | #1    |
