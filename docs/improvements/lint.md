@@ -144,3 +144,16 @@ findings in the same grouped report.
 - [x] Unit test per rule: pass and fail case each.
 - [x] Integration test: create wiki with known issues; run `wiki_lint`; assert expected findings.
 - [x] `stale` rule: page old + low confidence → stale; page old + high confidence → not stale; page recent + low confidence → stale.
+
+### Guide — `docs/guides/lint.md`
+- [x] Create `docs/guides/lint.md` covering:
+  - What `wiki_lint` is for and when to run it (after ingest, before commit, in CI, in crystallize)
+  - The 5 rules table (rule ID, severity, what it catches)
+  - How to read a finding (slug, rule, severity, message fields)
+  - How to act on each rule (`broken-link` → fix or remove the `[[slug]]`; `orphan` → add a link or delete; `missing-fields` → fill required frontmatter; `stale` → update content or raise confidence; `unknown-type` → fix the `type:` value)
+  - Typical workflow: `wiki_lint()` → triage by severity → fix errors first → review warnings
+  - Running a subset of rules: `wiki_lint(rules: "broken-link,orphan")`
+  - CI usage: CLI exits non-zero on any `Error` finding
+  - Tuning the `stale` rule via `[lint]` in `config.toml` / `wiki.toml`
+- [x] `docs/guides/README.md`: add `lint.md` row to the guide index.
+- [x] `docs/guides/configuration.md`: add `### Tune lint rules` section with one-liner example and link to `lint.md`.
