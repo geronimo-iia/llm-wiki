@@ -11,14 +11,20 @@ use llm_wiki::engine::WikiEngine;
 use llm_wiki::ops;
 use llm_wiki::search;
 
-fn global_config_path() -> PathBuf {
+fn global_config_path(cli_override: Option<&Path>) -> PathBuf {
+    if let Some(p) = cli_override {
+        return p.to_path_buf();
+    }
+    if let Ok(p) = std::env::var("LLM_WIKI_CONFIG") {
+        return PathBuf::from(p);
+    }
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
     PathBuf::from(home).join(".llm-wiki").join("config.toml")
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let config_path = global_config_path();
+    let config_path = global_config_path(cli.config.as_deref());
 
     let _log_guard = init_logging(&cli.command, &config_path);
 

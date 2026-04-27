@@ -75,16 +75,15 @@ check_binary() {
     fi
 }
 
-# ── Setup: create working wiki pair ──────────────────────────────────────────
+# ── Setup: create isolated config + wiki pair ─────────────────────────────────
+
+CONFIG_FILE="$TMPDIR/config.toml"
 
 setup_wikis() {
-    local state_dir="$TMPDIR/state"
-    local config="$state_dir/config.toml"
-    mkdir -p "$state_dir"
-
     # research wiki
     local research_root="$TMPDIR/research"
     cp -r "$FIXTURES/wikis/research" "$research_root"
+    mkdir -p "$research_root/inbox"
     git -C "$research_root" init -q
     git -C "$research_root" add .
     git -C "$research_root" -c user.name=test -c user.email=test@test.com \
@@ -98,15 +97,13 @@ setup_wikis() {
     git -C "$notes_root" -c user.name=test -c user.email=test@test.com \
         commit -q -m "init"
 
-    # copy inbox fixtures
-    cp "$FIXTURES"/inbox/* "$research_root/inbox/"
+    # copy inbox fixtures into wiki/inbox/ (path relative to wiki root)
+    cp "$FIXTURES"/inbox/* "$research_root/wiki/inbox/"
 
-    # register both wikis
-    "$BINARY" spaces create "$research_root" --name research --config "$config" -q 2>/dev/null || true
-    "$BINARY" spaces create "$notes_root"    --name notes    --config "$config" -q 2>/dev/null || true
-    "$BINARY" spaces set-default research    --config "$config" -q 2>/dev/null || true
-
-    echo "$config"
+    # register both wikis using isolated config
+    "$BINARY" --config "$CONFIG_FILE" spaces create "$research_root" --name research 2>/dev/null || true
+    "$BINARY" --config "$CONFIG_FILE" spaces create "$notes_root"    --name notes    2>/dev/null || true
+    "$BINARY" --config "$CONFIG_FILE" spaces set-default research                    2>/dev/null || true
 }
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -117,8 +114,8 @@ echo "llm-wiki validate-engine.sh"
 echo "binary: $($BINARY --version 2>/dev/null || echo unknown)"
 echo "tmpdir: $TMPDIR"
 
-CONFIG=$(setup_wikis)
-CLI="$BINARY --config $CONFIG"
+setup_wikis
+CLI="$BINARY --config $CONFIG_FILE"
 
 # ── 1. Space management ───────────────────────────────────────────────────────
 

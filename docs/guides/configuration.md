@@ -15,6 +15,22 @@ llm-wiki uses two configuration files:
 Both are created automatically by `llm-wiki spaces create`. You
 rarely need to edit them by hand — use `llm-wiki config` instead.
 
+## Overriding the config path
+
+By default llm-wiki reads `~/.llm-wiki/config.toml`. Override it with:
+
+```bash
+# Flag (highest priority)
+llm-wiki --config /path/to/config.toml spaces list
+
+# Environment variable
+export LLM_WIKI_CONFIG=/path/to/config.toml
+llm-wiki spaces list
+```
+
+Useful for CI pipelines, integration tests, or running multiple isolated
+environments on the same machine.
+
 ## How settings resolve
 
 ```

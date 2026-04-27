@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `--config <path>` global flag to override the config file path
+- `LLM_WIKI_CONFIG` environment variable as a fallback config path override
+
 ## [0.2.0] — Unreleased
 
 ### Added

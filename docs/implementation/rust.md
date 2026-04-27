@@ -22,7 +22,7 @@ llm-wiki/
 ├── rustfmt.toml
 ├── .tool-versions
 ├── src/
-│   ├── main.rs              # CLI dispatch only — parse args, call ops, format output
+│   ├── main.rs              # CLI dispatch; resolves config path (--config > LLM_WIKI_CONFIG > ~/.llm-wiki/config.toml)
 │   ├── lib.rs               # module declarations
 │   ├── cli.rs               # clap subcommand hierarchy
 │   ├── ops/                 # shared business logic (CLI + MCP call this)

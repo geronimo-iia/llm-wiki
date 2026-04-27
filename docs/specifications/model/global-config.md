@@ -11,9 +11,13 @@ last_updated: "2025-07-21"
 
 # config.toml
 
-`~/.llm-wiki/config.toml` is the global engine configuration. It holds
-the space registry and all global defaults. Local to the machine, never
-committed.
+The global engine configuration holds the space registry and all global
+defaults. Local to the machine, never committed.
+
+**Location resolution order:**
+1. `--config <path>` CLI flag
+2. `LLM_WIKI_CONFIG` environment variable
+3. `~/.llm-wiki/config.toml` (default)
 
 ## Example
 
