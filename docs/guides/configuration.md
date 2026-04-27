@@ -96,6 +96,19 @@ is 500ms. Lower for faster feedback, higher for busy editors:
 llm-wiki config set watch.debounce_ms 300 --global
 ```
 
+### Tune lint rules
+
+The `stale` rule fires when a page is both old and low-confidence. Adjust
+the thresholds per-wiki in `wiki.toml`:
+
+```toml
+[lint]
+stale_days                 = 180   # relax for slower-moving wikis
+stale_confidence_threshold = 0.6   # flag more aggressively
+```
+
+See [lint.md](lint.md) for all rules, fix guidance, and CI usage.
+
 ### Tune search ranking
 
 Search results are scored as `bm25 × status_multiplier × confidence`.
