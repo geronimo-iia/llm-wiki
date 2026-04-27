@@ -2,7 +2,7 @@
 title: "Manager Pattern"
 summary: "Change detection and propagation pattern used across the engine — detect, refresh, cascade."
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2026-04-28"
 ---
 
 # Manager Pattern

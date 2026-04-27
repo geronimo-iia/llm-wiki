@@ -2,7 +2,7 @@
 title: "Schema Change Detection"
 summary: "How the engine detects type registry changes and triggers index rebuilds."
 status: ready
-last_updated: "2025-07-19"
+last_updated: "2026-04-28"
 ---
 
 # Schema Change Detection

@@ -7,7 +7,7 @@ read_when:
   - Preparing a release
   - Understanding project-specific conventions
 status: active
-last_updated: "2025-07-21"
+last_updated: "2026-04-28"
 ---
 
 # Rust Implementation Guide
@@ -25,7 +25,23 @@ llm-wiki/
 │   ├── main.rs              # CLI dispatch only — parse args, call ops, format output
 │   ├── lib.rs               # module declarations
 │   ├── cli.rs               # clap subcommand hierarchy
-│   ├── ops.rs               # shared business logic (CLI + MCP call this)
+│   ├── ops/                 # shared business logic (CLI + MCP call this)
+│   │   ├── mod.rs
+│   │   ├── search.rs
+│   │   ├── content.rs
+│   │   ├── ingest.rs
+│   │   ├── graph.rs
+│   │   ├── stats.rs
+│   │   ├── suggest.rs
+│   │   ├── lint.rs
+│   │   ├── redact.rs
+│   │   ├── export.rs
+│   │   ├── schema.rs
+│   │   ├── spaces.rs
+│   │   ├── config.rs
+│   │   ├── index.rs
+│   │   ├── history.rs
+│   │   └── logs.rs
 │   ├── engine.rs            # EngineState, WikiEngine
 │   ├── config.rs            # GlobalConfig, WikiConfig, resolution
 │   ├── slug.rs              # Slug, WikiUri types and resolution

@@ -2,7 +2,7 @@
 title: "Tantivy Implementation Notes"
 summary: "Tantivy-specific implementation details — dynamic schema, TopDocs, index writer, tokenizer, and segment management."
 status: ready
-last_updated: "2025-07-21"
+last_updated: "2026-04-28"
 ---
 
 # Tantivy Implementation Notes
