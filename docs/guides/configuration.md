@@ -109,6 +109,23 @@ stale_confidence_threshold = 0.6   # flag more aggressively
 
 See [lint.md](lint.md) for all rules, fix guidance, and CI usage.
 
+### Configure redaction
+
+Disable specific built-in patterns or add custom ones in `wiki.toml`:
+
+```toml
+[redact]
+disable = ["email"]   # keep email addresses in a contacts wiki
+
+[[redact.patterns]]
+name        = "employee-id"
+pattern     = "EMP-[0-9]{6}"
+replacement = "[REDACTED:employee-id]"
+```
+
+See [redaction.md](redaction.md) for all built-in patterns, report format,
+and usage guidance.
+
 ### Tune search ranking
 
 Search results are scored as `bm25 × status_multiplier × confidence`.

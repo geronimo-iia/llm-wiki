@@ -14,6 +14,7 @@ MCP tool: `wiki_ingest`
 ```
 llm-wiki ingest <slug|uri>              # file or folder
             [--dry-run]
+            [--redact]                  # opt-in redaction pass (lossy)
             [--format <fmt>]            # text | json (default: from config)
             [--wiki <name>]
 ```
@@ -42,9 +43,20 @@ JSON (`--format json`):
   "unchanged_count": 497,
   "assets_found": 0,
   "warnings": [],
-  "commit": "a3f9c12"
+  "commit": "a3f9c12",
+  "redacted": [
+    {
+      "slug": "inbox/transcript",
+      "matches": [
+        { "pattern_name": "github-pat", "line_number": 14 }
+      ]
+    }
+  ]
 }
 ```
+
+`redacted` is an empty array when `redact: false` (default) or when no
+patterns matched. `#[serde(default)]` — absent from older responses.
 
 `commit` is empty when `ingest.auto_commit` is false.
 

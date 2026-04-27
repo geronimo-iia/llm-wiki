@@ -191,6 +191,7 @@ pub fn tool_list() -> Vec<Tool> {
                 json!({
                     "path": str_prop("File or folder path, relative to wiki root"),
                     "dry_run": opt_bool("Show what would be created without creating"),
+                    "redact": opt_bool("Run redaction pass on file bodies before validation (opt-in; lossy — original values are replaced)"),
                     "wiki": opt_str("Target wiki name"),
                 }),
                 &["path"],

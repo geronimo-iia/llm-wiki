@@ -274,6 +274,21 @@ impl Default for LintConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CustomPattern {
+    pub name: String,
+    pub pattern: String,
+    pub replacement: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RedactConfig {
+    #[serde(default)]
+    pub disable: Vec<String>,
+    #[serde(default)]
+    pub patterns: Vec<CustomPattern>,
+}
+
 // ── Composite configs ─────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -308,6 +323,8 @@ pub struct GlobalConfig {
     pub logging: LoggingConfig,
     #[serde(default)]
     pub watch: WatchConfig,
+    #[serde(default)]
+    pub redact: RedactConfig,
 }
 
 /// A type entry in `[types.<name>]` of `wiki.toml`.
@@ -343,6 +360,8 @@ pub struct WikiConfig {
     pub search: Option<SearchConfig>,
     #[serde(default)]
     pub lint: Option<LintConfig>,
+    #[serde(default)]
+    pub redact: Option<RedactConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -358,6 +377,7 @@ pub struct ResolvedConfig {
     pub suggest: SuggestConfig,
     pub search: SearchConfig,
     pub lint: LintConfig,
+    pub redact: RedactConfig,
 }
 
 // ── Default value helpers ─────────────────────────────────────────────────────
@@ -486,6 +506,10 @@ pub fn resolve(global: &GlobalConfig, per_wiki: &WikiConfig) -> ResolvedConfig {
             SearchConfig { status: merged }
         },
         lint: per_wiki.lint.clone().unwrap_or_else(|| global.lint.clone()),
+        redact: per_wiki
+            .redact
+            .clone()
+            .unwrap_or_else(|| global.redact.clone()),
     }
 }
 

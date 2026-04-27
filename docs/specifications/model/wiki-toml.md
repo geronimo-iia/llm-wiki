@@ -92,6 +92,7 @@ Commonly overridden per-wiki:
 | `[lint]`         | `stale_days`, `stale_confidence_threshold` — replaces global value entirely  |
 | `[ingest]`       | `auto_commit`                                                                |
 | `[graph]`        | `format`, `depth`                                                            |
+| `[redact]`       | `disable` (list of built-in pattern names to skip), `[[redact.patterns]]` (custom patterns) |
 
 `[search.status]` is the only section resolved **key-by-key**: a
 `wiki.toml` block merges over the global map rather than replacing it.

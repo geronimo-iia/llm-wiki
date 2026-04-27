@@ -1,7 +1,7 @@
 ---
 title: "Privacy Redaction"
 summary: "Opt-in redaction pass on wiki_ingest: built-in secret patterns with per-wiki disable/extend via wiki.toml."
-status: proposed
+status: implemented
 last_updated: "2026-04-27"
 ---
 
@@ -95,20 +95,106 @@ struct RedactionReport {
 **Scope**: body only, not frontmatter. Frontmatter is structured YAML; redacting
 it would likely corrupt the document. Frontmatter redaction is a future extension.
 
+## Branch & PR — `llm-wiki`
+
+```bash
+git checkout -b feat/redaction
+```
+
+When implementation is complete and all tests pass:
+
+```bash
+cargo fmt --all
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
+```bash
+git push -u origin feat/redaction
+gh pr create \
+  --title "feat: privacy redaction — redact: flag on wiki_ingest" \
+  --milestone "v0.2.0" \
+  --body "$(cat <<'EOF'
+Implements imp-6 (privacy redaction).
+
+- Add redact: bool param to wiki_ingest
+- 6 built-in patterns (GitHub PAT, OpenAI key, Anthropic key, AWS key, Bearer token, email)
+- Per-wiki disable/extend via [redact] in wiki.toml
+- RedactionReport in IngestReport
+
+Closes geronimo-iia/llm-wiki#22 (imp-6)
+
+Spec: docs/improvements/redaction.md
+EOF
+)"
+```
+
+## Branch & PR — `llm-wiki-skills`
+
+```bash
+# in llm-wiki-skills repo
+git checkout -b feat/redaction
+```
+
+When done:
+
+```bash
+git push -u origin feat/redaction
+gh pr create \
+  --repo geronimo-iia/llm-wiki-skills \
+  --milestone "v0.4.0" \
+  --title "feat: document redaction in ingest skill" \
+  --body "$(cat <<'EOF'
+Aligns skill documentation with the redaction feature added in llm-wiki imp-6.
+
+- skills/ingest/SKILL.md: document redact: true param; when to use it; built-in patterns; per-wiki config
+
+Companion to llm-wiki feat/redaction (imp-6).
+Closes geronimo-iia/llm-wiki-skills#1 (imp-6)
+EOF
+)"
+```
+
+> Merge timing: skills PR requires `llm-wiki` v0.2.0 imp-6 to be merged first.
+
 ## Tasks
 
-- [ ] Add `src/ops/redact.rs`; define `RedactPattern { name, regex, replacement }` and `BUILTIN_PATTERNS` static slice with the 6 initial patterns.
-- [ ] Add `fn build_patterns(config: &RedactConfig) -> Vec<RedactPattern>` — merges built-ins minus disabled plus custom patterns from `wiki.toml`.
-- [ ] Add `fn redact_body(body: &str, patterns: &[RedactPattern]) -> (String, Vec<RedactionMatch>)`.
-- [ ] Add `RedactConfig` struct to `src/config.rs` with `disable: Vec<String>` and `patterns: Vec<CustomPattern>`; wire into `WikiConfig` under `[redact]`.
-- [ ] Update `wiki.toml` spec (`docs/specifications/model/wiki-toml.md`): add `[redact]` section with `disable` and `[[redact.patterns]]` fields.
-- [ ] Update ingest pipeline spec (`docs/specifications/engine/ingest-pipeline.md`): add redaction as step 0 (before frontmatter parse); add `redact: bool` to the tool parameter table; note that "the file on disk is never modified" now has an exception when `redact: true`.
-- [ ] Update ingest tool spec (`docs/specifications/tools/ingest.md`): document `--redact` flag; add `redacted` field to the JSON output example.
-- [ ] Add `redact: bool` parameter to `wiki_ingest` MCP tool definition in `src/tools.rs`.
-- [ ] In `src/ingest.rs`, when `options.redact` is true, call `redact_body` on each file's content before `validate_file`; accumulate `RedactionReport` per file.
-- [ ] Add `redacted: Vec<RedactionReport>` to `IngestReport`; `#[serde(default)]` for backwards compatibility.
-- [ ] Update CLI text output to report redaction count: `Ingested: 3 pages, 2 redactions`.
-- [ ] Unit test: each built-in pattern matches its canonical example and is replaced correctly.
-- [ ] Unit test: `disable = ["email"]` removes the email pattern from the effective set.
-- [ ] Unit test: custom pattern in config is applied alongside built-ins.
-- [ ] Unit test: `redact: false` skips the redaction pass entirely (no performance cost).
+### Engine — `llm-wiki` (branch: `feat/redaction`)
+
+- [x] Add `src/ops/redact.rs`; define `RedactPattern { name, regex, replacement }` and `BUILTIN_PATTERNS` static slice with the 6 initial patterns.
+- [x] Add `fn build_patterns(config: &RedactConfig) -> Vec<RedactPattern>` — merges built-ins minus disabled plus custom patterns from `wiki.toml`.
+- [x] Add `fn redact_body(body: &str, patterns: &[RedactPattern]) -> (String, Vec<RedactionMatch>)`.
+- [x] Add `RedactConfig` struct to `src/config.rs` with `disable: Vec<String>` and `patterns: Vec<CustomPattern>`; wire into `WikiConfig` under `[redact]`.
+- [x] Add `redact: bool` parameter to `wiki_ingest` MCP tool definition in `src/tools.rs`.
+- [x] In `src/ingest.rs`, when `options.redact` is true, call `redact_body` on each file's content before `validate_file`; accumulate `RedactionReport` per file.
+- [x] Add `redacted: Vec<RedactionReport>` to `IngestReport`; `#[serde(default)]` for backwards compatibility.
+- [x] Update CLI text output to report redaction count: `Ingested: 3 pages, 2 redactions`.
+- [x] Unit test: each built-in pattern matches its canonical example and is replaced correctly.
+- [x] Unit test: `disable = ["email"]` removes the email pattern from the effective set.
+- [x] Unit test: custom pattern in config is applied alongside built-ins.
+- [x] Unit test: `redact: false` skips the redaction pass entirely (no performance cost).
+
+### Spec docs
+- [x] `docs/specifications/model/wiki-toml.md`: add `[redact]` section with `disable` and `[[redact.patterns]]` fields.
+- [x] `docs/specifications/engine/ingest-pipeline.md`: add redaction as step 0 (before frontmatter parse); add `redact: bool` to the tool parameter table.
+- [x] `docs/specifications/tools/ingest.md`: document `--redact` flag; add `redacted` field to the JSON output example.
+
+### Guide
+- [x] Create `docs/guides/redaction.md` covering:
+  - What redaction is for and when to use `redact: true`
+  - The 6 built-in patterns table (name, what it matches)
+  - How to read the redaction report (slug, pattern name, line number)
+  - How to disable a built-in pattern per-wiki (`disable = ["email"]`)
+  - How to add custom patterns (`[[redact.patterns]]`)
+  - Warning: redaction is lossy — original value is gone after commit
+  - Scope: body only, not frontmatter
+- [x] `docs/guides/README.md`: add `redaction.md` row to the guide index.
+- [x] `docs/guides/configuration.md`: add `### Configure redaction` section with one-liner and link to `redaction.md`.
+
+### Skills — `llm-wiki-skills` (branch: `feat/redaction`)
+- [x] `skills/ingest/SKILL.md`: document `redact: true` parameter on `wiki_ingest`; note when to use it (external content, session transcripts, raw notes); list built-in patterns; show per-wiki config example.
+
+### Issue update
+After merging:
+- Check off imp-6 in `geronimo-iia/llm-wiki#22` and `geronimo-iia/llm-wiki-skills#1`
+- Mark `status: implemented` in this file

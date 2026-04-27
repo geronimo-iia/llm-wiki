@@ -310,27 +310,38 @@ fn main() -> Result<()> {
         Commands::Ingest {
             path,
             dry_run,
+            redact,
             format,
         } => {
             let manager = WikiEngine::build(&config_path)?;
             let report = {
                 let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
                 let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref()).to_string();
-                ops::ingest(&engine, &manager, &path, dry_run, &wiki_name)?
+                ops::ingest_with_redact(&engine, &manager, &path, dry_run, redact, &wiki_name)?
             };
 
             if is_json(&format) {
                 println!("{}", serde_json::to_string_pretty(&report)?);
             } else {
+                let redaction_count: usize = report.redacted.iter().map(|r| r.matches.len()).sum();
                 println!(
-                    "Ingested: {} pages, {} unchanged, {} assets, {} warnings",
+                    "Ingested: {} pages, {} unchanged, {} assets, {} warnings, {} redactions",
                     report.pages_validated,
                     report.unchanged_count,
                     report.assets_found,
-                    report.warnings.len()
+                    report.warnings.len(),
+                    redaction_count,
                 );
                 for w in &report.warnings {
                     println!("  warn: {w}");
+                }
+                for r in &report.redacted {
+                    for m in &r.matches {
+                        println!(
+                            "  redacted: {} line {} [{}]",
+                            r.slug, m.line_number, m.pattern_name
+                        );
+                    }
                 }
                 if dry_run {
                     println!("(dry run — nothing committed)");

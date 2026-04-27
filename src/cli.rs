@@ -80,6 +80,9 @@ pub enum Commands {
         /// Validate only, no commit
         #[arg(long)]
         dry_run: bool,
+        /// Redact secrets from file bodies before validation (opt-in; lossy)
+        #[arg(long)]
+        redact: bool,
         /// Output format: text | json
         #[arg(long)]
         format: Option<String>,

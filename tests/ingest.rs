@@ -57,6 +57,7 @@ fn ingest_validates_valid_page_and_commits() {
         dry_run: false,
         auto_commit: true,
         changed_paths: None,
+        redact: None,
     };
     let report = ingest(
         Path::new("concepts/foo.md"),
@@ -222,6 +223,7 @@ fn ingest_commit_matches_git_head() {
         dry_run: false,
         auto_commit: true,
         changed_paths: None,
+        redact: None,
     };
     let report = ingest(
         Path::new("concepts/foo.md"),

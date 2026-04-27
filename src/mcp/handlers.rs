@@ -253,14 +253,16 @@ pub fn handle_list(server: &McpServer, args: &Map<String, Value>) -> ToolHandler
 pub fn handle_ingest(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let path = arg_str_req(args, "path")?;
     let dry_run = arg_bool(args, "dry_run");
+    let redact = arg_bool(args, "redact");
 
     // Read path: ingest (ops handles WikiEngine mutation internally)
     let (report, wiki_name, notify_uris) = {
         let engine = server.engine();
         let wiki_name = resolve_wiki_name(&engine, args)?;
 
-        let report = ops::ingest(&engine, &server.manager, &path, dry_run, &wiki_name)
-            .map_err(|e| format!("{e}"))?;
+        let report =
+            ops::ingest_with_redact(&engine, &server.manager, &path, dry_run, redact, &wiki_name)
+                .map_err(|e| format!("{e}"))?;
 
         let notify_uris = if !dry_run {
             let space = engine.space(&wiki_name).map_err(|e| format!("{e}"))?;
