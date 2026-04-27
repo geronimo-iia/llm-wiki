@@ -6,7 +6,7 @@ read_when:
   - Creating new pages or sections
   - Committing changes to git
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2026-04-27"
 ---
 
 # Content Operations
@@ -32,6 +32,7 @@ MCP tool: `wiki_content_read`
 llm-wiki content read <slug|uri>
           [--no-frontmatter]        # strip frontmatter
           [--list-assets]           # list co-located assets of a bundle
+          [--backlinks]             # include incoming links (pages that link to this page)
           [--format <fmt>]          # text | json (default: from config)
           [--wiki <name>]
 ```
@@ -42,6 +43,26 @@ full URI (`wiki://research/concepts/moe`). Also reads bundle assets
 
 When a page has `superseded_by` set, the output includes a notice
 pointing to the replacement.
+
+### Backlinks
+
+When `--backlinks` is passed, the response is JSON instead of plain text:
+
+```json
+{
+  "content": "# Page content ...",
+  "backlinks": [
+    { "slug": "concepts/alpha", "title": "Alpha" },
+    { "slug": "concepts/beta",  "title": "Beta"  }
+  ]
+}
+```
+
+`backlinks` lists all pages whose body contains a `[[<target-slug>]]` wikilink.
+The result is a term query on the `body_links` index field — no file writes,
+no index mutation. Returns an empty array when no pages link to this page.
+
+Without `--backlinks` (default), the response is the raw page content as plain text.
 
 ## content write
 

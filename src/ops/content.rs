@@ -1,12 +1,75 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Result, bail};
+use serde::Serialize;
+use tantivy::{
+    Searcher, Term,
+    query::TermQuery,
+    schema::{IndexRecordOption, Value},
+};
 
 use crate::config;
 use crate::engine::EngineState;
 use crate::git;
+use crate::index_schema::IndexSchema;
 use crate::markdown;
 use crate::slug::{ReadTarget, Slug, WikiUri, resolve_read_target};
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BacklinkRef {
+    pub slug: String,
+    pub title: String,
+}
+
+pub fn backlinks_query(
+    searcher: &Searcher,
+    is: &IndexSchema,
+    target_slug: &str,
+) -> Result<Vec<BacklinkRef>> {
+    let f_body_links = is.field("body_links");
+    let f_slug = is.field("slug");
+    let f_title = is.field("title");
+
+    let term = Term::from_field_text(f_body_links, target_slug);
+    let query = TermQuery::new(term, IndexRecordOption::Basic);
+
+    let doc_addrs = searcher.search(&query, &tantivy::collector::DocSetCollector)?;
+
+    let mut refs: Vec<BacklinkRef> = doc_addrs
+        .into_iter()
+        .filter_map(|addr| {
+            let doc: tantivy::TantivyDocument = searcher.doc(addr).ok()?;
+            let slug = doc
+                .get_first(f_slug)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let title = doc
+                .get_first(f_title)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if slug.is_empty() {
+                None
+            } else {
+                Some(BacklinkRef { slug, title })
+            }
+        })
+        .collect();
+
+    refs.sort_by(|a, b| a.slug.cmp(&b.slug));
+    Ok(refs)
+}
+
+pub fn backlinks_for(
+    engine: &EngineState,
+    wiki_name: &str,
+    target_slug: &str,
+) -> Result<Vec<BacklinkRef>> {
+    let space = engine.space(wiki_name)?;
+    let searcher = space.index_manager.searcher()?;
+    backlinks_query(&searcher, &space.index_schema, target_slug)
+}
 
 pub enum ContentReadResult {
     Page(String),
