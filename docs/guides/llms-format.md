@@ -20,6 +20,29 @@ structured JSON or a diagram syntax requiring a renderer.
 ecosystem, offline analysis, or CI auditing. It is the file-production
 counterpart to the session-use `format: "llms"`.
 
+## The `llms.txt` standard
+
+`llms.txt` is a community convention proposed by Jeremy Howard
+(Answer.AI / fast.ai) for making project documentation accessible to
+LLMs. The canonical specification and reference implementation are at:
+
+- Spec: <https://llmstxt.org>
+- Reference implementation: <https://github.com/AnswerDotAI/llms-txt>
+
+The convention places a Markdown file at `<site>/llms.txt` — analogous
+to `robots.txt` — containing a project name (H1), an optional summary
+blockquote, and file lists pointing to key documentation pages. An
+extended variant, `llms-full.txt`, inlines the full content of those
+pages for long-context consumption.
+
+`wiki_export` produces files that follow this structure: `llms-txt`
+generates the summary listing (equivalent to `llms.txt`), `llms-full`
+generates the inlined-bodies variant (equivalent to `llms-full.txt`).
+The exported file can be committed to the wiki repository root and
+served by Hugo or any static host, making the wiki's knowledge directly
+available to tools like Cursor, Perplexity, and other LLM clients that
+support the `llms.txt` convention.
+
 ## The orientation problem
 
 Skills that need to act on an existing wiki before writing spend tool
