@@ -29,7 +29,7 @@ ordered by priority:
 | 1b  | ✅ | `claims[].confidence` aligned to float                                        |   ✦    |   ✦    |
 | 2   | ✅ | Lifecycle-aware search ranking (`tweak_score`)                                |   ✦    |   —    |
 | 2b  | ✅ | Flat `[search.status]` map for arbitrary status multipliers                   |   ✦    |   —    |
-| 3   | — | Backlinks (`backlinks:` param on `wiki_content_read`)                         |   ✦    |   —    |
+| 3   | ✅ | Backlinks (`backlinks:` param on `wiki_content_read`)                         |   ✦    |   ✦    |
 | 4   | — | Lint system (`wiki_lint` tool, 5 deterministic rules)                         |   ✦    |   ✦    |
 | 5   | — | Incremental validation (git-diff scoped)                                      |   ✦    |   —    |
 | 6   | — | Privacy redaction (`redact:` flag on `wiki_ingest`)                           |   ✦    |   —    |
