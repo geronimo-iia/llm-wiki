@@ -384,9 +384,21 @@ fn confidence_page(slug_name: &str, conf: f64) -> String {
 fn search_ranking_active_above_draft_above_archived() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
-    write_page(&wiki_root, "concepts/archived.md", &status_page("Archived", "archived"));
-    write_page(&wiki_root, "concepts/draft.md", &status_page("Draft", "draft"));
-    write_page(&wiki_root, "concepts/active.md", &status_page("Active", "active"));
+    write_page(
+        &wiki_root,
+        "concepts/archived.md",
+        &status_page("Archived", "archived"),
+    );
+    write_page(
+        &wiki_root,
+        "concepts/draft.md",
+        &status_page("Draft", "draft"),
+    );
+    write_page(
+        &wiki_root,
+        "concepts/active.md",
+        &status_page("Active", "active"),
+    );
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
@@ -403,7 +415,10 @@ fn search_ranking_active_above_draft_above_archived() {
     let slugs: Vec<&str> = results.results.iter().map(|r| r.slug.as_str()).collect();
     let pos_active = slugs.iter().position(|&s| s == "concepts/active").unwrap();
     let pos_draft = slugs.iter().position(|&s| s == "concepts/draft").unwrap();
-    let pos_archived = slugs.iter().position(|&s| s == "concepts/archived").unwrap();
+    let pos_archived = slugs
+        .iter()
+        .position(|&s| s == "concepts/archived")
+        .unwrap();
     assert!(pos_active < pos_draft, "active should rank above draft");
     assert!(pos_draft < pos_archived, "draft should rank above archived");
 }
@@ -413,7 +428,11 @@ fn search_ranking_high_confidence_above_low() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
     write_page(&wiki_root, "concepts/low.md", &confidence_page("Low", 0.2));
-    write_page(&wiki_root, "concepts/high.md", &confidence_page("High", 0.9));
+    write_page(
+        &wiki_root,
+        "concepts/high.md",
+        &confidence_page("High", 0.9),
+    );
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
@@ -466,8 +485,16 @@ fn search_ranking_archived_high_confidence_below_active_medium() {
 fn search_ranking_custom_config_zero_archived() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
-    write_page(&wiki_root, "concepts/archived.md", &status_page("Archived", "archived"));
-    write_page(&wiki_root, "concepts/active.md", &status_page("Active", "active"));
+    write_page(
+        &wiki_root,
+        "concepts/archived.md",
+        &status_page("Archived", "archived"),
+    );
+    write_page(
+        &wiki_root,
+        "concepts/active.md",
+        &status_page("Active", "active"),
+    );
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
@@ -489,7 +516,10 @@ fn search_ranking_custom_config_zero_archived() {
     // archived pages score 0 so should not appear or appear last with score 0
     let slugs: Vec<&str> = results.results.iter().map(|r| r.slug.as_str()).collect();
     let pos_active = slugs.iter().position(|&s| s == "concepts/active").unwrap();
-    let pos_archived = slugs.iter().position(|&s| s == "concepts/archived").unwrap();
+    let pos_archived = slugs
+        .iter()
+        .position(|&s| s == "concepts/archived")
+        .unwrap();
     assert!(pos_active < pos_archived);
 }
 
@@ -528,9 +558,18 @@ fn search_ranking_custom_status_mapped() {
 
     assert_eq!(results.results.len(), 2);
     let slugs: Vec<&str> = results.results.iter().map(|r| r.slug.as_str()).collect();
-    let pos_active = slugs.iter().position(|&s| s == "concepts/active-page").unwrap();
-    let pos_stub = slugs.iter().position(|&s| s == "concepts/stub-page").unwrap();
-    assert!(pos_active < pos_stub, "active (×1.0) should rank above stub (×0.6)");
+    let pos_active = slugs
+        .iter()
+        .position(|&s| s == "concepts/active-page")
+        .unwrap();
+    let pos_stub = slugs
+        .iter()
+        .position(|&s| s == "concepts/stub-page")
+        .unwrap();
+    assert!(
+        pos_active < pos_stub,
+        "active (×1.0) should rank above stub (×0.6)"
+    );
 }
 
 #[test]

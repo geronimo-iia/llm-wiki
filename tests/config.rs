@@ -546,11 +546,31 @@ fn resolve_search_status_merges_per_wiki() {
         ..Default::default()
     };
     let resolved = resolve(&global, &per_wiki);
-    assert_eq!(resolved.search.status.get("active").copied(), Some(1.0_f32), "active inherited");
-    assert_eq!(resolved.search.status.get("draft").copied(), Some(0.8_f32), "draft inherited");
-    assert_eq!(resolved.search.status.get("archived").copied(), Some(0.0_f32), "archived overridden");
-    assert_eq!(resolved.search.status.get("unknown").copied(), Some(0.9_f32), "unknown inherited");
-    assert_eq!(resolved.search.status.get("stub").copied(), Some(0.6_f32), "stub added by wiki");
+    assert_eq!(
+        resolved.search.status.get("active").copied(),
+        Some(1.0_f32),
+        "active inherited"
+    );
+    assert_eq!(
+        resolved.search.status.get("draft").copied(),
+        Some(0.8_f32),
+        "draft inherited"
+    );
+    assert_eq!(
+        resolved.search.status.get("archived").copied(),
+        Some(0.0_f32),
+        "archived overridden"
+    );
+    assert_eq!(
+        resolved.search.status.get("unknown").copied(),
+        Some(0.9_f32),
+        "unknown inherited"
+    );
+    assert_eq!(
+        resolved.search.status.get("stub").copied(),
+        Some(0.6_f32),
+        "stub added by wiki"
+    );
 }
 
 // ── types registry in wiki.toml ──────────────────────────────────────────────

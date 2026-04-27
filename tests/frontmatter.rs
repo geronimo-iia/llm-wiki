@@ -147,14 +147,17 @@ fn scaffold_emits_confidence_half() {
 
 #[test]
 fn confidence_maps_legacy_strings() {
-    use std::collections::BTreeMap;
     use serde_yaml::Value;
+    use std::collections::BTreeMap;
 
     let mut fm = BTreeMap::new();
     fm.insert("confidence".to_string(), Value::String("high".to_string()));
     assert!((confidence(&fm) - 0.9).abs() < f32::EPSILON);
 
-    fm.insert("confidence".to_string(), Value::String("medium".to_string()));
+    fm.insert(
+        "confidence".to_string(),
+        Value::String("medium".to_string()),
+    );
     assert!((confidence(&fm) - 0.5).abs() < f32::EPSILON);
 
     fm.insert("confidence".to_string(), Value::String("low".to_string()));
@@ -170,8 +173,8 @@ fn confidence_absent_returns_default() {
 
 #[test]
 fn confidence_numeric_value() {
-    use std::collections::BTreeMap;
     use serde_yaml::Value;
+    use std::collections::BTreeMap;
 
     let mut fm = BTreeMap::new();
     fm.insert(
@@ -183,8 +186,8 @@ fn confidence_numeric_value() {
 
 #[test]
 fn confidence_out_of_range_clamped() {
-    use std::collections::BTreeMap;
     use serde_yaml::Value;
+    use std::collections::BTreeMap;
 
     let mut fm = BTreeMap::new();
     fm.insert(

@@ -171,11 +171,7 @@ pub fn search(
     let has_confidence = is.try_field("confidence").is_some();
     let collector = TopDocs::with_limit(options.top_k).tweak_score(
         move |segment_reader: &tantivy::SegmentReader| {
-            let status_col = segment_reader
-                .fast_fields()
-                .str("status")
-                .ok()
-                .flatten();
+            let status_col = segment_reader.fast_fields().str("status").ok().flatten();
             let conf_col = if has_confidence {
                 segment_reader.fast_fields().f64("confidence").ok()
             } else {
@@ -189,16 +185,16 @@ pub fn search(
                         Some(ord) => {
                             let mut buf = String::new();
                             col.ord_to_str(ord, &mut buf).ok();
-                            status_map.get(buf.as_str()).copied().unwrap_or(unknown_mult)
+                            status_map
+                                .get(buf.as_str())
+                                .copied()
+                                .unwrap_or(unknown_mult)
                         }
                         None => unknown_mult,
                     },
                     None => unknown_mult,
                 };
-                let confidence = conf_col
-                    .as_ref()
-                    .and_then(|c| c.first(doc))
-                    .unwrap_or(0.5) as f32;
+                let confidence = conf_col.as_ref().and_then(|c| c.first(doc)).unwrap_or(0.5) as f32;
                 score * status_mult * confidence
             }
         },
