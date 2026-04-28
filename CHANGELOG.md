@@ -10,10 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `--config <path>` global flag to override the config file path
 - `LLM_WIKI_CONFIG` environment variable as a fallback config path override
+- **MCP validation suite** — `docs/testing/scripts/validate-mcp.sh`; end-to-end MCP coverage via mcptools stdio transport (52 tests across 11 sections mirroring the CLI suite); `lib/mcp-helpers.sh` with `run_mcp` / `run_mcp_json` helpers
 
 ### Fixed
 - `llm-wiki stats` and any command using community detection hung indefinitely — `louvain_phase1` could oscillate forever when node moves mid-pass altered `sigma_tot` for subsequent nodes; capped at `n × 10` passes
 - `SpaceIndexManager::status()` now uses `ReloadPolicy::Manual` to avoid spawning a competing file_watcher thread against the open `IndexReader`
+- `wiki_graph` MCP tool now returns the rendered graph text (mermaid/dot/llms) instead of a bare stats report
+- `validate-engine.sh` and `validate-mcp.sh` reset inbox fixtures and clear logs before each run for idempotent sequential execution
 
 ## [0.2.0] — Unreleased
 
