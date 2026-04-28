@@ -177,6 +177,18 @@ in `wiki_stats`:
 `node_community_map` returns a `HashMap<slug, community_id>` for use by
 `wiki_suggest` strategy 4 (community peers).
 
+### Algorithm: louvain_phase1
+
+Phase 1 iterates over all nodes in deterministic order (sorted by `NodeIndex`).
+For each node it computes the modularity gain of moving to each neighboring
+community and applies the best move immediately (greedy, in-place).
+
+The pass repeats until no node moves in a full sweep. To prevent oscillation —
+where mid-pass moves alter `sigma_tot` for later nodes, causing them to swap
+back on the next pass — the loop is capped at `max_passes = n × 10` iterations,
+where `n` is the number of local nodes. Well-behaved graphs converge in far
+fewer passes; the cap only applies to adversarial small graphs.
+
 ## Future Improvements
 
 - Persistent graph index alongside tantivy to avoid rebuilding petgraph

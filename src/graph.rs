@@ -127,8 +127,14 @@ fn build_adjacency(graph: &WikiGraph) -> HashMap<NodeIndex, HashSet<NodeIndex>> 
     adj
 }
 
-/// Louvain phase 1: assign each node to its best neighboring community.
-/// Returns community assignments map (node -> community id) and whether any moves occurred.
+/// Louvain phase 1: greedy modularity optimisation — each node moves to the neighboring
+/// community with the highest modularity gain, applied immediately (in-place).
+///
+/// Repeats until no node moves in a full pass, capped at `n × 10` passes to prevent
+/// oscillation: mid-pass moves alter `sigma_tot` for later nodes, which can cause
+/// them to swap back, creating a cycle that never terminates on small or cyclic graphs.
+///
+/// Returns `true` if any move occurred.
 fn louvain_phase1(
     adj: &HashMap<NodeIndex, HashSet<NodeIndex>>,
     community: &mut HashMap<NodeIndex, usize>,
@@ -207,6 +213,7 @@ fn louvain_phase1(
 
 /// Run Louvain community detection on `graph`. Returns `None` when local node count < `min_nodes`.
 /// External placeholder nodes are excluded. Processing order is sorted by slug for determinism.
+/// The internal phase-1 loop is capped at `n × 10` passes to guard against oscillation.
 pub fn compute_communities(graph: &WikiGraph, min_nodes: usize) -> Option<CommunityStats> {
     // Only count non-external nodes
     let local_nodes: Vec<NodeIndex> = {

@@ -130,6 +130,55 @@ let sorted = searcher.search(
 
 Native string sort — no encoding, no tie-breaking needed.
 
+## IndexReader and ReloadPolicy
+
+The `IndexReader` is held in `SpaceIndexManager::inner.index_reader` for the
+lifetime of the engine process. All `searcher()` calls are cheap arc-clones of
+the current segment set from this single reader.
+
+### ReloadPolicy::Manual
+
+All readers in llm-wiki are created with `ReloadPolicy::Manual`:
+
+```rust
+index
+    .reader_builder()
+    .reload_policy(tantivy::ReloadPolicy::Manual)
+    .try_into()?
+```
+
+**Why Manual, not OnCommitWithDelay (the tantivy default):**
+
+`OnCommitWithDelay` spawns a background file_watcher thread that polls
+`meta.json` for changes. When a second `Index::reader()` is opened on the same
+directory (e.g. `status()` opening a temporary reader for health checks), two
+watcher threads compete on the same file. Each reload writes a new `meta.json`,
+which the other watcher detects, triggering another reload — an infinite loop
+that deadlocks the process.
+
+`Manual` skips the file_watcher entirely. The reader is refreshed explicitly
+after a write by calling `reader.reload()?` — which happens automatically
+inside `writer.commit()` via tantivy's internal bookkeeping.
+
+For llm-wiki, `Manual` is always correct:
+- **CLI commands** are one-shot; they never need live reload.
+- **`llm-wiki serve`** rebuilds the full engine on `wiki_rebuild` —
+  `WikiEngine::build()` creates a fresh `SpaceIndexManager` with a new reader.
+- **`llm-wiki watch`** routes detected changes through the same rebuild path.
+
+### Reader lifecycle
+
+```
+WikiEngine::build()
+  └─ mount_space()
+       ├─ index_manager.status()     ← Manual reader, temporary, dropped immediately
+       ├─ index_manager.rebuild()    ← writer.commit() refreshes the live reader implicitly
+       └─ index_manager.open()       ← creates the long-lived Manual reader in inner.index_reader
+              └─ held until engine is dropped
+```
+
+Every `searcher()` call is `inner.index_reader.searcher()` — a cheap arc clone.
+
 ## Index Writer
 
 The writer manages in-memory segments and flushes to disk.

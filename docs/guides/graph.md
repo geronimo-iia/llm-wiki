@@ -2,14 +2,15 @@
 title: "Graph Guide"
 summary: "Community detection, cross-cluster suggestions, and graph tuning."
 status: ready
-last_updated: "2026-04-27"
+last_updated: "2026-04-28"
 ---
 
 # Graph Guide
 
 ## Community detection
 
-When a wiki reaches 30+ pages, `wiki_stats()` returns a `communities` field:
+When a wiki reaches `min_nodes_for_communities` pages (default: 30),
+`wiki_stats()` returns a `communities` field:
 
 | Field | Description |
 |---|---|
@@ -32,11 +33,14 @@ Look for suggestions with `reason: "same knowledge cluster"` in the output.
 
 ## Tuning
 
-Below 30 nodes, community detection is suppressed — clusters at small scale produce
-noise. Tune per wiki in `wiki.toml`:
+Below `min_nodes_for_communities`, community detection is suppressed — clusters at
+small scale produce noise. Tune per wiki in `wiki.toml`:
 
 ```toml
 [graph]
 min_nodes_for_communities   = 50  # raise for large, dense wikis
 community_suggestions_limit = 3   # more cross-cluster suggestions per call
 ```
+
+The Louvain phase-1 pass is capped at `n × 10` iterations to prevent oscillation
+on small or cyclic graphs. This has no effect on convergence for normal wikis.

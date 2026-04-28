@@ -6,7 +6,7 @@ read_when:
   - Understanding staleness detection and auto-recovery
   - Understanding incremental vs full rebuild
 status: ready
-last_updated: "2025-07-21"
+last_updated: "2026-04-28"
 ---
 
 # Index Management
@@ -228,6 +228,21 @@ currently any mismatch triggers a full rebuild.
 | `schema_hash` mismatch | Yes (full rebuild needed) |
 | `state.toml` missing | Yes (never built) |
 | `state.toml` malformed | Yes (treated as missing) |
+
+## IndexReader Lifecycle
+
+The `IndexReader` is created once per wiki space in `SpaceIndexManager::open()`
+and held for the engine's lifetime. All search operations call
+`index_manager.searcher()` which is a cheap arc-clone of the current segment set.
+
+**All readers use `ReloadPolicy::Manual`.** The tantivy default
+(`OnCommitWithDelay`) spawns a file_watcher thread. If a second reader is opened
+on the same directory (e.g. the health check in `status()`), the two watchers
+compete on `meta.json` writes and loop infinitely. `Manual` skips the watcher;
+the reader is refreshed internally by `writer.commit()`.
+
+This applies to every reader in the codebase — both the long-lived reader in
+`open()` and the temporary reader in `status()`.
 
 ## Auto-Recovery
 
