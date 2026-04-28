@@ -31,11 +31,8 @@ last_updated: "2026-04-28"
 | Export      | `wiki_export` + `llms` format on list, search, and graph                      |
 | Skills      | Crystallize two-step; ingest analysis pass; review skill                      |
 
-## Related Projects
+## v0.3.0 - Designing
 
-| Project                                                                | Roadmap                     |
-| ---------------------------------------------------------------------- | --------------------------- |
-| [llm-wiki-skills](https://github.com/geronimo-iia/llm-wiki-skills)     | `docs/roadmap.md`           |
-| [llm-wiki-hugo-cms](https://github.com/geronimo-iia/llm-wiki-hugo-cms) | `docs/roadmap.md`           |
-| [homebrew-tap](https://github.com/geronimo-iia/homebrew-tap)           | Formula updates per release |
-| [asdf-llm-wiki](https://github.com/geronimo-iia/asdf-llm-wiki)         | Plugin updates per release  |
+- extends ACP implementation features and workflow supported
+- Zed/Cursor integration test
+
