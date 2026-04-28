@@ -40,17 +40,6 @@ that `LLM_WIKI_TEST_DIR` and `LLM_WIKI_CONFIG` are exported/unset in
 your current shell. Running them directly also works but won't affect the
 parent shell's environment.
 
-## Ephemeral mode
-
-Omit `source ./setup-test-env.sh` and don't set `LLM_WIKI_TEST_DIR` — the
-script creates a tmpdir automatically and cleans it up on exit:
-
-```bash
-LLM_WIKI_BIN=./target/release/llm-wiki ./docs/testing/scripts/validate-engine.sh
-```
-
-Useful for CI where you don't need to inspect results.
-
 ## Skills validation
 
 Open `docs/testing/validate-skills.md` and run each scenario in Claude
