@@ -10,6 +10,10 @@ run_mcp      "content_read includes frontmatter"     "type:" \
 run_mcp      "content_read with backlinks"           "backlinks" \
              wiki_content_read '{"uri":"concepts/mixture-of-experts","backlinks":true}'
 
+run_mcp_json "backlinks includes CommonMark link source" \
+             '[.backlinks // [] | .[] | .slug] | any(. == "concepts/mixture-of-experts")' "true" \
+             wiki_content_read '{"uri":"concepts/scaling-laws","backlinks":true}'
+
 run_mcp      "content_read via wiki:// URI"          "Mixture of Experts" \
              wiki_content_read '{"uri":"wiki://research/concepts/mixture-of-experts"}'
 

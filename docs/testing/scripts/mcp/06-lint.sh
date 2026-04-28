@@ -18,6 +18,10 @@ run_mcp_json "lint broken-link finds does-not-exist" \
              '[.findings[] | select(.rule=="broken-link")] | length > 0' "true" \
              wiki_lint '{"rules":["broken-link"],"format":"json"}'
 
+run_mcp_json "lint broken-link detects CommonMark inline broken link" \
+             '[.findings[] | select(.rule=="broken-link" and (.detail // "" | contains("also-does-not-exist")))] | length > 0' "true" \
+             wiki_lint '{"rules":["broken-link"],"format":"json"}'
+
 run_mcp_json "lint orphan finds orphan-concept"      \
              '[.findings[] | select(.slug=="concepts/orphan-concept")] | length > 0' "true" \
              wiki_lint '{"rules":["orphan"],"format":"json"}'
