@@ -1,0 +1,63 @@
+name: Integration Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Which suite to run"
+        required: false
+        default: "both"
+        type: choice
+        options: [both, engine, mcp]
+
+env:
+  CARGO_TERM_COLOR: always
+  LLM_WIKI_TEST_DIR: /tmp/llm-wiki-testing
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.95"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --locked
+
+      - name: Install mcptools
+        if: ${{ inputs.suite == 'both' || inputs.suite == 'mcp' }}
+        run: |
+          LATEST=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+            https://github.com/f/mcptools/releases/latest \
+            | grep -oE '[^/]+$' | sed 's/^v//')
+          curl -fsSL \
+            "https://github.com/f/mcptools/releases/download/v${LATEST}/mcp_linux_amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin mcp
+          mcp --version
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Setup test environment
+        run: |
+          LLM_WIKI_BIN=./target/debug/llm-wiki \
+          bash ./docs/testing/scripts/setup-test-env.sh --dir "$LLM_WIKI_TEST_DIR"
+
+      - name: Run engine validation
+        if: ${{ inputs.suite == 'both' || inputs.suite == 'engine' }}
+        run: |
+          LLM_WIKI_BIN=./target/debug/llm-wiki \
+          LLM_WIKI_CONFIG="$LLM_WIKI_TEST_DIR/config.toml" \
+          bash ./docs/testing/scripts/validate-engine.sh
+
+      - name: Run MCP validation
+        if: ${{ inputs.suite == 'both' || inputs.suite == 'mcp' }}
+        run: |
+          LLM_WIKI_BIN=./target/debug/llm-wiki \
+          LLM_WIKI_CONFIG="$LLM_WIKI_TEST_DIR/config.toml" \
+          bash ./docs/testing/scripts/validate-mcp.sh
