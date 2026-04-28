@@ -207,6 +207,17 @@ Single Rust binary. No runtime, no database, no Docker.
 
 ---
 
+## Related Projects
+
+| Project | Roadmap |
+| ------- | ------- |
+| [llm-wiki-skills](https://github.com/geronimo-iia/llm-wiki-skills) | `docs/roadmap.md` |
+| [llm-wiki-hugo-cms](https://github.com/geronimo-iia/llm-wiki-hugo-cms) | `docs/roadmap.md` |
+| [homebrew-tap](https://github.com/geronimo-iia/homebrew-tap) | Formula updates per release |
+| [asdf-llm-wiki](https://github.com/geronimo-iia/asdf-llm-wiki) | Plugin updates per release |
+
+---
+
 ## Acknowledgments
 
 - **[Andrej Karpathy](https://karpathy.ai/)** — for the
