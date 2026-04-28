@@ -3,21 +3,33 @@ use anyhow::Result;
 use crate::engine::EngineState;
 use crate::graph;
 
+/// Rendered graph output plus the associated report.
 pub struct GraphResult {
+    /// Rendered graph string (Mermaid, DOT, or llms format).
     pub rendered: String,
+    /// Metadata about the generated graph.
     pub report: graph::GraphReport,
 }
 
+/// Parameters for `graph_build`.
 pub struct GraphParams<'a> {
+    /// Output format: `"mermaid"`, `"dot"`, or `"llms"`.
     pub format: Option<&'a str>,
+    /// Slug of the root node for a subgraph traversal.
     pub root: Option<String>,
+    /// Maximum hops from root.
     pub depth: Option<usize>,
+    /// Comma-separated page types to include.
     pub type_filter: Option<&'a str>,
+    /// Filter edges by this relation label.
     pub relation: Option<String>,
+    /// File path to write output to; `None` for returning only.
     pub output: Option<&'a str>,
+    /// If true, merge all mounted wikis into a single graph.
     pub cross_wiki: bool,
 }
 
+/// Build and render the concept graph according to `params`.
 pub fn graph_build(
     engine: &EngineState,
     wiki_name: &str,

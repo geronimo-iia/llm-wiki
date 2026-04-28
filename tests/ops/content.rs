@@ -59,7 +59,7 @@ fn content_new_page() {
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();
 
-    let uri = ops::content_new(
+    let result = ops::content_new(
         &engine,
         "concepts/new-concept",
         None,
@@ -69,7 +69,11 @@ fn content_new_page() {
         None,
     )
     .unwrap();
-    assert!(uri.starts_with("wiki://test/concepts/new-concept"));
+    assert!(result.uri.starts_with("wiki://test/concepts/new-concept"));
+    assert_eq!(result.slug, "concepts/new-concept");
+    assert!(!result.bundle);
+    assert!(result.path.exists());
+    assert!(result.path.to_string_lossy().ends_with(".md"));
 }
 
 #[test]
@@ -79,8 +83,23 @@ fn content_new_section() {
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();
 
-    let uri = ops::content_new(&engine, "topics", None, true, false, None, None).unwrap();
-    assert!(uri.contains("topics"));
+    let result = ops::content_new(&engine, "topics", None, true, false, None, None).unwrap();
+    assert!(result.uri.contains("topics"));
+}
+
+#[test]
+fn content_new_bundle_result_has_path_and_wiki_root() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "test");
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+
+    let result =
+        ops::content_new(&engine, "concepts/bundled", None, false, true, None, None).unwrap();
+    assert!(result.bundle);
+    assert!(result.path.ends_with("index.md"));
+    assert!(result.path.exists());
+    assert!(result.wiki_root.is_dir());
 }
 
 #[test]

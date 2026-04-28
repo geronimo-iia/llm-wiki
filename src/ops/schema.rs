@@ -10,13 +10,18 @@ use crate::markdown;
 use crate::search;
 use crate::space_builder;
 
+/// A registered page type with its schema location and description.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SchemaTypeEntry {
+    /// Type identifier (e.g. `"concept"`).
     pub name: String,
+    /// Human-readable description of the type.
     pub description: String,
+    /// Relative path to the JSON Schema file.
     pub schema_path: String,
 }
 
+/// List all registered types in a wiki's type registry.
 pub fn schema_list(engine: &EngineState, wiki_name: &str) -> Result<Vec<SchemaTypeEntry>> {
     let space = engine.space(wiki_name)?;
     Ok(space
@@ -35,6 +40,7 @@ pub fn schema_list(engine: &EngineState, wiki_name: &str) -> Result<Vec<SchemaTy
         .collect())
 }
 
+/// Return the raw JSON Schema content for a named type.
 pub fn schema_show(engine: &EngineState, wiki_name: &str, type_name: &str) -> Result<String> {
     let space = engine.space(wiki_name)?;
     let schema_path = space
@@ -46,6 +52,7 @@ pub fn schema_show(engine: &EngineState, wiki_name: &str, type_name: &str) -> Re
         .with_context(|| format!("failed to read schema: {}", full_path.display()))
 }
 
+/// Return a frontmatter template for a type, derived from its JSON Schema.
 pub fn schema_show_template(
     engine: &EngineState,
     wiki_name: &str,
@@ -56,6 +63,7 @@ pub fn schema_show_template(
     Ok(generate_template(&schema, type_name))
 }
 
+/// Copy a schema file into the wiki and register the type in `wiki.toml`.
 pub fn schema_add(
     engine: &EngineState,
     wiki_name: &str,
@@ -110,15 +118,22 @@ pub fn schema_add(
     Ok(msg)
 }
 
+/// Summary of a `schema remove` operation.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SchemaRemoveReport {
+    /// Number of indexed pages with this type that were removed from the index.
     pub pages_removed: usize,
+    /// Number of page files actually deleted from disk.
     pub pages_deleted_from_disk: usize,
+    /// True if the `[types.<name>]` entry was removed from `wiki.toml`.
     pub wiki_toml_updated: bool,
+    /// True if the schema JSON file was deleted.
     pub schema_file_deleted: bool,
+    /// True if this was a dry run (no changes made).
     pub dry_run: bool,
 }
 
+/// Remove a type schema and optionally delete its pages.
 pub fn schema_remove(
     manager: &WikiEngine,
     wiki_name: &str,
@@ -233,6 +248,7 @@ pub fn schema_remove(
     })
 }
 
+/// Validate schema files for one type or all types; returns a list of issue strings.
 pub fn schema_validate(
     engine: &EngineState,
     wiki_name: &str,

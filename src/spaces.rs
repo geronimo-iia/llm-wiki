@@ -9,17 +9,24 @@ use crate::git;
 
 // ── CreateReport ──────────────────────────────────────────────────────────────
 
+/// Outcome of a wiki space creation.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateReport {
+    /// Absolute path of the wiki directory.
     pub path: String,
+    /// Registered name of the wiki.
     pub name: String,
+    /// True if the directory was newly created.
     pub created: bool,
+    /// True if the space was added to the global config.
     pub registered: bool,
+    /// True if an initial git commit was made.
     pub committed: bool,
 }
 
 // ── create ────────────────────────────────────────────────────────────────────
 
+/// Create a new wiki repository at `path`, register it, and optionally commit.
 pub fn create(
     path: &Path,
     name: &str,
@@ -161,6 +168,7 @@ fn generate_wiki_toml(name: &str, description: Option<&str>) -> String {
 
 // ── Space management ──────────────────────────────────────────────────────────
 
+/// Look up a registered wiki by name; error if not found.
 pub fn resolve_name(name: &str, global: &GlobalConfig) -> Result<WikiEntry> {
     global
         .wikis
@@ -170,6 +178,7 @@ pub fn resolve_name(name: &str, global: &GlobalConfig) -> Result<WikiEntry> {
         .ok_or_else(|| anyhow::anyhow!("wiki \"{name}\" is not registered"))
 }
 
+/// Add or update a wiki entry in the global config; errors if already registered and `force` is false.
 pub fn register(entry: WikiEntry, force: bool, config_path: &Path) -> Result<()> {
     let mut config = load_global(config_path)?;
 
@@ -188,6 +197,7 @@ pub fn register(entry: WikiEntry, force: bool, config_path: &Path) -> Result<()>
     save_global(&config, config_path)
 }
 
+/// Unregister a wiki from the global config; optionally delete its directory.
 pub fn remove(name: &str, delete: bool, config_path: &Path) -> Result<()> {
     let mut config = load_global(config_path)?;
 
@@ -213,10 +223,12 @@ pub fn remove(name: &str, delete: bool, config_path: &Path) -> Result<()> {
     save_global(&config, config_path)
 }
 
+/// Return all registered wiki entries from the global config.
 pub fn load_all(global: &GlobalConfig) -> Vec<WikiEntry> {
     global.wikis.clone()
 }
 
+/// Set the default wiki in the global config.
 pub fn set_default_wiki(name: &str, config_path: &Path) -> Result<()> {
     let mut config = load_global(config_path)?;
 

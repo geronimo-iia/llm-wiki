@@ -9,16 +9,21 @@ use crate::config::RedactConfig;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/// A single secret match found during a redaction pass.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedactionMatch {
+    /// Name of the pattern that triggered the match.
     pub pattern_name: String,
+    /// 1-based line number where the match was found.
     pub line_number: usize,
 }
 
 /// Report of all redaction substitutions applied to a single page body.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedactionReport {
+    /// Slug of the page that was redacted.
     pub slug: String,
+    /// All matches found (and replaced) in this page.
     pub matches: Vec<RedactionMatch>,
 }
 

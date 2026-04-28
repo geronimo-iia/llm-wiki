@@ -44,8 +44,11 @@ pub fn embedded_body_template(type_name: &str) -> Option<&'static str> {
 
 /// A default type entry extracted from `x-wiki-types` in a schema.
 pub struct DefaultTypeEntry {
+    /// The type identifier (e.g. `"concept"`, `"paper"`).
     pub type_name: String,
+    /// Relative path to the schema file that defines this type (e.g. `"schemas/concept.json"`).
     pub schema_file: String,
+    /// Human-readable description of the type.
     pub description: String,
 }
 

@@ -4,11 +4,13 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Result, bail};
 
+/// Return the path to the log directory (sibling of the config file).
 pub fn logs_path(config_path: &Path) -> PathBuf {
     let state_dir = config_path.parent().unwrap_or(Path::new("."));
     state_dir.join("logs")
 }
 
+/// Return the last `lines` lines from the most recent log file.
 pub fn logs_tail(config_path: &Path, lines: usize) -> Result<String> {
     let log_dir = logs_path(config_path);
     if !log_dir.exists() {
@@ -23,6 +25,7 @@ pub fn logs_tail(config_path: &Path, lines: usize) -> Result<String> {
     Ok(all_lines[start..].join("\n"))
 }
 
+/// Delete all log files and return the number removed.
 pub fn logs_clear(config_path: &Path) -> Result<usize> {
     let log_dir = logs_path(config_path);
     if !log_dir.exists() {
@@ -40,6 +43,7 @@ pub fn logs_clear(config_path: &Path) -> Result<usize> {
     Ok(removed)
 }
 
+/// List log file names sorted by name.
 pub fn logs_list(config_path: &Path) -> Result<Vec<String>> {
     let log_dir = logs_path(config_path);
     if !log_dir.exists() {

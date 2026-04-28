@@ -1,6 +1,6 @@
 # llm-wiki
 
-A headless wiki engine for agents. 19 MCP tools. One Rust binary. No LLM inside.
+A headless wiki engine for agents. 22 MCP tools. One Rust binary. No LLM inside.
 
 **Build knowledge that compounds — not answers that evaporate.**
 
@@ -43,11 +43,13 @@ through skills, not the binary.
 ```
 LLM agent
   │
+  ├── wiki_list(format: "llms")             → all pages grouped by type
   ├── wiki_search("mixture of experts")     → ranked results + facets
-  ├── wiki_content_read("concepts/moe")     → full page + frontmatter
+  ├── wiki_content_read("concepts/moe")     → full page + backlinks
   ├── wiki_graph(root: "concepts/moe")      → typed graph in Mermaid/DOT
   ├── wiki_suggest("concepts/moe")          → pages worth linking
-  ├── wiki_content_write(...)               → write synthesized knowledge
+  ├── wiki_content_new("concepts/new-page") → scaffold + returns local path
+  ├── [write directly to path]              → no MCP round-trip
   └── wiki_ingest(path: "concepts/")        → validate, index, commit
 ```
 
@@ -108,7 +110,7 @@ llm-wiki serve
 ```
 
 Connect your agent or editor — VS Code, Cursor, Windsurf, Zed, Claude Code —
-via the MCP config. The 19 tools are immediately available.
+via the MCP config. The 22 tools are immediately available.
 
 → [Getting started guide](docs/guides/getting-started.md) · [IDE integration](docs/guides/ide-integration.md)
 
@@ -122,7 +124,8 @@ via the MCP config. The 19 tools are immediately available.
 | `wiki_list` | Paginated page listing with filters; `format: "llms"` for LLM-readable output |
 | `wiki_content_read` | Read a page with optional backlinks |
 | `wiki_content_write` | Write a page (validates frontmatter against type schema) |
-| `wiki_content_new` | Scaffold a new page from its type template |
+| `wiki_content_new` | Scaffold a new page; returns local `path` for direct writes |
+| `wiki_resolve` | Resolve a slug or `wiki://` URI to its local filesystem path |
 | `wiki_ingest` | Validate a path, update the index, commit to git |
 | `wiki_graph` | Typed concept graph — Mermaid, DOT, or natural-language `llms` format |
 | `wiki_suggest` | Find pages worth linking by tag overlap, graph distance, BM25 similarity |

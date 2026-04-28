@@ -92,6 +92,7 @@ async fn serve_http(
 
 // ── serve (orchestration) ─────────────────────────────────────────────────────
 
+/// Start the wiki server — spawns stdio, HTTP, ACP, and watcher transports as configured.
 pub async fn serve(
     config_path: &std::path::Path,
     http_port: Option<u16>,

@@ -39,7 +39,8 @@ wiki quality.
   "slug": "concepts/moe",
   "rule": "broken-link",
   "severity": "error",
-  "message": "broken link in body_links: concepts/ghost"
+  "message": "broken link in body_links: concepts/ghost",
+  "path": "/home/user/wikis/research/wiki/concepts/moe.md"
 }
 ```
 
@@ -49,6 +50,7 @@ wiki quality.
 | `rule` | Which rule fired |
 | `severity` | `error` or `warning` |
 | `message` | What was found and where |
+| `path` | Absolute filesystem path of the offending file — use for direct `Edit` without a follow-up resolve call |
 
 The full response includes a summary header:
 

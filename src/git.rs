@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use git2::{Delta, Repository, Signature};
 use serde::{Deserialize, Serialize};
 
+/// Initialise a new git repository at `path`.
 pub fn init_repo(path: &Path) -> Result<()> {
     Repository::init(path)
         .with_context(|| format!("failed to init git repo at {}", path.display()))?;
@@ -80,9 +81,12 @@ pub fn current_head(repo_root: &Path) -> Option<String> {
 
 // ── Change detection ──────────────────────────────────────────────────────────
 
+/// A file that changed between git tree states.
 #[derive(Debug, Clone)]
 pub struct ChangedFile {
+    /// Repository-relative path of the changed file.
     pub path: PathBuf,
+    /// Git delta status (Added, Modified, Deleted, etc.).
     pub status: Delta,
 }
 
@@ -182,11 +186,16 @@ pub fn collect_changed_files(
 
 // ── Page history ──────────────────────────────────────────────────────────────
 
+/// A single entry from `git log` for a wiki page.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryEntry {
+    /// Full commit SHA-1 hash.
     pub hash: String,
+    /// ISO-8601 author date string.
     pub date: String,
+    /// Commit subject line.
     pub message: String,
+    /// Author name.
     pub author: String,
 }
 

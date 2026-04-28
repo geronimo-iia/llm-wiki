@@ -14,15 +14,22 @@ use crate::type_registry::SpaceTypeRegistry;
 
 /// All runtime state for a single mounted wiki space.
 pub struct SpaceContext {
+    /// Registered name of this wiki space.
     pub name: String,
+    /// Absolute path to the `wiki/` subdirectory containing Markdown pages.
     pub wiki_root: PathBuf,
+    /// Absolute path to the git repository root (parent of `wiki/`).
     pub repo_root: PathBuf,
+    /// Type registry compiled from the wiki's schema files.
     pub type_registry: SpaceTypeRegistry,
+    /// Tantivy index schema for this space.
     pub index_schema: IndexSchema,
+    /// Lifecycle manager for the Tantivy search index.
     pub index_manager: SpaceIndexManager,
 }
 
 impl SpaceContext {
+    /// Load and resolve the per-wiki config merged with `global`.
     pub fn resolved_config(&self, global: &GlobalConfig) -> ResolvedConfig {
         let wiki_cfg = config::load_wiki(&self.repo_root).unwrap_or_default();
         config::resolve(global, &wiki_cfg)
@@ -33,27 +40,35 @@ impl SpaceContext {
 
 /// Shared mutable state protected by [`WikiEngine`]'s `RwLock`.
 pub struct EngineState {
+    /// Loaded global configuration.
     pub config: GlobalConfig,
+    /// Absolute path to the global config file on disk.
     pub config_path: PathBuf,
+    /// Directory that holds per-wiki index state (parent of the config file).
     pub state_dir: PathBuf,
+    /// Map from wiki name to its mounted `SpaceContext`.
     pub spaces: HashMap<String, Arc<SpaceContext>>,
 }
 
 impl EngineState {
+    /// Return the configured default wiki name.
     pub fn default_wiki_name(&self) -> &str {
         &self.config.global.default_wiki
     }
 
+    /// Look up a mounted wiki space by name. Errors if not mounted.
     pub fn space(&self, name: &str) -> Result<&Arc<SpaceContext>> {
         self.spaces
             .get(name)
             .ok_or_else(|| anyhow::anyhow!("wiki \"{name}\" is not mounted"))
     }
 
+    /// Return `explicit` if given, otherwise the default wiki name.
     pub fn resolve_wiki_name<'a>(&'a self, explicit: Option<&'a str>) -> &'a str {
         explicit.unwrap_or(self.default_wiki_name())
     }
 
+    /// Return the index directory path for a wiki by name.
     pub fn index_path_for(&self, wiki_name: &str) -> PathBuf {
         self.state_dir.join("indexes").join(wiki_name)
     }
@@ -65,10 +80,12 @@ impl EngineState {
 ///
 /// Cheap to clone (`Arc` inside). Safe to share across async tasks.
 pub struct WikiEngine {
+    /// Shared engine state protected by a reader-writer lock.
     pub state: Arc<RwLock<EngineState>>,
 }
 
 impl WikiEngine {
+    /// Build a `WikiEngine` from the global config at `config_path`, mounting all registered wikis.
     pub fn build(config_path: &Path) -> Result<Self> {
         let config = config::load_global(config_path)?;
         let state_dir = config_path.parent().unwrap_or(Path::new(".")).to_path_buf();
@@ -101,6 +118,7 @@ impl WikiEngine {
         })
     }
 
+    /// Incrementally update the index from git changes since the last indexed commit.
     pub fn refresh_index(&self, wiki_name: &str) -> Result<UpdateReport> {
         let engine = self
             .state
@@ -126,6 +144,7 @@ impl WikiEngine {
         Ok(report)
     }
 
+    /// Rebuild the search index from scratch by walking the wiki tree.
     pub fn rebuild_index(&self, wiki_name: &str) -> Result<IndexReport> {
         let engine = self
             .state

@@ -199,7 +199,7 @@ fn main() -> Result<()> {
                 } else {
                     let manager = WikiEngine::build(&config_path)?;
                     let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-                    let result_uri = ops::content_new(
+                    let result = ops::content_new(
                         &engine,
                         &uri,
                         cli.wiki.as_deref(),
@@ -208,7 +208,7 @@ fn main() -> Result<()> {
                         name.as_deref(),
                         r#type.as_deref(),
                     )?;
-                    println!("Created: {result_uri}");
+                    println!("Created: {}", result.uri);
                 }
             }
             ContentAction::Commit {

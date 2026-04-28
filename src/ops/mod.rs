@@ -1,5 +1,6 @@
 mod config;
 mod content;
+/// Wiki export operations — llms.txt, llms-full, and JSON export formats.
 pub mod export;
 mod graph;
 mod history;
@@ -7,6 +8,7 @@ mod index;
 mod ingest;
 mod lint;
 mod logs;
+/// Redaction pass — strip PII and confidential values from page bodies.
 pub mod redact;
 mod schema;
 mod search;

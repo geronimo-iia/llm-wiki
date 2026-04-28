@@ -24,3 +24,11 @@ run_mcp_json "lint orphan finds orphan-concept"      \
 
 run_mcp      "lint with wiki param"                  "error\|warning" \
              wiki_lint '{"wiki":"research"}'
+
+run_mcp_json "lint findings have non-empty path"     \
+             '[.findings[] | select(.path == "" or .path == null)] | length == 0' "true" \
+             wiki_lint '{"rules":["broken-link"],"format":"json"}'
+
+run_mcp_json "lint finding path ends with .md"       \
+             '[.findings[] | select(.path | endswith(".md") | not)] | length == 0' "true" \
+             wiki_lint '{"rules":["broken-link"],"format":"json"}'

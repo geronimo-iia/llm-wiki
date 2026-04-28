@@ -1,5 +1,8 @@
+/// MCP tool handler functions.
 pub mod handlers;
+/// MCP helper utilities — argument extraction and tool result types.
 pub mod helpers;
+/// MCP tool definitions and dispatch table.
 pub mod tools;
 
 use std::future::Future;
@@ -21,16 +24,20 @@ use crate::slug::{Slug, WikiUri};
 
 // ── McpServer ─────────────────────────────────────────────────────────────────
 
+/// MCP server — dispatches MCP tool calls and resource reads to the wiki engine.
 #[derive(Clone)]
 pub struct McpServer {
+    /// Shared wiki engine handle.
     pub manager: Arc<WikiEngine>,
 }
 
 impl McpServer {
+    /// Create a new `McpServer` wrapping `manager`.
     pub fn new(manager: Arc<WikiEngine>) -> Self {
         Self { manager }
     }
 
+    /// Acquire a read guard on the engine state.
     pub fn engine(&self) -> std::sync::RwLockReadGuard<'_, EngineState> {
         self.manager.state.read().expect("engine lock poisoned")
     }

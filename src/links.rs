@@ -10,10 +10,16 @@ pub enum ParsedLink {
     /// Bare slug resolved within the current wiki.
     Local(String),
     /// `wiki://name/slug` URI resolved in another mounted wiki.
-    CrossWiki { wiki: String, slug: String },
+    CrossWiki {
+        /// Name of the target wiki in the `wiki://` URI.
+        wiki: String,
+        /// Slug within the target wiki.
+        slug: String,
+    },
 }
 
 impl ParsedLink {
+    /// Parse a raw link string into a `ParsedLink`, classifying `wiki://` URIs as `CrossWiki`.
     pub fn parse(s: &str) -> Self {
         if let Some(rest) = s.strip_prefix("wiki://")
             && let Some(slash) = rest.find('/')
@@ -26,6 +32,7 @@ impl ParsedLink {
         ParsedLink::Local(s.to_string())
     }
 
+    /// Return the slug portion of the link (local slug, or the slug segment of a cross-wiki URI).
     pub fn as_raw(&self) -> &str {
         match self {
             ParsedLink::Local(s) => s,

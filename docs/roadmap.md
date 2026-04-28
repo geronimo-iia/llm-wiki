@@ -2,7 +2,7 @@
 title: "Roadmap"
 summary: "Release history and version planning for llm-wiki."
 status: ready
-last_updated: "2026-04-27"
+last_updated: "2026-04-28"
 ---
 
 # Roadmap
@@ -24,8 +24,8 @@ last_updated: "2026-04-27"
 | ----------- | ----------------------------------------------------------------------------- |
 | Type system | `confidence: 0.0–1.0` field; `claims[].confidence` as float                  |
 | Search      | Lifecycle-aware ranking; flat `[search.status]` multiplier map                |
-| Content     | Backlinks on `wiki_content_read`; incremental validation (git-diff scoped)    |
-| Lint        | `wiki_lint` tool with 5 rules; `broken-cross-wiki-link` rule                  |
+| Content     | Backlinks on `wiki_content_read`; incremental validation (git-diff scoped); `wiki_resolve` tool; `wiki_content_new` returns `path` + `wiki_root` |
+| Lint        | `wiki_lint` tool with 5 rules; `broken-cross-wiki-link` rule; `path` field on every finding |
 | Redaction   | `redact:` flag on `wiki_ingest`; built-in and custom patterns                 |
 | Graph       | Louvain community detection; `wiki://` cross-wiki edges; `--cross-wiki` flag  |
 | Export      | `wiki_export` + `llms` format on list, search, and graph                      |

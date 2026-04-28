@@ -7,6 +7,7 @@ use crate::engine::{EngineState, WikiEngine};
 use crate::git;
 use crate::ingest;
 
+/// Ingest a path without redaction; delegates to `ingest_with_redact`.
 pub fn ingest(
     engine: &EngineState,
     manager: &WikiEngine,
@@ -17,6 +18,7 @@ pub fn ingest(
     ingest_with_redact(engine, manager, path, dry_run, false, wiki_name)
 }
 
+/// Ingest a path with optional redaction pass, incremental index refresh, and edge validation.
 pub fn ingest_with_redact(
     engine: &EngineState,
     manager: &WikiEngine,

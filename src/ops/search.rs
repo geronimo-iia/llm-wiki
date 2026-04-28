@@ -3,15 +3,23 @@ use anyhow::Result;
 use crate::engine::EngineState;
 use crate::search;
 
+/// Parameters for the `search` operation.
 pub struct SearchParams<'a> {
+    /// Full-text query string.
     pub query: &'a str,
+    /// Restrict results to this frontmatter type.
     pub type_filter: Option<&'a str>,
+    /// When true, omit body excerpts from results.
     pub no_excerpt: bool,
+    /// Maximum number of results to return.
     pub top_k: Option<usize>,
+    /// When true, include section index pages in results.
     pub include_sections: bool,
+    /// When true, search across all mounted wikis.
     pub cross_wiki: bool,
 }
 
+/// Run a BM25 search against the wiki index.
 pub fn search(
     engine: &EngineState,
     wiki_name: &str,
@@ -50,6 +58,7 @@ pub fn search(
     )
 }
 
+/// Return a paginated listing of wiki pages with optional type/status filters.
 pub fn list(
     engine: &EngineState,
     wiki_name: &str,

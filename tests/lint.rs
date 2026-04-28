@@ -452,3 +452,42 @@ fn broken_cross_wiki_link_to_mounted_wiki_no_finding() {
         "mounted wiki should not produce findings: {cross_wiki_findings:?}"
     );
 }
+
+// ── LintFinding.path ──────────────────────────────────────────────────────────
+
+#[test]
+fn lint_finding_path_is_populated() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    write_page(
+        &wiki_root,
+        "concepts/orphan.md",
+        "---\ntitle: \"Orphan\"\ntype: concept\nread_when: [\"x\"]\n---\n\nNo one links here.\n",
+    );
+
+    let engine = build_engine(dir.path(), &wiki_root);
+    let report = run_lint(&engine, "test", Some("orphan"), None).unwrap();
+
+    let findings = findings_for_rule(&report.findings, "orphan");
+    assert!(!findings.is_empty(), "expected at least one orphan finding");
+
+    for f in &findings {
+        assert!(
+            !f.path.is_empty(),
+            "path should be non-empty for finding: {:?}",
+            f.slug
+        );
+        assert!(
+            f.path.ends_with(".md"),
+            "path should end with .md: {}",
+            f.path
+        );
+        assert!(
+            f.path.contains(f.slug.as_str()),
+            "path should contain slug: path={} slug={}",
+            f.path,
+            f.slug
+        );
+    }
+}

@@ -19,6 +19,7 @@ Decisions made during improvement design phase.
 | Decision | Summary |
 | -------- | ------- |
 | [llms-format-on-existing-tools](0.2.0/llms-format-on-existing-tools.md) | `format: "llms"` added to `wiki_list`/`wiki_search`/`wiki_graph`; `wiki_export` writes a file (default `llms.txt` at wiki root), response is a report not content |
+| [local-path-content](0.2.0/local-path-content.md) | `wiki_resolve` tool + `path` in `wiki_content_new` response + `path` in `LintFinding`; `wiki_ingest` pages array dropped as redundant |
 
 ### Graph
 

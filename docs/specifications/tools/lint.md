@@ -36,14 +36,18 @@ Returns a JSON object:
   "warnings": 1,
   "findings": [
     {
-      "slug": "concepts/moe",
-      "rule": "broken-link",
+      "slug":     "concepts/moe",
+      "rule":     "broken-link",
       "severity": "error",
-      "message": "broken link in body_links: concepts/ghost"
+      "message":  "broken link in body_links: concepts/ghost",
+      "path":     "/path/to/wiki/concepts/moe.md"
     }
   ]
 }
 ```
+
+Each finding includes `path` — the absolute filesystem path to the offending
+file. Use it to `Edit` the file directly without a follow-up `wiki_resolve` call.
 
 Empty `findings` array = clean wiki. CLI exits non-zero when any
 `error` finding exists.

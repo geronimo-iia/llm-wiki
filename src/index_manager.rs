@@ -20,50 +20,79 @@ use crate::type_registry::SpaceTypeRegistry;
 
 // ── Return types ──────────────────────────────────────────────────────────────
 
+/// Result of a full index rebuild.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexReport {
+    /// Name of the wiki that was indexed.
     pub wiki: String,
+    /// Number of pages successfully added to the index.
     pub pages_indexed: usize,
+    /// Number of files that were skipped due to read errors or invalid paths.
     pub skipped: usize,
+    /// Wall-clock time taken for the rebuild in milliseconds.
     pub duration_ms: u64,
 }
 
+/// Result of an incremental index update.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UpdateReport {
+    /// Number of pages added or re-indexed.
     pub updated: usize,
+    /// Number of pages removed from the index.
     pub deleted: usize,
 }
 
+/// Current health snapshot of a wiki's search index.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexStatus {
+    /// Wiki name.
     pub wiki: String,
+    /// Absolute path to the search-index directory.
     pub path: String,
+    /// ISO-8601 timestamp of the last successful build, or None if never built.
     pub built: Option<String>,
+    /// Number of pages in the index.
     pub pages: usize,
+    /// Number of section pages in the index.
     pub sections: usize,
+    /// True if the index is behind the current HEAD commit or schema.
     pub stale: bool,
+    /// True if the index directory can be opened by Tantivy.
     pub openable: bool,
+    /// True if the index can be queried (reader opened successfully).
     pub queryable: bool,
 }
 
+/// Classification of index staleness used to choose the cheapest rebuild strategy.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StalenessKind {
+    /// Index matches current HEAD and schema — no rebuild needed.
     Current,
+    /// HEAD commit changed but schema is unchanged — incremental update sufficient.
     CommitChanged,
+    /// Only specific type schemas changed — partial rebuild of those types sufficient.
     TypesChanged(Vec<String>),
+    /// Schema changed in a way that requires a full rebuild.
     FullRebuildNeeded,
 }
 
 // ── state.toml ────────────────────────────────────────────────────────────────
 
+/// Persisted state written to `state.toml` alongside the Tantivy index.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexState {
+    /// SHA-256 hash of the combined type registry, used for schema staleness detection.
     #[serde(default)]
     pub schema_hash: String,
+    /// ISO-8601 timestamp of when the index was last successfully built.
     pub built: String,
+    /// Number of pages in the index at last build.
     pub pages: usize,
+    /// Number of section pages in the index at last build.
     pub sections: usize,
+    /// Git HEAD commit hash at the time of the last build.
     pub commit: String,
+    /// Per-type content hashes at last build (type name → hash).
     #[serde(default)]
     pub types: std::collections::HashMap<String, String>,
 }
@@ -75,6 +104,7 @@ struct IndexInner {
     index_reader: Option<IndexReader>,
 }
 
+/// Tantivy index lifecycle manager for a single wiki space.
 pub struct SpaceIndexManager {
     wiki_name: String,
     index_path: PathBuf,
@@ -82,6 +112,7 @@ pub struct SpaceIndexManager {
 }
 
 impl SpaceIndexManager {
+    /// Create a new `SpaceIndexManager` for `wiki_name` with its index stored at `index_path`.
     pub fn new(wiki_name: impl Into<String>, index_path: impl Into<PathBuf>) -> Self {
         Self {
             wiki_name: wiki_name.into(),
@@ -93,10 +124,12 @@ impl SpaceIndexManager {
         }
     }
 
+    /// Return the absolute path to the index directory.
     pub fn index_path(&self) -> &Path {
         &self.index_path
     }
 
+    /// Return the wiki name this manager is associated with.
     pub fn wiki_name(&self) -> &str {
         &self.wiki_name
     }
@@ -193,6 +226,7 @@ impl SpaceIndexManager {
         }
     }
 
+    /// Return the git commit hash recorded in `state.toml` at the last index build, if any.
     pub fn last_commit(&self) -> Option<String> {
         let state_path = self.index_path.join("state.toml");
         let content = std::fs::read_to_string(&state_path).ok()?;
@@ -204,6 +238,7 @@ impl SpaceIndexManager {
         }
     }
 
+    /// Rebuild the full index by walking all Markdown files under `wiki_root`.
     pub fn rebuild(
         &self,
         wiki_root: &Path,
@@ -286,6 +321,7 @@ impl SpaceIndexManager {
         })
     }
 
+    /// Incrementally update the index for files changed since `last_indexed_commit`.
     pub fn update(
         &self,
         wiki_root: &Path,
@@ -337,6 +373,7 @@ impl SpaceIndexManager {
         Ok(UpdateReport { updated, deleted })
     }
 
+    /// Return the current index health status (staleness, page count, openability).
     pub fn status(&self, repo_root: &Path) -> Result<IndexStatus> {
         let state_path = self.index_path.join("state.toml");
         let search_dir = self.index_path.join("search-index");
@@ -396,6 +433,7 @@ impl SpaceIndexManager {
         })
     }
 
+    /// Delete all index documents whose `type` field equals `type_name`.
     pub fn delete_by_type(&self, is: &IndexSchema, type_name: &str) -> Result<()> {
         let mut writer = self.writer()?;
         let f_type = is.field("type");

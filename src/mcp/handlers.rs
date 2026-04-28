@@ -1,13 +1,17 @@
+use std::path::PathBuf;
+
 use rmcp::model::Content;
 use serde_json::{Map, Value};
 
 use crate::ops;
+use crate::slug::{ReadTarget, WikiUri, resolve_read_target};
 
 use super::McpServer;
 use super::helpers::*;
 
 // ── Spaces ────────────────────────────────────────────────────────────────────
 
+/// Handle `wiki_spaces_create` — create a new wiki repository and register it.
 pub fn handle_spaces_create(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let path = arg_str_req(args, "path")?;
     let name = arg_str_req(args, "name")?;
@@ -41,6 +45,7 @@ pub fn handle_spaces_create(server: &McpServer, args: &Map<String, Value>) -> To
     ok_text(json)
 }
 
+/// Handle `wiki_spaces_list` — list registered wiki spaces.
 pub fn handle_spaces_list(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let engine = server.engine();
     let name = arg_str(args, "name");
@@ -49,6 +54,7 @@ pub fn handle_spaces_list(server: &McpServer, args: &Map<String, Value>) -> Tool
     ok_text(s)
 }
 
+/// Handle `wiki_spaces_remove` — unregister (and optionally delete) a wiki space.
 pub fn handle_spaces_remove(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let name = arg_str_req(args, "name")?;
     let delete = arg_bool(args, "delete");
@@ -61,6 +67,7 @@ pub fn handle_spaces_remove(server: &McpServer, args: &Map<String, Value>) -> To
     ok_text(format!("Removed wiki \"{name}\""))
 }
 
+/// Handle `wiki_spaces_set_default` — set the default wiki space.
 pub fn handle_spaces_set_default(
     server: &McpServer,
     args: &Map<String, Value>,
@@ -77,6 +84,7 @@ pub fn handle_spaces_set_default(
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
+/// Handle `wiki_config` — get, set, or list configuration values.
 pub fn handle_config(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let action = arg_str_req(args, "action")?;
     let engine = server.engine();
@@ -107,6 +115,7 @@ pub fn handle_config(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
 
 // ── Content ───────────────────────────────────────────────────────────────────
 
+/// Handle `wiki_content_read` — read a page or list its co-located assets.
 pub fn handle_content_read(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let uri = arg_str_req(args, "uri")?;
     let engine = server.engine();
@@ -126,7 +135,6 @@ pub fn handle_content_read(server: &McpServer, args: &Map<String, Value>) -> Too
     {
         ops::ContentReadResult::Page(content) => {
             if include_backlinks {
-                use crate::slug::WikiUri;
                 let wiki_name = engine.resolve_wiki_name(wiki_flag.as_deref()).to_string();
                 let (_entry, slug) = WikiUri::resolve(&uri, wiki_flag.as_deref(), &engine.config)
                     .map_err(|e| format!("{e}"))?;
@@ -149,6 +157,7 @@ pub fn handle_content_read(server: &McpServer, args: &Map<String, Value>) -> Too
     }
 }
 
+/// Handle `wiki_content_write` — write content to a wiki page by slug or URI.
 pub fn handle_content_write(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let uri = arg_str_req(args, "uri")?;
     let content = arg_str_req(args, "content")?;
@@ -164,6 +173,7 @@ pub fn handle_content_write(server: &McpServer, args: &Map<String, Value>) -> To
     ))
 }
 
+/// Handle `wiki_content_new` — create a new page or section with scaffolded frontmatter.
 pub fn handle_content_new(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let uri = arg_str_req(args, "uri")?;
     let section = arg_bool(args, "section");
@@ -174,7 +184,7 @@ pub fn handle_content_new(server: &McpServer, args: &Map<String, Value>) -> Tool
     let engine = server.engine();
     let wiki_flag = arg_str(args, "wiki");
 
-    let result_uri = ops::content_new(
+    let result = ops::content_new(
         &engine,
         &uri,
         wiki_flag.as_deref(),
@@ -184,9 +194,51 @@ pub fn handle_content_new(server: &McpServer, args: &Map<String, Value>) -> Tool
         type_.as_deref(),
     )
     .map_err(|e| format!("{e}"))?;
-    ok_text(result_uri)
+    let s = serde_json::to_string_pretty(&serde_json::json!({
+        "uri":       result.uri,
+        "slug":      result.slug,
+        "path":      result.path,
+        "wiki_root": result.wiki_root,
+        "bundle":    result.bundle,
+    }))
+    .map_err(|e| format!("{e}"))?;
+    ok_text(s)
 }
 
+/// Handle `wiki_resolve` — resolve a slug or URI to its filesystem path.
+pub fn handle_resolve(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
+    let uri = arg_str_req(args, "uri")?;
+    let engine = server.engine();
+    let wiki_flag = arg_str(args, "wiki");
+
+    let (entry, slug) =
+        WikiUri::resolve(&uri, wiki_flag.as_deref(), &engine.config).map_err(|e| format!("{e}"))?;
+    let wiki_root = PathBuf::from(&entry.path).join("wiki");
+
+    let (path, exists, bundle) = match resolve_read_target(slug.as_str(), &wiki_root) {
+        Ok(ReadTarget::Page(p)) => {
+            let bundle = p.ends_with("index.md");
+            (p, true, bundle)
+        }
+        _ => {
+            let p = wiki_root.join(format!("{}.md", slug.as_str()));
+            (p, false, false)
+        }
+    };
+
+    let s = serde_json::to_string_pretty(&serde_json::json!({
+        "slug":      slug.as_str(),
+        "wiki":      entry.name,
+        "wiki_root": wiki_root,
+        "path":      path,
+        "exists":    exists,
+        "bundle":    bundle,
+    }))
+    .map_err(|e| format!("{e}"))?;
+    ok_text(s)
+}
+
+/// Handle `wiki_content_commit` — commit pending changes to git.
 pub fn handle_content_commit(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let engine = server.engine();
     let wiki_name = resolve_wiki_name(&engine, args)?;
@@ -204,6 +256,7 @@ pub fn handle_content_commit(server: &McpServer, args: &Map<String, Value>) -> T
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
+/// Handle `wiki_search` — BM25 full-text search across a wiki.
 pub fn handle_search(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let query = arg_str_req(args, "query")?;
     let cross_wiki = arg_bool(args, "cross_wiki");
@@ -235,6 +288,7 @@ pub fn handle_search(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
 
 // ── List ──────────────────────────────────────────────────────────────────────
 
+/// Handle `wiki_list` — paginated page listing with optional type/status filters.
 pub fn handle_list(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let engine = server.engine();
     let wiki_name = resolve_wiki_name(&engine, args)?;
@@ -260,6 +314,7 @@ pub fn handle_list(server: &McpServer, args: &Map<String, Value>) -> ToolHandler
 
 // ── Ingest ────────────────────────────────────────────────────────────────────
 
+/// Handle `wiki_ingest` — validate, redact, commit, and index files in the wiki tree.
 pub fn handle_ingest(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let path = arg_str_req(args, "path")?;
     let dry_run = arg_bool(args, "dry_run");
@@ -292,6 +347,7 @@ pub fn handle_ingest(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
 
 // ── Index ─────────────────────────────────────────────────────────────────────
 
+/// Handle `wiki_index_rebuild` — rebuild the tantivy search index from scratch.
 pub fn handle_index_rebuild(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let wiki_name = {
         let engine = server.engine();
@@ -303,6 +359,7 @@ pub fn handle_index_rebuild(server: &McpServer, args: &Map<String, Value>) -> To
     ok_text(s)
 }
 
+/// Handle `wiki_index_status` — report health and staleness of the search index.
 pub fn handle_index_status(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let engine = server.engine();
     let wiki_name = resolve_wiki_name(&engine, args)?;
@@ -314,6 +371,7 @@ pub fn handle_index_status(server: &McpServer, args: &Map<String, Value>) -> Too
 
 // ── Graph ─────────────────────────────────────────────────────────────────────
 
+/// Handle `wiki_graph` — build and render the concept graph.
 pub fn handle_graph(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let engine = server.engine();
     let wiki_name = resolve_wiki_name(&engine, args)?;
@@ -338,6 +396,7 @@ pub fn handle_graph(server: &McpServer, args: &Map<String, Value>) -> ToolHandle
 
 // ── History ───────────────────────────────────────────────────────────────────
 
+/// Handle `wiki_history` — return git commit history for a page slug.
 pub fn handle_history(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let slug = arg_str_req(args, "slug")?;
     let limit = arg_usize(args, "limit");
@@ -351,6 +410,7 @@ pub fn handle_history(server: &McpServer, args: &Map<String, Value>) -> ToolHand
     ok_text(s)
 }
 
+/// Handle `wiki_stats` — return aggregate health and coverage stats for a wiki.
 pub fn handle_stats(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let engine = server.engine();
     let wiki_name = resolve_wiki_name(&engine, args)?;
@@ -359,6 +419,7 @@ pub fn handle_stats(server: &McpServer, args: &Map<String, Value>) -> ToolHandle
     ok_text(s)
 }
 
+/// Handle `wiki_lint` — run deterministic lint rules and return findings.
 pub fn handle_lint(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let engine = server.engine();
     let wiki_name = resolve_wiki_name(&engine, args)?;
@@ -370,6 +431,7 @@ pub fn handle_lint(server: &McpServer, args: &Map<String, Value>) -> ToolHandler
     ok_text(s)
 }
 
+/// Handle `wiki_suggest` — suggest related pages to link from a given slug.
 pub fn handle_suggest(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let slug = arg_str_req(args, "slug")?;
     let limit = arg_usize(args, "limit");
@@ -381,6 +443,7 @@ pub fn handle_suggest(server: &McpServer, args: &Map<String, Value>) -> ToolHand
     ok_text(s)
 }
 
+/// Handle `wiki_schema` — list, show, add, remove, or validate type schemas.
 pub fn handle_schema(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let action = arg_str(args, "action").ok_or("action is required")?;
     let engine = server.engine();
@@ -464,6 +527,7 @@ pub fn handle_schema(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
 
 // ── Export ────────────────────────────────────────────────────────────────────
 
+/// Handle `wiki_export` — export the full wiki to llms.txt, llms-full, or JSON.
 pub fn handle_export(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let wiki = arg_str_req(args, "wiki")?;
     let engine = server.engine();

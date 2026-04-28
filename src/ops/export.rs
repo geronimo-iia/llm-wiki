@@ -12,25 +12,33 @@ use crate::index_schema::IndexSchema;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/// Options controlling the wiki export operation.
 #[derive(Debug, Clone)]
 pub struct ExportOptions {
+    /// Name of the wiki to export.
     pub wiki: String,
     /// Output path — resolved against wiki root if relative.
     pub path: Option<String>,
+    /// Output format: llms-txt, llms-full, or JSON.
     pub format: ExportFormat,
     /// Whether to include archived pages (default: false).
     pub include_archived: bool,
 }
 
+/// Supported wiki export formats.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub enum ExportFormat {
+    /// Compact llms.txt listing with titles and summaries.
     #[default]
     LlmsTxt,
+    /// Full llms.txt with complete page bodies.
     LlmsFull,
+    /// JSON array of page entries with metadata and bodies.
     Json,
 }
 
 impl ExportFormat {
+    /// Return the canonical string representation of the format.
     pub fn as_str(&self) -> &'static str {
         match self {
             ExportFormat::LlmsTxt => "llms-txt",
@@ -39,6 +47,7 @@ impl ExportFormat {
         }
     }
 
+    /// Parse a format string; falls back to `LlmsTxt` for unrecognised input.
     pub fn parse(s: &str) -> Self {
         match s {
             "llms-full" => ExportFormat::LlmsFull,
@@ -48,11 +57,16 @@ impl ExportFormat {
     }
 }
 
+/// Summary of a completed wiki export.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportReport {
+    /// Absolute path of the written output file.
     pub path: String,
+    /// Number of pages written to the output.
     pub pages_written: usize,
+    /// Total bytes written.
     pub bytes: usize,
+    /// Name of the format used (e.g. `"llms-txt"`).
     pub format: String,
 }
 
@@ -71,6 +85,7 @@ struct PageEntry {
 
 // ── export ────────────────────────────────────────────────────────────────────
 
+/// Export a wiki to a file in the requested format.
 pub fn export(engine: &EngineState, options: &ExportOptions) -> Result<ExportReport> {
     let space = engine.space(&options.wiki)?;
     let wiki_root = &space.wiki_root;

@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::path::Path;
 
 use anyhow::Result;
 use serde::Serialize;
@@ -11,11 +12,15 @@ use tantivy::{
 
 use crate::engine::EngineState;
 use crate::index_schema::IndexSchema;
+use crate::slug::Slug;
 
+/// Severity level of a lint finding.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
+    /// A definite problem that should be fixed.
     Error,
+    /// A potential issue that may warrant attention.
     Warning,
 }
 
@@ -28,20 +33,33 @@ impl std::fmt::Display for Severity {
     }
 }
 
+/// A single lint finding for a wiki page.
 #[derive(Debug, Clone, Serialize)]
 pub struct LintFinding {
+    /// Slug of the page with the finding.
     pub slug: String,
+    /// Name of the lint rule that produced this finding.
     pub rule: &'static str,
+    /// Severity of the finding.
     pub severity: Severity,
+    /// Human-readable description of the issue.
     pub message: String,
+    /// Filesystem path of the page file.
+    pub path: String,
 }
 
+/// Aggregate results of a lint run against a wiki.
 #[derive(Debug, Clone, Serialize)]
 pub struct LintReport {
+    /// Name of the wiki that was linted.
     pub wiki: String,
+    /// Total number of findings (errors + warnings).
     pub total: usize,
+    /// Number of error-severity findings.
     pub errors: usize,
+    /// Number of warning-severity findings.
     pub warnings: usize,
+    /// Individual lint findings, sorted by slug then rule.
     pub findings: Vec<LintFinding>,
 }
 
@@ -73,34 +91,47 @@ pub fn run_lint(
     let is = &space.index_schema;
     let resolved = space.resolved_config(&engine.config);
     let lint_cfg = &resolved.lint;
+    let wiki_root = &space.wiki_root;
 
     let mut findings: Vec<LintFinding> = Vec::new();
 
     if active_rules.contains("orphan") {
-        findings.extend(rule_orphan(&searcher, is)?);
+        findings.extend(rule_orphan(&searcher, is, wiki_root)?);
     }
     if active_rules.contains("broken-link") || active_rules.contains("broken-cross-wiki-link") {
         let mounted: HashSet<String> = engine.spaces.keys().cloned().collect();
         findings.extend(rule_broken_link(
             &searcher,
             is,
+            wiki_root,
             active_rules.contains("broken-cross-wiki-link"),
             &mounted,
         )?);
     }
     if active_rules.contains("missing-fields") {
-        findings.extend(rule_missing_fields(&searcher, is, &space.type_registry)?);
+        findings.extend(rule_missing_fields(
+            &searcher,
+            is,
+            wiki_root,
+            &space.type_registry,
+        )?);
     }
     if active_rules.contains("stale") {
         findings.extend(rule_stale(
             &searcher,
             is,
+            wiki_root,
             lint_cfg.stale_days,
             lint_cfg.stale_confidence_threshold,
         )?);
     }
     if active_rules.contains("unknown-type") {
-        findings.extend(rule_unknown_type(&searcher, is, &space.type_registry)?);
+        findings.extend(rule_unknown_type(
+            &searcher,
+            is,
+            wiki_root,
+            &space.type_registry,
+        )?);
     }
 
     // Apply severity filter
@@ -130,9 +161,24 @@ pub fn run_lint(
     })
 }
 
+/// Resolve a slug to its filesystem path string. Probes flat then bundle;
+/// falls back to the would-be flat path if the file doesn't exist yet.
+fn slug_path(slug: &str, wiki_root: &Path) -> String {
+    Slug::try_from(slug)
+        .ok()
+        .and_then(|s| s.resolve(wiki_root).ok())
+        .unwrap_or_else(|| wiki_root.join(format!("{slug}.md")))
+        .to_string_lossy()
+        .into_owned()
+}
+
 // ── Rule: orphan ──────────────────────────────────────────────────────────────
 
-fn rule_orphan(searcher: &tantivy::Searcher, is: &IndexSchema) -> Result<Vec<LintFinding>> {
+fn rule_orphan(
+    searcher: &tantivy::Searcher,
+    is: &IndexSchema,
+    wiki_root: &Path,
+) -> Result<Vec<LintFinding>> {
     let f_slug = is.field("slug");
     let f_type = is.field("type");
 
@@ -189,6 +235,7 @@ fn rule_orphan(searcher: &tantivy::Searcher, is: &IndexSchema) -> Result<Vec<Lin
 
         if !all_linked.contains(&slug) {
             findings.push(LintFinding {
+                path: slug_path(&slug, wiki_root),
                 slug,
                 rule: "orphan",
                 severity: Severity::Warning,
@@ -213,6 +260,7 @@ fn slug_exists(searcher: &tantivy::Searcher, is: &IndexSchema, slug: &str) -> Re
 fn rule_broken_link(
     searcher: &tantivy::Searcher,
     is: &IndexSchema,
+    wiki_root: &Path,
     check_cross_wiki: bool,
     mounted_wiki_names: &HashSet<String>,
 ) -> Result<Vec<LintFinding>> {
@@ -258,6 +306,7 @@ fn rule_broken_link(
                         && !mounted_wiki_names.contains(wiki_name)
                     {
                         findings.push(LintFinding {
+                            path: slug_path(&slug, wiki_root),
                             slug: slug.clone(),
                             rule: "broken-cross-wiki-link",
                             severity: Severity::Warning,
@@ -268,6 +317,7 @@ fn rule_broken_link(
                 }
                 if !slug_exists(searcher, is, target)? {
                     findings.push(LintFinding {
+                        path: slug_path(&slug, wiki_root),
                         slug: slug.clone(),
                         rule: "broken-link",
                         severity: Severity::Error,
@@ -286,6 +336,7 @@ fn rule_broken_link(
 fn rule_missing_fields(
     searcher: &tantivy::Searcher,
     is: &IndexSchema,
+    wiki_root: &Path,
     registry: &crate::type_registry::SpaceTypeRegistry,
 ) -> Result<Vec<LintFinding>> {
     let f_slug = is.field("slug");
@@ -326,6 +377,7 @@ fn rule_missing_fields(
             };
             if !present {
                 findings.push(LintFinding {
+                    path: slug_path(&slug, wiki_root),
                     slug: slug.clone(),
                     rule: "missing-fields",
                     severity: Severity::Error,
@@ -343,6 +395,7 @@ fn rule_missing_fields(
 fn rule_stale(
     searcher: &tantivy::Searcher,
     is: &IndexSchema,
+    wiki_root: &Path,
     stale_days: u32,
     stale_confidence_threshold: f32,
 ) -> Result<Vec<LintFinding>> {
@@ -405,6 +458,7 @@ fn rule_stale(
                 format!("last updated {date_str}")
             };
             findings.push(LintFinding {
+                path: slug_path(&slug, wiki_root),
                 slug,
                 rule: "stale",
                 severity: Severity::Warning,
@@ -421,6 +475,7 @@ fn rule_stale(
 fn rule_unknown_type(
     searcher: &tantivy::Searcher,
     is: &IndexSchema,
+    wiki_root: &Path,
     registry: &crate::type_registry::SpaceTypeRegistry,
 ) -> Result<Vec<LintFinding>> {
     let f_slug = is.field("slug");
@@ -446,6 +501,7 @@ fn rule_unknown_type(
         }
         if !registry.is_known(page_type) {
             findings.push(LintFinding {
+                path: slug_path(&slug, wiki_root),
                 slug,
                 rule: "unknown-type",
                 severity: Severity::Error,

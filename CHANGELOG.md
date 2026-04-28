@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`wiki_resolve` tool** — resolves a slug or `wiki://` URI to its local filesystem path (`slug`, `wiki`, `wiki_root`, `path`, `exists`, `bundle`); enables direct file writes without MCP content round-trips (tool count: 21 → 22)
+- **`wiki_content_new` returns JSON** — response now includes `uri`, `slug`, `path`, `wiki_root`, `bundle`; LLM gets the local path immediately after page creation with no follow-up `wiki_resolve` call
+- **`LintFinding.path` field** — every lint finding now includes the absolute filesystem path to the offending file; enables direct `Edit` without a follow-up resolve call
+
 - **Privacy redaction** — `wiki_ingest` accepts `redact: true`; 6 built-in patterns (GitHub PAT, OpenAI key, Anthropic key, AWS access key, Bearer token, email); per-wiki `[redact]` in `wiki.toml` (disable built-ins, add custom patterns); `redacted: Vec<RedactionReport>` in `IngestReport`; body-only, lossy by design
 - **Incremental validation** — `wiki_ingest` now validates only git-changed files since the last indexed commit; `unchanged_count` added to `IngestReport`; `dry_run: true` continues to validate all files; fallback to full validation when `last_commit` is absent or git errors
 - **`wiki_lint` tool** — 5 deterministic index-based lint rules (`orphan`, `broken-link`, `missing-fields`, `stale`, `unknown-type`); JSON report with `findings`, `errors`, `warnings`, `total`; `lint` CLI subcommand exits non-zero on any `error` finding; `[lint]` config section with `stale_days` and `stale_confidence_threshold`
@@ -20,10 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`confidence: 0.5` in page scaffold** — `wiki_content_new` emits the field by default
 - **`format: "llms"` on existing tools** — `wiki_list`, `wiki_search`, `wiki_graph` accept `format: "llms"`; produces LLM-optimised output (type-grouped pages with summaries, compact search results, natural language graph description) directly in the tool response
 - **`wiki_export` tool** — new MCP tool and `llm-wiki export` CLI command; writes full wiki to a file (no pagination); formats: `llms-txt` (default), `llms-full` (with bodies), `json`; path relative to wiki root; response is a confirmation report
-- **Lint guide** — `docs/guides/lint.md` covering all 5 rules, fix guidance, CI usage, and stale rule tuning
+- **Lint guide** — `docs/guides/lint.md` covering all 5 rules, fix guidance, CI usage, and stale rule tuning; `path` field documented in finding example
 - **Redaction guide** — `docs/guides/redaction.md` covering built-in patterns, per-wiki config, and lossy-by-design warning
 - **Search ranking guide** — `docs/guides/search-ranking.md` covering the formula, status map, per-wiki overrides, and custom status examples
 - **Graph guide** — `docs/guides/graph.md` covering community detection, cross-cluster suggestions, and threshold tuning
+- **Writing content guide** — `docs/guides/writing-content.md`; direct write pattern (`wiki_content_new` → write to `path` → `wiki_ingest`); `wiki_resolve` usage; backlinks; tool selection table
+- **Guides README reorganized** — grouped by audience: Getting started / Writing and managing content / Configuration and integration / Search, graph, and output / Operations
+- **Diagram #4 updated** — LLM Ingest Workflow diagram updated to show `wiki_list(format: "llms")`, `wiki_content_new` direct write, and post-ingest `wiki_lint` steps
+- **Rustdoc pass** — all public items in the crate now have `///` documentation; zero `missing_docs` warnings
 - **Graph community detection** — Louvain clustering on `petgraph::DiGraph`; `communities` field in `wiki_stats` output (`count`, `largest`, `smallest`, `isolated` slugs); suppressed below `graph.min_nodes_for_communities` (default 30); deterministic via sorted-slug processing order
 - **Community-aware suggestions** — strategy 4 in `wiki_suggest`: pages in the same Louvain community not already linked; score 0.4, reason `"same knowledge cluster"`; `graph.community_suggestions_limit` (default 2)
 - **Cross-wiki links** — `wiki://name/slug` URIs as first-class link targets in frontmatter edge fields and body `[[wikilinks]]`; `ParsedLink` enum in `links.rs`; external placeholder nodes in single-wiki graph (dashed border); `build_graph_cross_wiki` for unified multi-wiki graph; `cross_wiki: bool` param on `wiki_graph` MCP tool and `--cross-wiki` CLI flag

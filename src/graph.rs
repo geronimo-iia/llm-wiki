@@ -20,42 +20,63 @@ use crate::type_registry::SpaceTypeRegistry;
 /// A node in the concept graph representing one wiki page.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageNode {
+    /// Slug identifying this page within its wiki.
     pub slug: String,
+    /// Display title of the page.
     pub title: String,
+    /// Frontmatter type of the page.
     pub r#type: String,
     /// True for cross-wiki placeholder nodes not present in the local index.
     #[serde(default)]
     pub external: bool,
 }
 
+/// A directed edge in the wiki concept graph with a relation label.
 #[derive(Debug, Clone)]
 pub struct LabeledEdge {
+    /// Relation label (e.g. `"links-to"`, `"cites"`, `"supersedes"`).
     pub relation: String,
 }
 
+/// Directed graph type used for the wiki concept graph.
 pub type WikiGraph = DiGraph<PageNode, LabeledEdge>;
 
+/// Filtering parameters for graph construction and subgraph extraction.
 #[derive(Debug, Clone, Default)]
 pub struct GraphFilter {
+    /// Root slug for subgraph extraction (None = full graph).
     pub root: Option<String>,
+    /// Maximum hop depth from root (None = use config default).
     pub depth: Option<usize>,
+    /// Page types to include (empty = all types).
     pub types: Vec<String>,
+    /// Edge relation label to filter on (None = all relations).
     pub relation: Option<String>,
 }
 
+/// Summary of a completed graph build or render operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphReport {
+    /// Total number of nodes in the graph.
     pub nodes: usize,
+    /// Total number of edges in the graph.
     pub edges: usize,
+    /// Rendered graph content (Mermaid, DOT, or LLM text).
     pub output: String,
 }
 
+/// Health metrics computed from a built wiki graph.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphMetrics {
+    /// Total number of nodes.
     pub nodes: usize,
+    /// Total number of edges.
     pub edges: usize,
+    /// Number of nodes with no incoming or outgoing edges.
     pub orphans: usize,
+    /// Mean edge count per node (edges × 2 / nodes).
     pub avg_connections: f64,
+    /// Graph density: edges / (nodes × (nodes − 1)).
     pub density: f64,
 }
 
@@ -734,6 +755,7 @@ pub fn render_llms(graph: &WikiGraph) -> String {
 
 // ── render_mermaid ────────────────────────────────────────────────────────────
 
+/// Render the wiki graph as a Mermaid `graph LR` diagram.
 pub fn render_mermaid(graph: &WikiGraph) -> String {
     let mut out = String::from("graph LR\n");
 
@@ -799,6 +821,7 @@ fn mermaid_id(slug: &str) -> String {
 
 // ── render_dot ────────────────────────────────────────────────────────────────
 
+/// Render the wiki graph as a Graphviz DOT `digraph`.
 pub fn render_dot(graph: &WikiGraph) -> String {
     let mut out = String::from("digraph wiki {\n");
 
@@ -841,6 +864,7 @@ pub fn render_dot(graph: &WikiGraph) -> String {
 
 // ── wrap_graph_md ─────────────────────────────────────────────────────────────
 
+/// Wrap rendered graph content in a YAML frontmatter + code-fence Markdown document.
 pub fn wrap_graph_md(rendered: &str, format: &str, filter: &GraphFilter) -> String {
     let now = Utc::now().to_rfc3339();
     let root = filter.root.as_deref().unwrap_or("");
@@ -869,6 +893,7 @@ pub fn wrap_graph_md(rendered: &str, format: &str, filter: &GraphFilter) -> Stri
 
 // ── subgraph ──────────────────────────────────────────────────────────────────
 
+/// Extract a BFS subgraph rooted at `root_slug` up to `depth` hops in both directions.
 pub fn subgraph(graph: &WikiGraph, root_slug: &str, depth: usize) -> WikiGraph {
     let root_idx = match graph
         .node_indices()

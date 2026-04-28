@@ -1,9 +1,9 @@
 use llm_wiki::mcp::tools;
 
 #[test]
-fn tool_list_returns_20_tools() {
+fn tool_list_returns_22_tools() {
     let tools = tools::tool_list();
-    assert_eq!(tools.len(), 21);
+    assert_eq!(tools.len(), 22);
 }
 
 #[test]
@@ -29,6 +29,7 @@ fn tool_list_contains_expected_names() {
         "wiki_history",
         "wiki_stats",
         "wiki_lint",
+        "wiki_resolve",
         "wiki_suggest",
         "wiki_export",
     ];
@@ -124,6 +125,29 @@ fn search_has_type_param() {
         .as_object()
         .unwrap();
     assert!(props.contains_key("type"), "missing type param");
+}
+
+#[test]
+fn wiki_resolve_has_uri_required() {
+    let tools = tools::tool_list();
+    let tool = tools.iter().find(|t| t.name == "wiki_resolve").unwrap();
+    let required = tool
+        .input_schema
+        .get("required")
+        .unwrap()
+        .as_array()
+        .unwrap();
+    let req: Vec<&str> = required.iter().map(|v| v.as_str().unwrap()).collect();
+    assert!(req.contains(&"uri"));
+    assert!(!req.contains(&"wiki"), "wiki should be optional");
+    let props = tool
+        .input_schema
+        .get("properties")
+        .unwrap()
+        .as_object()
+        .unwrap();
+    assert!(props.contains_key("uri"));
+    assert!(props.contains_key("wiki"));
 }
 
 #[test]

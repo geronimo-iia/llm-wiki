@@ -23,9 +23,13 @@ pub struct RegisteredType {
 /// A graph edge declaration from `x-graph-edges` in a type schema.
 #[derive(Debug, Clone)]
 pub struct EdgeDecl {
+    /// Frontmatter field name containing the target slugs.
     pub field: String,
+    /// Relation label for edges produced from this declaration.
     pub relation: String,
+    /// Direction of the edge: `"outgoing"` or `"incoming"`.
     pub direction: String,
+    /// Page types that are valid targets (empty = any type).
     pub target_types: Vec<String>,
 }
 
@@ -115,6 +119,7 @@ impl SpaceTypeRegistry {
         }
     }
 
+    /// Return true if `type_name` is registered in this registry.
     pub fn is_known(&self, type_name: &str) -> bool {
         self.types.contains_key(type_name)
     }
@@ -140,10 +145,12 @@ impl SpaceTypeRegistry {
         self.types.get(type_name).map(|rt| rt.schema_path.as_str())
     }
 
+    /// Return the global SHA-256 hash of all registered type schemas.
     pub fn schema_hash(&self) -> &str {
         &self.schema_hash
     }
 
+    /// Return the per-type content hash map (type name → SHA-256 hash).
     pub fn type_hashes(&self) -> &HashMap<String, String> {
         &self.type_hashes
     }
