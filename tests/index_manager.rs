@@ -824,3 +824,88 @@ fn staleness_kind_detects_type_modification() {
         other => panic!("expected TypesChanged, got {other:?}"),
     }
 }
+
+// ── reader reload ─────────────────────────────────────────────────────────────
+
+#[test]
+fn rebuild_refreshes_reader_immediately() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/before.md",
+        &concept_page("Before", "initial body"),
+    );
+
+    // build_index calls rebuild() + open() — establishes the held reader
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let reg = registry();
+
+    // Add a new page and commit it
+    write_page(
+        &wiki_root,
+        "concepts/after.md",
+        &concept_page("AfterRebuild", "new body"),
+    );
+    git::commit(dir.path(), "add after").unwrap();
+
+    // Second rebuild — no open() called afterward
+    mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
+
+    // The held reader must see the new page without calling open() again
+    let searcher = mgr.searcher().unwrap();
+    let results = search::search(
+        "AfterRebuild",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert!(
+        results.results.iter().any(|r| r.title == "AfterRebuild"),
+        "held reader must see new page after rebuild() without calling open() again"
+    );
+}
+
+#[test]
+fn update_refreshes_reader_immediately() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/base.md",
+        &concept_page("Base", "initial body"),
+    );
+
+    // build_index calls rebuild() + open() — establishes the held reader
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let reg = registry();
+
+    // Add a new page
+    write_page(
+        &wiki_root,
+        "concepts/fresh.md",
+        &concept_page("FreshPage", "fresh body"),
+    );
+
+    // update() — no open() called afterward
+    mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
+
+    // The held reader must see the new page via mgr.searcher() (not open_searcher)
+    let searcher = mgr.searcher().unwrap();
+    let results = search::search(
+        "FreshPage",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert!(
+        results.results.iter().any(|r| r.title == "FreshPage"),
+        "held reader must see new page after update() without calling open() again"
+    );
+}

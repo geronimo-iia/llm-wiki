@@ -156,15 +156,19 @@ watcher threads compete on the same file. Each reload writes a new `meta.json`,
 which the other watcher detects, triggering another reload — an infinite loop
 that deadlocks the process.
 
-`Manual` skips the file_watcher entirely. The reader is refreshed explicitly
-after a write by calling `reader.reload()?` — which happens automatically
-inside `writer.commit()` via tantivy's internal bookkeeping.
+`Manual` skips the file_watcher entirely. The reader must be explicitly
+reloaded after every write by calling `reader.reload()`. In llm-wiki this
+is done via `reload_reader()` called after each `writer.commit()`.
+
+Note: `writer.commit()` only notifies readers opened on the **same** `Index`
+instance. `rebuild()` uses a separate `Index::open_or_create()` instance, so
+an explicit `reload_reader()` call is required regardless.
 
 For llm-wiki, `Manual` is always correct:
 - **CLI commands** are one-shot; they never need live reload.
-- **`llm-wiki serve`** rebuilds the full engine on `wiki_rebuild` —
-  `WikiEngine::build()` creates a fresh `SpaceIndexManager` with a new reader.
-- **`llm-wiki watch`** routes detected changes through the same rebuild path.
+- **`llm-wiki serve`** keeps a long-lived reader; `reload_reader()` after each
+  write ensures all tools see the latest index without restarting.
+- **`llm-wiki watch`** routes detected changes through the same write paths.
 
 ### Reader lifecycle
 
@@ -172,9 +176,9 @@ For llm-wiki, `Manual` is always correct:
 WikiEngine::build()
   └─ mount_space()
        ├─ index_manager.status()     ← Manual reader, temporary, dropped immediately
-       ├─ index_manager.rebuild()    ← writer.commit() refreshes the live reader implicitly
+       ├─ index_manager.rebuild()    ← writer.commit() + reload_reader()
        └─ index_manager.open()       ← creates the long-lived Manual reader in inner.index_reader
-              └─ held until engine is dropped
+              └─ held until engine is dropped; refreshed after every write via reload_reader()
 ```
 
 Every `searcher()` call is `inner.index_reader.searcher()` — a cheap arc clone.

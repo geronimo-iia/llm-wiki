@@ -162,6 +162,19 @@ impl SpaceIndexManager {
             .map(|r| r.searcher())
     }
 
+    /// Reload the held IndexReader so searchers see the latest commit.
+    /// No-op if the reader is not yet open. Safe to call after every write.
+    fn reload_reader(&self) -> Result<()> {
+        let inner = self
+            .inner
+            .read()
+            .map_err(|_| anyhow::anyhow!("index lock poisoned"))?;
+        if let Some(ref r) = inner.index_reader {
+            r.reload()?;
+        }
+        Ok(())
+    }
+
     /// Get a writer from the held index, or open from disk if not held.
     fn writer(&self) -> Result<IndexWriter> {
         let inner = self
@@ -249,6 +262,7 @@ impl SpaceIndexManager {
         }
 
         writer.commit()?;
+        self.reload_reader()?;
 
         let commit = git::current_head(repo_root).unwrap_or_default();
         let state = IndexState {
@@ -319,6 +333,7 @@ impl SpaceIndexManager {
         }
 
         writer.commit()?;
+        self.reload_reader()?;
         Ok(UpdateReport { updated, deleted })
     }
 
@@ -386,6 +401,7 @@ impl SpaceIndexManager {
         let f_type = is.field("type");
         writer.delete_term(Term::from_field_text(f_type, type_name));
         writer.commit()?;
+        self.reload_reader()?;
         Ok(())
     }
 
@@ -490,6 +506,7 @@ impl SpaceIndexManager {
         }
 
         writer.commit()?;
+        self.reload_reader()?;
 
         // Update state.toml
         let commit = git::current_head(repo_root).unwrap_or_default();
