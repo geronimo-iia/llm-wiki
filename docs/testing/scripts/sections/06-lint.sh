@@ -13,6 +13,12 @@ run_json_nocheck "lint json has findings array" '.findings | type' "array" \
 run_json_nocheck "broken-link finds concepts/does-not-exist" \
                  '[.findings[] | select(.rule=="broken-link")] | length > 0' "true" \
                  $CLI lint --rules broken-link --format json
+run_json_nocheck "broken-link detects CommonMark inline broken link" \
+                 '[.findings[] | select(.rule=="broken-link" and (.message | contains("also-does-not-exist")))] | length > 0' "true" \
+                 $CLI lint --rules broken-link --format json
+run_json_nocheck "broken-link does not flag valid CommonMark link" \
+                 '[.findings[] | select(.rule=="broken-link" and (.message | contains("mixture-of-experts")))] | length == 0' "true" \
+                 $CLI lint --rules broken-link --format json
 run_json_nocheck "orphan finds orphan-concept" \
                  '[.findings[] | select(.slug=="concepts/orphan-concept")] | length > 0' "true" \
                  $CLI lint --rules orphan --format json

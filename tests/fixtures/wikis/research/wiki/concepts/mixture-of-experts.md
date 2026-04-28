@@ -30,3 +30,4 @@ relative to a dense model of the same parameter count.
 - Load balancing across experts is required for stable training
 
 See also [[concepts/sparse-routing]] for routing details.
+See [scaling laws](concepts/scaling-laws) for parameter count context.

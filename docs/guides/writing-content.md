@@ -142,6 +142,27 @@ wiki_content_read(uri: "concepts/scaling-laws", backlinks: true)
 Backlinks are useful for understanding what depends on a page before updating
 or deleting it.
 
+## Linking to pages
+
+Two syntaxes create graph edges from a page body:
+
+| Syntax | When to use |
+|--------|-------------|
+| `[[slug]]` | Wiki-native shorthand; parsed by the engine only |
+| `[text](slug)` | Standard Markdown; rendered by Hugo CMS and indexed by the engine |
+| `[text](wiki://name/slug)` | Cross-wiki reference; rendered by Hugo CMS as a local link, indexed as a `CrossWiki` edge |
+
+All three create entries in `body_links`, appear in `wiki_graph`, and are
+checked by the `broken-link` lint rule.
+
+**Choosing a syntax** — `[text](wiki://name/slug)` is the portable format:
+it is indexed by the engine, rendered correctly by Hugo CMS, and readable
+as plain Markdown in any editor. Use `[[slug]]` when you want the shortest
+possible inline reference in a wiki-only context.
+
+External URLs (`https://…`), anchors (`#section`), and image links
+(`![alt](path)`) are not indexed.
+
 ## Choosing the right tool
 
 | Goal | Tool |

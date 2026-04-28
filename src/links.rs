@@ -85,6 +85,44 @@ fn extract_parsed_wikilinks(text: &str, seen: &mut HashSet<String>, result: &mut
             break;
         }
     }
+    extract_commonmark_links(text, seen, result);
+}
+
+/// Extract CommonMark inline link destinations `[text](destination)` from body text.
+/// Filters out external URLs, anchors, and image links. Strips `#anchor` suffixes.
+fn extract_commonmark_links(text: &str, seen: &mut HashSet<String>, result: &mut Vec<ParsedLink>) {
+    let mut rest = text;
+    while let Some(bracket) = rest.find("](") {
+        let before = &rest[..bracket];
+        if let Some(open) = before.rfind('[') {
+            // Skip image links — `![alt](`
+            let is_image = open > 0 && before.as_bytes()[open - 1] == b'!';
+            let after_paren = &rest[bracket + 2..];
+            if let Some(close) = after_paren.find(')') {
+                let dest_raw = after_paren[..close].trim();
+                // Strip #anchor suffix
+                let dest = dest_raw
+                    .find('#')
+                    .map(|i| dest_raw[..i].trim())
+                    .unwrap_or(dest_raw);
+                if !is_image
+                    && !dest.is_empty()
+                    && !dest.starts_with("http://")
+                    && !dest.starts_with("https://")
+                    && !dest.starts_with("mailto:")
+                    && !dest.starts_with('#')
+                {
+                    let raw = dest.to_string();
+                    if seen.insert(raw.clone()) {
+                        result.push(ParsedLink::parse(&raw));
+                    }
+                }
+                rest = &after_paren[close + 1..];
+                continue;
+            }
+        }
+        rest = &rest[bracket + 2..];
+    }
 }
 
 /// Extract all linked slugs from a parsed page: frontmatter `sources`,
@@ -108,7 +146,7 @@ pub fn extract_links(page: &ParsedPage) -> Vec<String> {
     result
 }
 
-/// Extract `[[slug]]` patterns from body text.
+/// Extract `[[slug]]` patterns and CommonMark `[text](destination)` links from body text.
 pub fn extract_wikilinks(text: &str, seen: &mut HashSet<String>, result: &mut Vec<String>) {
     let mut rest = text;
     while let Some(start) = rest.find("[[") {
@@ -122,6 +160,12 @@ pub fn extract_wikilinks(text: &str, seen: &mut HashSet<String>, result: &mut Ve
         } else {
             break;
         }
+    }
+    // Also extract CommonMark inline links, reusing ParsedLink for filtering.
+    let mut parsed: Vec<ParsedLink> = Vec::new();
+    extract_commonmark_links(text, seen, &mut parsed);
+    for link in parsed {
+        result.push(link.as_raw().to_string());
     }
 }
 

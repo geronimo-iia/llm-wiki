@@ -27,6 +27,12 @@ Decisions made during improvement design phase.
 | -------- | ------- |
 | [cross-wiki-links](0.2.0/cross-wiki-links.md) | `wiki://` URIs resolved at graph build time (no schema change); `cross_wiki` flag opt-in; lint validates, ingest does not |
 
+### Links & Indexing
+
+| Decision | Summary |
+| -------- | ------- |
+| [commonmark-body-links](0.2.0/commonmark-body-links.md) | Both `[[slug]]` and `[text](slug)` supported as body links; manual walker not a Markdown parser; code-block false positives are a known shared limitation |
+
 ---
 
 ## v0.1.1 — 2026-04-18 to 2026-04-23
