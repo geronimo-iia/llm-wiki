@@ -32,8 +32,11 @@ last_updated: "2026-04-28"
 | Links       | CommonMark `[text](slug)` body links indexed alongside `[[wikilinks]]`        |
 | Skills      | Crystallize two-step; ingest analysis pass; review skill; `v0.4.0`            |
 
-## v0.3.0 - Designing
+## v0.3.0 — Designing
 
-- extends ACP implementation features and workflow supported
-- Zed/Cursor integration test
+| Area        | What                                                                                      |
+| ----------- | ----------------------------------------------------------------------------------------- |
+| ACP         | Fix `step_read` to stream page content; add `lint`, `graph`, `ingest` workflows; `use` / `help` dispatch |
+| Graph       | In-memory `WikiGraph` cache keyed on index generation; shared community map; automatic invalidation on ingest |
+| IDE         | Zed agent panel validation; Cursor MCP config validation                                  |
 
