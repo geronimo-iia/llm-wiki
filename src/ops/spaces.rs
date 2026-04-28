@@ -6,6 +6,7 @@ use crate::config::{self, GlobalConfig, WikiEntry};
 use crate::engine::WikiEngine;
 use crate::spaces;
 
+/// Create a wiki space and hot-reload it into the running engine.
 pub fn spaces_create(
     path: &Path,
     name: &str,
@@ -33,6 +34,7 @@ pub fn spaces_create(
     Ok(report)
 }
 
+/// List registered wiki spaces, optionally filtered to a single name.
 pub fn spaces_list(config: &GlobalConfig, name: Option<&str>) -> Vec<config::WikiEntry> {
     let all = spaces::load_all(config);
     match name {
@@ -41,6 +43,7 @@ pub fn spaces_list(config: &GlobalConfig, name: Option<&str>) -> Vec<config::Wik
     }
 }
 
+/// Unmount a wiki from the engine and remove it from config.
 pub fn spaces_remove(
     name: &str,
     delete: bool,
@@ -54,6 +57,7 @@ pub fn spaces_remove(
     spaces::remove(name, delete, config_path)
 }
 
+/// Set the default wiki in config and update the running engine.
 pub fn spaces_set_default(
     name: &str,
     config_path: &Path,

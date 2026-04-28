@@ -16,7 +16,9 @@ use crate::default_schemas;
 /// Schema content is kept — only the compiled tantivy schema and a
 /// field name → Field handle map.
 pub struct IndexSchema {
+    /// Compiled Tantivy schema.
     pub schema: Schema,
+    /// Map from field name to Tantivy `Field` handle.
     pub fields: HashMap<String, Field>,
     keyword_fields: HashSet<String>,
     numeric_fields: HashSet<String>,
@@ -75,14 +77,17 @@ impl IndexSchema {
         Ok(builder.finish())
     }
 
+    /// Return true if `name` is stored as a keyword (STRING | STORED | FAST) field.
     pub fn is_keyword(&self, name: &str) -> bool {
         self.keyword_fields.contains(name)
     }
 
+    /// Return true if `name` is stored as a numeric (f64 FAST) field.
     pub fn is_numeric(&self, name: &str) -> bool {
         self.numeric_fields.contains(name)
     }
 
+    /// Get a field handle by name. Panics if the field doesn't exist.
     pub fn field(&self, name: &str) -> Field {
         self.fields[name]
     }

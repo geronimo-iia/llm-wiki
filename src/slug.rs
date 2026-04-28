@@ -57,6 +57,7 @@ impl Slug {
         title_case(last)
     }
 
+    /// Return the raw slug string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }

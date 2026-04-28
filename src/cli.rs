@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 
+/// Root CLI entry point — parses subcommands and global flags.
 #[derive(Parser)]
 #[command(
     name = "llm-wiki",
@@ -7,6 +8,7 @@ use clap::{Parser, Subcommand};
     about = "Git-backed wiki engine with MCP server"
 )]
 pub struct Cli {
+    /// The subcommand to execute.
     #[command(subcommand)]
     pub command: Commands,
 
@@ -20,20 +22,24 @@ pub struct Cli {
     pub config: Option<std::path::PathBuf>,
 }
 
+/// Top-level subcommands available from the `llm-wiki` CLI.
 #[derive(Subcommand)]
 pub enum Commands {
     /// Manage wiki spaces
     Spaces {
+        /// The spaces subcommand.
         #[command(subcommand)]
         action: SpacesAction,
     },
     /// Read and write configuration
     Config {
+        /// The config subcommand.
         #[command(subcommand)]
         action: ConfigAction,
     },
     /// Content operations (read, write, new, commit)
     Content {
+        /// The content subcommand.
         #[command(subcommand)]
         action: ContentAction,
     },
@@ -118,6 +124,7 @@ pub enum Commands {
     },
     /// Manage the tantivy search index
     Index {
+        /// The index subcommand.
         #[command(subcommand)]
         action: IndexAction,
     },
@@ -166,6 +173,7 @@ pub enum Commands {
     },
     /// Inspect and manage type schemas
     Schema {
+        /// The schema subcommand.
         #[command(subcommand)]
         action: SchemaAction,
     },
@@ -204,11 +212,13 @@ pub enum Commands {
     },
     /// Inspect and manage server logs
     Logs {
+        /// The logs subcommand.
         #[command(subcommand)]
         action: LogsAction,
     },
 }
 
+/// Subcommands for `llm-wiki logs`.
 #[derive(Subcommand)]
 pub enum LogsAction {
     /// Show recent log entries
@@ -223,6 +233,7 @@ pub enum LogsAction {
     Clear,
 }
 
+/// Subcommands for `llm-wiki spaces`.
 #[derive(Subcommand)]
 pub enum SpacesAction {
     /// Create a new wiki repository
@@ -265,6 +276,7 @@ pub enum SpacesAction {
     },
 }
 
+/// Subcommands for `llm-wiki config`.
 #[derive(Subcommand)]
 pub enum ConfigAction {
     /// Print a config value
@@ -299,6 +311,7 @@ pub enum ConfigAction {
     },
 }
 
+/// Subcommands for `llm-wiki content`.
 #[derive(Subcommand)]
 pub enum ContentAction {
     /// Read a page or asset by slug or wiki:// URI
@@ -353,6 +366,7 @@ pub enum ContentAction {
     },
 }
 
+/// Subcommands for `llm-wiki index`.
 #[derive(Subcommand)]
 pub enum IndexAction {
     /// Rebuild the search index from committed Markdown
@@ -372,6 +386,7 @@ pub enum IndexAction {
     },
 }
 
+/// Subcommands for `llm-wiki schema`.
 #[derive(Subcommand)]
 pub enum SchemaAction {
     /// List all registered types

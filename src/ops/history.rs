@@ -5,12 +5,16 @@ use crate::engine::EngineState;
 use crate::git;
 use crate::slug::{Slug, WikiUri};
 
+/// Git history for a single page — slug and log entries.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryResult {
+    /// Slug of the page whose history was fetched.
     pub slug: String,
+    /// Ordered list of git commit entries (most recent first).
     pub entries: Vec<git::HistoryEntry>,
 }
 
+/// Return git commit history for a page slug or `wiki://` URI.
 pub fn history(
     engine: &EngineState,
     slug_or_uri: &str,

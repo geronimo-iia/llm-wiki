@@ -40,6 +40,7 @@ fn opt_int(desc: &str) -> Value {
 
 // ── Tool definitions (22 tools) ───────────────────────────────────────────────
 
+/// Return the complete list of MCP tool definitions for registration.
 pub fn tool_list() -> Vec<Tool> {
     vec![
         Tool::new(
@@ -329,6 +330,7 @@ pub fn tool_list() -> Vec<Tool> {
 
 // ── Dispatch ──────────────────────────────────────────────────────────────────
 
+/// Dispatch a tool call by name to the appropriate handler, catching panics.
 pub fn call(server: &McpServer, name: &str, args: &Map<String, Value>) -> ToolResult {
     let _span = tracing::info_span!("tool_call", tool = name).entered();
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match name {

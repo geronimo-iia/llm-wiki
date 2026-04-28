@@ -24,23 +24,29 @@ use crate::slug::Slug;
 /// A parsed markdown page — untyped frontmatter + body.
 #[derive(Debug, Clone)]
 pub struct ParsedPage {
+    /// Parsed YAML frontmatter key-value pairs.
     pub frontmatter: BTreeMap<String, Value>,
+    /// Markdown body text after the closing `---` delimiter.
     pub body: String,
 }
 
 impl ParsedPage {
+    /// Return the `title` frontmatter value, if present.
     pub fn title(&self) -> Option<&str> {
         self.frontmatter.get("title").and_then(|v| v.as_str())
     }
 
+    /// Return the `type` frontmatter value, if present.
     pub fn page_type(&self) -> Option<&str> {
         self.frontmatter.get("type").and_then(|v| v.as_str())
     }
 
+    /// Return the `status` frontmatter value, if present.
     pub fn status(&self) -> Option<&str> {
         self.frontmatter.get("status").and_then(|v| v.as_str())
     }
 
+    /// Return the `tags` list from frontmatter; empty if absent.
     pub fn tags(&self) -> Vec<&str> {
         self.frontmatter
             .get("tags")
@@ -49,12 +55,14 @@ impl ParsedPage {
             .unwrap_or_default()
     }
 
+    /// Return the `superseded_by` frontmatter value, if present.
     pub fn superseded_by(&self) -> Option<&str> {
         self.frontmatter
             .get("superseded_by")
             .and_then(|v| v.as_str())
     }
 
+    /// Return a YAML sequence field as a `Vec<&str>`; empty if absent or not a sequence.
     pub fn string_list(&self, key: &str) -> Vec<&str> {
         self.frontmatter
             .get(key)

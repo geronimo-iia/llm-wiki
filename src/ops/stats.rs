@@ -8,36 +8,54 @@ use crate::graph::{self, CommunityStats, GraphFilter};
 use crate::search;
 use tantivy::schema::Value;
 
+/// Page staleness bucketed by last-updated age.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StalenessBuckets {
+    /// Pages updated within the last 7 days.
     pub fresh: usize,
+    /// Pages updated 7–30 days ago.
     pub stale_7d: usize,
+    /// Pages updated more than 30 days ago (or with no date).
     pub stale_30d: usize,
 }
 
+/// Summary health status of the tantivy search index.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexHealth {
+    /// True if the index is out of date relative to the wiki files.
     pub stale: bool,
+    /// ISO-8601 timestamp of the last successful index build, if known.
     pub built: Option<String>,
 }
 
 /// Aggregate statistics for a single wiki space.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WikiStats {
+    /// Name of the wiki.
     pub wiki: String,
+    /// Total number of indexed pages.
     pub pages: usize,
+    /// Number of pages whose type is `"section"`.
     pub sections: usize,
+    /// Page count per frontmatter type.
     pub types: HashMap<String, u64>,
+    /// Page count per frontmatter status.
     pub status: HashMap<String, u64>,
+    /// Number of pages with no incoming links.
     pub orphans: usize,
+    /// Mean number of links per page (rounded to 2 decimal places).
     pub avg_connections: f64,
+    /// Graph density (edges / max-possible-edges, rounded to 2 decimal places).
     pub graph_density: f64,
+    /// Page staleness buckets by last-updated date.
     pub staleness: StalenessBuckets,
+    /// Index health — staleness and last build timestamp.
     pub index: IndexHealth,
     /// Louvain community detection results; `None` when graph is below `min_nodes_for_communities`.
     pub communities: Option<CommunityStats>,
 }
 
+/// Compute aggregate stats for a wiki — page counts, graph metrics, staleness, and index health.
 pub fn stats(engine: &EngineState, wiki_name: &str) -> Result<WikiStats> {
     let space = engine.space(wiki_name)?;
 

@@ -102,13 +102,17 @@ References:
 
 ## 4. LLM Ingest Workflow
 
-The full LLM-driven ingest loop via MCP tools.
+The full LLM-driven ingest loop via MCP tools, using the direct write pattern.
 
 ```mermaid
 sequenceDiagram
     participant LLM
     participant Engine as wiki engine
+    participant Disk as filesystem
     participant Repo as git repo
+
+    LLM->>Engine: wiki_list(format: "llms")
+    Engine-->>LLM: all pages grouped by type
 
     LLM->>Engine: wiki_search("topic")
     Engine-->>LLM: related pages
@@ -116,19 +120,26 @@ sequenceDiagram
     LLM->>Engine: wiki_content_read(hub page)
     Engine-->>LLM: current knowledge
 
-    Note over LLM: reads wiki.toml<br/>reads inbox file<br/>synthesizes pages
+    Note over LLM: reads inbox file<br/>synthesizes pages<br/>plans extraction
 
-    LLM->>Engine: wiki_content_write("concepts/topic.md", content)
-    Engine-->>LLM: ok
+    LLM->>Engine: wiki_content_new("concepts/topic")
+    Engine-->>LLM: { uri, slug, path, wiki_root, bundle }
+
+    LLM->>Disk: write content to path
+    Disk-->>LLM: ok
 
     LLM->>Engine: wiki_ingest("concepts/topic.md")
     Engine->>Repo: validate → index → commit (if auto_commit)
     Engine-->>LLM: IngestReport
+
+    LLM->>Engine: wiki_lint(rules: "broken-link,orphan")
+    Engine-->>LLM: findings (if any)
 ```
 
 References:
 - [ingest-pipeline.md](specifications/engine/ingest-pipeline.md)
 - [content-operations.md](specifications/tools/content-operations.md)
+- [writing-content.md](guides/writing-content.md)
 
 ## 5. Epistemic Model
 

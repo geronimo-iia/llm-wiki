@@ -20,6 +20,7 @@ use super::helpers::{clear_active_run, resolve_wiki_name, send_text, session_cwd
 use super::research::run_research;
 use super::{AcpSession, Sessions, dispatch_workflow, extract_prompt_text};
 
+/// Start the ACP (Agent Client Protocol) server on stdio.
 pub async fn serve_acp(manager: Arc<WikiEngine>) -> Result<()> {
     let sessions: Sessions = Arc::new(std::sync::Mutex::new(HashMap::new()));
 

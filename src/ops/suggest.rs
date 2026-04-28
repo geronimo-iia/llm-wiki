@@ -9,17 +9,26 @@ use crate::graph::{self, GraphFilter};
 use crate::search;
 use crate::slug::{Slug, WikiUri};
 
+/// A page suggested as a related link for a given slug.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Suggestion {
+    /// Slug of the suggested page.
     pub slug: String,
+    /// `wiki://` URI of the suggested page.
     pub uri: String,
+    /// Display title of the suggested page.
     pub title: String,
+    /// Frontmatter type of the suggested page.
     pub r#type: String,
+    /// Relevance score (higher is more relevant).
     pub score: f32,
+    /// Human-readable reason for the suggestion.
     pub reason: String,
+    /// Index field that triggered the suggestion.
     pub field: String,
 }
 
+/// Return a ranked list of related-page suggestions for a given slug or URI.
 pub fn suggest(
     engine: &EngineState,
     slug_or_uri: &str,

@@ -5,12 +5,14 @@ use anyhow::Result;
 use crate::config::{self, WikiConfig};
 use crate::spaces;
 
+/// Read a single config key from the resolved global config.
 pub fn config_get(config_path: &Path, key: &str) -> Result<String> {
     let g = config::load_global(config_path)?;
     let resolved = config::resolve(&g, &WikiConfig::default());
     Ok(config::get_config_value(&resolved, &g, key))
 }
 
+/// Set a config key in either the global or wiki-level config file.
 pub fn config_set(
     config_path: &Path,
     key: &str,
@@ -35,11 +37,13 @@ pub fn config_set(
     }
 }
 
+/// Serialize the global config to a TOML string.
 pub fn config_list_global(config_path: &Path) -> Result<String> {
     let g = config::load_global(config_path)?;
     Ok(toml::to_string_pretty(&g)?)
 }
 
+/// Return the fully resolved config (global defaults merged with wiki overrides).
 pub fn config_list_resolved(config_path: &Path) -> Result<config::ResolvedConfig> {
     let g = config::load_global(config_path)?;
     Ok(config::resolve(&g, &WikiConfig::default()))

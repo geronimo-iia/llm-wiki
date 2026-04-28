@@ -17,9 +17,12 @@ pub fn normalize_line_endings(input: &str) -> String {
     input.replace("\r\n", "\n").replace('\r', "\n")
 }
 
+/// Options controlling an ingest run.
 #[derive(Debug, Clone, Default)]
 pub struct IngestOptions {
+    /// Validate only — do not write to disk or commit.
     pub dry_run: bool,
+    /// Automatically commit validated files to git.
     pub auto_commit: bool,
     /// When `Some`, only files in this set are validated; others increment `unchanged_count`.
     /// When `None`, all files are validated.
@@ -28,18 +31,26 @@ pub struct IngestOptions {
     pub redact: Option<RedactConfig>,
 }
 
+/// Result of an ingest operation.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct IngestReport {
+    /// Number of Markdown pages that passed validation.
     pub pages_validated: usize,
+    /// Number of non-Markdown asset files discovered.
     pub assets_found: usize,
+    /// Validation warning messages (non-fatal).
     pub warnings: Vec<String>,
+    /// Git commit hash produced after ingest, or empty string if no commit was made.
     pub commit: String,
+    /// Number of files skipped because they were not in `changed_paths`.
     #[serde(default)]
     pub unchanged_count: usize,
+    /// Redaction reports for any files that had secrets removed.
     #[serde(default)]
     pub redacted: Vec<RedactionReport>,
 }
 
+/// Walk `path` (file or directory), validate, optionally redact, commit, and return a report.
 pub fn ingest(
     path: &Path,
     options: &IngestOptions,

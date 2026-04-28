@@ -14,10 +14,13 @@ use crate::engine::EngineState;
 use crate::index_schema::IndexSchema;
 use crate::slug::Slug;
 
+/// Severity level of a lint finding.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
+    /// A definite problem that should be fixed.
     Error,
+    /// A potential issue that may warrant attention.
     Warning,
 }
 
@@ -30,21 +33,33 @@ impl std::fmt::Display for Severity {
     }
 }
 
+/// A single lint finding for a wiki page.
 #[derive(Debug, Clone, Serialize)]
 pub struct LintFinding {
+    /// Slug of the page with the finding.
     pub slug: String,
+    /// Name of the lint rule that produced this finding.
     pub rule: &'static str,
+    /// Severity of the finding.
     pub severity: Severity,
+    /// Human-readable description of the issue.
     pub message: String,
+    /// Filesystem path of the page file.
     pub path: String,
 }
 
+/// Aggregate results of a lint run against a wiki.
 #[derive(Debug, Clone, Serialize)]
 pub struct LintReport {
+    /// Name of the wiki that was linted.
     pub wiki: String,
+    /// Total number of findings (errors + warnings).
     pub total: usize,
+    /// Number of error-severity findings.
     pub errors: usize,
+    /// Number of warning-severity findings.
     pub warnings: usize,
+    /// Individual lint findings, sorted by slug then rule.
     pub findings: Vec<LintFinding>,
 }
 

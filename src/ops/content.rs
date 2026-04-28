@@ -15,12 +15,16 @@ use crate::index_schema::IndexSchema;
 use crate::markdown;
 use crate::slug::{ReadTarget, Slug, WikiUri, resolve_read_target};
 
+/// A page that links to a given target — slug and display title.
 #[derive(Debug, Clone, Serialize)]
 pub struct BacklinkRef {
+    /// Slug of the linking page.
     pub slug: String,
+    /// Title of the linking page.
     pub title: String,
 }
 
+/// Query the index for all pages that contain a link to `target_slug`.
 pub fn backlinks_query(
     searcher: &Searcher,
     is: &IndexSchema,
@@ -61,6 +65,7 @@ pub fn backlinks_query(
     Ok(refs)
 }
 
+/// Return all pages linking to `target_slug` in the named wiki.
 pub fn backlinks_for(
     engine: &EngineState,
     wiki_name: &str,
@@ -71,12 +76,17 @@ pub fn backlinks_for(
     backlinks_query(&searcher, &space.index_schema, target_slug)
 }
 
+/// Result of a content read — page text, asset list, or binary asset.
 pub enum ContentReadResult {
+    /// Page markdown content (possibly with frontmatter stripped).
     Page(String),
+    /// List of co-located asset filenames.
     Assets(Vec<String>),
+    /// The resolved target is a binary file — read it directly from disk.
     Binary,
 }
 
+/// Read a wiki page or list its co-located assets.
 pub fn content_read(
     engine: &EngineState,
     uri: &str,
@@ -111,11 +121,15 @@ pub fn content_read(
     }
 }
 
+/// Result of a content write operation.
 pub struct WriteResult {
+    /// Number of bytes written to disk.
     pub bytes_written: usize,
+    /// Absolute path of the written file.
     pub path: PathBuf,
 }
 
+/// Write content to a wiki page identified by slug or URI.
 pub fn content_write(
     engine: &EngineState,
     uri: &str,
@@ -131,14 +145,21 @@ pub fn content_write(
     })
 }
 
+/// Result of creating a new wiki page or section.
 pub struct ContentNewResult {
+    /// `wiki://` URI for the created page.
     pub uri: String,
+    /// Slug of the created page.
     pub slug: String,
+    /// Absolute filesystem path of the created file.
     pub path: PathBuf,
+    /// Absolute path to the wiki root directory.
     pub wiki_root: PathBuf,
+    /// True if the page was created as a bundle (folder + index.md).
     pub bundle: bool,
 }
 
+/// Create a new wiki page or section with scaffolded frontmatter.
 pub fn content_new(
     engine: &EngineState,
     uri: &str,
@@ -193,6 +214,7 @@ fn resolve_body_template(repo_root: &Path, type_name: &str) -> Option<String> {
     crate::default_schemas::embedded_body_template(type_name).map(|s| s.to_string())
 }
 
+/// Commit specified slugs (or all uncommitted files) to git and return the commit hash.
 pub fn content_commit(
     engine: &EngineState,
     wiki_name: &str,

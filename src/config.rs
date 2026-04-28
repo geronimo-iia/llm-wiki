@@ -5,36 +5,51 @@ use serde::{Deserialize, Serialize};
 
 // ── Section structs ───────────────────────────────────────────────────────────
 
+/// The `[global]` section of the global config file.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GlobalSection {
+    /// Name of the wiki used when no `--wiki` flag is given.
     #[serde(default)]
     pub default_wiki: String,
 }
 
+/// A registered wiki entry in the `[[wikis]]` array of the global config.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WikiEntry {
+    /// Short identifier used in `wiki://` URIs and the `--wiki` flag.
     pub name: String,
+    /// Absolute path to the wiki repository root on disk.
     pub path: String,
+    /// Optional one-line description shown in `spaces list`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Optional git remote URL for the wiki repository.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remote: Option<String>,
 }
 
+/// Default values for CLI flags that can be overridden per-wiki via `wiki.toml`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Defaults {
+    /// Maximum number of search results returned (default: 10).
     #[serde(default = "default_search_top_k")]
     pub search_top_k: u32,
+    /// Whether to include BM25 excerpts in search output (default: true).
     #[serde(default = "default_true")]
     pub search_excerpt: bool,
+    /// Whether to include section index pages in search results (default: false).
     #[serde(default)]
     pub search_sections: bool,
+    /// Page display mode: `"flat"` or `"hierarchical"` (default: `"flat"`).
     #[serde(default = "default_page_mode")]
     pub page_mode: String,
+    /// Number of pages returned per `list` call (default: 20).
     #[serde(default = "default_list_page_size")]
     pub list_page_size: u32,
+    /// Default output format: `"text"` or `"json"` (default: `"text"`).
     #[serde(default = "default_output_format")]
     pub output_format: String,
+    /// Maximum number of tag facet values to return (default: 10).
     #[serde(default = "default_facets_top_tags")]
     pub facets_top_tags: u32,
 }
@@ -53,20 +68,27 @@ impl Default for Defaults {
     }
 }
 
+/// `[read]` section — controls how pages are read back.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ReadConfig {
+    /// Strip frontmatter from `content read` output when true (default: false).
     #[serde(default)]
     pub no_frontmatter: bool,
 }
 
+/// `[index]` section — Tantivy index configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexConfig {
+    /// Automatically rebuild the index on startup when stale (default: false).
     #[serde(default)]
     pub auto_rebuild: bool,
+    /// Automatically recover a corrupt index by rebuilding (default: true).
     #[serde(default = "default_true")]
     pub auto_recovery: bool,
+    /// Tantivy index writer memory budget in megabytes (default: 50).
     #[serde(default = "default_memory_budget_mb")]
     pub memory_budget_mb: u32,
+    /// Tantivy tokenizer name (default: `"en_stem"`).
     #[serde(default = "default_tokenizer")]
     pub tokenizer: String,
 }
@@ -85,12 +107,16 @@ impl Default for IndexConfig {
 /// Graph rendering and community detection configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphConfig {
+    /// Default graph output format: `"mermaid"`, `"dot"`, or `"llms"` (default: `"mermaid"`).
     #[serde(default = "default_graph_format")]
     pub format: String,
+    /// Default hop depth for subgraph extraction (default: 3).
     #[serde(default = "default_graph_depth")]
     pub depth: u32,
+    /// Page types to include when no `--type` flag is given (empty = all).
     #[serde(default)]
     pub r#type: Vec<String>,
+    /// Default output file path for graph commands (empty = stdout).
     #[serde(default)]
     pub output: String,
     /// Minimum local node count before Louvain community detection runs (default 30).
@@ -122,20 +148,28 @@ fn default_community_suggestions_limit() -> usize {
     2
 }
 
+/// `[serve]` section — HTTP and ACP server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServeConfig {
+    /// Enable the HTTP transport by default (default: false).
     #[serde(default)]
     pub http: bool,
+    /// TCP port for the HTTP server (default: 8080).
     #[serde(default = "default_http_port")]
     pub http_port: u16,
+    /// Hostnames accepted by the HTTP server (default: localhost variants).
     #[serde(default = "default_http_allowed_hosts")]
     pub http_allowed_hosts: Vec<String>,
+    /// Enable the ACP transport by default (default: false).
     #[serde(default)]
     pub acp: bool,
+    /// Maximum automatic restart attempts after a server crash (default: 10).
     #[serde(default = "default_max_restarts")]
     pub max_restarts: u32,
+    /// Seconds to wait between restart attempts (default: 1).
     #[serde(default = "default_restart_backoff")]
     pub restart_backoff: u32,
+    /// Interval in seconds between ACP heartbeat pings (default: 60).
     #[serde(default = "default_heartbeat_secs")]
     pub heartbeat_secs: u32,
 }
@@ -154,8 +188,10 @@ impl Default for ServeConfig {
     }
 }
 
+/// `[validation]` section — frontmatter validation strictness.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationConfig {
+    /// How strictly unknown types are treated: `"loose"` (warn) or `"strict"` (error) (default: `"loose"`).
     #[serde(default = "default_type_strictness")]
     pub type_strictness: String,
 }
@@ -168,14 +204,19 @@ impl Default for ValidationConfig {
     }
 }
 
+/// `[logging]` section — structured log file configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoggingConfig {
+    /// Directory where log files are written (default: `~/.llm-wiki/logs`).
     #[serde(default = "default_log_path")]
     pub log_path: String,
+    /// Log rotation policy: `"daily"` or `"never"` (default: `"daily"`).
     #[serde(default = "default_log_rotation")]
     pub log_rotation: String,
+    /// Maximum number of log files to retain before pruning (default: 7).
     #[serde(default = "default_log_max_files")]
     pub log_max_files: u32,
+    /// Log line format: `"text"` or `"json"` (default: `"text"`).
     #[serde(default = "default_log_format")]
     pub log_format: String,
 }
@@ -191,8 +232,10 @@ impl Default for LoggingConfig {
     }
 }
 
+/// `[ingest]` section — controls ingest commit behaviour.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IngestConfig {
+    /// Automatically commit ingested files to git after validation (default: true).
     #[serde(default = "default_true")]
     pub auto_commit: bool,
 }
@@ -203,10 +246,13 @@ impl Default for IngestConfig {
     }
 }
 
+/// `[history]` section — git log / history command defaults.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryConfig {
+    /// Enable `--follow` rename tracking in git log (default: true).
     #[serde(default = "default_true")]
     pub follow: bool,
+    /// Default maximum number of history entries to return (default: 10).
     #[serde(default = "default_history_limit")]
     pub default_limit: u32,
 }
@@ -220,8 +266,10 @@ impl Default for HistoryConfig {
     }
 }
 
+/// `[watch]` section — filesystem watcher configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WatchConfig {
+    /// Debounce delay in milliseconds before triggering ingest after a file change (default: 500).
     #[serde(default = "default_debounce_ms")]
     pub debounce_ms: u32,
 }
@@ -232,10 +280,13 @@ impl Default for WatchConfig {
     }
 }
 
+/// `[suggest]` section — related-page suggestion defaults.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SuggestConfig {
+    /// Default maximum number of suggestions to return (default: 5).
     #[serde(default = "default_suggest_limit")]
     pub default_limit: u32,
+    /// Minimum relevance score for a suggestion to be included (default: 0.1).
     #[serde(default = "default_suggest_min_score")]
     pub min_score: f32,
 }
@@ -249,8 +300,10 @@ impl Default for SuggestConfig {
     }
 }
 
+/// `[search]` section — BM25 score multipliers by page status.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchConfig {
+    /// Map of status value → score multiplier applied to BM25 results.
     #[serde(default = "default_search_status")]
     pub status: std::collections::HashMap<String, f32>,
 }
@@ -294,55 +347,79 @@ impl Default for LintConfig {
     }
 }
 
+/// A user-defined redaction rule added to the built-in patterns.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CustomPattern {
+    /// Unique name used in redaction reports.
     pub name: String,
+    /// Regex pattern to match sensitive text.
     pub pattern: String,
+    /// Replacement string substituted for matched text (e.g. `"[REDACTED]"`).
     pub replacement: String,
 }
 
+/// `[redact]` section — sensitive-data redaction configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RedactConfig {
+    /// Built-in pattern names to disable (e.g. `["aws-key"]`).
     #[serde(default)]
     pub disable: Vec<String>,
+    /// Additional user-defined redaction patterns.
     #[serde(default)]
     pub patterns: Vec<CustomPattern>,
 }
 
 // ── Composite configs ─────────────────────────────────────────────────────────
 
+/// Root structure for `~/.llm-wiki/config.toml` — the global configuration file.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GlobalConfig {
+    /// `[global]` section.
     #[serde(default)]
     pub global: GlobalSection,
+    /// `[[wikis]]` array — registered wiki spaces.
     #[serde(default)]
     pub wikis: Vec<WikiEntry>,
+    /// `[defaults]` section — CLI flag defaults.
     #[serde(default)]
     pub defaults: Defaults,
+    /// `[read]` section.
     #[serde(default)]
     pub read: ReadConfig,
+    /// `[index]` section.
     #[serde(default)]
     pub index: IndexConfig,
+    /// `[graph]` section.
     #[serde(default)]
     pub graph: GraphConfig,
+    /// `[serve]` section.
     #[serde(default)]
     pub serve: ServeConfig,
+    /// `[validation]` section.
     #[serde(default)]
     pub validation: ValidationConfig,
+    /// `[ingest]` section.
     #[serde(default)]
     pub ingest: IngestConfig,
+    /// `[history]` section.
     #[serde(default)]
     pub history: HistoryConfig,
+    /// `[suggest]` section.
     #[serde(default)]
     pub suggest: SuggestConfig,
+    /// `[search]` section.
     #[serde(default)]
     pub search: SearchConfig,
+    /// `[lint]` section.
     #[serde(default)]
     pub lint: LintConfig,
+    /// `[logging]` section.
     #[serde(default)]
     pub logging: LoggingConfig,
+    /// `[watch]` section.
     #[serde(default)]
     pub watch: WatchConfig,
+    /// `[redact]` section.
     #[serde(default)]
     pub redact: RedactConfig,
 }
@@ -350,53 +427,84 @@ pub struct GlobalConfig {
 /// A type entry in `[types.<name>]` of `wiki.toml`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TypeEntry {
+    /// Relative path to the JSON Schema file for this type.
     pub schema: String,
+    /// Human-readable description of the type.
     pub description: String,
 }
 
+/// Per-wiki configuration loaded from `<wiki-root>/wiki.toml`.
+///
+/// Fields present here override the corresponding `GlobalConfig` sections.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WikiConfig {
+    /// Wiki display name (informational; used in export headers).
     #[serde(default)]
     pub name: String,
+    /// One-line description of the wiki.
     #[serde(default)]
     pub description: String,
+    /// `[types.<name>]` custom type registrations for this wiki.
     #[serde(default)]
     pub types: std::collections::HashMap<String, TypeEntry>,
+    /// Per-wiki override for `[defaults]`.
     #[serde(default)]
     pub defaults: Option<Defaults>,
+    /// Per-wiki override for `[read]`.
     #[serde(default)]
     pub read: Option<ReadConfig>,
+    /// Per-wiki override for `[validation]`.
     #[serde(default)]
     pub validation: Option<ValidationConfig>,
+    /// Per-wiki override for `[ingest]`.
     #[serde(default)]
     pub ingest: Option<IngestConfig>,
+    /// Per-wiki override for `[graph]`.
     #[serde(default)]
     pub graph: Option<GraphConfig>,
+    /// Per-wiki override for `[history]`.
     #[serde(default)]
     pub history: Option<HistoryConfig>,
+    /// Per-wiki override for `[suggest]`.
     #[serde(default)]
     pub suggest: Option<SuggestConfig>,
+    /// Per-wiki override for `[search]`.
     #[serde(default)]
     pub search: Option<SearchConfig>,
+    /// Per-wiki override for `[lint]`.
     #[serde(default)]
     pub lint: Option<LintConfig>,
+    /// Per-wiki override for `[redact]`.
     #[serde(default)]
     pub redact: Option<RedactConfig>,
 }
 
+/// Fully merged config for a specific wiki — global settings overlaid with per-wiki overrides.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedConfig {
+    /// Resolved defaults section.
     pub defaults: Defaults,
+    /// Resolved read section.
     pub read: ReadConfig,
+    /// Resolved index section (always from global).
     pub index: IndexConfig,
+    /// Resolved graph section.
     pub graph: GraphConfig,
+    /// Resolved serve section (always from global).
     pub serve: ServeConfig,
+    /// Resolved ingest section.
     pub ingest: IngestConfig,
+    /// Resolved validation section.
     pub validation: ValidationConfig,
+    /// Resolved history section.
     pub history: HistoryConfig,
+    /// Resolved suggest section.
     pub suggest: SuggestConfig,
+    /// Resolved search section (merged: per-wiki entries override global entries).
     pub search: SearchConfig,
+    /// Resolved lint section.
     pub lint: LintConfig,
+    /// Resolved redact section.
     pub redact: RedactConfig,
 }
 
@@ -487,6 +595,7 @@ fn default_stale_confidence_threshold() -> f32 {
 }
 // ── Functions ─────────────────────────────────────────────────────────────────
 
+/// Merge global and per-wiki config into a `ResolvedConfig` for a specific wiki.
 pub fn resolve(global: &GlobalConfig, per_wiki: &WikiConfig) -> ResolvedConfig {
     ResolvedConfig {
         defaults: per_wiki
@@ -533,6 +642,7 @@ pub fn resolve(global: &GlobalConfig, per_wiki: &WikiConfig) -> ResolvedConfig {
     }
 }
 
+/// Load the global config from a TOML file. Returns default config if the file is absent.
 pub fn load_global(path: &Path) -> Result<GlobalConfig> {
     if !path.exists() {
         return Ok(GlobalConfig::default());
@@ -544,6 +654,7 @@ pub fn load_global(path: &Path) -> Result<GlobalConfig> {
     Ok(config)
 }
 
+/// Load per-wiki config from `<wiki_root>/wiki.toml`. Returns default config if absent.
 pub fn load_wiki(wiki_root: &Path) -> Result<WikiConfig> {
     let path = wiki_root.join("wiki.toml");
     if !path.exists() {
@@ -556,6 +667,7 @@ pub fn load_wiki(wiki_root: &Path) -> Result<WikiConfig> {
     Ok(config)
 }
 
+/// Serialize and write the global config to `path`, creating parent dirs if needed.
 pub fn save_global(config: &GlobalConfig, path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -565,6 +677,7 @@ pub fn save_global(config: &GlobalConfig, path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Serialize and write the per-wiki config to `<wiki_root>/wiki.toml`.
 pub fn save_wiki(config: &WikiConfig, wiki_root: &Path) -> Result<()> {
     let path = wiki_root.join("wiki.toml");
     let content = toml::to_string_pretty(config)?;
@@ -572,6 +685,7 @@ pub fn save_wiki(config: &WikiConfig, wiki_root: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Set a dot-notation config key on a `GlobalConfig` in place. Errors on unknown keys.
 pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str) -> Result<()> {
     match key {
         "global.default_wiki" => global.global.default_wiki = value.into(),
@@ -616,6 +730,7 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
     Ok(())
 }
 
+/// Read a dot-notation config key from `ResolvedConfig`/`GlobalConfig`. Returns `"unknown key"` for unrecognized keys.
 pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &str) -> String {
     match key {
         "global.default_wiki" => global.global.default_wiki.clone(),
@@ -656,6 +771,7 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
     }
 }
 
+/// Set a dot-notation config key on a `WikiConfig` in place. Errors on global-only or unknown keys.
 pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) -> Result<()> {
     match key {
         "defaults.search_top_k" => {
