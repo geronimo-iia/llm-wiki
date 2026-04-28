@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `llm-wiki stats` and any command using community detection hung indefinitely — `louvain_phase1` could oscillate forever when node moves mid-pass altered `sigma_tot` for subsequent nodes; capped at `n × 10` passes
 - `SpaceIndexManager::status()` now uses `ReloadPolicy::Manual` to avoid spawning a competing file_watcher thread against the open `IndexReader`
+- **IndexReader stale after rebuild in serve mode** — `rebuild()` opened a fresh `Index::open_or_create()` instance; with `ReloadPolicy::Manual`, `writer.commit()` only notifies readers on the same instance, so the held reader stayed frozen; added `reload_reader()` helper called after every `writer.commit()` in `rebuild()`, `update()`, `delete_by_type()`, and `rebuild_types()`; fixes `wiki_search` / `wiki_list` / `wiki_graph` returning stale results after `wiki_index_rebuild` in `llm-wiki serve`
 - `wiki_graph` MCP tool now returns the rendered graph text (mermaid/dot/llms) instead of a bare stats report
 - `validate-engine.sh` and `validate-mcp.sh` reset inbox fixtures and clear logs before each run for idempotent sequential execution
 
