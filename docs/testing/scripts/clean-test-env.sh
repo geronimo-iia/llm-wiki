@@ -28,6 +28,10 @@ if [ ! -d "$TEST_DIR" ]; then
     echo "Nothing to clean — $TEST_DIR does not exist."
 else
     if [ "$CONFIRMED" = "0" ]; then
+        if [ ! -t 0 ]; then
+            echo "Non-interactive shell — pass --yes to confirm deletion."
+            return 0 2>/dev/null || exit 0
+        fi
         echo "This will permanently delete: $TEST_DIR"
         printf "Continue? [y/N] "
         read -r answer
