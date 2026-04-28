@@ -125,3 +125,53 @@ fn extract_parsed_links_returns_cross_wiki_variant() {
         slug: "bar".to_string(),
     }));
 }
+
+// ── CommonMark inline links ───────────────────────────────────────────────────
+
+#[test]
+fn commonmark_basic_local_link() {
+    let links = extract_body_wikilinks("[Foo](concepts/foo)");
+    assert_eq!(links, vec!["concepts/foo"]);
+}
+
+#[test]
+fn commonmark_cross_wiki_link_in_body() {
+    let page = frontmatter::parse(
+        "---\ntitle: \"Test\"\ntype: concept\n---\n\nSee [MoE](wiki://research/concepts/moe).\n",
+    );
+    let links = extract_parsed_links(&page);
+    assert!(links.contains(&ParsedLink::CrossWiki {
+        wiki: "research".to_string(),
+        slug: "concepts/moe".to_string(),
+    }));
+}
+
+#[test]
+fn commonmark_external_url_filtered() {
+    let links = extract_body_wikilinks("[Google](https://google.com)");
+    assert!(links.is_empty());
+}
+
+#[test]
+fn commonmark_anchor_filtered() {
+    let links = extract_body_wikilinks("[Top](#top)");
+    assert!(links.is_empty());
+}
+
+#[test]
+fn commonmark_mixed_wikilink_and_commonmark() {
+    let links = extract_body_wikilinks("See [[concepts/foo]] and [bar](concepts/bar).");
+    assert_eq!(links, vec!["concepts/foo", "concepts/bar"]);
+}
+
+#[test]
+fn commonmark_deduplication_across_syntaxes() {
+    let links = extract_body_wikilinks("[[concepts/foo]] and [also](concepts/foo)");
+    assert_eq!(links, vec!["concepts/foo"]);
+}
+
+#[test]
+fn commonmark_image_link_filtered() {
+    let links = extract_body_wikilinks("![alt](image.png)");
+    assert!(links.is_empty());
+}

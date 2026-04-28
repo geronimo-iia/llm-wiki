@@ -60,9 +60,10 @@ When `--backlinks` is passed, the response is JSON instead of plain text:
 }
 ```
 
-`backlinks` lists all pages whose body contains a `[[<target-slug>]]` wikilink.
-The result is a term query on the `body_links` index field — no file writes,
-no index mutation. Returns an empty array when no pages link to this page.
+`backlinks` lists all pages whose `body_links` index field contains the target
+slug. `body_links` is populated from `[[slug]]` wikilinks and CommonMark inline
+links `[text](slug)` and `[text](wiki://name/slug)` in the page body — no file
+writes, no index mutation. Returns an empty array when no pages link to this page.
 
 Without `--backlinks` (default), the response is the raw page content as plain text.
 
