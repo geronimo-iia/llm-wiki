@@ -67,6 +67,10 @@ source ./docs/testing/scripts/clean-test-env.sh
 
 ## Quick start — MCP server
 
+The MCP suite uses **stdio transport** via `mcptools` — no server process to
+start or stop. Each `mcp call` launches the binary as a subprocess, performs
+the MCP handshake, and exits.
+
 ```bash
 # 1. Build the binary (if not already done)
 cargo build --release
@@ -74,23 +78,26 @@ cargo build --release
 # 2. Create the test environment and export env vars (if not already done)
 source ./docs/testing/scripts/setup-test-env.sh
 
-# 3. Run all MCP validations (starts server on port 8087, tears down after)
+# 3. Run all MCP validations
 LLM_WIKI_BIN=./target/release/llm-wiki \
 ./docs/testing/scripts/validate-mcp.sh
 
 # 4. Run a single section (e.g. search only)
 LLM_WIKI_BIN=./target/release/llm-wiki \
 ./docs/testing/scripts/validate-mcp.sh --section 03
-
-# 5. Use a different port
-LLM_WIKI_BIN=./target/release/llm-wiki \
-./docs/testing/scripts/validate-mcp.sh --port 9090
 ```
 
 `source` is required for `setup-test-env.sh` and `clean-test-env.sh` so
 that `LLM_WIKI_TEST_DIR` and `LLM_WIKI_CONFIG` are exported/unset in
 your current shell. Running them directly also works but won't affect the
 parent shell's environment.
+
+## GitHub Actions
+
+A `workflow_dispatch` workflow is available at
+`.github/workflows/integration.yml`. Trigger it manually from the Actions
+tab with a choice of suite (`both` / `engine` / `mcp`). It builds the binary,
+installs mcptools, sets up the test environment, and runs the selected suite.
 
 ## Skills validation
 

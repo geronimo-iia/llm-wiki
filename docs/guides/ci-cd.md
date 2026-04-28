@@ -159,6 +159,25 @@ Generate a concept graph as a build artifact or commit it to the repo:
           llm-wiki graph --format dot --output wiki/graph.dot --wiki ci
 ```
 
+## Integration Test Workflow
+
+A manual workflow at `.github/workflows/integration.yml` runs the full
+end-to-end validation suite (CLI + MCP) against a real binary. Trigger it
+from the Actions tab → **Integration Tests** → **Run workflow**.
+
+```
+suite: both | engine | mcp   (default: both)
+```
+
+The workflow:
+1. Builds the debug binary (`cargo build --locked`)
+2. Installs `mcptools` (latest release, Linux amd64) when MCP suite is selected
+3. Runs `setup-test-env.sh` to create a fresh environment at `/tmp/llm-wiki-testing`
+4. Runs `validate-engine.sh` and/or `validate-mcp.sh`
+
+Use this after merging features that touch MCP handlers, graph rendering, or
+ingest logic — areas not covered by unit tests alone.
+
 ## Environment Notes
 
 - llm-wiki writes its space registry to `~/.llm-wiki/config.toml` by default
