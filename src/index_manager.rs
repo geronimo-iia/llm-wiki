@@ -140,7 +140,11 @@ impl SpaceIndexManager {
     /// Return the current generation counter value.
     /// Incremented on every successful `reload_reader()` call.
     pub fn generation(&self) -> u64 {
-        self.inner.read().unwrap().generation.load(Ordering::Acquire)
+        self.inner
+            .read()
+            .unwrap()
+            .generation
+            .load(Ordering::Acquire)
     }
 
     /// Open the index from disk and hold the reader.

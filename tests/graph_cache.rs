@@ -61,7 +61,10 @@ fn graph_cache_hit_returns_same_arc() {
     )
     .unwrap();
 
-    assert!(Arc::ptr_eq(&g1, &g2), "second call should return cached Arc");
+    assert!(
+        Arc::ptr_eq(&g1, &g2),
+        "second call should return cached Arc"
+    );
 }
 
 #[test]

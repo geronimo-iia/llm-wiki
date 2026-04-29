@@ -984,7 +984,9 @@ pub fn get_or_build_graph(
     // Check cache hit
     {
         let cache = graph_cache.read().unwrap();
-        if let Some(cached) = cache.as_ref() && cached.index_gen == current_gen {
+        if let Some(cached) = cache.as_ref()
+            && cached.index_gen == current_gen
+        {
             return Ok(Arc::clone(&cached.graph));
         }
     }
@@ -1017,7 +1019,9 @@ pub fn get_cached_community_map(
     // Check cache hit
     {
         let cache = graph_cache.read().unwrap();
-        if let Some(cached) = cache.as_ref() && cached.index_gen == current_gen {
+        if let Some(cached) = cache.as_ref()
+            && cached.index_gen == current_gen
+        {
             if min_nodes <= 30 {
                 return Ok(cached.community_map.clone());
             }
@@ -1040,7 +1044,9 @@ pub fn get_cached_community_map(
     // Re-read
     {
         let cache = graph_cache.read().unwrap();
-        if let Some(cached) = cache.as_ref() && cached.index_gen == current_gen {
+        if let Some(cached) = cache.as_ref()
+            && cached.index_gen == current_gen
+        {
             if min_nodes <= 30 {
                 return Ok(cached.community_map.clone());
             }
