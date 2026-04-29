@@ -209,7 +209,7 @@ pub fn suggest(
 
     // Strategy 4: Community peers (same Louvain community, not already linked)
     if let Some(community_map) =
-        graph::node_community_map(&*wiki_graph, resolved.graph.min_nodes_for_communities)
+        graph::node_community_map(&wiki_graph, resolved.graph.min_nodes_for_communities)
         && let Some(&my_community) = community_map.get(slug.as_str())
     {
         let mut peers: Vec<&str> = community_map

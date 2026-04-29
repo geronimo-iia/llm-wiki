@@ -87,9 +87,9 @@ pub fn graph_build(
     };
 
     let rendered = match fmt {
-        "dot" => graph::render_dot(&*g),
-        "llms" => graph::render_llms(&*g),
-        _ => graph::render_mermaid(&*g),
+        "dot" => graph::render_dot(&g),
+        "llms" => graph::render_llms(&g),
+        _ => graph::render_mermaid(&g),
     };
 
     let out = if let Some(out_path) = params.output {

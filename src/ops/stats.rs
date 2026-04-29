@@ -86,10 +86,10 @@ pub fn stats(engine: &EngineState, wiki_name: &str) -> Result<WikiStats> {
         &searcher,
         &GraphFilter::default(),
     )?;
-    let metrics = graph::compute_metrics(&*wiki_graph);
+    let metrics = graph::compute_metrics(&wiki_graph);
     let resolved = space.resolved_config(&engine.config);
     let communities =
-        graph::compute_communities(&*wiki_graph, resolved.graph.min_nodes_for_communities);
+        graph::compute_communities(&wiki_graph, resolved.graph.min_nodes_for_communities);
 
     // Staleness buckets from last_updated field
     let staleness = compute_staleness(&searcher, &space.index_schema)?;
