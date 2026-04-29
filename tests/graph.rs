@@ -845,3 +845,12 @@ fn compute_communities_deterministic() {
         "isolated list must be deterministic"
     );
 }
+
+// ── generation counter ────────────────────────────────────────────────────────
+
+#[test]
+fn index_manager_generation_starts_at_zero() {
+    let dir = tempfile::tempdir().unwrap();
+    let mgr = SpaceIndexManager::new("test", dir.path().join("idx"));
+    assert_eq!(mgr.generation(), 0);
+}
