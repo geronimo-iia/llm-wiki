@@ -55,6 +55,7 @@ fn build_engine(dir: &Path, wiki_root: &Path) -> EngineState {
         type_registry: registry(),
         index_schema: schema(),
         index_manager: mgr,
+        graph_cache: std::sync::RwLock::new(None),
     });
 
     let mut spaces = HashMap::new();
@@ -386,6 +387,7 @@ fn build_engine_with_name(dir: &Path, wiki_root: &Path, name: &str) -> EngineSta
         type_registry: registry(),
         index_schema: schema(),
         index_manager: mgr,
+        graph_cache: std::sync::RwLock::new(None),
     });
 
     let mut spaces = HashMap::new();

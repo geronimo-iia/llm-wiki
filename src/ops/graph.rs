@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 
 use crate::engine::EngineState;
@@ -50,7 +52,7 @@ pub fn graph_build(
         types,
         relation: params.relation.clone(),
     };
-    let g = if params.cross_wiki {
+    let g: Arc<graph::WikiGraph> = if params.cross_wiki {
         // Collect (name, searcher) pairs; Arc keeps schema/registry alive
         let space_data: Vec<(String, tantivy::Searcher)> = engine
             .spaces
@@ -71,14 +73,16 @@ pub fn graph_build(
                     .map(|sp| (name.as_str(), searcher, &sp.index_schema, &sp.type_registry))
             })
             .collect();
-        graph::build_graph_cross_wiki(&tuples, &filter)?
+        Arc::new(graph::build_graph_cross_wiki(&tuples, &filter)?)
     } else {
         let searcher = space.index_manager.searcher()?;
-        graph::build_graph(
-            &searcher,
+        graph::get_or_build_graph(
             &space.index_schema,
-            &filter,
             &space.type_registry,
+            &space.index_manager,
+            &space.graph_cache,
+            &searcher,
+            &filter,
         )?
     };
 

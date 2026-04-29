@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -102,6 +103,7 @@ pub struct IndexState {
 struct IndexInner {
     tantivy_index: Option<Index>,
     index_reader: Option<IndexReader>,
+    generation: AtomicU64,
 }
 
 /// Tantivy index lifecycle manager for a single wiki space.
@@ -120,6 +122,7 @@ impl SpaceIndexManager {
             inner: RwLock::new(IndexInner {
                 tantivy_index: None,
                 index_reader: None,
+                generation: AtomicU64::new(0),
             }),
         }
     }
@@ -132,6 +135,16 @@ impl SpaceIndexManager {
     /// Return the wiki name this manager is associated with.
     pub fn wiki_name(&self) -> &str {
         &self.wiki_name
+    }
+
+    /// Return the current generation counter value.
+    /// Incremented on every successful `reload_reader()` call.
+    pub fn generation(&self) -> u64 {
+        self.inner
+            .read()
+            .unwrap()
+            .generation
+            .load(Ordering::Acquire)
     }
 
     /// Open the index from disk and hold the reader.
@@ -205,6 +218,7 @@ impl SpaceIndexManager {
         if let Some(ref r) = inner.index_reader {
             r.reload()?;
         }
+        inner.generation.fetch_add(1, Ordering::AcqRel);
         Ok(())
     }
 
