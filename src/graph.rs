@@ -1,6 +1,6 @@
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
 use chrono::Utc;
@@ -12,6 +12,7 @@ use tantivy::collector::TopDocs;
 use tantivy::query::AllQuery;
 use tantivy::schema::Value;
 
+use crate::index_manager::SpaceIndexManager;
 use crate::index_schema::IndexSchema;
 use crate::links::ParsedLink;
 use crate::type_registry::SpaceTypeRegistry;
@@ -959,4 +960,100 @@ pub fn subgraph(graph: &WikiGraph, root_slug: &str, depth: usize) -> WikiGraph {
     }
 
     new_graph
+}
+
+// ── Cached graph accessors ───────────────────────────────────────────────────
+
+/// Return cached full graph, or build and cache on miss.
+/// Filtered (non-default) requests bypass cache entirely.
+pub fn get_or_build_graph(
+    index_schema: &IndexSchema,
+    type_registry: &SpaceTypeRegistry,
+    index_manager: &SpaceIndexManager,
+    graph_cache: &RwLock<Option<CachedGraph>>,
+    searcher: &Searcher,
+    filter: &GraphFilter,
+) -> Result<Arc<WikiGraph>> {
+    if !filter.is_default() {
+        let g = build_graph(searcher, index_schema, filter, type_registry)?;
+        return Ok(Arc::new(g));
+    }
+
+    let current_gen = index_manager.generation();
+
+    // Check cache hit
+    {
+        let cache = graph_cache.read().unwrap();
+        if let Some(cached) = cache.as_ref() {
+            if cached.index_gen == current_gen {
+                return Ok(Arc::clone(&cached.graph));
+            }
+        }
+    }
+
+    // Cache miss — build
+    let graph = Arc::new(build_graph(searcher, index_schema, filter, type_registry)?);
+    let community_map = node_community_map(&graph, 30).map(Arc::new);
+
+    *graph_cache.write().unwrap() = Some(CachedGraph {
+        graph: Arc::clone(&graph),
+        community_map,
+        index_gen: current_gen,
+    });
+
+    Ok(graph)
+}
+
+/// Return cached community map, or None if graph is below `min_nodes` threshold.
+/// Builds and caches the full graph as a side effect if not already cached.
+pub fn get_cached_community_map(
+    index_schema: &IndexSchema,
+    type_registry: &SpaceTypeRegistry,
+    index_manager: &SpaceIndexManager,
+    graph_cache: &RwLock<Option<CachedGraph>>,
+    searcher: &Searcher,
+    min_nodes: usize,
+) -> Result<Option<Arc<HashMap<String, usize>>>> {
+    let current_gen = index_manager.generation();
+
+    // Check cache hit
+    {
+        let cache = graph_cache.read().unwrap();
+        if let Some(cached) = cache.as_ref() {
+            if cached.index_gen == current_gen {
+                if min_nodes <= 30 {
+                    return Ok(cached.community_map.clone());
+                }
+                // Caller wants higher threshold — recompute without caching variant
+                let map = node_community_map(&cached.graph, min_nodes).map(Arc::new);
+                return Ok(map);
+            }
+        }
+    }
+
+    // Cache miss — build graph (caches community_map at threshold=30)
+    get_or_build_graph(
+        index_schema,
+        type_registry,
+        index_manager,
+        graph_cache,
+        searcher,
+        &GraphFilter::default(),
+    )?;
+
+    // Re-read
+    {
+        let cache = graph_cache.read().unwrap();
+        if let Some(cached) = cache.as_ref() {
+            if cached.index_gen == current_gen {
+                if min_nodes <= 30 {
+                    return Ok(cached.community_map.clone());
+                }
+                let map = node_community_map(&cached.graph, min_nodes).map(Arc::new);
+                return Ok(map);
+            }
+        }
+    }
+
+    Ok(None)
 }
