@@ -49,6 +49,8 @@ pub struct CachedGraph {
     pub graph: Arc<WikiGraph>,
     /// Precomputed community map (slug → community_id), None if graph is too small.
     pub community_map: Option<Arc<HashMap<String, usize>>>,
+    /// Precomputed community stats, None if graph is too small.
+    pub community_stats: Option<CommunityStats>,
     /// Generation value from SpaceIndexManager at cache time.
     pub index_gen: u64,
 }
@@ -962,6 +964,84 @@ pub fn subgraph(graph: &WikiGraph, root_slug: &str, depth: usize) -> WikiGraph {
     new_graph
 }
 
+// ── build_community_data ─────────────────────────────────────────────────────
+
+/// Run Louvain once and return both community outputs.
+/// Returns `(None, None)` when graph is below `min_nodes` threshold.
+fn build_community_data(
+    graph: &WikiGraph,
+    min_nodes: usize,
+) -> (Option<CommunityStats>, Option<HashMap<String, usize>>) {
+    let local_nodes: Vec<NodeIndex> = {
+        let mut v: Vec<NodeIndex> = graph
+            .node_indices()
+            .filter(|&idx| !graph[idx].external)
+            .collect();
+        v.sort_by_key(|&i| graph[i].slug.clone());
+        v
+    };
+
+    if local_nodes.len() < min_nodes {
+        return (None, None);
+    }
+
+    let adj = build_adjacency(graph);
+    let degrees: HashMap<NodeIndex, usize> =
+        local_nodes.iter().map(|&n| (n, adj[&n].len())).collect();
+    let m: usize = adj.values().map(|s| s.len()).sum::<usize>() / 2;
+
+    let mut community: HashMap<NodeIndex, usize> = local_nodes
+        .iter()
+        .enumerate()
+        .map(|(i, &n)| (n, i))
+        .collect();
+
+    louvain_phase1(&adj, &mut community, &degrees, m);
+
+    // Normalize community ids to contiguous 0..k
+    let mut id_remap: HashMap<usize, usize> = HashMap::new();
+    let mut next_id = 0usize;
+    for &n in &local_nodes {
+        let c = *community.get(&n).unwrap();
+        id_remap.entry(c).or_insert_with(|| {
+            let id = next_id;
+            next_id += 1;
+            id
+        });
+    }
+    for val in community.values_mut() {
+        *val = *id_remap.get(val).unwrap();
+    }
+
+    // Build community_map
+    let community_map: HashMap<String, usize> = local_nodes
+        .iter()
+        .map(|&n| (graph[n].slug.clone(), community[&n]))
+        .collect();
+
+    // Build community_stats (mirrors compute_communities logic)
+    let count = next_id;
+    let mut sizes: HashMap<usize, usize> = HashMap::new();
+    for &c in community.values() {
+        *sizes.entry(c).or_default() += 1;
+    }
+    let largest = sizes.values().copied().max().unwrap_or(0);
+    let smallest = sizes.values().copied().min().unwrap_or(0);
+    let mut isolated: Vec<String> = local_nodes
+        .iter()
+        .filter(|&&n| {
+            let c = *community.get(&n).unwrap();
+            *sizes.get(&c).unwrap_or(&0) <= 2
+        })
+        .map(|&n| graph[n].slug.clone())
+        .collect();
+    isolated.sort();
+
+    let stats = CommunityStats { count, largest, smallest, isolated };
+
+    (Some(stats), Some(community_map))
+}
+
 // ── Cached graph accessors ───────────────────────────────────────────────────
 
 /// Return cached full graph, or build and cache on miss.
@@ -993,11 +1073,13 @@ pub fn get_or_build_graph(
 
     // Cache miss — build
     let graph = Arc::new(build_graph(searcher, index_schema, filter, type_registry)?);
-    let community_map = node_community_map(&graph, 30).map(Arc::new);
+    let (community_stats, community_map_raw) = build_community_data(&graph, 30);
+    let community_map = community_map_raw.map(Arc::new);
 
     *graph_cache.write().unwrap() = Some(CachedGraph {
         graph: Arc::clone(&graph),
         community_map,
+        community_stats,
         index_gen: current_gen,
     });
 
@@ -1052,6 +1134,60 @@ pub fn get_cached_community_map(
             }
             let map = node_community_map(&cached.graph, min_nodes).map(Arc::new);
             return Ok(map);
+        }
+    }
+
+    Ok(None)
+}
+
+/// Return cached `CommunityStats` for `space`, or `None` if graph is below threshold.
+/// Builds and caches the full graph as a side effect if not already cached.
+pub fn get_cached_community_stats(
+    index_schema: &IndexSchema,
+    type_registry: &SpaceTypeRegistry,
+    index_manager: &SpaceIndexManager,
+    graph_cache: &RwLock<Option<CachedGraph>>,
+    searcher: &Searcher,
+    min_nodes: usize,
+) -> Result<Option<CommunityStats>> {
+    let current_gen = index_manager.generation();
+
+    // Check cache hit
+    {
+        let cache = graph_cache.read().unwrap();
+        if let Some(cached) = cache.as_ref()
+            && cached.index_gen == current_gen
+        {
+            if min_nodes <= 30 {
+                return Ok(cached.community_stats.clone());
+            }
+            // Caller wants higher threshold — recompute without overwriting cache
+            let stats = compute_communities(&cached.graph, min_nodes);
+            return Ok(stats);
+        }
+    }
+
+    // Cache miss — build graph (populates community_stats at threshold=30)
+    get_or_build_graph(
+        index_schema,
+        type_registry,
+        index_manager,
+        graph_cache,
+        searcher,
+        &GraphFilter::default(),
+    )?;
+
+    // Re-read after population
+    {
+        let cache = graph_cache.read().unwrap();
+        if let Some(cached) = cache.as_ref()
+            && cached.index_gen == current_gen
+        {
+            if min_nodes <= 30 {
+                return Ok(cached.community_stats.clone());
+            }
+            let stats = compute_communities(&cached.graph, min_nodes);
+            return Ok(stats);
         }
     }
 

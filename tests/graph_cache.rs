@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use llm_wiki::engine::WikiEngine;
 use llm_wiki::git;
-use llm_wiki::graph::{GraphFilter, get_cached_community_map, get_or_build_graph};
+use llm_wiki::graph::{GraphFilter, get_cached_community_map, get_cached_community_stats, get_or_build_graph};
 
 fn setup_wiki(dir: &Path, name: &str) -> std::path::PathBuf {
     let config_path = dir.join("state").join("config.toml");
@@ -177,4 +177,26 @@ fn get_cached_community_map_returns_none_for_small_graph() {
     .unwrap();
 
     assert!(map.is_none(), "graph too small for community detection");
+}
+
+#[test]
+fn get_cached_community_stats_returns_none_for_small_graph() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "test");
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+    let space = engine.spaces.get("test").unwrap();
+    let searcher = space.index_manager.searcher().unwrap();
+
+    // Test wiki has only 2 nodes — below threshold of 30
+    let stats = get_cached_community_stats(
+        &space.index_schema,
+        &space.type_registry,
+        &space.index_manager,
+        &space.graph_cache,
+        &searcher,
+        30,
+    )
+    .unwrap();
+    assert!(stats.is_none());
 }
