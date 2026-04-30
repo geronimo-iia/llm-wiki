@@ -970,7 +970,6 @@ pub fn subgraph(graph: &WikiGraph, root_slug: &str, depth: usize) -> WikiGraph {
 /// Returns `(None, None)` when graph is below `min_nodes` threshold.
 fn build_community_data(
     graph: &WikiGraph,
-    min_nodes: usize,
 ) -> (Option<CommunityStats>, Option<HashMap<String, usize>>) {
     let local_nodes: Vec<NodeIndex> = {
         let mut v: Vec<NodeIndex> = graph
@@ -981,7 +980,7 @@ fn build_community_data(
         v
     };
 
-    if local_nodes.len() < min_nodes {
+    if local_nodes.len() < 30 {
         return (None, None);
     }
 
@@ -1073,7 +1072,7 @@ pub fn get_or_build_graph(
 
     // Cache miss — build
     let graph = Arc::new(build_graph(searcher, index_schema, filter, type_registry)?);
-    let (community_stats, community_map_raw) = build_community_data(&graph, 30);
+    let (community_stats, community_map_raw) = build_community_data(&graph);
     let community_map = community_map_raw.map(Arc::new);
 
     *graph_cache.write().unwrap() = Some(CachedGraph {
@@ -1162,6 +1161,9 @@ pub fn get_cached_community_stats(
                 return Ok(cached.community_stats.clone());
             }
             // Caller wants higher threshold — recompute without overwriting cache
+            // NOTE: when min_nodes > 30, this calls compute_communities separately from
+            // get_cached_community_map's node_community_map call — community IDs may diverge.
+            // Current callers always use min_nodes=30 (the cached threshold) so this is safe.
             let stats = compute_communities(&cached.graph, min_nodes);
             return Ok(stats);
         }
@@ -1186,6 +1188,9 @@ pub fn get_cached_community_stats(
             if min_nodes <= 30 {
                 return Ok(cached.community_stats.clone());
             }
+            // NOTE: when min_nodes > 30, this calls compute_communities separately from
+            // get_cached_community_map's node_community_map call — community IDs may diverge.
+            // Current callers always use min_nodes=30 (the cached threshold) so this is safe.
             let stats = compute_communities(&cached.graph, min_nodes);
             return Ok(stats);
         }
