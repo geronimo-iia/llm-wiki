@@ -1,6 +1,6 @@
 [package]
 name = "llm-wiki-engine"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.95"
 description = "Git-backed wiki engine with MCP server — bring your own LLM"
