@@ -4,7 +4,9 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::engine::EngineState;
-use crate::graph::{self, CommunityStats, GraphFilter, get_cached_community_stats, get_or_build_graph};
+use crate::graph::{
+    self, CommunityStats, GraphFilter, get_cached_community_stats, get_or_build_graph,
+};
 use crate::search;
 use tantivy::schema::Value;
 
