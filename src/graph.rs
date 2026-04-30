@@ -976,7 +976,7 @@ fn build_community_data(
             .node_indices()
             .filter(|&idx| !graph[idx].external)
             .collect();
-        v.sort_by_key(|&i| graph[i].slug.clone());
+        v.sort_by(|&a, &b| graph[a].slug.cmp(&graph[b].slug));
         v
     };
 
@@ -1095,6 +1095,8 @@ pub fn get_cached_community_map(
     searcher: &Searcher,
     min_nodes: usize,
 ) -> Result<Option<Arc<HashMap<String, usize>>>> {
+    debug_assert!(min_nodes <= 30, "min_nodes > 30 bypasses cache and runs a fresh Louvain pass");
+
     let current_gen = index_manager.generation();
 
     // Check cache hit
@@ -1122,12 +1124,10 @@ pub fn get_cached_community_map(
         &GraphFilter::default(),
     )?;
 
-    // Re-read
+    // Re-read (no gen check — cache is valid at whatever generation get_or_build_graph wrote)
     {
         let cache = graph_cache.read().unwrap();
-        if let Some(cached) = cache.as_ref()
-            && cached.index_gen == current_gen
-        {
+        if let Some(cached) = cache.as_ref() {
             if min_nodes <= 30 {
                 return Ok(cached.community_map.clone());
             }
@@ -1149,6 +1149,8 @@ pub fn get_cached_community_stats(
     searcher: &Searcher,
     min_nodes: usize,
 ) -> Result<Option<CommunityStats>> {
+    debug_assert!(min_nodes <= 30, "min_nodes > 30 runs separate Louvain passes for stats vs map — IDs may diverge");
+
     let current_gen = index_manager.generation();
 
     // Check cache hit
@@ -1179,12 +1181,10 @@ pub fn get_cached_community_stats(
         &GraphFilter::default(),
     )?;
 
-    // Re-read after population
+    // Re-read after population (no gen check — cache is valid at whatever generation get_or_build_graph wrote)
     {
         let cache = graph_cache.read().unwrap();
-        if let Some(cached) = cache.as_ref()
-            && cached.index_gen == current_gen
-        {
+        if let Some(cached) = cache.as_ref() {
             if min_nodes <= 30 {
                 return Ok(cached.community_stats.clone());
             }
