@@ -125,10 +125,14 @@ by `ops/stats.rs` to skip Louvain on cache hit.
 
 ## Cache population
 
-On cache miss, calls `build_community_data(graph)` — a private helper that
+On cache miss, calls `build_community_data(graph, 30)` — a private helper that
 runs Louvain exactly once and returns both `CommunityStats` and
 `HashMap<String, usize>` (community map). Both fields are stored in
 `CachedGraph` atomically.
+
+`compute_communities` and `node_community_map` are thin wrappers over
+`build_community_data` — they extract `.0` and `.1` respectively. This ensures
+all three entry points share identical Louvain logic with no duplication.
 
 The community threshold used is `30` (the default config value). Callers
 requesting a higher threshold get a fresh recompute without overwriting the
