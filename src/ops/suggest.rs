@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use tantivy::schema::Value;
 
 use crate::engine::EngineState;
-use crate::graph::{self, GraphFilter, get_or_build_graph};
+use crate::graph::{self, GraphFilter, get_cached_community_map, get_or_build_graph};
 use crate::search;
 use crate::slug::{Slug, WikiUri};
 
@@ -209,7 +209,14 @@ pub fn suggest(
 
     // Strategy 4: Community peers (same Louvain community, not already linked)
     if let Some(community_map) =
-        graph::node_community_map(&wiki_graph, resolved.graph.min_nodes_for_communities)
+        get_cached_community_map(
+            &space.index_schema,
+            &space.type_registry,
+            &space.index_manager,
+            &space.graph_cache,
+            &searcher,
+            resolved.graph.min_nodes_for_communities,
+        )?
         && let Some(&my_community) = community_map.get(slug.as_str())
     {
         let mut peers: Vec<&str> = community_map
