@@ -31,23 +31,31 @@ pub async fn serve_acp(
     sessions: Sessions,
     mut push_rx: tokio::sync::mpsc::Receiver<(String, String)>,
 ) -> Result<()> {
-    let shared_cx: Arc<Mutex<Option<ConnectionTo<Client>>>> = Arc::new(Mutex::new(None));
+    let (cx_tx, cx_rx) = tokio::sync::watch::channel::<Option<ConnectionTo<Client>>>(None);
+    let cx_tx = Arc::new(cx_tx);
 
-    // Push task: receive watcher events and forward to idle sessions
+    // Push task: block until a cx is available, then forward watcher events to idle sessions
     {
         let sessions = sessions.clone();
-        let shared_cx = shared_cx.clone();
         tokio::spawn(async move {
+            // Wait for the first Prompt to establish the connection handle
+            let mut cx_rx = cx_rx;
+            let cx = loop {
+                if cx_rx.changed().await.is_err() {
+                    return; // channel closed, server shutting down
+                }
+                if let Some(cx) = cx_rx.borrow().clone() {
+                    break cx;
+                }
+            };
             while let Some((wiki_name, msg)) = push_rx.recv().await {
-                let cx_opt = shared_cx.lock().ok().and_then(|g| g.clone());
-                if let Some(cx) = cx_opt {
-                    if let Ok(s) = sessions.lock() {
-                        for (id, sess) in s.iter() {
-                            if sess.wiki.as_deref() == Some(&wiki_name) && sess.active_run.is_none()
-                            {
-                                let sid = SessionId::new(id.clone());
-                                let _ = send_text(&cx, &sid, &msg);
-                            }
+                // Refresh cx in case it was updated
+                let cx = cx_rx.borrow().clone().unwrap_or_else(|| cx.clone());
+                if let Ok(s) = sessions.lock() {
+                    for (id, sess) in s.iter() {
+                        if sess.wiki.as_deref() == Some(&wiki_name) && sess.active_run.is_none() {
+                            let sid = SessionId::new(id.clone());
+                            let _ = send_text(&cx, &sid, &msg);
                         }
                     }
                 }
@@ -181,11 +189,9 @@ pub async fn serve_acp(
             {
                 let mgr = manager.clone();
                 let sessions = sessions.clone();
-                let shared_cx = shared_cx.clone();
+                let cx_tx = cx_tx.clone();
                 async move |req: PromptRequest, responder, cx: ConnectionTo<Client>| {
-                    if let Ok(mut g) = shared_cx.lock() {
-                        *g = Some(cx.clone());
-                    }
+                    let _ = cx_tx.send(Some(cx.clone()));
                     let text = extract_prompt_text(&req);
                     let (workflow, query) = dispatch_workflow(&text);
                     let session_id_str = req.session_id.to_string();

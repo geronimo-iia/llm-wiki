@@ -98,9 +98,12 @@ changed wiki:
 Wiki "<name>" updated: <N> page(s) changed.
 ```
 
-The notification is sent via a `tokio::sync::mpsc` channel from the
-watcher task to the ACP server. Sessions with an active run are skipped
-to avoid interleaving messages.
+The watcher sends `(wiki_name, message)` tuples via a `tokio::sync::mpsc`
+channel. The ACP server's push task blocks on a `tokio::sync::watch` channel
+until the first `Prompt` arrives and establishes the connection handle —
+watcher events that arrive before the first prompt are buffered in the mpsc
+channel and delivered once the connection is ready. Sessions with an active
+run are skipped to avoid interleaving messages.
 
 
 ## Zed Configuration
