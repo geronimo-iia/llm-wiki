@@ -5,19 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] — Unreleased
+## [0.3.0] — 2026-05-01
 
 ### Added
 
+- **ACP workflows** — six built-in workflows dispatched by `llm-wiki:` prefix: `research`, `lint`, `graph`, `ingest`, `use`, `help`; `step_read` streams page body directly into the IDE; bare prompts fall through to `research`; `--http` flag required alongside `--acp` to give ACP exclusive stdio (MCP displaces to HTTP port)
 - **In-memory graph cache** — full wiki graph and Louvain community data cached per space, keyed on index generation; invalidated automatically after any index write; `wiki_graph`, `wiki_stats`, and `wiki_suggest` skip rebuild on cache hit in serve mode; cross-wiki path uses per-space cached graphs via `merge_cached_graphs`
-
 - **ACP cooperative cancellation** — `AcpSession` carries a `cancelled: Arc<AtomicBool>` flag; the `cancel` notification handler sets the flag immediately; every workflow polls between steps (`research`: after search, `lint`: between each finding, `graph`/`ingest`: before dispatch); a `"Cancelled."` message is sent and the run exits cleanly; the flag resets to `false` on each new `Prompt`
-
 - **ACP session cap** — `serve.acp_max_sessions` config key (default: 20, global-only); `NewSession` returns `InvalidParams` with `"Session limit reached (max: N)"` when the cap is exceeded; configurable via `llm-wiki config set serve.acp_max_sessions <n> --global`
-
 - **ACP `ListSessions` active-run state** — sessions with an ongoing tool run are reported with a `[active]` prefix in the title field (e.g. `[active] my-session`); clients can distinguish idle from busy sessions without polling
-
 - **Proactive watcher push** — `llm-wiki serve --acp --watch` now pushes `"Wiki \"<name>\" updated: <N> page(s) changed."` to all idle ACP sessions targeting the changed wiki after each watcher-triggered ingest; delivered via `tokio::sync::mpsc` from the watcher task; the ACP push task blocks on a `tokio::sync::watch` channel until the first `Prompt` establishes the connection handle — watcher events that arrive before the first prompt are buffered (channel capacity 64) and delivered once the connection is ready; sessions with an active run are skipped
+- **Configurable `wiki_root`** — `wiki_root` key in `wiki.toml` (default `"wiki"`); all hardcoded `wiki/` paths replaced by `SpaceContext.wiki_root`; supports multi-component paths (e.g. `"src/wiki"`); validated at registration time using canonicalized paths (symlink-safe, reserved-dir checks); zero behavior change for existing wikis
+- **`wiki_spaces_register` tool** — new MCP tool and `llm-wiki spaces register` CLI subcommand; registers a pre-existing repository without creating files or git commits; validates `wiki_root` exists before completing; errors on conflicting `--wiki-root` vs `wiki.toml` value (no `--force`); hot-mounts the wiki if the server is running (tool count: 22 → 23)
+- **`--wiki-root` flag on `spaces create`** — creates the specified directory instead of `wiki/`; writes `wiki_root` into the generated `wiki.toml` when non-default
+- **ACP validation suite** — `docs/testing/scripts/validate-acp.sh` + per-section scripts in `docs/testing/scripts/acp/`; `setup-test-env.sh` configures ACP test settings; integrated into `.github/workflows/integration.yml` as `suite: acp`
 
 ## [0.2.0] — 2026-04-28
 

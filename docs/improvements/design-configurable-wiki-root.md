@@ -4,7 +4,7 @@ summary: "Add wiki_root to wiki.toml so repos with non-standard content director
 read_when:
   - Implementing wiki_root support in the engine
   - Understanding what changes are needed in specs and guides
-status: proposal
+status: implemented
 last_updated: "2026-05-01"
 ---
 
