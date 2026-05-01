@@ -16,8 +16,8 @@ use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 use crate::engine::WikiEngine;
 
-use super::helpers::{clear_active_run, resolve_wiki_name, send_text, session_cwd};
 use super::graph::run_graph;
+use super::helpers::{clear_active_run, resolve_wiki_name, send_text, session_cwd};
 use super::ingest::run_ingest;
 use super::lint::run_lint;
 use super::research::run_research;

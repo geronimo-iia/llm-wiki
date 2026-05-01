@@ -36,7 +36,13 @@ pub fn step_lint(
                 "{} findings ({} errors, {} warnings)",
                 report.total, report.errors, report.warnings
             );
-            send_tool_result(cx, session_id, &tool_id, ToolCallStatus::Completed, &summary)?;
+            send_tool_result(
+                cx,
+                session_id,
+                &tool_id,
+                ToolCallStatus::Completed,
+                &summary,
+            )?;
             for f in &report.findings {
                 send_text(
                     cx,
@@ -47,7 +53,13 @@ pub fn step_lint(
             Ok(())
         }
         Err(e) => {
-            send_tool_result(cx, session_id, &tool_id, ToolCallStatus::Failed, &format!("{e}"))?;
+            send_tool_result(
+                cx,
+                session_id,
+                &tool_id,
+                ToolCallStatus::Failed,
+                &format!("{e}"),
+            )?;
             Ok(())
         }
     }

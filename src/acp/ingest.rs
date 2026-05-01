@@ -44,11 +44,23 @@ pub fn step_ingest(
                 report.unchanged_count,
                 report.warnings.len(),
             );
-            send_tool_result(cx, session_id, &tool_id, ToolCallStatus::Completed, &summary)?;
+            send_tool_result(
+                cx,
+                session_id,
+                &tool_id,
+                ToolCallStatus::Completed,
+                &summary,
+            )?;
             Ok(())
         }
         Err(e) => {
-            send_tool_result(cx, session_id, &tool_id, ToolCallStatus::Failed, &format!("{e}"))?;
+            send_tool_result(
+                cx,
+                session_id,
+                &tool_id,
+                ToolCallStatus::Failed,
+                &format!("{e}"),
+            )?;
             Ok(())
         }
     }

@@ -43,13 +43,28 @@ pub fn step_graph(
 
     match result {
         Ok(gr) => {
-            let summary = format!("Graph: {} nodes, {} edges", gr.report.nodes, gr.report.edges);
-            send_tool_result(cx, session_id, &tool_id, ToolCallStatus::Completed, &summary)?;
+            let summary = format!(
+                "Graph: {} nodes, {} edges",
+                gr.report.nodes, gr.report.edges
+            );
+            send_tool_result(
+                cx,
+                session_id,
+                &tool_id,
+                ToolCallStatus::Completed,
+                &summary,
+            )?;
             send_text(cx, session_id, &gr.rendered)?;
             Ok(())
         }
         Err(e) => {
-            send_tool_result(cx, session_id, &tool_id, ToolCallStatus::Failed, &format!("{e}"))?;
+            send_tool_result(
+                cx,
+                session_id,
+                &tool_id,
+                ToolCallStatus::Failed,
+                &format!("{e}"),
+            )?;
             Ok(())
         }
     }
