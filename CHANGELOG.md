@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **In-memory graph cache** — full wiki graph and Louvain community data cached per space, keyed on index generation; invalidated automatically after any index write; `wiki_graph`, `wiki_stats`, and `wiki_suggest` skip rebuild on cache hit in serve mode; cross-wiki path uses per-space cached graphs via `merge_cached_graphs`
 
+- **ACP cooperative cancellation** — `AcpSession` carries a `cancelled: Arc<AtomicBool>` flag; the `cancel` notification handler sets the flag immediately; every workflow polls between steps (`research`: after search, `lint`: between each finding, `graph`/`ingest`: before dispatch); a `"Cancelled."` message is sent and the run exits cleanly; the flag resets to `false` on each new `Prompt`
+
+- **ACP session cap** — `serve.acp_max_sessions` config key (default: 20, global-only); `NewSession` returns `InvalidParams` with `"Session limit reached (max: N)"` when the cap is exceeded; configurable via `llm-wiki config set serve.acp_max_sessions <n> --global`
+
+- **ACP `ListSessions` active-run state** — sessions with an ongoing tool run are reported with a `[active]` prefix in the title field (e.g. `[active] my-session`); clients can distinguish idle from busy sessions without polling
+
+- **Proactive watcher push** — `llm-wiki serve --acp --watch` now pushes `"Wiki \"<name>\" updated: <N> page(s) changed."` to all idle ACP sessions targeting the changed wiki after each watcher-triggered ingest; delivered via `tokio::sync::mpsc` from the watcher task; the ACP push task blocks on a `tokio::sync::watch` channel until the first `Prompt` establishes the connection handle — watcher events that arrive before the first prompt are buffered (channel capacity 64) and delivered once the connection is ready; sessions with an active run are skipped
+
 ## [0.2.0] — 2026-04-28
 
 ### Added
