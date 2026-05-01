@@ -1,5 +1,6 @@
+use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use rmcp::ServiceExt;
@@ -165,6 +166,10 @@ pub async fn serve(
     }
 
     // 6. Start watcher (if enabled)
+    // Push channel: watcher sends (wiki_name, message) to ACP sessions.
+    // The original sender is dropped after spawning the watcher; only the watcher clone remains.
+    let (push_tx, push_rx) = tokio::sync::mpsc::channel::<(String, String)>(64);
+
     let watch_handle = if watch {
         let watch_manager = manager.clone();
         let cancel_watch = cancel.clone();
@@ -172,12 +177,17 @@ pub async fn serve(
             let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
             engine.config.watch.debounce_ms
         };
+        let push_tx_watch = push_tx;
         Some(tokio::spawn(async move {
-            if let Err(e) = crate::watch::run_watcher(watch_manager, debounce, cancel_watch).await {
+            if let Err(e) =
+                crate::watch::run_watcher(watch_manager, debounce, cancel_watch, push_tx_watch)
+                    .await
+            {
                 tracing::error!(error = %e, "watcher error");
             }
         }))
     } else {
+        drop(push_tx);
         None
     };
 
@@ -185,10 +195,12 @@ pub async fn serve(
     if acp {
         let acp_manager = manager.clone();
         let cancel_acp = cancel.clone();
+        let acp_sessions: crate::acp::Sessions = Arc::new(Mutex::new(HashMap::new()));
+        let acp_serve_cfg = serve_cfg.clone();
 
         let acp_handle = tokio::spawn(async move {
             tokio::select! {
-                result = crate::acp::serve_acp(acp_manager) => {
+                result = crate::acp::serve_acp(acp_manager, acp_serve_cfg, acp_sessions, push_rx) => {
                     if let Err(e) = result {
                         tracing::error!(transport = "acp", error = %e, "ACP transport error");
                     }

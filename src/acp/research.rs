@@ -1,10 +1,14 @@
+use std::sync::atomic::Ordering;
+
 use agent_client_protocol::schema::{SessionId, ToolCallStatus, ToolKind};
 use agent_client_protocol::{Client, ConnectionTo};
 
 use crate::engine::WikiEngine;
 use crate::ops;
 
-use super::helpers::{clear_active_run, send_text, send_tool_call, send_tool_result};
+use super::helpers::{
+    clear_active_run, get_cancelled, send_text, send_tool_call, send_tool_result,
+};
 use super::{Sessions, make_tool_id};
 
 // ── Reusable workflow steps ───────────────────────────────────────────────────
@@ -77,6 +81,7 @@ pub fn step_read(
     workflow: &str,
     slug: &str,
     wiki_name: &str,
+    stream_content: bool,
 ) -> std::result::Result<(), agent_client_protocol::schema::Error> {
     let tool_id = make_tool_id(workflow, "read");
     send_tool_call(
@@ -96,6 +101,13 @@ pub fn step_read(
     };
 
     match result {
+        Ok(crate::ops::ContentReadResult::Page(body)) => {
+            send_tool_result(cx, session_id, &tool_id, ToolCallStatus::Completed, "")?;
+            if stream_content {
+                send_text(cx, session_id, &body)?;
+            }
+            Ok(())
+        }
         Ok(_) => send_tool_result(cx, session_id, &tool_id, ToolCallStatus::Completed, ""),
         Err(e) => send_tool_result(
             cx,
@@ -142,9 +154,21 @@ pub fn run_research(
     query: &str,
     wiki_name: &str,
 ) -> std::result::Result<(), agent_client_protocol::schema::Error> {
+    let cancelled = get_cancelled(sessions, &session_id.to_string());
+
     send_text(cx, session_id, &format!("Searching for: {query}..."))?;
 
     let results = step_search(cx, manager, session_id, "research", query, wiki_name, 5)?;
+
+    if cancelled
+        .as_ref()
+        .map(|c| c.load(Ordering::Relaxed))
+        .unwrap_or(false)
+    {
+        send_text(cx, session_id, "Cancelled.")?;
+        clear_active_run(sessions, &session_id.to_string());
+        return Ok(());
+    }
 
     if results.is_empty() {
         send_text(
@@ -160,6 +184,7 @@ pub fn run_research(
             "research",
             &results[0].slug,
             wiki_name,
+            false,
         )?;
         step_report_results(cx, session_id, &results, wiki_name)?;
     }

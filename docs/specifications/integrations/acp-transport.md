@@ -4,7 +4,7 @@ summary: "ACP server for Zed and VS Code agent panels — session-oriented, stre
 read_when:
   - Integrating llm-wiki with Zed or VS Code agent panel
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2026-05-01"
 ---
 
 # ACP Transport
@@ -18,7 +18,7 @@ IDE agent with zero MCP configuration required.
 
 MCP is request/response — the IDE calls a tool, gets a result, no
 streaming. ACP is session-oriented and streaming — every step of a
-multi-turn workflow streams back as events visible to the user.
+multi-step workflow streams back as events visible to the user.
 
 | Concern                  | MCP stdio           | ACP stdio            |
 | ------------------------ | ------------------- | -------------------- |
@@ -26,6 +26,14 @@ multi-turn workflow streams back as events visible to the user.
 | Streaming workflow steps | not visible         | streams as events    |
 | Session continuity       | stateless           | named sessions       |
 | Cancel mid-workflow      | not supported       | `cancel` message     |
+
+**Important:** ACP `tool_call` events are IDE notifications — they show
+the user what the server is doing. They are not LLM-invoked tool calls.
+The LLM sends one prompt; the server runs a fixed Rust workflow and streams
+progress back. The LLM has no agency mid-workflow.
+
+Multi-step agentic work (deciding which tools to call based on results)
+requires MCP. ACP and MCP are complementary, not exclusive.
 
 
 ## Protocol
@@ -49,23 +57,58 @@ Sessions are transient conversation threads stored in memory for the
 process lifetime. A session targets a specific wiki from the spaces
 config (default wiki if not specified).
 
+### Session fields
 
-## Streaming
+| Field        | Type               | Description                                                  |
+| ------------ | ------------------ | ------------------------------------------------------------ |
+| `id`         | `String`           | Unique ID assigned at `NewSession` (millisecond timestamp)   |
+| `label`      | `Option<String>`   | Human-readable name; shown in IDE session list               |
+| `wiki`       | `Option<String>`   | Wiki name from `NewSession` metadata; falls back to default  |
+| `created_at` | `u64`              | Unix timestamp (seconds) when the session was created        |
+| `active_run` | `Option<String>`   | ID of the currently executing tool run, or `None`            |
+| `cancelled`  | `Arc<AtomicBool>`  | Cooperative cancellation flag (see below)                    |
 
-Each workflow streams intermediate events:
+### Cancel semantics
+
+When a client sends a `cancel` notification, the server sets
+`cancelled = true` (atomic, Relaxed ordering). Each workflow polls this
+flag at safe points between steps:
+
+- `research` — after search, before read
+- `lint` — between each finding streamed
+- `graph` — before dispatch
+- `ingest` — before dispatch
+
+On cancellation, the workflow sends `"Cancelled."` to the session and
+exits cleanly. The flag is reset to `false` at the start of each new
+`Prompt`.
+
+### Session cap
+
+`serve.acp_max_sessions` (default: 20) limits concurrent sessions.
+`NewSession` returns an `InvalidParams` error when the cap is reached.
+
+### Watcher push
+
+When `llm-wiki serve --acp --watch` is running, the filesystem watcher
+pushes a notification to all idle sessions (no active run) targeting the
+changed wiki:
 
 ```
-prompt: "what do we know about MoE scaling?"
-
-→ message: "Searching for: MoE scaling..."
-→ tool_call: wiki_search("MoE scaling")
-→ tool_call: wiki_content_read("concepts/moe")
-→ message: "Based on 2 pages: MoE reduces compute 8x..."
-→ done
+Wiki "<name>" updated: <N> page(s) changed.
 ```
+
+The watcher sends `(wiki_name, message)` tuples via a `tokio::sync::mpsc`
+channel. The ACP server's push task blocks on a `tokio::sync::watch` channel
+until the first `Prompt` arrives and establishes the connection handle —
+watcher events that arrive before the first prompt are buffered in the mpsc
+channel and delivered once the connection is ready. Sessions with an active
+run are skipped to avoid interleaving messages.
 
 
 ## Zed Configuration
+
+Zed needs **both** ACP and MCP configured to use the full workflow:
 
 ```json
 {
@@ -76,15 +119,163 @@ prompt: "what do we know about MoE scaling?"
       "args": ["serve", "--acp"],
       "env": {}
     }
+  },
+  "context_servers": {
+    "llm-wiki-mcp": {
+      "command": "llm-wiki",
+      "args": ["serve"]
+    }
   }
 }
 ```
 
+- **ACP** (`agent_servers`) — streaming panel, workflow triggers, skill loading
+- **MCP** (`context_servers`) — LLM tool calls for agentic work (write pages,
+  search, resolve slugs, etc.)
+
+With ACP only, the LLM is limited to triggering fixed server-side workflows.
+With both, the LLM can follow skills (loaded via `llm-wiki:use`) and call
+any of the 22 MCP tools directly.
+
+
+## Workflows
+
+Prompts are dispatched by prefix. Bare prompts (no `llm-wiki:` prefix) default
+to the `research` workflow.
+
+```
+llm-wiki:<workflow> <args>
+```
+
+### Dispatch rules
+
+| Prefix | Workflow | Args |
+|--------|----------|------|
+| `llm-wiki:research <query>` | research | search query |
+| `llm-wiki:lint [rules]` | lint | comma-separated rule names, or empty for all |
+| `llm-wiki:graph [slug]` | graph | optional root slug for subgraph |
+| `llm-wiki:ingest [path]` | ingest | path to file or directory; defaults to wiki root |
+| `llm-wiki:use <slug>` | use | slug of page to read in full |
+| `llm-wiki:help` | help | — |
+| `<bare prompt>` | research | full prompt text as query |
+| `llm-wiki:<unknown>` | — | error → help hint |
+
+### `research`
+
+Searches the wiki and reads the top result.
+
+```
+→ tool_call: wiki_search("<query>")
+→ tool_result: top matches
+→ tool_call: wiki_content_read("<top-slug>")
+→ message: slug list
+→ done
+```
+
+Streams a gap note when no results found. Multi-step synthesis with
+decisions belongs in the `research` skill (MCP + skills), not here.
+
+### `lint`
+
+Runs lint rules and streams each finding.
+
+```
+→ tool_call: wiki_lint [rules=<rules>]
+→ tool_result: "<N> findings (<E> errors, <W> warnings)"
+→ message: "[<severity>] <slug>: <message>"  (one per finding)
+→ done
+```
+
+`rules` is a comma-separated subset of: `orphan`, `broken-link`,
+`missing-fields`, `stale`, `unknown-type`, `broken-cross-wiki-link`.
+Empty or absent means all rules.
+
+### `graph`
+
+Renders the concept graph in `llms` format.
+
+```
+→ tool_call: wiki_graph [root=<slug>]
+→ tool_result: "Graph: <N> nodes, <E> edges"
+→ message: <llms-format graph description>
+→ done
+```
+
+If `slug` is provided, renders a subgraph rooted at that slug (default depth
+from config). Empty prompt renders the full wiki graph.
+
+### `ingest`
+
+Validates and indexes pages, then reports the result.
+
+```
+→ tool_call: wiki_ingest: <path>
+→ tool_result: "Ingested: <N> pages validated, <W> warnings, commit=<sha|none>"
+→ done
+```
+
+Path defaults to the wiki root when omitted. Warnings are counted but not
+individually streamed (use `lint` to inspect individual findings).
+
+### `use`
+
+Reads a single page and streams its full body to the IDE. Primary use:
+loading a skill from the wiki into the agent context so the LLM can follow
+its instructions using MCP tools.
+
+```
+→ tool_call: wiki_content_read("<slug>")
+→ tool_result: <page body>
+→ done
+```
+
+Requires a slug argument. Responds with a usage hint if omitted.
+
+Example:
+```
+llm-wiki:use skills/research   → loads research skill
+llm-wiki:use skills/ingest     → loads ingest skill
+llm-wiki:use skills/crystallize → loads crystallize skill
+```
+
+After loading a skill, the LLM follows its instructions using MCP tool calls.
+
+### `help`
+
+Returns a plain-text listing of all available workflows with one-line
+descriptions. Also returned (with an "unknown workflow" prefix) for any
+unrecognised `llm-wiki:<x>` prefix.
+
+### Error contract
+
+All workflows follow the same error contract: on `ops` failure, the tool call
+status is set to `Failed` with the error message in the result body, and the
+workflow exits cleanly (no panic, no `done` suppressed). The IDE always
+receives a `done` event.
+
+
+## ACP + MCP + Skills: combined workflow
+
+The three layers are designed to work together:
+
+```
+llm-wiki:use skills/crystallize     ← ACP: load skill body into LLM context
+                ↓
+LLM reads skill, follows instructions using MCP:
+  wiki_content_new("concept/moe-scaling")   ← MCP tool call
+  wiki_content_write(slug, body)            ← MCP tool call
+                ↓
+llm-wiki:ingest                     ← ACP: trigger ingest, stream progress
+```
+
+ACP handles streaming and IDE visibility. MCP gives the LLM tool access.
+Skills tell the LLM what to do.
+
 
 ## What ACP Does Not Replace
 
-- **MCP stdio** — agent pipelines, Claude Code tool calls, batch ingest
+- **MCP stdio** — agentic tool use, Claude Code, batch ingest
 - **MCP SSE** — remote multi-client access (ACP is stdio-only)
 
 See [server.md](../engine/server.md) for transport configuration and
-resilience.
+[mcp-clients.md](mcp-clients.md) for MCP client setup.

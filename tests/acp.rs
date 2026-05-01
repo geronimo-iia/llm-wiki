@@ -44,6 +44,62 @@ fn dispatch_prefix_with_extra_spaces() {
     assert_eq!(t, "spaced query");
 }
 
+#[test]
+fn dispatch_lint_no_args() {
+    let (wf, q) = dispatch_workflow("llm-wiki:lint");
+    assert_eq!(wf, "lint");
+    assert_eq!(q, "");
+}
+
+#[test]
+fn dispatch_lint_with_rules() {
+    let (wf, q) = dispatch_workflow("llm-wiki:lint orphan,stale");
+    assert_eq!(wf, "lint");
+    assert_eq!(q, "orphan,stale");
+}
+
+#[test]
+fn dispatch_graph_no_root() {
+    let (wf, q) = dispatch_workflow("llm-wiki:graph");
+    assert_eq!(wf, "graph");
+    assert_eq!(q, "");
+}
+
+#[test]
+fn dispatch_graph_with_root() {
+    let (wf, q) = dispatch_workflow("llm-wiki:graph concepts/transformer");
+    assert_eq!(wf, "graph");
+    assert_eq!(q, "concepts/transformer");
+}
+
+#[test]
+fn dispatch_ingest_no_path() {
+    let (wf, q) = dispatch_workflow("llm-wiki:ingest");
+    assert_eq!(wf, "ingest");
+    assert_eq!(q, "");
+}
+
+#[test]
+fn dispatch_use() {
+    let (wf, q) = dispatch_workflow("llm-wiki:use concepts/moe");
+    assert_eq!(wf, "use");
+    assert_eq!(q, "concepts/moe");
+}
+
+#[test]
+fn dispatch_use_no_slug() {
+    let (wf, q) = dispatch_workflow("llm-wiki:use");
+    assert_eq!(wf, "use");
+    assert_eq!(q, "");
+}
+
+#[test]
+fn dispatch_help() {
+    let (wf, q) = dispatch_workflow("llm-wiki:help");
+    assert_eq!(wf, "help");
+    assert_eq!(q, "");
+}
+
 // ── Tool ID ───────────────────────────────────────────────────────────────────
 
 #[test]

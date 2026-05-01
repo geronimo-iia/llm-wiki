@@ -20,10 +20,12 @@ enum WatchAction {
 // ── run_watcher ───────────────────────────────────────────────────────────────
 
 /// Start watching all mounted wikis. Runs until the cancellation token fires.
+/// `push_tx`: optional channel to notify ACP sessions of watcher-triggered ingests.
 pub async fn run_watcher(
     engine: Arc<WikiEngine>,
     debounce_ms: u32,
     cancel: CancellationToken,
+    push_tx: tokio::sync::mpsc::Sender<(String, String)>,
 ) -> Result<()> {
     let (tx, mut rx) = mpsc::channel::<(String, PathBuf)>(256);
 
@@ -128,6 +130,11 @@ pub async fn run_watcher(
                                     duration_ms = start.elapsed().as_millis() as u64,
                                     "watch: ingested",
                                 );
+                                let msg = format!(
+                                    "Wiki \"{wiki_name}\" updated: {} page(s) changed.",
+                                    report.updated + report.deleted
+                                );
+                                let _ = push_tx.try_send((wiki_name.clone(), msg));
                             }
                         }
                         Err(e) => {

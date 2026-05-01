@@ -1,8 +1,12 @@
+mod graph;
 mod helpers;
+mod ingest;
+mod lint;
 mod research;
 mod server;
 
 use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::{ContentBlock, PromptRequest};
@@ -23,9 +27,12 @@ pub struct AcpSession {
     pub created_at: u64,
     /// ID of the currently executing tool run, if any.
     pub active_run: Option<String>,
+    /// Cooperative cancellation flag. Set by cancel handler; polled by workflow steps.
+    pub cancelled: Arc<AtomicBool>,
 }
 
-type Sessions = Arc<Mutex<HashMap<String, AcpSession>>>;
+/// Shared map of active ACP sessions, keyed by session ID.
+pub type Sessions = Arc<Mutex<HashMap<String, AcpSession>>>;
 
 // ── Dispatch ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +60,9 @@ fn extract_prompt_text(req: &PromptRequest) -> String {
         .collect::<Vec<_>>()
         .join(" ")
 }
+
+/// Convenience alias for ACP step return values.
+pub type StepResult<T = ()> = std::result::Result<T, agent_client_protocol::schema::Error>;
 
 /// Generate a unique tool-run ID from workflow name, step name, and current timestamp.
 pub fn make_tool_id(workflow: &str, step: &str) -> String {

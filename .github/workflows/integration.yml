@@ -8,7 +8,7 @@ on:
         required: false
         default: "both"
         type: choice
-        options: [both, engine, mcp]
+        options: [both, engine, mcp, acp, all]
 
 env:
   CARGO_TERM_COLOR: always
@@ -30,12 +30,12 @@ jobs:
         run: cargo build --locked
 
       - uses: actions/setup-go@v6
-        if: ${{ inputs.suite == 'both' || inputs.suite == 'mcp' }}
+        if: ${{ inputs.suite == 'both' || inputs.suite == 'mcp' || inputs.suite == 'all' }}
         with:
           go-version: stable
 
       - name: Install mcptools
-        if: ${{ inputs.suite == 'both' || inputs.suite == 'mcp' }}
+        if: ${{ inputs.suite == 'both' || inputs.suite == 'mcp' || inputs.suite == 'all' }}
         run: |
           go install github.com/f/mcptools/cmd/mcptools@latest
           ln -s "$(go env GOPATH)/bin/mcptools" /usr/local/bin/mcp
@@ -50,15 +50,22 @@ jobs:
           bash ./docs/testing/scripts/setup-test-env.sh --dir "$LLM_WIKI_TEST_DIR"
 
       - name: Run engine validation
-        if: ${{ inputs.suite == 'both' || inputs.suite == 'engine' }}
+        if: ${{ inputs.suite == 'both' || inputs.suite == 'engine' || inputs.suite == 'all' }}
         run: |
           LLM_WIKI_BIN=./target/debug/llm-wiki \
           LLM_WIKI_CONFIG="$LLM_WIKI_TEST_DIR/config.toml" \
           bash ./docs/testing/scripts/validate-engine.sh
 
       - name: Run MCP validation
-        if: ${{ inputs.suite == 'both' || inputs.suite == 'mcp' }}
+        if: ${{ inputs.suite == 'both' || inputs.suite == 'mcp' || inputs.suite == 'all' }}
         run: |
           LLM_WIKI_BIN=./target/debug/llm-wiki \
           LLM_WIKI_CONFIG="$LLM_WIKI_TEST_DIR/config.toml" \
           bash ./docs/testing/scripts/validate-mcp.sh
+
+      - name: Run ACP validation
+        if: ${{ inputs.suite == 'acp' || inputs.suite == 'all' }}
+        run: |
+          LLM_WIKI_BIN=./target/debug/llm-wiki \
+          LLM_WIKI_CONFIG="$LLM_WIKI_TEST_DIR/config.toml" \
+          bash ./docs/testing/scripts/validate-acp.sh

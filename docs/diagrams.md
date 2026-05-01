@@ -293,7 +293,54 @@ References:
 - [server.md](specifications/engine/server.md)
 - [decisions/graceful-shutdown.md](decisions/graceful-shutdown.md)
 
-## 10. Engine Startup
+## 10. ACP Workflow Dispatch
+
+How a prompt from an ACP client is dispatched to a workflow.
+
+```mermaid
+sequenceDiagram
+    participant IDE as Zed (ACP client)
+    participant Server as ACP server (stdio)
+    participant WF as workflow (research/lint/…)
+    participant Engine as WikiEngine
+
+    IDE->>Server: session/new {cwd, _meta: {wiki}}
+    Server-->>IDE: {sessionId}
+
+    IDE->>Server: session/prompt {sessionId, prompt: [{type:text, text:…}]}
+    Server->>Server: dispatch_workflow(text)
+
+    alt llm-wiki:research <query> or bare prompt
+        Server->>WF: run_research
+        WF->>Engine: ops::search + ops::content_read
+        WF-->>IDE: session/update (tool_call, tool_call_update)
+    else llm-wiki:lint [rules]
+        Server->>WF: run_lint
+        WF->>Engine: ops::run_lint
+        WF-->>IDE: session/update (tool_call, findings as text)
+    else llm-wiki:graph [root]
+        Server->>WF: run_graph
+        WF->>Engine: ops::graph_build
+        WF-->>IDE: session/update (tool_call, rendered graph)
+    else llm-wiki:ingest [path]
+        Server->>WF: run_ingest
+        WF->>Engine: ops::ingest
+        WF-->>IDE: session/update (tool_call, summary)
+    else llm-wiki:use <slug>
+        Server->>WF: step_read(stream_content=true)
+        WF->>Engine: ops::content_read
+        WF-->>IDE: session/update (tool_call, page body)
+    end
+
+    Server-->>IDE: session/prompt response {stopReason: end_turn}
+```
+
+References:
+- [acp/server.rs](../src/acp/server.rs)
+- [decisions/0.3.0/acp-workflows.md](decisions/0.3.0/acp-workflows.md)
+- [guides/ide-integration.md](guides/ide-integration.md)
+
+## 11. Engine Startup
 
 How `WikiEngine::build` mounts wikis.
 

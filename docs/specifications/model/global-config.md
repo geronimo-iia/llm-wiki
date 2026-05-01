@@ -90,6 +90,7 @@ acp             = false
 max_restarts    = 10
 restart_backoff = 1
 heartbeat_secs  = 60
+acp_max_sessions = 20
 
 [logging]
 log_path      = "~/.llm-wiki/logs"
@@ -169,6 +170,7 @@ is rejected.
 | `serve.max_restarts`    | `10`               | Max transport restarts; `0` = no restart  |
 | `serve.restart_backoff` | `1`                | Initial backoff seconds; doubles, cap 30s |
 | `serve.heartbeat_secs`  | `60`               | Heartbeat interval; `0` = disabled        |
+| `serve.acp_max_sessions` | `20`              | Max concurrent ACP sessions; `NewSession` returns an error when reached |
 | `watch.debounce_ms`    | `500`              | Filesystem watcher debounce interval in ms |
 | `logging.log_path`      | `~/.llm-wiki/logs` | Log file directory; empty = stderr only   |
 | `logging.log_rotation`  | `daily`            | `daily`, `hourly`, `never`                |

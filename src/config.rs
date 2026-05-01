@@ -148,6 +148,10 @@ fn default_community_suggestions_limit() -> usize {
     2
 }
 
+fn default_acp_max_sessions() -> usize {
+    20
+}
+
 /// `[serve]` section — HTTP and ACP server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServeConfig {
@@ -172,6 +176,9 @@ pub struct ServeConfig {
     /// Interval in seconds between ACP heartbeat pings (default: 60).
     #[serde(default = "default_heartbeat_secs")]
     pub heartbeat_secs: u32,
+    /// Maximum number of concurrent ACP sessions (default: 20). Rejects NewSession when reached.
+    #[serde(default = "default_acp_max_sessions")]
+    pub acp_max_sessions: usize,
 }
 
 impl Default for ServeConfig {
@@ -184,6 +191,7 @@ impl Default for ServeConfig {
             max_restarts: 10,
             restart_backoff: 1,
             heartbeat_secs: 60,
+            acp_max_sessions: default_acp_max_sessions(),
         }
     }
 }
@@ -714,6 +722,7 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "serve.max_restarts" => global.serve.max_restarts = value.parse()?,
         "serve.restart_backoff" => global.serve.restart_backoff = value.parse()?,
         "serve.heartbeat_secs" => global.serve.heartbeat_secs = value.parse()?,
+        "serve.acp_max_sessions" => global.serve.acp_max_sessions = value.parse()?,
         "ingest.auto_commit" => global.ingest.auto_commit = value.parse()?,
         "history.follow" => global.history.follow = value.parse()?,
         "history.default_limit" => global.history.default_limit = value.parse()?,
@@ -756,6 +765,7 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "serve.max_restarts" => global.serve.max_restarts.to_string(),
         "serve.restart_backoff" => global.serve.restart_backoff.to_string(),
         "serve.heartbeat_secs" => global.serve.heartbeat_secs.to_string(),
+        "serve.acp_max_sessions" => global.serve.acp_max_sessions.to_string(),
         "validation.type_strictness" => resolved.validation.type_strictness.clone(),
         "logging.log_path" => global.logging.log_path.clone(),
         "logging.log_rotation" => global.logging.log_rotation.clone(),
@@ -888,6 +898,7 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
         | "serve.max_restarts"
         | "serve.restart_backoff"
         | "serve.heartbeat_secs"
+        | "serve.acp_max_sessions"
         | "logging.log_path"
         | "logging.log_rotation"
         | "logging.log_max_files"

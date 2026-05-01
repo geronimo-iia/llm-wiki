@@ -727,7 +727,8 @@ fn main() -> Result<()> {
                     tokio::signal::ctrl_c().await.ok();
                     cancel_for_signal.cancel();
                 });
-                llm_wiki::watch::run_watcher(manager, debounce, cancel).await
+                let (push_tx, _push_rx) = tokio::sync::mpsc::channel(1);
+                llm_wiki::watch::run_watcher(manager, debounce, cancel, push_tx).await
             })?;
             let _ = wiki; // reserved for future single-wiki watch
         }
