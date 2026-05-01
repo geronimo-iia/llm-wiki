@@ -77,6 +77,7 @@ pub fn step_read(
     workflow: &str,
     slug: &str,
     wiki_name: &str,
+    stream_content: bool,
 ) -> std::result::Result<(), agent_client_protocol::schema::Error> {
     let tool_id = make_tool_id(workflow, "read");
     send_tool_call(
@@ -96,6 +97,13 @@ pub fn step_read(
     };
 
     match result {
+        Ok(crate::ops::ContentReadResult::Page(body)) => {
+            send_tool_result(cx, session_id, &tool_id, ToolCallStatus::Completed, "")?;
+            if stream_content {
+                send_text(cx, session_id, &body)?;
+            }
+            Ok(())
+        }
         Ok(_) => send_tool_result(cx, session_id, &tool_id, ToolCallStatus::Completed, ""),
         Err(e) => send_tool_result(
             cx,
@@ -160,6 +168,7 @@ pub fn run_research(
             "research",
             &results[0].slug,
             wiki_name,
+            false,
         )?;
         step_report_results(cx, session_id, &results, wiki_name)?;
     }
