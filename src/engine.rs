@@ -269,7 +269,8 @@ impl WikiEngine {
 
 fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Result<SpaceContext> {
     let repo_root = PathBuf::from(&entry.path);
-    let wiki_root = repo_root.join("wiki");
+    let wiki_cfg = config::load_wiki(&repo_root).unwrap_or_default();
+    let wiki_root = repo_root.join(&wiki_cfg.wiki_root);
     let index_path = state_dir.join("indexes").join(&entry.name);
 
     let (type_registry, index_schema) =

@@ -147,3 +147,37 @@ fn rebuild_index_works() {
 
     assert!(report.pages_indexed >= 1);
 }
+
+#[test]
+fn engine_mounts_wiki_with_custom_wiki_root() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = dir.path().join("state").join("config.toml");
+    let wiki_path = dir.path().join("skills-wiki");
+
+    llm_wiki::spaces::create(
+        &wiki_path,
+        "skills",
+        None,
+        false,
+        true,
+        &config_path,
+        Some("skills"),
+    )
+    .unwrap();
+
+    let wiki_root = wiki_path.join("skills");
+    fs::create_dir_all(wiki_root.join("bootstrap")).unwrap();
+    fs::write(
+        wiki_root.join("bootstrap/SKILL.md"),
+        "---\ntitle: \"Bootstrap\"\ntype: page\nstatus: active\n---\n\nBootstrap skill.\n",
+    )
+    .unwrap();
+    llm_wiki::git::commit(&wiki_path, "add skill page").unwrap();
+
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+    let space = engine.space("skills").unwrap();
+
+    let expected_wiki_root = wiki_path.canonicalize().unwrap().join("skills");
+    assert_eq!(space.wiki_root, expected_wiki_root);
+}
