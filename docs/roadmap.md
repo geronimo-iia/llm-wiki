@@ -2,7 +2,7 @@
 title: "Roadmap"
 summary: "Release history and version planning for llm-wiki."
 status: ready
-last_updated: "2026-04-28"
+last_updated: "2026-05-01"
 ---
 
 # Roadmap
@@ -32,13 +32,21 @@ last_updated: "2026-04-28"
 | Links       | CommonMark `[text](slug)` body links indexed alongside `[[wikilinks]]`                                                                           |
 | Skills      | Crystallize two-step; ingest analysis pass; review skill; `v0.4.0`                                                                               |
 
-## v0.3.0 — Designing
+## v0.3.0 — Current
 
-| Area                                            | What                                                                                                          |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| ACP                                             | Fix `step_read` to stream page content; add `lint`, `graph`, `ingest` workflows; `use` / `help` dispatch      |
-| Graph                                           | In-memory `WikiGraph` cache keyed on index generation; shared community map; automatic invalidation on ingest |
-| IDE                                             | Zed agent panel validation; Cursor MCP config validation                                                      |
-| Configurable Wiki Root                          | see llm-wiki/docs/improvements/design-configurable-wiki-root.md                                               |
-| Remote Wiki Registration and Version Management | see llm-wiki/docs/improvements/design-spaces-register-remote.md                                               |
+| Area    | What                                                                                                                             |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| ACP     | Six workflows (`research`, `lint`, `graph`, `ingest`, `use`, `help`); `step_read` streams page body; `llm-wiki:` prefix dispatch |
+| ACP     | Cooperative cancellation via `Arc<AtomicBool>`; session cap via `serve.acp_max_sessions`; watcher push via mpsc channel          |
+| ACP     | `--http` flag required alongside `--acp` to give ACP exclusive stdio (MCP displaces to HTTP)                                     |
+| Testing | `validate-acp.sh` + `docs/testing/scripts/acp/` section scripts; `setup-test-env.sh` configures ACP test settings                |
+| Graph   | In-memory `WikiGraph` cache keyed on index generation; shared community map; automatic invalidation on ingest                    |
+| Configurable Wiki Root                          | see docs/improvements/design-configurable-wiki-root.md   |
+
+## Future
+
+| Area                                            | What                                                     |
+| ----------------------------------------------- | -------------------------------------------------------- |
+| IDE                                             | Zed agent panel validation; Cursor MCP config validation |
+| Remote Wiki Registration and Version Management | see docs/improvements/design-spaces-register-remote.md   |
 
