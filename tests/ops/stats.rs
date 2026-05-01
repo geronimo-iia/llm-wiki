@@ -52,7 +52,7 @@ fn stats_on_empty_wiki() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = dir.path().join("state").join("config.toml");
     let wiki_path = dir.path().join("empty");
-    llm_wiki::spaces::create(&wiki_path, "empty", None, false, true, &config_path).unwrap();
+    llm_wiki::spaces::create(&wiki_path, "empty", None, false, true, &config_path, None).unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();

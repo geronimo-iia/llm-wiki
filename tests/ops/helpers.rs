@@ -7,7 +7,7 @@ pub fn setup_wiki(dir: &Path, name: &str) -> std::path::PathBuf {
     let config_path = dir.join("state").join("config.toml");
     let wiki_path = dir.join(name);
 
-    llm_wiki::spaces::create(&wiki_path, name, None, false, true, &config_path).unwrap();
+    llm_wiki::spaces::create(&wiki_path, name, None, false, true, &config_path, None).unwrap();
 
     let wiki_root = wiki_path.join("wiki");
     fs::create_dir_all(wiki_root.join("concepts")).unwrap();

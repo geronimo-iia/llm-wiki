@@ -123,7 +123,7 @@ fn git_page_history_follow_tracks_rename() {
     let config_path = dir.path().join("state").join("config.toml");
 
     // Create wiki with a flat page
-    llm_wiki::spaces::create(&wiki_path, "test", None, false, true, &config_path).unwrap();
+    llm_wiki::spaces::create(&wiki_path, "test", None, false, true, &config_path, None).unwrap();
     let wiki_root = wiki_path.join("wiki");
     fs::create_dir_all(wiki_root.join("concepts")).unwrap();
     fs::write(

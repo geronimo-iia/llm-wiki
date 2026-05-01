@@ -8,7 +8,7 @@ use llm_wiki::spaces;
 fn setup_wiki(dir: &Path) -> std::path::PathBuf {
     let wiki_path = dir.join("wiki-repo");
     let config_path = dir.join("engine").join("config.toml");
-    spaces::create(&wiki_path, "test", None, false, true, &config_path).unwrap();
+    spaces::create(&wiki_path, "test", None, false, true, &config_path, None).unwrap();
     config_path
 }
 

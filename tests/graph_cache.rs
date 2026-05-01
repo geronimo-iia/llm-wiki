@@ -15,7 +15,7 @@ fn setup_wiki(dir: &Path, name: &str) -> std::path::PathBuf {
     let config_path = dir.join("state").join("config.toml");
     let wiki_path = dir.join(name);
 
-    llm_wiki::spaces::create(&wiki_path, name, None, false, true, &config_path).unwrap();
+    llm_wiki::spaces::create(&wiki_path, name, None, false, true, &config_path, None).unwrap();
 
     let wiki_root = wiki_path.join("wiki");
     fs::create_dir_all(wiki_root.join("concepts")).unwrap();
@@ -209,7 +209,7 @@ fn get_cached_community_stats_returns_none_for_small_graph() {
 /// Helper: create a wiki space at `dir/name` with given pages, sharing `config_path`.
 fn setup_space(dir: &Path, name: &str, config_path: &Path, pages: &[(&str, &str)]) {
     let wiki_path = dir.join(name);
-    llm_wiki::spaces::create(&wiki_path, name, None, false, true, config_path).unwrap();
+    llm_wiki::spaces::create(&wiki_path, name, None, false, true, config_path, None).unwrap();
     let wiki_root = wiki_path.join("wiki");
     fs::create_dir_all(wiki_root.join("concepts")).unwrap();
     for (filename, content) in pages {

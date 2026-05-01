@@ -10,7 +10,7 @@ fn setup_wiki(dir: &Path, name: &str) -> (std::path::PathBuf, std::path::PathBuf
     let config_path = dir.join("state").join("config.toml");
     let wiki_path = dir.join(name);
 
-    llm_wiki::spaces::create(&wiki_path, name, None, false, true, &config_path).unwrap();
+    llm_wiki::spaces::create(&wiki_path, name, None, false, true, &config_path, None).unwrap();
 
     // Write a page so the index has something
     let wiki_root = wiki_path.join("wiki");

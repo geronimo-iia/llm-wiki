@@ -252,6 +252,9 @@ pub enum SpacesAction {
         /// Set as default wiki
         #[arg(long)]
         set_default: bool,
+        /// Content directory relative to repo root (default: "wiki")
+        #[arg(long)]
+        wiki_root: Option<String>,
     },
     /// List all registered wikis
     List {

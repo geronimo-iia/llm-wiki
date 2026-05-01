@@ -18,6 +18,7 @@ pub fn handle_spaces_create(server: &McpServer, args: &Map<String, Value>) -> To
     let description = arg_str(args, "description");
     let force = arg_bool(args, "force");
     let set_default = arg_bool(args, "set_default");
+    let wiki_root = arg_str(args, "wiki_root");
 
     let config_path = {
         let engine = server.engine();
@@ -31,6 +32,7 @@ pub fn handle_spaces_create(server: &McpServer, args: &Map<String, Value>) -> To
         set_default,
         &config_path,
         Some(&server.manager),
+        wiki_root.as_deref(),
     )
     .map_err(|e| format!("{e}"))?;
 

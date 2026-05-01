@@ -34,6 +34,7 @@ pub fn create(
     force: bool,
     set_default: bool,
     config_path: &Path,
+    wiki_root: Option<&str>,
 ) -> Result<CreateReport> {
     let mut created = false;
     if !path.exists() {
@@ -41,6 +42,7 @@ pub fn create(
         created = true;
     }
     let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let wiki_root = wiki_root.unwrap_or("wiki");
     let mut committed = false;
 
     // Check re-run conditions
@@ -51,7 +53,7 @@ pub fn create(
         .find(|w| w.path == path.to_string_lossy())
     {
         if existing.name == name {
-            ensure_structure(&path, name, description)?;
+            ensure_structure(&path, name, description, wiki_root)?;
             return Ok(CreateReport {
                 path: path.to_string_lossy().into(),
                 name: name.into(),
@@ -67,7 +69,7 @@ pub fn create(
         }
     }
 
-    ensure_structure(&path, name, description)?;
+    ensure_structure(&path, name, description, wiki_root)?;
 
     // Git init if not already a repo
     if !path.join(".git").exists() {
@@ -112,8 +114,8 @@ pub fn create(
     })
 }
 
-fn ensure_structure(path: &Path, name: &str, description: Option<&str>) -> Result<()> {
-    for dir in &["inbox", "raw", "wiki", "schemas"] {
+fn ensure_structure(path: &Path, name: &str, description: Option<&str>, wiki_root: &str) -> Result<()> {
+    for dir in &["inbox", "raw", "schemas"] {
         let d = path.join(dir);
         if !d.exists() {
             std::fs::create_dir_all(&d)?;
@@ -122,6 +124,16 @@ fn ensure_structure(path: &Path, name: &str, description: Option<&str>) -> Resul
         if !gitkeep.exists() {
             std::fs::write(&gitkeep, "")?;
         }
+    }
+
+    // Create the (possibly custom) wiki content directory
+    let wiki_dir = path.join(wiki_root);
+    if !wiki_dir.exists() {
+        std::fs::create_dir_all(&wiki_dir)?;
+    }
+    let gitkeep = wiki_dir.join(".gitkeep");
+    if !gitkeep.exists() {
+        std::fs::write(&gitkeep, "")?;
     }
 
     // Write embedded default schemas
@@ -152,16 +164,19 @@ fn ensure_structure(path: &Path, name: &str, description: Option<&str>) -> Resul
 
     let wiki_toml = path.join("wiki.toml");
     if !wiki_toml.exists() {
-        std::fs::write(&wiki_toml, generate_wiki_toml(name, description))?;
+        std::fs::write(&wiki_toml, generate_wiki_toml(name, description, wiki_root))?;
     }
 
     Ok(())
 }
 
-fn generate_wiki_toml(name: &str, description: Option<&str>) -> String {
+fn generate_wiki_toml(name: &str, description: Option<&str>, wiki_root: &str) -> String {
     let mut s = format!("name = \"{name}\"\n");
     if let Some(desc) = description {
         s.push_str(&format!("description = \"{desc}\"\n"));
+    }
+    if wiki_root != "wiki" {
+        s.push_str(&format!("wiki_root = \"{wiki_root}\"\n"));
     }
     s
 }

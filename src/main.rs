@@ -37,6 +37,7 @@ fn main() -> Result<()> {
                 description,
                 force,
                 set_default,
+                wiki_root,
             } => {
                 let report = ops::spaces_create(
                     &PathBuf::from(&path),
@@ -46,6 +47,7 @@ fn main() -> Result<()> {
                     set_default,
                     &config_path,
                     None,
+                    wiki_root.as_deref(),
                 )?;
                 if report.created {
                     println!("Created wiki \"{}\" at {}", report.name, report.path);
