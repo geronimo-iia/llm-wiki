@@ -6,6 +6,7 @@ mod research;
 mod server;
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::{ContentBlock, PromptRequest};
@@ -26,6 +27,8 @@ pub struct AcpSession {
     pub created_at: u64,
     /// ID of the currently executing tool run, if any.
     pub active_run: Option<String>,
+    /// Cooperative cancellation flag. Set by cancel handler; polled by workflow steps.
+    pub cancelled: Arc<AtomicBool>,
 }
 
 type Sessions = Arc<Mutex<HashMap<String, AcpSession>>>;

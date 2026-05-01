@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use agent_client_protocol::schema::{
@@ -71,6 +72,7 @@ pub async fn serve_acp(manager: Arc<WikiEngine>) -> Result<()> {
                         wiki,
                         created_at: chrono::Utc::now().timestamp() as u64,
                         active_run: None,
+                        cancelled: Arc::new(AtomicBool::new(false)),
                     };
                     sessions.lock().unwrap().insert(id.clone(), session);
                     tracing::info!(session = %id, "session created");
