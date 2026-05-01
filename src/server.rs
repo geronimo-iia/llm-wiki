@@ -179,7 +179,10 @@ pub async fn serve(
         };
         let push_tx_watch = push_tx;
         Some(tokio::spawn(async move {
-            if let Err(e) = crate::watch::run_watcher(watch_manager, debounce, cancel_watch, push_tx_watch).await {
+            if let Err(e) =
+                crate::watch::run_watcher(watch_manager, debounce, cancel_watch, push_tx_watch)
+                    .await
+            {
                 tracing::error!(error = %e, "watcher error");
             }
         }))
@@ -192,8 +195,7 @@ pub async fn serve(
     if acp {
         let acp_manager = manager.clone();
         let cancel_acp = cancel.clone();
-        let acp_sessions: crate::acp::Sessions =
-            Arc::new(Mutex::new(HashMap::new()));
+        let acp_sessions: crate::acp::Sessions = Arc::new(Mutex::new(HashMap::new()));
         let acp_serve_cfg = serve_cfg.clone();
 
         let acp_handle = tokio::spawn(async move {

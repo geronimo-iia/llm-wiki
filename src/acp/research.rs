@@ -6,7 +6,9 @@ use agent_client_protocol::{Client, ConnectionTo};
 use crate::engine::WikiEngine;
 use crate::ops;
 
-use super::helpers::{clear_active_run, get_cancelled, send_text, send_tool_call, send_tool_result};
+use super::helpers::{
+    clear_active_run, get_cancelled, send_text, send_tool_call, send_tool_result,
+};
 use super::{Sessions, make_tool_id};
 
 // ── Reusable workflow steps ───────────────────────────────────────────────────
@@ -158,7 +160,11 @@ pub fn run_research(
 
     let results = step_search(cx, manager, session_id, "research", query, wiki_name, 5)?;
 
-    if cancelled.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(false) {
+    if cancelled
+        .as_ref()
+        .map(|c| c.load(Ordering::Relaxed))
+        .unwrap_or(false)
+    {
         send_text(cx, session_id, "Cancelled.")?;
         clear_active_run(sessions, &session_id.to_string());
         return Ok(());

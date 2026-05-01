@@ -6,7 +6,9 @@ use agent_client_protocol::{Client, ConnectionTo};
 use crate::engine::WikiEngine;
 use crate::ops;
 
-use super::helpers::{clear_active_run, get_cancelled, send_text, send_tool_call, send_tool_result, session_cwd};
+use super::helpers::{
+    clear_active_run, get_cancelled, send_text, send_tool_call, send_tool_result, session_cwd,
+};
 use super::{Sessions, StepResult, make_tool_id};
 
 pub fn step_ingest(
@@ -77,7 +79,11 @@ pub fn run_ingest(
     wiki_name: &str,
 ) -> StepResult {
     let cancelled = get_cancelled(sessions, &session_id.to_string());
-    if cancelled.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(false) {
+    if cancelled
+        .as_ref()
+        .map(|c| c.load(Ordering::Relaxed))
+        .unwrap_or(false)
+    {
         send_text(cx, session_id, "Cancelled.")?;
         clear_active_run(sessions, &session_id.to_string());
         return Ok(());

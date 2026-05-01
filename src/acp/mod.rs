@@ -31,6 +31,7 @@ pub struct AcpSession {
     pub cancelled: Arc<AtomicBool>,
 }
 
+/// Shared map of active ACP sessions, keyed by session ID.
 pub type Sessions = Arc<Mutex<HashMap<String, AcpSession>>>;
 
 // ── Dispatch ──────────────────────────────────────────────────────────────────

@@ -6,7 +6,9 @@ use agent_client_protocol::{Client, ConnectionTo};
 use crate::engine::WikiEngine;
 use crate::ops::{self, GraphParams};
 
-use super::helpers::{clear_active_run, get_cancelled, send_text, send_tool_call, send_tool_result};
+use super::helpers::{
+    clear_active_run, get_cancelled, send_text, send_tool_call, send_tool_result,
+};
 use super::{Sessions, StepResult, make_tool_id};
 
 pub fn step_graph(
@@ -81,7 +83,11 @@ pub fn run_graph(
     wiki_name: &str,
 ) -> StepResult {
     let cancelled = get_cancelled(sessions, &session_id.to_string());
-    if cancelled.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(false) {
+    if cancelled
+        .as_ref()
+        .map(|c| c.load(Ordering::Relaxed))
+        .unwrap_or(false)
+    {
         send_text(cx, session_id, "Cancelled.")?;
         clear_active_run(sessions, &session_id.to_string());
         return Ok(());

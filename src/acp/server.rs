@@ -43,8 +43,7 @@ pub async fn serve_acp(
                 if let Some(cx) = cx_opt {
                     if let Ok(s) = sessions.lock() {
                         for (id, sess) in s.iter() {
-                            if sess.wiki.as_deref() == Some(&wiki_name)
-                                && sess.active_run.is_none()
+                            if sess.wiki.as_deref() == Some(&wiki_name) && sess.active_run.is_none()
                             {
                                 let sid = SessionId::new(id.clone());
                                 let _ = send_text(&cx, &sid, &msg);

@@ -1,6 +1,5 @@
 /target
-README-draft.md
-docs/prompts/
+docs/brainstorm/
 docs/superpowers
 
 # tantivy search index — gitignored, rebuilt on demand via `wiki search --rebuild-index`

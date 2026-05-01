@@ -1,6 +1,6 @@
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use agent_client_protocol::Client;
 use agent_client_protocol::ConnectionTo;
