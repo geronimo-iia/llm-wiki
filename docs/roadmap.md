@@ -20,23 +20,25 @@ last_updated: "2026-04-28"
 
 ## v0.2.0 — Released 2026-04-28
 
-| Area        | What                                                                          |
-| ----------- | ----------------------------------------------------------------------------- |
-| Type system | `confidence: 0.0–1.0` field; `claims[].confidence` as float                  |
-| Search      | Lifecycle-aware ranking; flat `[search.status]` multiplier map                |
+| Area        | What                                                                                                                                             |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Type system | `confidence: 0.0–1.0` field; `claims[].confidence` as float                                                                                      |
+| Search      | Lifecycle-aware ranking; flat `[search.status]` multiplier map                                                                                   |
 | Content     | Backlinks on `wiki_content_read`; incremental validation (git-diff scoped); `wiki_resolve` tool; `wiki_content_new` returns `path` + `wiki_root` |
-| Lint        | `wiki_lint` tool with 5 rules; `broken-cross-wiki-link` rule; `path` field on every finding |
-| Redaction   | `redact:` flag on `wiki_ingest`; built-in and custom patterns                 |
-| Graph       | Louvain community detection; `wiki://` cross-wiki edges; `--cross-wiki` flag  |
-| Export      | `wiki_export` + `llms` format on list, search, and graph                      |
-| Links       | CommonMark `[text](slug)` body links indexed alongside `[[wikilinks]]`        |
-| Skills      | Crystallize two-step; ingest analysis pass; review skill; `v0.4.0`            |
+| Lint        | `wiki_lint` tool with 5 rules; `broken-cross-wiki-link` rule; `path` field on every finding                                                      |
+| Redaction   | `redact:` flag on `wiki_ingest`; built-in and custom patterns                                                                                    |
+| Graph       | Louvain community detection; `wiki://` cross-wiki edges; `--cross-wiki` flag                                                                     |
+| Export      | `wiki_export` + `llms` format on list, search, and graph                                                                                         |
+| Links       | CommonMark `[text](slug)` body links indexed alongside `[[wikilinks]]`                                                                           |
+| Skills      | Crystallize two-step; ingest analysis pass; review skill; `v0.4.0`                                                                               |
 
 ## v0.3.0 — Designing
 
-| Area        | What                                                                                      |
-| ----------- | ----------------------------------------------------------------------------------------- |
-| ACP         | Fix `step_read` to stream page content; add `lint`, `graph`, `ingest` workflows; `use` / `help` dispatch |
-| Graph       | In-memory `WikiGraph` cache keyed on index generation; shared community map; automatic invalidation on ingest |
-| IDE         | Zed agent panel validation; Cursor MCP config validation                                  |
+| Area                                            | What                                                                                                          |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| ACP                                             | Fix `step_read` to stream page content; add `lint`, `graph`, `ingest` workflows; `use` / `help` dispatch      |
+| Graph                                           | In-memory `WikiGraph` cache keyed on index generation; shared community map; automatic invalidation on ingest |
+| IDE                                             | Zed agent panel validation; Cursor MCP config validation                                                      |
+| Configurable Wiki Root                          | see llm-wiki/docs/improvements/design-configurable-wiki-root.md                                               |
+| Remote Wiki Registration and Version Management | see llm-wiki/docs/improvements/design-spaces-register-remote.md                                               |
 

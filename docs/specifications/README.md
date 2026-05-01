@@ -5,7 +5,7 @@ read_when:
   - Finding the right spec for a concept or component
   - Checking specification progress
 status: active
-last_updated: "2026-04-27"
+last_updated: "2026-05-01"
 ---
 
 # Specifications
