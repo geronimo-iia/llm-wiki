@@ -1,4 +1,6 @@
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use agent_client_protocol::Client;
 use agent_client_protocol::ConnectionTo;
@@ -85,6 +87,17 @@ pub fn session_cwd(manager: &WikiEngine) -> PathBuf {
         .space(name)
         .map(|s| s.repo_root.clone())
         .unwrap_or_else(|_| PathBuf::from("."))
+}
+
+/// Load the cancellation flag for a session. Returns None if session not found.
+pub fn get_cancelled(sessions: &Sessions, session_id: &str) -> Option<Arc<AtomicBool>> {
+    sessions
+        .lock()
+        .ok()?
+        .get(session_id)?
+        .cancelled
+        .clone()
+        .into()
 }
 
 pub fn clear_active_run(sessions: &Sessions, session_id: &str) {

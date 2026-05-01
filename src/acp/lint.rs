@@ -1,10 +1,13 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use agent_client_protocol::schema::{SessionId, ToolCallStatus, ToolKind};
 use agent_client_protocol::{Client, ConnectionTo};
 
 use crate::engine::WikiEngine;
 use crate::ops;
 
-use super::helpers::{clear_active_run, send_text, send_tool_call, send_tool_result};
+use super::helpers::{clear_active_run, get_cancelled, send_text, send_tool_call, send_tool_result};
 use super::{Sessions, StepResult, make_tool_id};
 
 pub fn step_lint(
@@ -13,6 +16,7 @@ pub fn step_lint(
     session_id: &SessionId,
     wiki_name: &str,
     rules: Option<&str>,
+    cancelled: Option<Arc<AtomicBool>>,
 ) -> StepResult {
     let tool_id = make_tool_id("lint", "lint");
     let label = rules
@@ -44,6 +48,10 @@ pub fn step_lint(
                 &summary,
             )?;
             for f in &report.findings {
+                if cancelled.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(false) {
+                    send_text(cx, session_id, "Cancelled.")?;
+                    return Ok(());
+                }
                 send_text(
                     cx,
                     session_id,
@@ -73,8 +81,9 @@ pub fn run_lint(
     query: &str,
     wiki_name: &str,
 ) -> StepResult {
+    let cancelled = get_cancelled(sessions, &session_id.to_string());
     let rules = (!query.is_empty()).then_some(query);
-    step_lint(cx, manager, session_id, wiki_name, rules)?;
+    step_lint(cx, manager, session_id, wiki_name, rules, cancelled)?;
     clear_active_run(sessions, &session_id.to_string());
     Ok(())
 }

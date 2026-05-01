@@ -1,10 +1,12 @@
+use std::sync::atomic::Ordering;
+
 use agent_client_protocol::schema::{SessionId, ToolCallStatus, ToolKind};
 use agent_client_protocol::{Client, ConnectionTo};
 
 use crate::engine::WikiEngine;
 use crate::ops::{self, GraphParams};
 
-use super::helpers::{clear_active_run, send_text, send_tool_call, send_tool_result};
+use super::helpers::{clear_active_run, get_cancelled, send_text, send_tool_call, send_tool_result};
 use super::{Sessions, StepResult, make_tool_id};
 
 pub fn step_graph(
@@ -78,6 +80,12 @@ pub fn run_graph(
     query: &str,
     wiki_name: &str,
 ) -> StepResult {
+    let cancelled = get_cancelled(sessions, &session_id.to_string());
+    if cancelled.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(false) {
+        send_text(cx, session_id, "Cancelled.")?;
+        clear_active_run(sessions, &session_id.to_string());
+        return Ok(());
+    }
     let root = (!query.is_empty()).then_some(query);
     step_graph(cx, manager, session_id, root, wiki_name)?;
     clear_active_run(sessions, &session_id.to_string());

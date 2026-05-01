@@ -1,10 +1,12 @@
+use std::sync::atomic::Ordering;
+
 use agent_client_protocol::schema::{SessionId, ToolCallStatus, ToolKind};
 use agent_client_protocol::{Client, ConnectionTo};
 
 use crate::engine::WikiEngine;
 use crate::ops;
 
-use super::helpers::{clear_active_run, send_tool_call, send_tool_result, session_cwd};
+use super::helpers::{clear_active_run, get_cancelled, send_text, send_tool_call, send_tool_result, session_cwd};
 use super::{Sessions, StepResult, make_tool_id};
 
 pub fn step_ingest(
@@ -74,6 +76,12 @@ pub fn run_ingest(
     query: &str,
     wiki_name: &str,
 ) -> StepResult {
+    let cancelled = get_cancelled(sessions, &session_id.to_string());
+    if cancelled.as_ref().map(|c| c.load(Ordering::Relaxed)).unwrap_or(false) {
+        send_text(cx, session_id, "Cancelled.")?;
+        clear_active_run(sessions, &session_id.to_string());
+        return Ok(());
+    }
     let path = if query.is_empty() {
         session_cwd(manager).to_string_lossy().into_owned()
     } else {
