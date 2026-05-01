@@ -178,7 +178,7 @@ pub async fn serve_acp(manager: Arc<WikiEngine>) -> Result<()> {
                             }
                             clear_active_run(&sessions, &session_id_str);
                         }
-                        "help" | _ => {
+                        _ => {
                             let msg = if workflow != "help" {
                                 format!(
                                     "Unknown workflow \"{workflow}\". Available workflows:\n\
