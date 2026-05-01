@@ -1,5 +1,6 @@
 mod graph;
 mod helpers;
+mod ingest;
 mod lint;
 mod research;
 mod server;
