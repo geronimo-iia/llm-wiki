@@ -68,20 +68,51 @@ Add to the Windsurf MCP config:
 
 ### Zed (ACP)
 
+ACP provides streaming workflow steps visible in the agent panel.
+When using `--acp`, MCP must be displaced to HTTP so stdio is
+exclusively available for ACP:
+
 ```json
 {
   "agent_servers": {
     "llm-wiki": {
       "type": "custom",
       "command": "llm-wiki",
-      "args": ["serve", "--acp"],
+      "args": ["serve", "--acp", "--http", ":18765"],
       "env": {}
     }
   }
 }
 ```
 
-ACP provides streaming workflow steps visible in the agent panel.
+`--http :18765` starts the MCP server on HTTP, leaving stdio for ACP.
+Running `serve --acp` without `--http` causes MCP and ACP to compete
+for the same stdio stream.
+
+#### ACP Workflows
+
+Send prompts to the agent using the `llm-wiki:` prefix:
+
+| Prompt | Action |
+|--------|--------|
+| `what is MoE?` | Research (default — no prefix needed) |
+| `llm-wiki:research scaling laws` | Explicit research |
+| `llm-wiki:lint` | Run all lint rules |
+| `llm-wiki:lint orphan,stale` | Run specific rules |
+| `llm-wiki:graph` | Render full concept graph |
+| `llm-wiki:graph concepts/moe` | Subgraph from root slug |
+| `llm-wiki:ingest` | Ingest current working directory |
+| `llm-wiki:use concepts/moe` | Read full page content |
+| `llm-wiki:help` | List available workflows |
+
+#### Session Cap
+
+By default the server allows up to 20 concurrent ACP sessions.
+Lower the cap for resource-constrained environments:
+
+```bash
+llm-wiki config set serve.acp_max_sessions 5 --global
+```
 
 ## Verify the Connection
 

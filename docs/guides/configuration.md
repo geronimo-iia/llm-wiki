@@ -184,6 +184,19 @@ so search/list always use a fresh index:
 llm-wiki config set index.auto_rebuild true --global
 ```
 
+### Set the ACP session cap
+
+ACP sessions persist in memory until the server stops. The default
+cap is 20 concurrent sessions, which is generous for single-user IDE
+use. Lower it for resource-constrained environments:
+
+```bash
+llm-wiki config set serve.acp_max_sessions 5 --global
+```
+
+This is a global-only key — it applies to the server process, not
+per-wiki.
+
 ### Configure logging
 
 For debugging `llm-wiki serve`:
