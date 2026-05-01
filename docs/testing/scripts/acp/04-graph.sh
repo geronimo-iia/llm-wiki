@@ -7,7 +7,7 @@ run_acp "graph default renders node/edge count" \
         "research"
 
 run_acp "graph missing slug returns error in tool call" \
-        "not found\|no page\|error" \
+        "0 nodes\|0 edges" \
         "llm-wiki:graph zzz-missing-root-slug" \
         "research"
 

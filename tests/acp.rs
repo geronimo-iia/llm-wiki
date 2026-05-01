@@ -87,6 +87,13 @@ fn dispatch_use() {
 }
 
 #[test]
+fn dispatch_use_no_slug() {
+    let (wf, q) = dispatch_workflow("llm-wiki:use");
+    assert_eq!(wf, "use");
+    assert_eq!(q, "");
+}
+
+#[test]
 fn dispatch_help() {
     let (wf, q) = dispatch_workflow("llm-wiki:help");
     assert_eq!(wf, "help");

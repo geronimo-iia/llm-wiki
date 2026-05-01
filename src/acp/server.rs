@@ -235,10 +235,10 @@ pub async fn serve_acp(
                         }
                         "use" => {
                             use super::research::step_read;
-                            if query_text.is_empty() {
+                            if query.is_empty() {
                                 send_text(&cx, &req.session_id, "Usage: `llm-wiki:use <slug>`")?;
                             } else {
-                                step_read(&cx, &mgr, &req.session_id, "use", query_text, &wiki_name, true)?;
+                                step_read(&cx, &mgr, &req.session_id, "use", query, &wiki_name, true)?;
                             }
                             clear_active_run(&sessions, &session_id_str);
                         }

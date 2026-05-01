@@ -165,7 +165,7 @@ run_acp() {
                if .sessionUpdate == "agent_message_chunk" then .content.text // empty
                elif .sessionUpdate == "tool_call" then (.title // empty)
                elif .sessionUpdate == "tool_call_update" then
-                 (.fields.content // [] | .[].text // empty)
+                 ((.content // [] | .[].content.text // empty), (.status // empty))
                else empty end' 2>/dev/null | tr '\n' ' ')
 
     if [ -z "$pattern" ] || echo "$text" | grep -q "$pattern"; then
