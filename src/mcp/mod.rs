@@ -169,7 +169,10 @@ impl ServerHandler for McpServer {
             };
             match WikiUri::resolve(uri, None, &engine.config) {
                 Ok((entry, slug)) => {
-                    let wiki_root = std::path::PathBuf::from(&entry.path).join("wiki");
+                    let wiki_root = engine
+                        .space(&entry.name)
+                        .map(|s| s.wiki_root.clone())
+                        .unwrap_or_else(|_| std::path::PathBuf::from(&entry.path).join("wiki"));
                     match markdown::read_page(&slug, &wiki_root, false) {
                         Ok(content) => Ok(ReadResourceResult::new(vec![
                             ResourceContents::text(content, uri.to_string())

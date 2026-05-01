@@ -215,7 +215,10 @@ pub fn handle_resolve(server: &McpServer, args: &Map<String, Value>) -> ToolHand
 
     let (entry, slug) =
         WikiUri::resolve(&uri, wiki_flag.as_deref(), &engine.config).map_err(|e| format!("{e}"))?;
-    let wiki_root = PathBuf::from(&entry.path).join("wiki");
+    let wiki_root = engine
+        .space(&entry.name)
+        .map(|s| s.wiki_root.clone())
+        .unwrap_or_else(|_| std::path::PathBuf::from(&entry.path).join("wiki"));
 
     let (path, exists, bundle) = match resolve_read_target(slug.as_str(), &wiki_root) {
         Ok(ReadTarget::Page(p)) => {
