@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::{
     AgentCapabilities, CancelNotification, InitializeRequest, InitializeResponse,
@@ -29,7 +29,32 @@ pub async fn serve_acp(
     manager: Arc<WikiEngine>,
     config: crate::config::ServeConfig,
     sessions: Sessions,
+    mut push_rx: tokio::sync::mpsc::Receiver<(String, String)>,
 ) -> Result<()> {
+    let shared_cx: Arc<Mutex<Option<ConnectionTo<Client>>>> = Arc::new(Mutex::new(None));
+
+    // Push task: receive watcher events and forward to idle sessions
+    {
+        let sessions = sessions.clone();
+        let shared_cx = shared_cx.clone();
+        tokio::spawn(async move {
+            while let Some((wiki_name, msg)) = push_rx.recv().await {
+                let cx_opt = shared_cx.lock().ok().and_then(|g| g.clone());
+                if let Some(cx) = cx_opt {
+                    if let Ok(s) = sessions.lock() {
+                        for (id, sess) in s.iter() {
+                            if sess.wiki.as_deref() == Some(&wiki_name)
+                                && sess.active_run.is_none()
+                            {
+                                let sid = SessionId::new(id.clone());
+                                let _ = send_text(&cx, &sid, &msg);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
 
     Agent
         .builder()
@@ -157,7 +182,11 @@ pub async fn serve_acp(
             {
                 let mgr = manager.clone();
                 let sessions = sessions.clone();
+                let shared_cx = shared_cx.clone();
                 async move |req: PromptRequest, responder, cx: ConnectionTo<Client>| {
+                    if let Ok(mut g) = shared_cx.lock() {
+                        *g = Some(cx.clone());
+                    }
                     let text = extract_prompt_text(&req);
                     let (workflow, query) = dispatch_workflow(&text);
                     let session_id_str = req.session_id.to_string();
