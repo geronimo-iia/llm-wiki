@@ -1,0 +1,6 @@
+name = "alt-root"
+description = "Integration test wiki — custom wiki_root"
+wiki_root = "content"
+
+[ingest]
+auto_commit = true

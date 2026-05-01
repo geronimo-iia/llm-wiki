@@ -183,6 +183,28 @@ fn engine_mounts_wiki_with_custom_wiki_root() {
 }
 
 #[test]
+fn engine_indexes_custom_wiki_root_fixture() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = dir.path().join("state").join("config.toml");
+    let fixture_path = std::path::Path::new("tests/fixtures/wikis/alt-root");
+
+    llm_wiki::spaces::register_existing(
+        fixture_path,
+        "alt-root",
+        None,
+        None,
+        &config_path,
+    )
+    .unwrap();
+
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine_guard = manager.state.read().unwrap();
+    let space = engine_guard.space("alt-root").unwrap();
+
+    assert!(space.wiki_root.ends_with("content"));
+}
+
+#[test]
 fn content_read_works_with_custom_wiki_root() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = dir.path().join("state").join("config.toml");
