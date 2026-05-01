@@ -17,6 +17,9 @@ use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use crate::engine::WikiEngine;
 
 use super::helpers::{clear_active_run, resolve_wiki_name, send_text, session_cwd};
+use super::graph::run_graph;
+use super::ingest::run_ingest;
+use super::lint::run_lint;
 use super::research::run_research;
 use super::{AcpSession, Sessions, dispatch_workflow, extract_prompt_text};
 
@@ -155,27 +158,53 @@ pub async fn serve_acp(manager: Arc<WikiEngine>) -> Result<()> {
 
                     match workflow {
                         "research" => {
-                            run_research(
-                                &cx,
-                                &mgr,
-                                &sessions,
-                                &req.session_id,
-                                query_text,
-                                &wiki_name,
-                            )?;
+                            run_research(&cx, &mgr, &sessions, &req.session_id, query_text, &wiki_name)?;
                         }
-                        other => {
-                            send_text(
-                                &cx,
-                                &req.session_id,
-                                &format!(
-                                    "Unknown workflow \"{other}\". Use `llm-wiki:research <query>` or ask a question directly."
-                                ),
-                            )?;
+                        "lint" => {
+                            run_lint(&cx, &mgr, &sessions, &req.session_id, query_text, &wiki_name)?;
+                        }
+                        "graph" => {
+                            run_graph(&cx, &mgr, &sessions, &req.session_id, query_text, &wiki_name)?;
+                        }
+                        "ingest" => {
+                            run_ingest(&cx, &mgr, &sessions, &req.session_id, query_text, &wiki_name)?;
+                        }
+                        "use" => {
+                            use super::research::step_read;
+                            if query_text.is_empty() {
+                                send_text(&cx, &req.session_id, "Usage: `llm-wiki:use <slug>`")?;
+                            } else {
+                                step_read(&cx, &mgr, &req.session_id, "use", query_text, &wiki_name, true)?;
+                            }
+                            clear_active_run(&sessions, &session_id_str);
+                        }
+                        "help" | _ => {
+                            let msg = if workflow != "help" {
+                                format!(
+                                    "Unknown workflow \"{workflow}\". Available workflows:\n\
+                                     • `llm-wiki:research <query>` — search + read top result\n\
+                                     • `llm-wiki:lint [rules]`      — run lint rules (comma-separated or all)\n\
+                                     • `llm-wiki:graph [root-slug]` — render concept graph\n\
+                                     • `llm-wiki:ingest [path]`     — ingest path (default: cwd)\n\
+                                     • `llm-wiki:use <slug>`        — read full page content\n\
+                                     • `llm-wiki:help`              — this message\n\
+                                     • (bare prompt)                — research workflow"
+                                )
+                            } else {
+                                "Available workflows:\n\
+                                 • `llm-wiki:research <query>` — search + read top result\n\
+                                 • `llm-wiki:lint [rules]`      — run lint rules (comma-separated or all)\n\
+                                 • `llm-wiki:graph [root-slug]` — render concept graph\n\
+                                 • `llm-wiki:ingest [path]`     — ingest path (default: cwd)\n\
+                                 • `llm-wiki:use <slug>`        — read full page content\n\
+                                 • `llm-wiki:help`              — this message\n\
+                                 • (bare prompt)                — research workflow"
+                                    .to_string()
+                            };
+                            send_text(&cx, &req.session_id, &msg)?;
+                            clear_active_run(&sessions, &session_id_str);
                         }
                     }
-
-                    clear_active_run(&sessions, &session_id_str);
                     tracing::debug!(session = %session_id_str, workflow = %workflow, "prompt complete");
                     responder.respond(PromptResponse::new(StopReason::EndTurn))
                 }
