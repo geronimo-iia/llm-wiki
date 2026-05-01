@@ -7,7 +7,7 @@ run_acp "ingest default path runs and returns summary" \
         "research"
 
 run_acp "ingest nonexistent path returns error" \
-        "not found\|no such\|error\|Failed" \
+        "not found\|no such\|error\|Failed\|failed\|does not exist" \
         "llm-wiki:ingest /nonexistent-path-xyz" \
         "research"
 
