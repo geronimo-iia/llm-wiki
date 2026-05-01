@@ -377,7 +377,10 @@ pub fn call(server: &McpServer, name: &str, args: &Map<String, Value>) -> ToolRe
         Ok(Ok((content, notify_uris))) => {
             let notify_resources_changed = matches!(
                 name,
-                "wiki_spaces_create" | "wiki_spaces_register" | "wiki_spaces_remove" | "wiki_spaces_set_default"
+                "wiki_spaces_create"
+                    | "wiki_spaces_register"
+                    | "wiki_spaces_remove"
+                    | "wiki_spaces_set_default"
             );
             tracing::debug!(tool = name, "tool call ok");
             ToolResult {

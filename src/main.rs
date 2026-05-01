@@ -61,7 +61,12 @@ fn main() -> Result<()> {
                     println!("Initial commit: create: {}", report.name);
                 }
             }
-            SpacesAction::Register { path, name, description, wiki_root } => {
+            SpacesAction::Register {
+                path,
+                name,
+                description,
+                wiki_root,
+            } => {
                 let report = ops::spaces_register(
                     &PathBuf::from(&path),
                     &name,

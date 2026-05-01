@@ -153,8 +153,7 @@ pub fn register_existing(
         if toml_path.exists() {
             let raw = std::fs::read_to_string(&toml_path)?;
             if raw.contains("wiki_root") {
-                let cfg: crate::config::WikiConfig =
-                    toml::from_str(&raw).unwrap_or_default();
+                let cfg: crate::config::WikiConfig = toml::from_str(&raw).unwrap_or_default();
                 Some(cfg.wiki_root)
             } else {
                 None
@@ -187,7 +186,10 @@ pub fn register_existing(
             content.push_str(&format!("wiki_root = \"{effective_root}\"\n"));
             std::fs::write(&toml_path, content)?;
         } else {
-            std::fs::write(&toml_path, generate_wiki_toml(name, description, &effective_root))?;
+            std::fs::write(
+                &toml_path,
+                generate_wiki_toml(name, description, &effective_root),
+            )?;
         }
     }
 
@@ -213,7 +215,12 @@ pub fn register_existing(
     })
 }
 
-fn ensure_structure(path: &Path, name: &str, description: Option<&str>, wiki_root: &str) -> Result<()> {
+fn ensure_structure(
+    path: &Path,
+    name: &str,
+    description: Option<&str>,
+    wiki_root: &str,
+) -> Result<()> {
     for dir in &["inbox", "raw", "schemas"] {
         let d = path.join(dir);
         if !d.exists() {

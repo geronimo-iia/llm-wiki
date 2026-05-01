@@ -188,14 +188,8 @@ fn engine_indexes_custom_wiki_root_fixture() {
     let config_path = dir.path().join("state").join("config.toml");
     let fixture_path = std::path::Path::new("tests/fixtures/wikis/alt-root");
 
-    llm_wiki::spaces::register_existing(
-        fixture_path,
-        "alt-root",
-        None,
-        None,
-        &config_path,
-    )
-    .unwrap();
+    llm_wiki::spaces::register_existing(fixture_path, "alt-root", None, None, &config_path)
+        .unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine_guard = manager.state.read().unwrap();
@@ -233,8 +227,9 @@ fn content_read_works_with_custom_wiki_root() {
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();
 
-    let result = llm_wiki::ops::content_read(&engine, "wiki://skills/bootstrap", None, false, false)
-        .unwrap();
+    let result =
+        llm_wiki::ops::content_read(&engine, "wiki://skills/bootstrap", None, false, false)
+            .unwrap();
     match result {
         llm_wiki::ops::ContentReadResult::Page(text) => {
             assert!(text.contains("Bootstrap"));

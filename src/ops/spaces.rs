@@ -17,7 +17,15 @@ pub fn spaces_create(
     engine: Option<&WikiEngine>,
     wiki_root: Option<&str>,
 ) -> Result<spaces::CreateReport> {
-    let report = spaces::create(path, name, description, force, set_default, config_path, wiki_root)?;
+    let report = spaces::create(
+        path,
+        name,
+        description,
+        force,
+        set_default,
+        config_path,
+        wiki_root,
+    )?;
 
     // Hot reload: mount the new wiki in the running engine
     if report.registered

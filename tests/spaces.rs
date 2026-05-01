@@ -55,7 +55,16 @@ fn create_registers_in_global_config() {
     let wiki_path = dir.path().join("research");
     let cfg = config_path(dir.path());
 
-    spaces::create(&wiki_path, "research", Some("ML wiki"), false, false, &cfg, None).unwrap();
+    spaces::create(
+        &wiki_path,
+        "research",
+        Some("ML wiki"),
+        false,
+        false,
+        &cfg,
+        None,
+    )
+    .unwrap();
 
     let global = load_global(&cfg).unwrap();
     assert_eq!(global.wikis.len(), 1);
@@ -319,7 +328,16 @@ fn create_generates_wiki_toml_without_types() {
     let wiki_path = dir.path().join("research");
     let cfg = config_path(dir.path());
 
-    spaces::create(&wiki_path, "research", Some("ML wiki"), false, false, &cfg, None).unwrap();
+    spaces::create(
+        &wiki_path,
+        "research",
+        Some("ML wiki"),
+        false,
+        false,
+        &cfg,
+        None,
+    )
+    .unwrap();
 
     let wiki_cfg = llm_wiki::config::load_wiki(&wiki_path).unwrap();
     assert_eq!(wiki_cfg.name, "research");
@@ -449,8 +467,14 @@ fn create_with_custom_wiki_root_creates_correct_directory() {
     )
     .unwrap();
 
-    assert!(wiki_path.join("skills").is_dir(), "custom wiki_root dir should exist");
-    assert!(!wiki_path.join("wiki").exists(), "default wiki/ dir should NOT be created");
+    assert!(
+        wiki_path.join("skills").is_dir(),
+        "custom wiki_root dir should exist"
+    );
+    assert!(
+        !wiki_path.join("wiki").exists(),
+        "default wiki/ dir should NOT be created"
+    );
     let toml_content = std::fs::read_to_string(wiki_path.join("wiki.toml")).unwrap();
     assert!(toml_content.contains("wiki_root = \"skills\""));
 }
@@ -480,14 +504,8 @@ fn register_existing_basic() {
     std::fs::create_dir_all(wiki_path.join("wiki")).unwrap();
     std::fs::write(wiki_path.join("wiki.toml"), "name = \"existing\"\n").unwrap();
 
-    let report = llm_wiki::spaces::register_existing(
-        &wiki_path,
-        "existing",
-        None,
-        None,
-        &cfg,
-    )
-    .unwrap();
+    let report =
+        llm_wiki::spaces::register_existing(&wiki_path, "existing", None, None, &cfg).unwrap();
 
     assert!(report.registered);
     assert!(!report.created);
@@ -510,14 +528,8 @@ fn register_existing_with_custom_wiki_root() {
     )
     .unwrap();
 
-    let report = llm_wiki::spaces::register_existing(
-        &wiki_path,
-        "skills",
-        None,
-        None,
-        &cfg,
-    )
-    .unwrap();
+    let report =
+        llm_wiki::spaces::register_existing(&wiki_path, "skills", None, None, &cfg).unwrap();
 
     assert!(report.registered);
 }
@@ -535,14 +547,8 @@ fn register_existing_wiki_root_flag_conflicts_with_toml() {
     )
     .unwrap();
 
-    let err = llm_wiki::spaces::register_existing(
-        &wiki_path,
-        "skills",
-        None,
-        Some("other"),
-        &cfg,
-    )
-    .unwrap_err();
+    let err = llm_wiki::spaces::register_existing(&wiki_path, "skills", None, Some("other"), &cfg)
+        .unwrap_err();
 
     assert!(err.to_string().contains("already declares wiki_root"));
 }
@@ -560,14 +566,8 @@ fn register_existing_missing_wiki_root_directory_errors() {
     )
     .unwrap();
 
-    let err = llm_wiki::spaces::register_existing(
-        &wiki_path,
-        "skills",
-        None,
-        None,
-        &cfg,
-    )
-    .unwrap_err();
+    let err =
+        llm_wiki::spaces::register_existing(&wiki_path, "skills", None, None, &cfg).unwrap_err();
 
     assert!(err.to_string().contains("does not exist"));
 }
