@@ -6,7 +6,7 @@ mod research;
 mod server;
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::{ContentBlock, PromptRequest};

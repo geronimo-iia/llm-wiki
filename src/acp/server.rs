@@ -1,6 +1,5 @@
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use agent_client_protocol::schema::{
     AgentCapabilities, CancelNotification, InitializeRequest, InitializeResponse,
@@ -282,10 +281,10 @@ pub async fn serve_acp(
                 let sessions = sessions.clone();
                 async move |notif: CancelNotification, _cx| {
                     let id = notif.session_id.to_string();
-                    if let Ok(sessions) = sessions.lock() {
-                        if let Some(sess) = sessions.get(&id) {
-                            sess.cancelled.store(true, Ordering::Relaxed);
-                        }
+                    if let Ok(sessions) = sessions.lock()
+                        && let Some(sess) = sessions.get(&id)
+                    {
+                        sess.cancelled.store(true, Ordering::Relaxed);
                     }
                     clear_active_run(&sessions, &id);
                     Ok(())
