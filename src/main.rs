@@ -61,6 +61,22 @@ fn main() -> Result<()> {
                     println!("Initial commit: create: {}", report.name);
                 }
             }
+            SpacesAction::Register { path, name, description, wiki_root } => {
+                let report = ops::spaces_register(
+                    &PathBuf::from(&path),
+                    &name,
+                    description.as_deref(),
+                    wiki_root.as_deref(),
+                    &config_path,
+                    None,
+                )?;
+                if report.registered {
+                    println!("Registered wiki \"{}\" at {}", report.name, report.path);
+                    println!("Registered in {}", config_path.display());
+                } else {
+                    println!("Wiki \"{}\" already registered", report.name);
+                }
+            }
             SpacesAction::List { name, format } => {
                 let global = config::load_global(&config_path)?;
                 let entries = ops::spaces_list(&global, name.as_deref());

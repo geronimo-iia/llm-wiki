@@ -35,6 +35,32 @@ pub fn spaces_create(
     Ok(report)
 }
 
+/// Register an existing wiki space and hot-reload it into the running engine.
+pub fn spaces_register(
+    path: &Path,
+    name: &str,
+    description: Option<&str>,
+    wiki_root: Option<&str>,
+    config_path: &Path,
+    engine: Option<&WikiEngine>,
+) -> Result<spaces::RegisterReport> {
+    let report = spaces::register_existing(path, name, description, wiki_root, config_path)?;
+
+    if report.registered
+        && let Some(engine) = engine
+    {
+        let entry = WikiEntry {
+            name: name.to_string(),
+            path: report.path.clone(),
+            description: description.map(|s| s.to_string()),
+            remote: None,
+        };
+        engine.mount_wiki(&entry)?;
+    }
+
+    Ok(report)
+}
+
 /// List registered wiki spaces, optionally filtered to a single name.
 pub fn spaces_list(config: &GlobalConfig, name: Option<&str>) -> Vec<config::WikiEntry> {
     let all = spaces::load_all(config);

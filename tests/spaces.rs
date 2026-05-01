@@ -468,3 +468,106 @@ fn create_without_wiki_root_keeps_default_wiki_dir() {
     // default wiki_root should NOT be written to toml
     assert!(!toml_content.contains("wiki_root"));
 }
+
+// ── register_existing ─────────────────────────────────────────────────────────
+
+#[test]
+fn register_existing_basic() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_path = dir.path().join("existing-wiki");
+    let cfg = config_path(dir.path());
+
+    std::fs::create_dir_all(wiki_path.join("wiki")).unwrap();
+    std::fs::write(wiki_path.join("wiki.toml"), "name = \"existing\"\n").unwrap();
+
+    let report = llm_wiki::spaces::register_existing(
+        &wiki_path,
+        "existing",
+        None,
+        None,
+        &cfg,
+    )
+    .unwrap();
+
+    assert!(report.registered);
+    assert!(!report.created);
+    assert!(!report.committed);
+    let global = load_global(&cfg).unwrap();
+    assert_eq!(global.wikis.len(), 1);
+    assert_eq!(global.wikis[0].name, "existing");
+}
+
+#[test]
+fn register_existing_with_custom_wiki_root() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_path = dir.path().join("skills-repo");
+    let cfg = config_path(dir.path());
+
+    std::fs::create_dir_all(wiki_path.join("skills")).unwrap();
+    std::fs::write(
+        wiki_path.join("wiki.toml"),
+        "name = \"skills\"\nwiki_root = \"skills\"\n",
+    )
+    .unwrap();
+
+    let report = llm_wiki::spaces::register_existing(
+        &wiki_path,
+        "skills",
+        None,
+        None,
+        &cfg,
+    )
+    .unwrap();
+
+    assert!(report.registered);
+}
+
+#[test]
+fn register_existing_wiki_root_flag_conflicts_with_toml() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_path = dir.path().join("skills-repo");
+    let cfg = config_path(dir.path());
+
+    std::fs::create_dir_all(wiki_path.join("skills")).unwrap();
+    std::fs::write(
+        wiki_path.join("wiki.toml"),
+        "name = \"skills\"\nwiki_root = \"skills\"\n",
+    )
+    .unwrap();
+
+    let err = llm_wiki::spaces::register_existing(
+        &wiki_path,
+        "skills",
+        None,
+        Some("other"),
+        &cfg,
+    )
+    .unwrap_err();
+
+    assert!(err.to_string().contains("already declares wiki_root"));
+}
+
+#[test]
+fn register_existing_missing_wiki_root_directory_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_path = dir.path().join("skills-repo");
+    let cfg = config_path(dir.path());
+
+    std::fs::create_dir_all(&wiki_path).unwrap();
+    std::fs::write(
+        wiki_path.join("wiki.toml"),
+        "name = \"skills\"\nwiki_root = \"skills\"\n",
+    )
+    .unwrap();
+
+    let err = llm_wiki::spaces::register_existing(
+        &wiki_path,
+        "skills",
+        None,
+        None,
+        &cfg,
+    )
+    .unwrap_err();
+
+    assert!(err.to_string().contains("does not exist"));
+}

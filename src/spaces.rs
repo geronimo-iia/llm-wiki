@@ -2,6 +2,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
+use toml;
 
 use crate::config::{GlobalConfig, WikiEntry, load_global, save_global};
 use crate::default_schemas::default_schemas;
@@ -21,6 +22,21 @@ pub struct CreateReport {
     /// True if the space was added to the global config.
     pub registered: bool,
     /// True if an initial git commit was made.
+    pub committed: bool,
+}
+
+/// Outcome of registering an existing wiki space.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RegisterReport {
+    /// Absolute path of the wiki directory.
+    pub path: String,
+    /// Registered name of the wiki.
+    pub name: String,
+    /// True if the space was added to the global config (false if already registered).
+    pub registered: bool,
+    /// Always false — register does not create directories.
+    pub created: bool,
+    /// Always false — register does not create git commits.
     pub committed: bool,
 }
 
@@ -111,6 +127,89 @@ pub fn create(
         created,
         registered: true,
         committed,
+    })
+}
+
+/// Register an existing wiki repository without creating files.
+///
+/// Reads `wiki.toml` from `path` (if it exists) to determine `wiki_root`.
+/// If `wiki_root_override` is given and `wiki.toml` already declares a
+/// different `wiki_root`, returns an error.
+pub fn register_existing(
+    path: &Path,
+    name: &str,
+    description: Option<&str>,
+    wiki_root_override: Option<&str>,
+    config_path: &Path,
+) -> Result<RegisterReport> {
+    if !path.exists() {
+        bail!("path \"{}\" does not exist", path.display());
+    }
+    let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+
+    // Read existing wiki.toml wiki_root if present
+    let existing_toml_root: Option<String> = {
+        let toml_path = path.join("wiki.toml");
+        if toml_path.exists() {
+            let raw = std::fs::read_to_string(&toml_path)?;
+            if raw.contains("wiki_root") {
+                let cfg: crate::config::WikiConfig =
+                    toml::from_str(&raw).unwrap_or_default();
+                Some(cfg.wiki_root)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+
+    // Conflict check
+    let effective_root: String = match (&wiki_root_override, &existing_toml_root) {
+        (Some(flag), Some(toml)) if *flag != toml => {
+            bail!(
+                "wiki.toml already declares wiki_root = \"{toml}\". \
+                 Remove it manually before registering with a different value."
+            );
+        }
+        (Some(flag), _) => flag.to_string(),
+        (None, Some(toml)) => toml.clone(),
+        (None, None) => "wiki".to_string(),
+    };
+
+    validate_wiki_root(&path, &effective_root)?;
+
+    // If wiki_root_override is set and toml doesn't have it, write it into wiki.toml
+    if wiki_root_override.is_some() && existing_toml_root.is_none() {
+        let toml_path = path.join("wiki.toml");
+        if toml_path.exists() {
+            let mut content = std::fs::read_to_string(&toml_path)?;
+            content.push_str(&format!("wiki_root = \"{effective_root}\"\n"));
+            std::fs::write(&toml_path, content)?;
+        } else {
+            std::fs::write(&toml_path, generate_wiki_toml(name, description, &effective_root))?;
+        }
+    }
+
+    let entry = WikiEntry {
+        name: name.into(),
+        path: path.to_string_lossy().into(),
+        description: description.map(|s| s.into()),
+        remote: None,
+    };
+
+    let global = crate::config::load_global(config_path)?;
+    let already_registered = global.wikis.iter().any(|w| w.name == name);
+    if !already_registered {
+        register(entry, false, config_path)?;
+    }
+
+    Ok(RegisterReport {
+        path: path.to_string_lossy().into(),
+        name: name.into(),
+        registered: !already_registered,
+        created: false,
+        committed: false,
     })
 }
 
