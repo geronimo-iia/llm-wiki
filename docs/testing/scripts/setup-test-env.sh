@@ -110,6 +110,10 @@ green "  ✓ wikis registered in $CONFIG_FILE"
 sed -i.bak "s|log_path = \".*\"|log_path = \"$TEST_DIR/logs\"|" "$CONFIG_FILE" && rm -f "$CONFIG_FILE.bak"
 green "  ✓ log_path set to $TEST_DIR/logs"
 
+# ACP test config: low session cap so validate-acp.sh section 08 can test the limit
+"$BINARY" --config "$CONFIG_FILE" config set serve.acp_max_sessions 3 --global 2>/dev/null || true
+green "  ✓ serve.acp_max_sessions set to 3 (for ACP cap test)"
+
 
 # ── Export env vars ───────────────────────────────────────────────────────────
 
@@ -136,6 +140,9 @@ echo
 echo "Run validation:"
 echo "  LLM_WIKI_BIN=./target/release/llm-wiki \\"
 echo "  ./docs/testing/scripts/validate-engine.sh"
+echo
+echo "  LLM_WIKI_BIN=./target/release/llm-wiki \\"
+echo "  ./docs/testing/scripts/validate-acp.sh"
 echo
 echo "Clean up:"
 echo "  source ./docs/testing/scripts/clean-test-env.sh"
