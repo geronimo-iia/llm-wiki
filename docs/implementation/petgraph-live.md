@@ -91,21 +91,9 @@ let state: GraphState<WikiGraph> = GraphState::builder(GraphStateConfig::new(sna
 `key` to `Some(...)`, it conflicts with the key returned by `key_fn` and
 produces incorrect behaviour. Always `None`.
 
-### Critical: snapshot directory must exist before `init()`
+### Snapshot directory
 
-`GraphState::init()` calls `build_fn` then `save_any()`. `save_any()` writes
-the snapshot file. If the directory doesn't exist, `save_any()` fails.
-`init()` returns `Err` without a clear message.
-
-```rust
-// In mount_space, before build_wiki_graph_cache:
-if resolved_cfg.graph.snapshot {
-    let snap_dir = state_dir.join("snapshots").join(&entry.name);
-    std::fs::create_dir_all(&snap_dir)?;
-}
-```
-
-petgraph-live will not create the directory for you.
+`GraphState::init()` creates the snapshot directory automatically (petgraph-live ≥ 0.3.1).
 
 ## `GraphState<T>` — usage
 
