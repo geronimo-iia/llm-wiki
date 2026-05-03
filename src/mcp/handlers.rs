@@ -388,6 +388,25 @@ pub fn handle_index_rebuild(server: &McpServer, args: &Map<String, Value>) -> To
     };
 
     let report = ops::index_rebuild(&server.manager, &wiki_name).map_err(|e| format!("{e}"))?;
+
+    // Non-fatal: refresh the graph snapshot after index rebuild.
+    {
+        let engine = server.engine();
+        if let Ok(space) = engine.space(&wiki_name) {
+            let current_gen = space.index_manager.generation();
+            if let Ok(searcher) = space.index_manager.searcher() {
+                let _ = space.graph_cache.rebuild(current_gen, || {
+                    crate::graph::build_graph(
+                        &searcher,
+                        &space.index_schema,
+                        &crate::graph::GraphFilter::default(),
+                        &space.type_registry,
+                    )
+                });
+            }
+        }
+    }
+
     let s = serde_json::to_string_pretty(&report).map_err(|e| format!("{e}"))?;
     ok_text(s)
 }

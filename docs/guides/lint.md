@@ -19,7 +19,7 @@ review workflow.
 - **In crystallize** — run at the end of an extraction session to surface
   issues introduced by new pages
 
-## The 5 rules
+## The 8 rules
 
 | Rule ID | Severity | What it catches |
 |---------|----------|-----------------|
@@ -28,6 +28,9 @@ review workflow.
 | `unknown-type` | error | The `type` field value is not registered in the type registry |
 | `orphan` | warning | Page has no incoming links and is not a section page |
 | `stale` | warning | `last_updated` older than threshold **and** `confidence` below threshold |
+| `articulation-point` | warning | Page whose removal disconnects the graph — add link paths that bypass this page |
+| `bridge` | warning | Link whose removal disconnects the graph — add a parallel path between the two components |
+| `periphery` | warning | Most structurally isolated page (eccentricity = diameter); skipped above `graph.max_nodes_for_diameter` |
 
 Errors block CI. Warnings are informational — fix them when reviewing
 wiki quality.
@@ -106,6 +109,32 @@ low-confidence (`confidence` below `stale_confidence_threshold`).
 Fix: review the page and update its content, then raise `last_updated`
 and adjust `confidence` to reflect your current certainty. A page that
 is old but `confidence: 0.9` is **not** flagged as stale.
+
+### `articulation-point`
+
+This page is a cut vertex — removing it splits the graph into two or more disconnected
+components. It carries an outsized connectivity burden.
+
+Fix: add at least one alternative link path that bypasses this page. Connecting two of
+its neighbours directly reduces the fragility. Use `wiki_suggest` on each neighbour to
+find good candidates.
+
+### `bridge`
+
+This link is the only connection between two parts of the graph. Removing the source or
+target page would disconnect the graph.
+
+Fix: add at least one more link between the two connected components. Look at pages on
+either side of the bridge and add cross-links.
+
+### `periphery`
+
+This page is maximally isolated — its eccentricity equals the graph diameter. It is the
+furthest from all other pages.
+
+Fix: link it to more central pages. Run `wiki_suggest(slug: "<slug>")` to find the
+best connection candidates. The `center` field in `wiki_stats` lists the hub pages most
+worth connecting to.
 
 ## Typical workflow
 

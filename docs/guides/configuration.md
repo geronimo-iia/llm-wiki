@@ -166,6 +166,50 @@ Default is Mermaid. Switch to DOT for Graphviz:
 llm-wiki config set graph.format dot --global
 ```
 
+### Disable graph snapshot warm-start
+
+By default the graph cache is persisted to `~/.llm-wiki/snapshots/<wiki>/` so
+process restarts load from disk instead of rebuilding. Disable in CI or when
+snapshot files are undesirable:
+
+```bash
+llm-wiki config set graph.snapshot false --wiki research
+```
+
+Control how many snapshots are kept per wiki (default 3) and the encoding format:
+
+```bash
+llm-wiki config set graph.snapshot_keep 5 --global
+llm-wiki config set graph.snapshot_format bincode --global
+# Use Zstd compression instead of LZ4 (smaller files, slower compression)
+llm-wiki config set graph.snapshot_format bincode+zstd --global
+```
+
+### Disable structural topology in stats
+
+By default `wiki_stats` computes diameter, radius, and center when the graph is below
+`graph.max_nodes_for_diameter`. Disable entirely:
+
+```bash
+llm-wiki config set graph.structural_algorithms false --wiki large-wiki
+```
+
+The `articulation-point`, `bridge`, and `periphery` lint rules are unaffected — use
+`--rules` to exclude them from a lint run.
+
+### Tune structural algorithm threshold
+
+Diameter, radius, center, and periphery use BFS from every node — O(n·(n+e)).
+Skipped above the threshold:
+
+```bash
+# Lower threshold — skip on wikis with more than 500 pages
+llm-wiki config set graph.max_nodes_for_diameter 500 --wiki large-wiki
+
+# Raise threshold — always compute
+llm-wiki config set graph.max_nodes_for_diameter 10000 --global
+```
+
 ### Disable rename tracking in history
 
 `wiki_history` follows renames by default. Disable per-wiki if it

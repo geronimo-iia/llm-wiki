@@ -187,7 +187,8 @@ Runs lint rules and streams each finding.
 ```
 
 `rules` is a comma-separated subset of: `orphan`, `broken-link`,
-`missing-fields`, `stale`, `unknown-type`, `broken-cross-wiki-link`.
+`missing-fields`, `stale`, `unknown-type`, `broken-cross-wiki-link`,
+`articulation-point`, `bridge`, `periphery`.
 Empty or absent means all rules.
 
 ### `graph`

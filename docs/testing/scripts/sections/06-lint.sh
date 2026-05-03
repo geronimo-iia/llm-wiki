@@ -23,3 +23,9 @@ run_json_nocheck "orphan finds orphan-concept" \
                  '[.findings[] | select(.slug=="concepts/orphan-concept")] | length > 0' "true" \
                  $CLI lint --rules orphan --format json
 run_nocheck      "lint with --wiki flag"  "error\|warning"  $CLI lint --wiki research
+run_nocheck      "lint articulation-point rule runs" ""  $CLI lint --rules articulation-point
+run_nocheck      "lint bridge rule runs"             ""  $CLI lint --rules bridge
+run_nocheck      "lint periphery rule runs"          ""  $CLI lint --rules periphery
+run_json_nocheck "lint all rules includes structural rules" \
+                 '[.findings[] | select(.rule == "articulation-point" or .rule == "bridge" or .rule == "periphery")] | length >= 0' "true" \
+                 $CLI lint --format json

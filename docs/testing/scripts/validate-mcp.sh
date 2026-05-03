@@ -101,6 +101,7 @@ run_section "08" "$_SCRIPT_DIR/mcp/08-stats.sh"
 run_section "09" "$_SCRIPT_DIR/mcp/09-suggest.sh"
 run_section "10" "$_SCRIPT_DIR/mcp/10-export.sh"
 run_section "11" "$_SCRIPT_DIR/mcp/11-schema.sh"
+run_section "12" "$_SCRIPT_DIR/mcp/12-structural.sh"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 

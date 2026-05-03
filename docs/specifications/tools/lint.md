@@ -1,12 +1,12 @@
 ---
 title: "Lint"
-summary: "wiki_lint MCP tool — 5 deterministic index-based rules."
+summary: "wiki_lint MCP tool — 8 rules (5 index-based, 3 graph-structural)."
 read_when:
   - Checking wiki health programmatically
   - Running CI gates
   - Understanding what wiki_lint returns
 status: ready
-last_updated: "2026-04-27"
+last_updated: "2026-05-04"
 ---
 
 # Lint
@@ -22,9 +22,10 @@ wiki_lint(severity: "error")         — filter to errors only
 wiki_lint(wiki: "name")              — target a specific wiki
 ```
 
-Runs deterministic lint rules against the tantivy index. All rules are
-pure index queries — no file I/O, no LLM involvement. Fast and safe
-to run in CI.
+Runs lint rules against the tantivy index and wiki graph. The 5 index-based
+rules are pure index queries — no file I/O. The 3 structural rules
+(`articulation-point`, `bridge`, `periphery`) build the wiki graph on demand
+and are safe to run in CI (cached after first build).
 
 Returns a JSON object:
 
@@ -56,7 +57,7 @@ Empty `findings` array = clean wiki. CLI exits non-zero when any
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `rules` | string | all | Comma-separated rule names to run |
+| `rules` | string | all | Comma-separated rule names: `orphan`, `broken-link`, `broken-cross-wiki-link`, `missing-fields`, `stale`, `unknown-type`, `articulation-point`, `bridge`, `periphery` |
 | `severity` | string | all | Filter output: `error` \| `warning` |
 | `wiki` | string | default | Target wiki name |
 
@@ -69,6 +70,9 @@ Empty `findings` array = clean wiki. CLI exits non-zero when any
 | `missing-fields` | error | Required frontmatter fields (per type schema) are absent |
 | `stale` | warning | `last_updated` older than threshold AND `confidence` below threshold |
 | `unknown-type` | error | `type` field is not registered in the type registry |
+| `articulation-point` | warning | Page whose removal disconnects the graph (undirected view) |
+| `bridge` | warning | Link whose removal disconnects the graph (undirected view) |
+| `periphery` | warning | Most structurally isolated page — eccentricity equals diameter; skipped when `local_count > graph.max_nodes_for_diameter` |
 
 ### orphan
 
@@ -106,6 +110,32 @@ with no valid `last_updated` date is treated as infinitely old.
 Checks the `type` field value against `SpaceTypeRegistry::is_known()`.
 Empty type fields are skipped.
 
+### articulation-point
+
+Builds a symmetrized undirected view of the wiki graph (external placeholder
+nodes excluded), then runs Tarjan DFS to find articulation points — nodes whose
+removal increases the number of connected components.
+
+A high articulation-point count signals fragile graph topology. Fix by adding
+alternative link paths that bypass each flagged page.
+
+### bridge
+
+Same undirected graph as `articulation-point`. Reports edges whose removal
+disconnects the graph.
+
+Fix by creating at least one parallel path between the two components on either
+side of each bridge.
+
+### periphery
+
+Runs BFS from every local node on the directed `WikiGraph` to compute
+eccentricities. Pages with eccentricity equal to the diameter are in the
+periphery — maximally isolated from the rest of the graph.
+
+Skipped entirely when `local_count > graph.max_nodes_for_diameter` (default 2000).
+Use `--rules periphery` to confirm whether it ran or was skipped.
+
 ## Configuration
 
 `[lint]` in `config.toml` (global) or `wiki.toml` (per-wiki override):
@@ -122,7 +152,7 @@ Per-wiki `[lint]` replaces the global value entirely (not merged).
 
 ```
 llm-wiki lint
-         [--rules orphan,stale]     # subset of rules
+         [--rules orphan,stale,articulation-point]  # subset of rules
          [--severity error]         # filter output
          [--format json|text]       # default: text
          [--wiki <name>]

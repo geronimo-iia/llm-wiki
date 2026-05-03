@@ -4,6 +4,16 @@ Architectural decisions and their rationale, grouped by release.
 
 ---
 
+## v0.4.0 — 2026-05-03
+
+### Graph
+
+| Decision | Summary |
+| -------- | ------- |
+| [petgraph-live](0.4.0/petgraph-live.md) | Adopt `petgraph-live` — replace bespoke `CachedGraph` with `GenerationCache`; enables snapshot warm-start and algorithm suite |
+
+---
+
 ## v0.3.0 — 2026-05-01
 
 Decisions made during ACP workflow expansion and transport stabilization.

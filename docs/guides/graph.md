@@ -44,3 +44,34 @@ community_suggestions_limit = 3   # more cross-cluster suggestions per call
 
 The Louvain phase-1 pass is capped at `n × 10` iterations to prevent oscillation
 on small or cyclic graphs. This has no effect on convergence for normal wikis.
+
+## Structural health
+
+Three `wiki_lint` rules report structural fragility:
+
+| Rule | What it means | How to fix |
+|------|---------------|------------|
+| `articulation-point` | Removing this page disconnects the graph | Add alternative link paths that bypass this page |
+| `bridge` | Removing this link disconnects the graph | Create at least one parallel path between the two connected components |
+| `periphery` | Most structurally isolated page | Link it to more central pages |
+
+```bash
+# Run only structural rules
+llm-wiki lint --rules articulation-point,bridge,periphery
+
+# Include in full lint run (default)
+llm-wiki lint
+```
+
+`wiki_stats` also reports aggregate structural metrics when the graph is below
+`graph.max_nodes_for_diameter` (default 2000):
+
+| Field | Meaning |
+|-------|---------|
+| `diameter` | Longest shortest path — how far apart the most distant pages are |
+| `radius` | Shortest eccentricity — minimum distance from any page to all others |
+| `center` | Slugs with eccentricity equal to `radius` — hub pages |
+
+```bash
+llm-wiki stats --format json | jq '{diameter, radius, center}'
+```

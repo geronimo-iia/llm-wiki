@@ -150,7 +150,8 @@ pub enum Commands {
     },
     /// Run deterministic lint rules on the wiki index
     Lint {
-        /// Comma-separated rule names: orphan, broken-link, missing-fields, stale, unknown-type
+        /// Comma-separated rule names: orphan, broken-link, broken-cross-wiki-link,
+        /// missing-fields, stale, unknown-type, articulation-point, bridge, periphery
         #[arg(long)]
         rules: Option<String>,
         /// Filter output by severity: error | warning

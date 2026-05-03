@@ -213,6 +213,7 @@ pub fn suggest(
         &space.type_registry,
         &space.index_manager,
         &space.graph_cache,
+        &space.community_cache,
         &searcher,
         resolved.graph.min_nodes_for_communities,
     )? && let Some(&my_community) = community_map.get(slug.as_str())

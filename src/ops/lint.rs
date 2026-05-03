@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::Result;
+use petgraph::graph::{NodeIndex, UnGraph};
 use serde::Serialize;
 use tantivy::schema::Value;
 use tantivy::{
@@ -11,6 +13,7 @@ use tantivy::{
 };
 
 use crate::engine::EngineState;
+use crate::graph::{GraphFilter, WikiGraph, get_or_build_graph};
 use crate::index_schema::IndexSchema;
 use crate::slug::Slug;
 
@@ -79,6 +82,9 @@ pub fn run_lint(
             "missing-fields",
             "stale",
             "unknown-type",
+            "articulation-point",
+            "bridge",
+            "periphery",
         ]
         .iter()
         .copied()
@@ -132,6 +138,34 @@ pub fn run_lint(
             wiki_root,
             &space.type_registry,
         )?);
+    }
+
+    let needs_graph = active_rules.contains("articulation-point")
+        || active_rules.contains("bridge")
+        || active_rules.contains("periphery");
+
+    if needs_graph {
+        let wiki_graph = get_or_build_graph(
+            &space.index_schema,
+            &space.type_registry,
+            &space.index_manager,
+            &space.graph_cache,
+            &searcher,
+            &GraphFilter::default(),
+        )?;
+        if active_rules.contains("articulation-point") {
+            findings.extend(rule_articulation_point(&wiki_graph, wiki_root));
+        }
+        if active_rules.contains("bridge") {
+            findings.extend(rule_bridge(&wiki_graph, wiki_root));
+        }
+        if active_rules.contains("periphery") {
+            findings.extend(rule_periphery(
+                &wiki_graph,
+                wiki_root,
+                resolved.graph.max_nodes_for_diameter,
+            ));
+        }
     }
 
     // Apply severity filter
@@ -470,6 +504,40 @@ fn rule_stale(
     Ok(findings)
 }
 
+// ── Graph helper ─────────────────────────────────────────────────────────────
+
+fn build_undirected(
+    graph: &WikiGraph,
+) -> (
+    UnGraph<NodeIndex, ()>,
+    std::collections::HashMap<petgraph::graph::NodeIndex<u32>, NodeIndex>,
+) {
+    let mut ug: UnGraph<NodeIndex, ()> = UnGraph::new_undirected();
+    let mut node_map: std::collections::HashMap<NodeIndex, petgraph::graph::NodeIndex<u32>> =
+        std::collections::HashMap::new();
+    let mut reverse_map: std::collections::HashMap<petgraph::graph::NodeIndex<u32>, NodeIndex> =
+        std::collections::HashMap::new();
+    for idx in graph.node_indices() {
+        if !graph[idx].external {
+            let ug_idx = ug.add_node(idx);
+            node_map.insert(idx, ug_idx);
+            reverse_map.insert(ug_idx, idx);
+        }
+    }
+    for edge in graph.edge_indices() {
+        let (a, b) = graph.edge_endpoints(edge).unwrap();
+        if graph[a].external || graph[b].external {
+            continue;
+        }
+        if let (Some(&ua), Some(&ub)) = (node_map.get(&a), node_map.get(&b))
+            && ug.find_edge(ua, ub).is_none()
+        {
+            ug.add_edge(ua, ub, ());
+        }
+    }
+    (ug, reverse_map)
+}
+
 // ── Rule: unknown-type ────────────────────────────────────────────────────────
 
 fn rule_unknown_type(
@@ -511,4 +579,273 @@ fn rule_unknown_type(
     }
 
     Ok(findings)
+}
+
+// ── Rule: articulation-point ──────────────────────────────────────────────────
+
+fn rule_articulation_point(wiki_graph: &Arc<WikiGraph>, wiki_root: &Path) -> Vec<LintFinding> {
+    let (ug, reverse_map) = build_undirected(wiki_graph);
+    let aps = petgraph_live::connect::articulation_points(&ug);
+    aps.iter()
+        .filter_map(|&ug_idx| reverse_map.get(&ug_idx))
+        .map(|&orig_idx| {
+            let slug = wiki_graph[orig_idx].slug.clone();
+            LintFinding {
+                path: slug_path(&slug, wiki_root),
+                slug,
+                rule: "articulation-point",
+                severity: Severity::Warning,
+                message:
+                    "removing this page would disconnect the graph — add alternative link paths"
+                        .to_string(),
+            }
+        })
+        .collect()
+}
+
+// ── Rule: bridge ──────────────────────────────────────────────────────────────
+
+fn rule_bridge(wiki_graph: &Arc<WikiGraph>, wiki_root: &Path) -> Vec<LintFinding> {
+    let (ug, reverse_map) = build_undirected(wiki_graph);
+    let bridges = petgraph_live::connect::find_bridges(&ug);
+    bridges
+        .iter()
+        .filter_map(|&(ua, ub)| {
+            let a = reverse_map.get(&ua)?;
+            let b = reverse_map.get(&ub)?;
+            Some((*a, *b))
+        })
+        .map(|(a, b)| {
+            let slug_a = wiki_graph[a].slug.clone();
+            let slug_b = wiki_graph[b].slug.clone();
+            LintFinding {
+                path: slug_path(&slug_a, wiki_root),
+                slug: slug_a.clone(),
+                rule: "bridge",
+                severity: Severity::Warning,
+                message: format!(
+                    "link {slug_a} → {slug_b} is a bridge — its removal disconnects the graph"
+                ),
+            }
+        })
+        .collect()
+}
+
+// ── Rule: periphery ───────────────────────────────────────────────────────────
+
+fn rule_periphery(
+    wiki_graph: &Arc<WikiGraph>,
+    wiki_root: &Path,
+    max_nodes: usize,
+) -> Vec<LintFinding> {
+    let local_count = wiki_graph
+        .node_indices()
+        .filter(|&idx| !wiki_graph[idx].external)
+        .count();
+    if local_count > max_nodes {
+        return vec![];
+    }
+    let periph = petgraph_live::metrics::periphery(&**wiki_graph);
+    periph
+        .iter()
+        .filter(|&&idx| !wiki_graph[idx].external)
+        .map(|&idx| {
+            let slug = wiki_graph[idx].slug.clone();
+            LintFinding {
+                path: slug_path(&slug, wiki_root),
+                slug,
+                rule: "periphery",
+                severity: Severity::Warning,
+                message: "most structurally isolated page — furthest from all others in the graph"
+                    .to_string(),
+            }
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::graph::{LabeledEdge, PageNode};
+    use petgraph::graph::DiGraph;
+
+    fn make_graph(slugs: &[&str], edges: &[(&str, &str)]) -> WikiGraph {
+        let mut g = DiGraph::new();
+        let indices: std::collections::HashMap<&str, petgraph::graph::NodeIndex> = slugs
+            .iter()
+            .map(|&s| {
+                (
+                    s,
+                    g.add_node(PageNode {
+                        slug: s.to_string(),
+                        title: s.to_string(),
+                        r#type: "page".to_string(),
+                        external: false,
+                    }),
+                )
+            })
+            .collect();
+        for &(a, b) in edges {
+            g.add_edge(
+                indices[a],
+                indices[b],
+                LabeledEdge {
+                    relation: "links-to".to_string(),
+                },
+            );
+        }
+        g
+    }
+
+    #[test]
+    fn build_undirected_excludes_external() {
+        let mut g = DiGraph::new();
+        let local = g.add_node(PageNode {
+            slug: "a".into(),
+            title: "a".into(),
+            r#type: "page".into(),
+            external: false,
+        });
+        let ext = g.add_node(PageNode {
+            slug: "b".into(),
+            title: "b".into(),
+            r#type: "page".into(),
+            external: true,
+        });
+        g.add_edge(
+            local,
+            ext,
+            LabeledEdge {
+                relation: "links-to".into(),
+            },
+        );
+        let (ug, _) = build_undirected(&g);
+        assert_eq!(ug.node_count(), 1);
+        assert_eq!(ug.edge_count(), 0);
+    }
+
+    #[test]
+    fn articulation_point_detected() {
+        // a -- b -- c  →  b is articulation point
+        let g = make_graph(&["a", "b", "c"], &[("a", "b"), ("b", "c")]);
+        let (ug, rev) = build_undirected(&g);
+        let aps = petgraph_live::connect::articulation_points(&ug);
+        let slugs: Vec<String> = aps
+            .iter()
+            .filter_map(|&ui| rev.get(&ui))
+            .map(|&idx| g[idx].slug.clone())
+            .collect();
+        assert!(
+            slugs.contains(&"b".to_string()),
+            "b must be AP, got: {slugs:?}"
+        );
+    }
+
+    #[test]
+    fn no_articulation_points_in_cycle() {
+        let g = make_graph(&["a", "b", "c"], &[("a", "b"), ("b", "c"), ("c", "a")]);
+        let (ug, _) = build_undirected(&g);
+        assert!(petgraph_live::connect::articulation_points(&ug).is_empty());
+    }
+
+    #[test]
+    fn bridge_detected() {
+        // a -- b -- c  →  both edges are bridges
+        let g = make_graph(&["a", "b", "c"], &[("a", "b"), ("b", "c")]);
+        let (ug, rev) = build_undirected(&g);
+        let bridges = petgraph_live::connect::find_bridges(&ug);
+        assert_eq!(bridges.len(), 2);
+        let pairs: Vec<(String, String)> = bridges
+            .iter()
+            .filter_map(|&(ua, ub)| {
+                Some((
+                    g[*rev.get(&ua)?].slug.clone(),
+                    g[*rev.get(&ub)?].slug.clone(),
+                ))
+            })
+            .collect();
+        let has_ab = pairs
+            .iter()
+            .any(|(a, b)| (a == "a" && b == "b") || (a == "b" && b == "a"));
+        let has_bc = pairs
+            .iter()
+            .any(|(a, b)| (a == "b" && b == "c") || (a == "c" && b == "b"));
+        assert!(has_ab && has_bc);
+    }
+
+    #[test]
+    fn rule_articulation_point_produces_finding_for_connector() {
+        // a -- b -- c: b is the only articulation point
+        let g = Arc::new(make_graph(&["a", "b", "c"], &[("a", "b"), ("b", "c")]));
+        let findings = rule_articulation_point(&g, Path::new("/wiki"));
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].slug, "b");
+        assert_eq!(findings[0].rule, "articulation-point");
+        assert_eq!(findings[0].severity, Severity::Warning);
+        assert!(findings[0].message.contains("disconnect"));
+    }
+
+    #[test]
+    fn rule_articulation_point_empty_for_cycle() {
+        let g = Arc::new(make_graph(
+            &["a", "b", "c"],
+            &[("a", "b"), ("b", "c"), ("c", "a")],
+        ));
+        assert!(rule_articulation_point(&g, Path::new("/wiki")).is_empty());
+    }
+
+    #[test]
+    fn rule_bridge_produces_findings_with_correct_fields() {
+        // a -- b -- c: both edges are bridges
+        let g = Arc::new(make_graph(&["a", "b", "c"], &[("a", "b"), ("b", "c")]));
+        let findings = rule_bridge(&g, Path::new("/wiki"));
+        assert_eq!(findings.len(), 2);
+        for f in &findings {
+            assert_eq!(f.rule, "bridge");
+            assert_eq!(f.severity, Severity::Warning);
+            assert!(
+                f.message.contains("→"),
+                "message must contain arrow, got: {}",
+                f.message
+            );
+            assert!(f.message.contains("is a bridge"));
+        }
+        let slugs: Vec<&str> = findings.iter().map(|f| f.slug.as_str()).collect();
+        assert!(slugs.contains(&"a") || slugs.contains(&"b"));
+    }
+
+    #[test]
+    fn rule_bridge_empty_for_cycle() {
+        let g = Arc::new(make_graph(
+            &["a", "b", "c"],
+            &[("a", "b"), ("b", "c"), ("c", "a")],
+        ));
+        assert!(rule_bridge(&g, Path::new("/wiki")).is_empty());
+    }
+
+    #[test]
+    fn rule_periphery_produces_findings() {
+        // a→b→c→a: directed cycle, all nodes have eccentricity 2 = diameter
+        let g = Arc::new(make_graph(
+            &["a", "b", "c"],
+            &[("a", "b"), ("b", "c"), ("c", "a")],
+        ));
+        let findings = rule_periphery(&g, Path::new("/wiki"), 100);
+        assert!(!findings.is_empty());
+        for f in &findings {
+            assert_eq!(f.rule, "periphery");
+            assert_eq!(f.severity, Severity::Warning);
+            assert!(f.message.contains("isolated"));
+        }
+    }
+
+    #[test]
+    fn rule_periphery_skips_above_threshold() {
+        // 3 nodes, threshold 2 → local_count(3) > max_nodes(2) → empty
+        let g = Arc::new(make_graph(
+            &["a", "b", "c"],
+            &[("a", "b"), ("b", "c"), ("c", "a")],
+        ));
+        assert!(rule_periphery(&g, Path::new("/wiki"), 2).is_empty());
+    }
 }

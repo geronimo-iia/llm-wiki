@@ -55,6 +55,17 @@ pub struct WikiStats {
     pub index: IndexHealth,
     /// Louvain community detection results; `None` when graph is below `min_nodes_for_communities`.
     pub communities: Option<CommunityStats>,
+    /// Maximum shortest directed-path length between any two pages.
+    /// `None` when graph exceeds `max_nodes_for_diameter` or `structural_algorithms` is false.
+    pub diameter: Option<f32>,
+    /// Minimum eccentricity — closest page to all others on average.
+    /// `None` under same conditions as `diameter`.
+    pub radius: Option<f32>,
+    /// Slugs with eccentricity equal to `radius` (central hub pages).
+    /// Empty when `diameter` is `None`.
+    pub center: Vec<String>,
+    /// Non-null when O(n²) algorithms were skipped due to graph size.
+    pub structural_note: Option<String>,
 }
 
 /// Compute aggregate stats for a wiki — page counts, graph metrics, staleness, and index health.
@@ -95,6 +106,7 @@ pub fn stats(engine: &EngineState, wiki_name: &str) -> Result<WikiStats> {
         &space.type_registry,
         &space.index_manager,
         &space.graph_cache,
+        &space.community_cache,
         &searcher,
         resolved.graph.min_nodes_for_communities,
     )?;
@@ -109,6 +121,31 @@ pub fn stats(engine: &EngineState, wiki_name: &str) -> Result<WikiStats> {
         built: index_status.ok().and_then(|s| s.built),
     };
 
+    // Structural topology fields
+    let local_count = wiki_graph
+        .node_indices()
+        .filter(|&idx| !wiki_graph[idx].external)
+        .count();
+    let max_n = resolved.graph.max_nodes_for_diameter;
+
+    let (diameter, radius, center, structural_note) = if !resolved.graph.structural_algorithms {
+        (None, None, vec![], None)
+    } else if local_count <= max_n {
+        let d = petgraph_live::metrics::diameter(&*wiki_graph);
+        let r = petgraph_live::metrics::radius(&*wiki_graph);
+        let c: Vec<String> = petgraph_live::metrics::center(&*wiki_graph)
+            .into_iter()
+            .filter(|&idx| !wiki_graph[idx].external)
+            .map(|idx| wiki_graph[idx].slug.clone())
+            .collect();
+        (d, r, c, None)
+    } else {
+        let note = format!(
+            "graph too large for diameter computation ({local_count} nodes > max_nodes_for_diameter={max_n})"
+        );
+        (None, None, vec![], Some(note))
+    };
+
     Ok(WikiStats {
         wiki: wiki_name.to_string(),
         pages,
@@ -121,6 +158,10 @@ pub fn stats(engine: &EngineState, wiki_name: &str) -> Result<WikiStats> {
         staleness,
         index,
         communities,
+        diameter,
+        radius,
+        center,
+        structural_note,
     })
 }
 

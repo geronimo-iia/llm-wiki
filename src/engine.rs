@@ -4,8 +4,12 @@ use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
 
+use petgraph_live::cache::GenerationCache;
+use petgraph_live::live::{GraphState, GraphStateConfig};
+use petgraph_live::snapshot::{Compression, SnapshotConfig, SnapshotFormat};
+
 use crate::config::{self, GlobalConfig, ResolvedConfig, WikiEntry};
-use crate::graph::CachedGraph;
+use crate::graph::{CommunityData, WikiGraph, WikiGraphCache};
 use crate::index_manager::{IndexReport, SpaceIndexManager, StalenessKind, UpdateReport};
 use crate::index_schema::IndexSchema;
 use crate::space_builder;
@@ -22,13 +26,15 @@ pub struct SpaceContext {
     /// Absolute path to the git repository root (parent of `wiki/`).
     pub repo_root: PathBuf,
     /// Type registry compiled from the wiki's schema files.
-    pub type_registry: SpaceTypeRegistry,
+    pub type_registry: Arc<SpaceTypeRegistry>,
     /// Tantivy index schema for this space.
     pub index_schema: IndexSchema,
     /// Lifecycle manager for the Tantivy search index.
-    pub index_manager: SpaceIndexManager,
-    /// In-memory graph cache. Invalidated when `index_manager.generation()` changes.
-    pub graph_cache: RwLock<Option<CachedGraph>>,
+    pub index_manager: Arc<SpaceIndexManager>,
+    /// Graph cache — either in-memory only (NoSnapshot) or snapshot-backed (WithSnapshot).
+    pub graph_cache: WikiGraphCache,
+    /// Generation-keyed community cache. Shares the same generation key as graph_cache.
+    pub community_cache: GenerationCache<CommunityData>,
 }
 
 impl SpaceContext {
@@ -282,7 +288,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
             space_builder::build_space_from_embedded(&config.index.tokenizer)
         });
 
-    let index_manager = SpaceIndexManager::new(&entry.name, &index_path);
+    let index_manager = Arc::new(SpaceIndexManager::new(&entry.name, &index_path));
 
     let search_dir = index_path.join("search-index");
     std::fs::create_dir_all(&search_dir)?;
@@ -363,6 +369,35 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
         tracing::warn!(wiki = %entry.name, error = %e, "failed to open index");
     }
 
+    let resolved_cfg = config::resolve(config, &wiki_cfg);
+    let type_registry = Arc::new(type_registry);
+    let graph_cache = {
+        let im_key = index_manager.clone();
+        let im_build = index_manager.clone();
+        let is = index_schema.clone();
+        let tr = Arc::clone(&type_registry);
+        build_wiki_graph_cache(
+            &entry.name,
+            state_dir,
+            &resolved_cfg.graph,
+            move || Ok(im_key.generation().to_string()),
+            move || {
+                let searcher = im_build.searcher().map_err(|e| {
+                    petgraph_live::snapshot::SnapshotError::Io(std::io::Error::other(e.to_string()))
+                })?;
+                crate::graph::build_graph(
+                    &searcher,
+                    &is,
+                    &crate::graph::GraphFilter::default(),
+                    &tr,
+                )
+                .map_err(|e| {
+                    petgraph_live::snapshot::SnapshotError::Io(std::io::Error::other(e.to_string()))
+                })
+            },
+        )?
+    };
+
     Ok(SpaceContext {
         name: entry.name.clone(),
         wiki_root,
@@ -370,6 +405,45 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
         type_registry,
         index_schema,
         index_manager,
-        graph_cache: RwLock::new(None),
+        graph_cache,
+        community_cache: GenerationCache::new(),
     })
+}
+
+fn build_wiki_graph_cache(
+    wiki_name: &str,
+    state_dir: &Path,
+    graph_cfg: &crate::config::GraphConfig,
+    key_fn: impl Fn() -> Result<String, petgraph_live::snapshot::SnapshotError> + Send + Sync + 'static,
+    build_fn: impl Fn() -> Result<WikiGraph, petgraph_live::snapshot::SnapshotError>
+    + Send
+    + Sync
+    + 'static,
+) -> Result<WikiGraphCache> {
+    if !graph_cfg.snapshot {
+        return Ok(WikiGraphCache::NoSnapshot(GenerationCache::new()));
+    }
+
+    let compression = match graph_cfg.snapshot_format.as_str() {
+        "bincode+lz4" => Compression::Lz4,
+        "bincode+zstd" => Compression::Zstd { level: 3 },
+        _ => Compression::None,
+    };
+
+    let snap_cfg = SnapshotConfig {
+        dir: state_dir.join("snapshots").join(wiki_name),
+        name: "wiki-graph".into(),
+        key: None,
+        format: SnapshotFormat::Bincode,
+        compression,
+        keep: graph_cfg.snapshot_keep as usize,
+    };
+
+    let state = GraphState::builder(GraphStateConfig::new(snap_cfg))
+        .key_fn(key_fn)
+        .build_fn(build_fn)
+        .init()
+        .map_err(|e| anyhow::anyhow!("graph snapshot init failed: {e}"))?;
+
+    Ok(WikiGraphCache::WithSnapshot(state))
 }

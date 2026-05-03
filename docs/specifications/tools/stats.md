@@ -1,11 +1,11 @@
 ---
 title: "Stats"
-summary: "Wiki health dashboard — page counts, orphans, connectivity, staleness."
+summary: "Wiki health dashboard — page counts, orphans, connectivity, staleness, structural topology."
 read_when:
   - Assessing wiki health
   - Getting a quick overview of wiki state
 status: ready
-last_updated: "2025-07-23"
+last_updated: "2026-05-04"
 ---
 
 # Stats
@@ -59,15 +59,34 @@ JSON (`--format json`):
     "largest": 34,
     "smallest": 3,
     "isolated": ["tangent-thought-xyz", "draft-stub-abc"]
-  }
+  },
+  "diameter": 4.0,
+  "radius": 2.0,
+  "center": ["concepts/core-concept"],
+  "structural_note": null
 }
 ```
 
-`communities` is `null` when the wiki has fewer pages than `graph.min_nodes_for_communities` (default 30):
+`communities` is `null` when the wiki has fewer pages than `graph.min_nodes_for_communities` (default 30).
+
+`diameter`, `radius`, `center` are `null`/empty and `structural_note` is set when:
+- `graph.structural_algorithms = false` — disabled in config
+- `local_count > graph.max_nodes_for_diameter` (default 2000) — graph too large
 
 ```json
 {
   "communities": null
+}
+```
+
+When structural algorithms are skipped due to graph size:
+
+```json
+{
+  "diameter": null,
+  "radius": null,
+  "center": [],
+  "structural_note": "graph too large for diameter computation (2500 nodes > max_nodes_for_diameter=2000)"
 }
 ```
 
@@ -85,6 +104,10 @@ JSON (`--format json`):
 | `staleness` | `last_updated` | Fixed buckets: fresh (<7d), stale_7d (7-30d), stale_30d (>30d) |
 | `index` | index status | Stale flag and last build time |
 | `communities` | Louvain (graph) | Cluster stats; `null` when pages < `min_nodes_for_communities` (default 30) |
+| `diameter` | petgraph-live metrics | Longest shortest directed path; `null` when disabled or graph too large |
+| `radius` | petgraph-live metrics | Minimum eccentricity; `null` under same conditions as `diameter` |
+| `center` | petgraph-live metrics | Slugs with eccentricity equal to `radius`; empty when `diameter` is `null` |
+| `structural_note` | computed | Explanation when O(n²) algorithms were skipped; `null` otherwise |
 
 ### communities
 
@@ -101,12 +124,31 @@ Louvain community detection run on the undirected wiki graph. Present only when
 `isolated` pages are the highest-priority candidates for new links. Run
 `wiki_suggest(slug: "<isolated-slug>")` to find the best connections.
 
+### structural topology
+
+`diameter`, `radius`, `center`, and `structural_note` are computed via BFS from
+every local node on the directed `WikiGraph` — O(n·(n+e)).
+
+Two gates must both pass:
+
+1. `graph.structural_algorithms = true` (default) — if `false`, all four fields
+   are `null`/empty with no note
+2. `local_count <= graph.max_nodes_for_diameter` (default 2000) — if exceeded,
+   fields are `null`/empty and `structural_note` explains why
+
+| Field | Description |
+|-------|-------------|
+| `diameter` | Longest shortest path between any two pages |
+| `radius` | Minimum eccentricity — distance from the most central page to all others |
+| `center` | Slugs whose eccentricity equals `radius` — hub pages |
+| `structural_note` | Non-null only when algorithms were skipped due to graph size |
+
 ## MCP Tool Definition
 
 ```json
 {
   "name": "wiki_stats",
-  "description": "Wiki health dashboard",
+  "description": "Wiki health dashboard — page counts, graph metrics, staleness, structural topology (diameter, radius, center)",
   "parameters": {
     "wiki": "target wiki name (default: default wiki)"
   }

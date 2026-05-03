@@ -15,6 +15,7 @@ use crate::default_schemas;
 /// Built once from schema files (or hardcoded defaults). No raw JSON
 /// Schema content is kept — only the compiled tantivy schema and a
 /// field name → Field handle map.
+#[derive(Clone)]
 pub struct IndexSchema {
     /// Compiled Tantivy schema.
     pub schema: Schema,

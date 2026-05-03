@@ -2,7 +2,7 @@
 title: "Engine Implementation"
 summary: "Top-level engine structs, space mounting, and how registries and indexes compose at runtime."
 status: ready
-last_updated: "2026-04-28"
+last_updated: "2026-05-03"
 ---
 
 # Engine Implementation
@@ -40,16 +40,26 @@ pub struct SpaceContext {
     pub name: String,
     pub wiki_root: PathBuf,
     pub repo_root: PathBuf,
-    pub type_registry: SpaceTypeRegistry,
+    pub type_registry: Arc<SpaceTypeRegistry>,
     pub index_schema: IndexSchema,
-    pub index_manager: SpaceIndexManager,
-    pub graph_cache: RwLock<Option<CachedGraph>>,  // v0.3.0
+    pub index_manager: Arc<SpaceIndexManager>,
+    pub graph_cache:     WikiGraphCache,
+    pub community_cache: GenerationCache<CommunityData>,
 }
 ```
 
-`graph_cache` holds the last full unfiltered graph build. Invalidated
-automatically when `index_manager.generation()` changes. See
-[graph-cache.md](graph-cache.md).
+`type_registry` is `Arc<SpaceTypeRegistry>` — shared with the `'static` build closure
+inside `WikiGraphCache::WithSnapshot`. Arc clone at construction; deref is transparent.
+
+`index_manager` is `Arc<SpaceIndexManager>` — shared ownership needed for
+`'static` closures passed to `GraphState::builder`.
+
+`graph_cache` is a `WikiGraphCache` enum: `NoSnapshot(GenerationCache<WikiGraph>)`
+or `WithSnapshot(GraphState<WikiGraph>)`. Controlled by `graph.snapshot` config.
+Both invalidate automatically when `index_manager.generation()` changes.
+See [graph-cache.md](graph-cache.md) and [petgraph-live.md](petgraph-live.md).
+
+`community_cache` is plain `GenerationCache<CommunityData>` — not snapshotted.
 
 ## Startup
 
@@ -67,8 +77,10 @@ automatically when `index_manager.generation()` changes. See
       - TypesChanged → partial rebuild (affected types only)
       - FullRebuildNeeded → full rebuild
    e. Open tantivy index (with auto-recovery on corruption)
-   f. Initialize graph_cache: RwLock::new(None)
-   g. Return SpaceContext
+   f. Initialize graph_cache: build_wiki_graph_cache() → WikiGraphCache enum
+      (petgraph-live ≥ 0.3.1 creates the snapshot directory automatically)
+   g. Initialize community_cache: GenerationCache::new()
+   h. Return SpaceContext
 3. Per-wiki errors: warn and skip (don't fail the engine)
 4. Assemble EngineState, wrap in Arc<RwLock>
 ```

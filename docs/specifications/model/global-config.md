@@ -6,7 +6,7 @@ read_when:
   - Looking up a config key and its default
   - Understanding which keys are global-only vs per-wiki
 status: ready
-last_updated: "2025-07-21"
+last_updated: "2026-05-03"
 ---
 
 # config.toml
@@ -61,6 +61,9 @@ format = "mermaid"
 depth  = 3
 min_nodes_for_communities   = 30  # suppress below this; default 30
 community_suggestions_limit = 2   # extra suggest results from community strategy
+snapshot        = true
+snapshot_keep   = 3
+snapshot_format = "bincode+lz4"
 
 [history]
 follow        = true
@@ -151,6 +154,11 @@ These keys can appear in both `config.toml` (global) and `wiki.toml`
 | `graph.output`               | `""`      | Default output path; empty = stdout               |
 | `graph.min_nodes_for_communities` | `30` | Suppress community detection below this node count |
 | `graph.community_suggestions_limit` | `2` | Max extra results from community strategy in `wiki_suggest` |
+| `graph.snapshot`             | `true`    | Enable snapshot warm-start for the graph cache; `false` = in-memory only (Phase 1 behaviour) |
+| `graph.snapshot_keep`        | `3`       | Number of graph snapshots to retain per wiki space |
+| `graph.snapshot_format`      | `bincode+lz4` | Snapshot encoding: `bincode+lz4`, `bincode+zstd`, or `bincode` |
+| `graph.structural_algorithms` | `true`       | Enable diameter/radius/center fields in `wiki_stats`; set `false` to skip entirely |
+| `graph.max_nodes_for_diameter` | `2000`      | Skip O(n²) diameter/radius/center/periphery above this local node count |
 | `index.memory_budget_mb`     | `50`      | Tantivy writer memory budget in MB                |
 | `index.tokenizer`            | `en_stem` | Tantivy tokenizer for text fields                 |
 
