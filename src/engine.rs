@@ -370,10 +370,6 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
     }
 
     let resolved_cfg = config::resolve(config, &wiki_cfg);
-    if resolved_cfg.graph.snapshot {
-        let snap_dir = state_dir.join("snapshots").join(&entry.name);
-        std::fs::create_dir_all(&snap_dir)?;
-    }
     let type_registry = Arc::new(type_registry);
     let graph_cache = {
         let im_key = index_manager.clone();
