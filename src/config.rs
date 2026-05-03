@@ -755,6 +755,8 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "graph.snapshot" => global.graph.snapshot = value.parse()?,
         "graph.snapshot_keep" => global.graph.snapshot_keep = value.parse()?,
         "graph.snapshot_format" => global.graph.snapshot_format = value.into(),
+        "graph.structural_algorithms" => global.graph.structural_algorithms = value.parse()?,
+        "graph.max_nodes_for_diameter" => global.graph.max_nodes_for_diameter = value.parse()?,
         "serve.http" => global.serve.http = value.parse()?,
         "serve.http_port" => global.serve.http_port = value.parse()?,
         "serve.http_allowed_hosts" => {
@@ -804,6 +806,8 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "graph.snapshot" => resolved.graph.snapshot.to_string(),
         "graph.snapshot_keep" => resolved.graph.snapshot_keep.to_string(),
         "graph.snapshot_format" => resolved.graph.snapshot_format.clone(),
+        "graph.structural_algorithms" => resolved.graph.structural_algorithms.to_string(),
+        "graph.max_nodes_for_diameter" => resolved.graph.max_nodes_for_diameter.to_string(),
         "serve.http" => resolved.serve.http.to_string(),
         "serve.http_port" => resolved.serve.http_port.to_string(),
         "serve.http_allowed_hosts" => resolved.serve.http_allowed_hosts.join(","),
@@ -949,6 +953,18 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
                 .graph
                 .get_or_insert_with(GraphConfig::default)
                 .snapshot_format = value.into();
+        }
+        "graph.structural_algorithms" => {
+            wiki_cfg
+                .graph
+                .get_or_insert_with(GraphConfig::default)
+                .structural_algorithms = value.parse()?;
+        }
+        "graph.max_nodes_for_diameter" => {
+            wiki_cfg
+                .graph
+                .get_or_insert_with(GraphConfig::default)
+                .max_nodes_for_diameter = value.parse()?;
         }
         "global.default_wiki"
         | "index.auto_rebuild"
