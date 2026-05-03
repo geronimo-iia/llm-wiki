@@ -461,6 +461,148 @@ fn broken_cross_wiki_link_to_mounted_wiki_no_finding() {
     );
 }
 
+// ── structural rules ─────────────────────────────────────────────────────────
+
+#[test]
+fn articulation_point_rule_finds_connector_page() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    // a → b → c: b is the only articulation point (removing it disconnects a from c)
+    write_page(
+        &wiki_root,
+        "concepts/a.md",
+        "---\ntitle: \"A\"\ntype: concept\nread_when: [\"x\"]\n---\n\nSee [[concepts/b]].\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/b.md",
+        "---\ntitle: \"B\"\ntype: concept\nread_when: [\"x\"]\n---\n\nSee [[concepts/c]].\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/c.md",
+        "---\ntitle: \"C\"\ntype: concept\nread_when: [\"x\"]\n---\n\nLeaf.\n",
+    );
+
+    let engine = build_engine(dir.path(), &wiki_root);
+    let report = run_lint(&engine, "test", Some("articulation-point"), None).unwrap();
+    let findings = findings_for_rule(&report.findings, "articulation-point");
+
+    assert!(
+        !findings.is_empty(),
+        "articulation-point rule should fire on a–b–c chain"
+    );
+    let slugs: Vec<&str> = findings.iter().map(|f| f.slug.as_str()).collect();
+    assert!(
+        slugs.contains(&"concepts/b"),
+        "concepts/b must be flagged as articulation point, got: {slugs:?}"
+    );
+    for f in &findings {
+        assert_eq!(f.rule, "articulation-point");
+        assert_eq!(f.severity, Severity::Warning);
+        assert!(
+            f.message.contains("disconnect"),
+            "message should mention disconnect: {}",
+            f.message
+        );
+        assert!(!f.path.is_empty(), "path must be populated");
+        assert!(f.path.ends_with(".md"), "path must end with .md: {}", f.path);
+    }
+}
+
+#[test]
+fn bridge_rule_finds_load_bearing_link() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    // a → b → c: both directed edges are bridges in the undirected view
+    write_page(
+        &wiki_root,
+        "concepts/a.md",
+        "---\ntitle: \"A\"\ntype: concept\nread_when: [\"x\"]\n---\n\nSee [[concepts/b]].\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/b.md",
+        "---\ntitle: \"B\"\ntype: concept\nread_when: [\"x\"]\n---\n\nSee [[concepts/c]].\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/c.md",
+        "---\ntitle: \"C\"\ntype: concept\nread_when: [\"x\"]\n---\n\nLeaf.\n",
+    );
+
+    let engine = build_engine(dir.path(), &wiki_root);
+    let report = run_lint(&engine, "test", Some("bridge"), None).unwrap();
+    let findings = findings_for_rule(&report.findings, "bridge");
+
+    assert!(
+        !findings.is_empty(),
+        "bridge rule should fire on a–b–c chain"
+    );
+    for f in &findings {
+        assert_eq!(f.rule, "bridge");
+        assert_eq!(f.severity, Severity::Warning);
+        assert!(
+            f.message.contains("→"),
+            "message must show the bridged link: {}",
+            f.message
+        );
+        assert!(
+            f.message.contains("bridge"),
+            "message must contain 'bridge': {}",
+            f.message
+        );
+        assert!(!f.path.is_empty(), "path must be populated");
+        assert!(f.path.ends_with(".md"), "path must end with .md: {}", f.path);
+    }
+}
+
+#[test]
+fn periphery_rule_finds_isolated_pages() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    // a → b → c → a: strongly connected cycle, all nodes have equal eccentricity
+    // so all are in the periphery (eccentricity = diameter)
+    write_page(
+        &wiki_root,
+        "concepts/a.md",
+        "---\ntitle: \"A\"\ntype: concept\nread_when: [\"x\"]\n---\n\nSee [[concepts/b]].\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/b.md",
+        "---\ntitle: \"B\"\ntype: concept\nread_when: [\"x\"]\n---\n\nSee [[concepts/c]].\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/c.md",
+        "---\ntitle: \"C\"\ntype: concept\nread_when: [\"x\"]\n---\n\nSee [[concepts/a]].\n",
+    );
+
+    let engine = build_engine(dir.path(), &wiki_root);
+    let report = run_lint(&engine, "test", Some("periphery"), None).unwrap();
+    let findings = findings_for_rule(&report.findings, "periphery");
+
+    assert!(
+        !findings.is_empty(),
+        "periphery rule should fire on a symmetric directed cycle"
+    );
+    for f in &findings {
+        assert_eq!(f.rule, "periphery");
+        assert_eq!(f.severity, Severity::Warning);
+        assert!(
+            f.message.contains("isolated"),
+            "message should mention isolated: {}",
+            f.message
+        );
+        assert!(!f.path.is_empty(), "path must be populated");
+        assert!(f.path.ends_with(".md"), "path must end with .md: {}", f.path);
+    }
+}
+
 // ── LintFinding.path ──────────────────────────────────────────────────────────
 
 #[test]

@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 section "12. Structural lint rules (MCP)"
 
-run_mcp      "lint articulation-point rule runs"         "" \
+run_mcp_json "lint articulation-point returns valid JSON with findings array" \
+             '.findings | type' "array" \
              wiki_lint '{"rules":"articulation-point"}'
 
-run_mcp      "lint bridge rule runs"                     "" \
+run_mcp_json "lint bridge returns valid JSON with findings array" \
+             '.findings | type' "array" \
              wiki_lint '{"rules":"bridge"}'
 
-run_mcp      "lint periphery rule runs"                  "" \
+run_mcp_json "lint periphery returns valid JSON with findings array" \
+             '.findings | type' "array" \
              wiki_lint '{"rules":"periphery"}'
 
 run_mcp_json "lint all rules includes structural"        \
