@@ -772,4 +772,64 @@ mod tests {
             .any(|(a, b)| (a == "b" && b == "c") || (a == "c" && b == "b"));
         assert!(has_ab && has_bc);
     }
+
+    #[test]
+    fn rule_articulation_point_produces_finding_for_connector() {
+        // a -- b -- c: b is the only articulation point
+        let g = Arc::new(make_graph(&["a", "b", "c"], &[("a", "b"), ("b", "c")]));
+        let findings = rule_articulation_point(&g, Path::new("/wiki"));
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].slug, "b");
+        assert_eq!(findings[0].rule, "articulation-point");
+        assert_eq!(findings[0].severity, Severity::Warning);
+        assert!(findings[0].message.contains("disconnect"));
+    }
+
+    #[test]
+    fn rule_articulation_point_empty_for_cycle() {
+        let g = Arc::new(make_graph(&["a", "b", "c"], &[("a", "b"), ("b", "c"), ("c", "a")]));
+        assert!(rule_articulation_point(&g, Path::new("/wiki")).is_empty());
+    }
+
+    #[test]
+    fn rule_bridge_produces_findings_with_correct_fields() {
+        // a -- b -- c: both edges are bridges
+        let g = Arc::new(make_graph(&["a", "b", "c"], &[("a", "b"), ("b", "c")]));
+        let findings = rule_bridge(&g, Path::new("/wiki"));
+        assert_eq!(findings.len(), 2);
+        for f in &findings {
+            assert_eq!(f.rule, "bridge");
+            assert_eq!(f.severity, Severity::Warning);
+            assert!(f.message.contains("→"), "message must contain arrow, got: {}", f.message);
+            assert!(f.message.contains("is a bridge"));
+        }
+        let slugs: Vec<&str> = findings.iter().map(|f| f.slug.as_str()).collect();
+        assert!(slugs.contains(&"a") || slugs.contains(&"b"));
+    }
+
+    #[test]
+    fn rule_bridge_empty_for_cycle() {
+        let g = Arc::new(make_graph(&["a", "b", "c"], &[("a", "b"), ("b", "c"), ("c", "a")]));
+        assert!(rule_bridge(&g, Path::new("/wiki")).is_empty());
+    }
+
+    #[test]
+    fn rule_periphery_produces_findings() {
+        // a→b→c→a: directed cycle, all nodes have eccentricity 2 = diameter
+        let g = Arc::new(make_graph(&["a", "b", "c"], &[("a", "b"), ("b", "c"), ("c", "a")]));
+        let findings = rule_periphery(&g, Path::new("/wiki"), 100);
+        assert!(!findings.is_empty());
+        for f in &findings {
+            assert_eq!(f.rule, "periphery");
+            assert_eq!(f.severity, Severity::Warning);
+            assert!(f.message.contains("isolated"));
+        }
+    }
+
+    #[test]
+    fn rule_periphery_skips_above_threshold() {
+        // 3 nodes, threshold 2 → local_count(3) > max_nodes(2) → empty
+        let g = Arc::new(make_graph(&["a", "b", "c"], &[("a", "b"), ("b", "c"), ("c", "a")]));
+        assert!(rule_periphery(&g, Path::new("/wiki"), 2).is_empty());
+    }
 }
