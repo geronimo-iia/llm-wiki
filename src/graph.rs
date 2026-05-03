@@ -34,7 +34,7 @@ pub struct PageNode {
 }
 
 /// A directed edge in the wiki concept graph with a relation label.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LabeledEdge {
     /// Relation label (e.g. `"links-to"`, `"cites"`, `"supersedes"`).
     pub relation: String,
@@ -1195,4 +1195,17 @@ pub fn get_cached_community_stats(
     }
 
     Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn labeled_edge_serializes() {
+        let e = LabeledEdge { relation: "links-to".to_string() };
+        let json = serde_json::to_string(&e).unwrap();
+        let back: LabeledEdge = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.relation, "links-to");
+    }
 }
