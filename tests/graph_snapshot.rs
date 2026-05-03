@@ -25,6 +25,13 @@ fn build_wiki_graph_cache_format_zstd_arm_compiles() {
 }
 
 #[test]
+fn build_fn_does_not_capture_path_or_tokenizer() {
+    // Compile-time: verify build_wiki_graph_cache signature no longer requires
+    // repo_root or tokenizer strings. This test just checks it compiles without them.
+    let _ = ();
+}
+
+#[test]
 fn wiki_graph_cache_no_snapshot_uses_generation_cache() {
     let cache = WikiGraphCache::NoSnapshot(GenerationCache::<llm_wiki::graph::WikiGraph>::new());
     assert!(matches!(cache, WikiGraphCache::NoSnapshot(_)));

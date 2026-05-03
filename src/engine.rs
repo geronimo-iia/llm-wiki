@@ -374,21 +374,18 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
         let snap_dir = state_dir.join("snapshots").join(&entry.name);
         std::fs::create_dir_all(&snap_dir)?;
     }
+    let type_registry = Arc::new(type_registry);
     let graph_cache = {
         let im_key = index_manager.clone();
         let im_build = index_manager.clone();
-        let repo_root_build = repo_root.clone();
-        let tokenizer = config.index.tokenizer.clone();
+        let is = index_schema.clone();
+        let tr = Arc::clone(&type_registry);
         build_wiki_graph_cache(
             &entry.name,
             state_dir,
             &resolved_cfg.graph,
             move || Ok(im_key.generation().to_string()),
             move || {
-                let (tr, is) = crate::space_builder::build_space(&repo_root_build, &tokenizer)
-                    .unwrap_or_else(|_| {
-                        crate::space_builder::build_space_from_embedded(&tokenizer)
-                    });
                 let searcher = im_build.searcher().map_err(|e| {
                     petgraph_live::snapshot::SnapshotError::Io(std::io::Error::other(e.to_string()))
                 })?;
@@ -396,7 +393,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
                     &searcher,
                     &is,
                     &crate::graph::GraphFilter::default(),
-                    &tr,
+                    &*tr,
                 )
                 .map_err(|e| {
                     petgraph_live::snapshot::SnapshotError::Io(std::io::Error::other(e.to_string()))
@@ -409,7 +406,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
         name: entry.name.clone(),
         wiki_root,
         repo_root,
-        type_registry: Arc::new(type_registry),
+        type_registry,
         index_schema,
         index_manager,
         graph_cache,
