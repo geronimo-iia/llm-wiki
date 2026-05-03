@@ -157,6 +157,8 @@ These keys can appear in both `config.toml` (global) and `wiki.toml`
 | `graph.snapshot`             | `true`    | Enable snapshot warm-start for the graph cache; `false` = in-memory only (Phase 1 behaviour) |
 | `graph.snapshot_keep`        | `3`       | Number of graph snapshots to retain per wiki space |
 | `graph.snapshot_format`      | `bincode+lz4` | Snapshot encoding: `bincode+lz4`, `bincode+zstd`, or `bincode` |
+| `graph.structural_algorithms` | `true`       | Enable diameter/radius/center fields in `wiki_stats`; set `false` to skip entirely |
+| `graph.max_nodes_for_diameter` | `2000`      | Skip O(n²) diameter/radius/center/periphery above this local node count |
 | `index.memory_budget_mb`     | `50`      | Tantivy writer memory budget in MB                |
 | `index.tokenizer`            | `en_stem` | Tantivy tokenizer for text fields                 |
 

@@ -5,7 +5,7 @@ read_when:
   - Understanding how the concept graph is built
   - Understanding typed nodes and labeled edges
 status: ready
-last_updated: "2026-04-28"
+last_updated: "2026-05-03"
 ---
 
 # Graph
@@ -196,6 +196,31 @@ where mid-pass moves alter `sigma_tot` for later nodes, causing them to swap
 back on the next pass — the loop is capped at `max_passes = n × 10` iterations,
 where `n` is the number of local nodes. Well-behaved graphs converge in far
 fewer passes; the cap only applies to adversarial small graphs.
+
+## Structural topology
+
+Three fields added to `WikiStats` (v0.4.0):
+
+| Field | Algorithm | Complexity | Skipped when |
+|-------|-----------|------------|--------------|
+| `diameter` | BFS APSP (`metrics::diameter`) | O(n·(n+e)) | `local_count > max_nodes_for_diameter` |
+| `radius` | BFS APSP (`metrics::radius`) | O(n·(n+e)) | same |
+| `center` | BFS APSP (`metrics::center`) | O(n·(n+e)) | same |
+
+All three operate on the directed `WikiGraph`. When skipped, fields are `null`/empty
+and `structural_note` explains why.
+
+Three `wiki_lint` rules (v0.4.0):
+
+| Rule | Algorithm | Complexity |
+|------|-----------|------------|
+| `articulation-point` | Tarjan DFS (`connect::articulation_points`) | O(n+e) |
+| `bridge` | Tarjan DFS (`connect::find_bridges`) | O(n+e) |
+| `periphery` | BFS APSP (`metrics::periphery`) | O(n·(n+e)) — skipped above `max_nodes_for_diameter` |
+
+`articulation-point` and `bridge` operate on a symmetrized undirected view of the
+graph (external placeholder nodes excluded). Same exclusion rule as Louvain.
+`periphery` uses the directed graph.
 
 ## Future Improvements
 

@@ -207,3 +207,14 @@ After `wiki_index_rebuild`, `WikiGraphCache::rebuild()` forces a new snapshot fo
 `graph.snapshot = false` constructs `NoSnapshot` — identical to Phase 1 behaviour. Use in CI and integration tests to avoid snapshot files in tempdir.
 
 Snapshots stored at: `state_dir/snapshots/<wiki-name>/wiki-graph-<key>.<ext>`
+
+## Structural algorithms (v0.4.0 Phase 3)
+
+`run_lint` (new `articulation-point`, `bridge`, `periphery` rules) and `stats`
+(new `diameter`/`radius`/`center` fields) both acquire `Arc<WikiGraph>` via
+`get_or_build_graph` — same cache path as `wiki_suggest`. No extra cache entry.
+
+`connect` algorithms require an undirected view. `build_undirected` in `lint.rs`
+symmetrizes `WikiGraph` into `UnGraph<NodeIndex, ()>`, excluding external nodes.
+
+`metrics` algorithms use the directed `WikiGraph` directly.

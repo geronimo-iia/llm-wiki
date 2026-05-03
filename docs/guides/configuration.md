@@ -185,6 +185,31 @@ llm-wiki config set graph.snapshot_format bincode --global
 llm-wiki config set graph.snapshot_format bincode+zstd --global
 ```
 
+### Disable structural topology in stats
+
+By default `wiki_stats` computes diameter, radius, and center when the graph is below
+`graph.max_nodes_for_diameter`. Disable entirely:
+
+```bash
+llm-wiki config set graph.structural_algorithms false --wiki large-wiki
+```
+
+The `articulation-point`, `bridge`, and `periphery` lint rules are unaffected — use
+`--rules` to exclude them from a lint run.
+
+### Tune structural algorithm threshold
+
+Diameter, radius, center, and periphery use BFS from every node — O(n·(n+e)).
+Skipped above the threshold:
+
+```bash
+# Lower threshold — skip on wikis with more than 500 pages
+llm-wiki config set graph.max_nodes_for_diameter 500 --wiki large-wiki
+
+# Raise threshold — always compute
+llm-wiki config set graph.max_nodes_for_diameter 10000 --global
+```
+
 ### Disable rename tracking in history
 
 `wiki_history` follows renames by default. Disable per-wiki if it
