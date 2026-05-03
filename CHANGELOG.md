@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Graph cache** — replaced bespoke `CachedGraph` + `RwLock<Option<CachedGraph>>` with `petgraph_live::GenerationCache<WikiGraph>` and `GenerationCache<CommunityData>`; `SpaceContext` no longer requires an explicit `RwLock` wrapper for the graph cache; zero behaviour change
+
 ## [0.3.0] — 2026-05-01
 
 ### Added

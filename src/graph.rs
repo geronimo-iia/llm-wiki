@@ -1,6 +1,6 @@
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::Utc;
@@ -34,7 +34,7 @@ pub struct PageNode {
 }
 
 /// A directed edge in the wiki concept graph with a relation label.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LabeledEdge {
     /// Relation label (e.g. `"links-to"`, `"cites"`, `"supersedes"`).
     pub relation: String,
@@ -42,18 +42,6 @@ pub struct LabeledEdge {
 
 /// Directed graph type used for the wiki concept graph.
 pub type WikiGraph = DiGraph<PageNode, LabeledEdge>;
-
-/// Cached result of a full (unfiltered) graph build, keyed by index generation.
-pub struct CachedGraph {
-    /// The full unfiltered wiki graph.
-    pub graph: Arc<WikiGraph>,
-    /// Precomputed community map (slug → community_id). Some for any non-empty graph.
-    pub community_map: Option<Arc<HashMap<String, usize>>>,
-    /// Precomputed community stats. Some for any non-empty graph.
-    pub community_stats: Option<CommunityStats>,
-    /// Generation value from SpaceIndexManager at cache time.
-    pub index_gen: u64,
-}
 
 /// Filtering parameters for graph construction and subgraph extraction.
 #[derive(Debug, Clone, Default)]
@@ -149,6 +137,16 @@ pub struct CommunityStats {
     pub smallest: usize,
     /// Slugs of pages in communities of size ≤ 2 — weakly connected pages.
     pub isolated: Vec<String>,
+}
+
+/// Cached community detection results for a space.
+pub struct CommunityData {
+    /// Number of local (non-external) nodes in the graph at cache time.
+    pub local_count: usize,
+    /// Slug → community id map.
+    pub map: Arc<HashMap<String, usize>>,
+    /// Aggregated Louvain stats.
+    pub stats: CommunityStats,
 }
 
 /// Build undirected adjacency by symmetrizing the directed graph. External nodes excluded.
@@ -1043,7 +1041,7 @@ pub fn get_or_build_graph(
     index_schema: &IndexSchema,
     type_registry: &SpaceTypeRegistry,
     index_manager: &SpaceIndexManager,
-    graph_cache: &RwLock<Option<CachedGraph>>,
+    graph_cache: &petgraph_live::cache::GenerationCache<WikiGraph>,
     searcher: &Searcher,
     filter: &GraphFilter,
 ) -> Result<Arc<WikiGraph>> {
@@ -1053,146 +1051,136 @@ pub fn get_or_build_graph(
     }
 
     let current_gen = index_manager.generation();
-
-    // Check cache hit
-    {
-        let cache = graph_cache.read().unwrap();
-        if let Some(cached) = cache.as_ref()
-            && cached.index_gen == current_gen
-        {
-            return Ok(Arc::clone(&cached.graph));
-        }
-    }
-
-    // Cache miss — build
-    let graph = Arc::new(build_graph(searcher, index_schema, filter, type_registry)?);
-    let (community_stats, community_map_raw) = build_community_data(&graph, 0);
-    let community_map = community_map_raw.map(Arc::new);
-
-    *graph_cache.write().unwrap() = Some(CachedGraph {
-        graph: Arc::clone(&graph),
-        community_map,
-        community_stats,
-        index_gen: current_gen,
-    });
-
-    Ok(graph)
+    graph_cache.get_or_build(current_gen, || {
+        build_graph(
+            searcher,
+            index_schema,
+            &GraphFilter::default(),
+            type_registry,
+        )
+    })
 }
 
 /// Return cached community map, or None if graph is below `min_nodes` threshold.
-/// Builds and caches the full graph as a side effect if not already cached.
+///
+/// Hot path (both caches warm): community_cache hits immediately — graph_cache not touched.
+/// Cold path (miss): graph built and cached first, community built and cached inside closure.
 pub fn get_cached_community_map(
     index_schema: &IndexSchema,
     type_registry: &SpaceTypeRegistry,
     index_manager: &SpaceIndexManager,
-    graph_cache: &RwLock<Option<CachedGraph>>,
+    graph_cache: &petgraph_live::cache::GenerationCache<WikiGraph>,
+    community_cache: &petgraph_live::cache::GenerationCache<CommunityData>,
     searcher: &Searcher,
     min_nodes: usize,
 ) -> Result<Option<Arc<HashMap<String, usize>>>> {
     let current_gen = index_manager.generation();
 
-    // Check cache hit
-    {
-        let cache = graph_cache.read().unwrap();
-        if let Some(cached) = cache.as_ref()
-            && cached.index_gen == current_gen
-        {
-            let local_count = cached
-                .graph
-                .node_indices()
-                .filter(|&i| !cached.graph[i].external)
-                .count();
-            if local_count < min_nodes {
-                return Ok(None);
-            }
-            return Ok(cached.community_map.clone());
-        }
+    let community = community_cache.get_or_build(current_gen, || -> Result<CommunityData> {
+        let graph = graph_cache.get_or_build(current_gen, || {
+            build_graph(
+                searcher,
+                index_schema,
+                &GraphFilter::default(),
+                type_registry,
+            )
+        })?;
+        let local_count = graph.node_indices().filter(|&i| !graph[i].external).count();
+        let (stats_opt, map_opt) = build_community_data(&graph, 0);
+        let stats = stats_opt.unwrap_or(CommunityStats {
+            count: 0,
+            largest: 0,
+            smallest: 0,
+            isolated: vec![],
+        });
+        let map = map_opt.unwrap_or_default();
+        Ok(CommunityData {
+            local_count,
+            map: Arc::new(map),
+            stats,
+        })
+    })?;
+
+    if community.local_count < min_nodes {
+        return Ok(None);
     }
-
-    // Cache miss — build graph and community data
-    get_or_build_graph(
-        index_schema,
-        type_registry,
-        index_manager,
-        graph_cache,
-        searcher,
-        &GraphFilter::default(),
-    )?;
-
-    // Re-read (no gen check — cache is valid at whatever generation get_or_build_graph wrote)
-    {
-        let cache = graph_cache.read().unwrap();
-        if let Some(cached) = cache.as_ref() {
-            let local_count = cached
-                .graph
-                .node_indices()
-                .filter(|&i| !cached.graph[i].external)
-                .count();
-            if local_count < min_nodes {
-                return Ok(None);
-            }
-            return Ok(cached.community_map.clone());
-        }
-    }
-
-    Ok(None)
+    Ok(Some(Arc::clone(&community.map)))
 }
 
-/// Return cached `CommunityStats` for `space`, or `None` if graph is below threshold.
-/// Builds and caches the full graph as a side effect if not already cached.
+/// Return cached CommunityStats, or None if graph is below threshold.
+///
+/// Hot path: community_cache hits immediately — graph_cache not touched.
 pub fn get_cached_community_stats(
     index_schema: &IndexSchema,
     type_registry: &SpaceTypeRegistry,
     index_manager: &SpaceIndexManager,
-    graph_cache: &RwLock<Option<CachedGraph>>,
+    graph_cache: &petgraph_live::cache::GenerationCache<WikiGraph>,
+    community_cache: &petgraph_live::cache::GenerationCache<CommunityData>,
     searcher: &Searcher,
     min_nodes: usize,
 ) -> Result<Option<CommunityStats>> {
     let current_gen = index_manager.generation();
 
-    // Check cache hit
-    {
-        let cache = graph_cache.read().unwrap();
-        if let Some(cached) = cache.as_ref()
-            && cached.index_gen == current_gen
-        {
-            let local_count = cached
-                .graph
-                .node_indices()
-                .filter(|&i| !cached.graph[i].external)
-                .count();
-            if local_count < min_nodes {
-                return Ok(None);
-            }
-            return Ok(cached.community_stats.clone());
-        }
+    let community = community_cache.get_or_build(current_gen, || -> Result<CommunityData> {
+        let graph = graph_cache.get_or_build(current_gen, || {
+            build_graph(
+                searcher,
+                index_schema,
+                &GraphFilter::default(),
+                type_registry,
+            )
+        })?;
+        let local_count = graph.node_indices().filter(|&i| !graph[i].external).count();
+        let (stats_opt, map_opt) = build_community_data(&graph, 0);
+        let stats = stats_opt.unwrap_or(CommunityStats {
+            count: 0,
+            largest: 0,
+            smallest: 0,
+            isolated: vec![],
+        });
+        let map = map_opt.unwrap_or_default();
+        Ok(CommunityData {
+            local_count,
+            map: Arc::new(map),
+            stats,
+        })
+    })?;
+
+    if community.local_count < min_nodes {
+        return Ok(None);
+    }
+    Ok(Some(community.stats.clone()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn labeled_edge_serializes() {
+        let e = LabeledEdge {
+            relation: "links-to".to_string(),
+        };
+        let json = serde_json::to_string(&e).unwrap();
+        let back: LabeledEdge = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.relation, "links-to");
     }
 
-    // Cache miss — build graph and community data
-    get_or_build_graph(
-        index_schema,
-        type_registry,
-        index_manager,
-        graph_cache,
-        searcher,
-        &GraphFilter::default(),
-    )?;
-
-    // Re-read (no gen check — cache is valid at whatever generation get_or_build_graph wrote)
-    {
-        let cache = graph_cache.read().unwrap();
-        if let Some(cached) = cache.as_ref() {
-            let local_count = cached
-                .graph
-                .node_indices()
-                .filter(|&i| !cached.graph[i].external)
-                .count();
-            if local_count < min_nodes {
-                return Ok(None);
-            }
-            return Ok(cached.community_stats.clone());
-        }
+    #[test]
+    fn community_data_constructs() {
+        use std::collections::HashMap;
+        let data = CommunityData {
+            local_count: 3,
+            map: std::sync::Arc::new(HashMap::from([("slug-a".to_string(), 0usize)])),
+            stats: CommunityStats {
+                count: 1,
+                largest: 1,
+                smallest: 1,
+                isolated: vec![],
+            },
+        };
+        assert_eq!(data.local_count, 3);
+        assert_eq!(data.map.get("slug-a"), Some(&0));
+        assert_eq!(data.stats.count, 1);
     }
-
-    Ok(None)
 }

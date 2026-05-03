@@ -2,7 +2,7 @@
 title: "Graph Cache Implementation"
 summary: "In-memory graph cache keyed on index generation — eliminates redundant build_graph and Louvain calls in serve mode."
 status: ready
-last_updated: "2026-05-01"
+last_updated: "2026-05-03"
 depends_on:
   - engine.md
   - index-manager.md
@@ -26,27 +26,28 @@ compounds the cost — it ran on every `wiki_stats` and `wiki_suggest` call.
 ```rust
 // src/graph.rs
 
-pub struct CachedGraph {
-    pub graph:            Arc<WikiGraph>,
-    pub community_map:    Option<Arc<HashMap<String, usize>>>,
-    pub community_stats:  Option<CommunityStats>,
-    pub index_gen:        u64,
+pub struct CommunityData {
+    pub local_count: usize,
+    pub map:   Arc<HashMap<String, usize>>,
+    pub stats: CommunityStats,
 }
 ```
 
-`community_map` — slug→community_id, used by `wiki_suggest` strategy 4.
-`community_stats` — aggregated stats (`count`, `isolated` list), used by `wiki_stats`.
-`index_gen` — generation value at cache time; compared against current generation to detect staleness.
+`CommunityData` replaces `CachedGraph.community_map` + `CachedGraph.community_stats`.
+`local_count` stores local node count at build time — avoids re-traversal on the hot path.
+Community and graph caches share the same generation key.
 
-`CachedGraph` lives in `SpaceContext`:
+Both caches live in `SpaceContext`:
 
 ```rust
 // src/engine.rs
-pub graph_cache: RwLock<Option<CachedGraph>>,
+pub graph_cache:     GenerationCache<WikiGraph>,
+pub community_cache: GenerationCache<CommunityData>,
 ```
 
-Multiple readers can use the cached graph simultaneously. A single writer
-rebuilds and stores on miss.
+`GenerationCache<T>` is `Send + Sync` — no `RwLock` wrapper needed.
+`GenerationCache::get_or_build(gen, builder)` returns `Arc<T>` on hit,
+calls `builder()` → `Result<T>` on miss, caches and returns `Arc<T>`.
 
 ## Cache key: `AtomicU64` generation counter
 
@@ -88,40 +89,45 @@ pub fn get_or_build_graph(
     index_schema:  &IndexSchema,
     type_registry: &SpaceTypeRegistry,
     index_manager: &SpaceIndexManager,
-    graph_cache:   &RwLock<Option<CachedGraph>>,
+    graph_cache:   &GenerationCache<WikiGraph>,
     searcher:      &Searcher,
     filter:        &GraphFilter,
 ) -> Result<Arc<WikiGraph>>
 ```
 
 - Filtered requests (`!filter.is_default()`) bypass cache, build and return fresh.
-- Cache hit: `cached.index_gen == current_gen` → return `Arc::clone`.
-- Cache miss: build graph, compute `community_map` + `community_stats`, store, return.
+- Cache hit: generation matches → return `Arc::clone`.
+- Cache miss: call `build_graph` inside `get_or_build`, cache result, return.
 
 ### `get_cached_community_map`
 
 ```rust
 pub fn get_cached_community_map(
     ...,
-    min_nodes: usize,
+    graph_cache:     &GenerationCache<WikiGraph>,
+    community_cache: &GenerationCache<CommunityData>,
+    searcher:        &Searcher,
+    min_nodes:       usize,
 ) -> Result<Option<Arc<HashMap<String, usize>>>>
 ```
 
-Returns cached `community_map` if local node count ≥ `min_nodes`, otherwise
-`None`. Triggers graph build as side effect on miss.
+Uses nested closure pattern: `community_cache.get_or_build` wraps `graph_cache.get_or_build` inside.
+Hot path (both warm): community_cache hits immediately — graph_cache never touched.
+Returns `None` when `community.local_count < min_nodes`.
 
 ### `get_cached_community_stats`
 
 ```rust
 pub fn get_cached_community_stats(
     ...,
-    min_nodes: usize,
+    graph_cache:     &GenerationCache<WikiGraph>,
+    community_cache: &GenerationCache<CommunityData>,
+    searcher:        &Searcher,
+    min_nodes:       usize,
 ) -> Result<Option<CommunityStats>>
 ```
 
-Same pattern as `get_cached_community_map` but returns `CommunityStats`. Used
-by `ops/stats.rs` to skip Louvain on cache hit. Returns `None` when local node
-count < `min_nodes`.
+Same nested closure pattern. Returns `None` when `community.local_count < min_nodes`.
 
 ## Cache population
 
@@ -178,10 +184,6 @@ accepts pre-built graphs rather than raw index handles.
 ## Limitations
 
 - Cache lives only for process lifetime. Cold start always rebuilds.
-  See [imp-graph-snapshot.md](../improvements/imp-graph-snapshot.md) for
-  the planned persistent snapshot feature.
-- Community data is always computed (Louvain runs at threshold 0). The
-  caller-supplied `min_nodes` is applied at read time — no recompute needed
-  for different thresholds, cached graph and community data are always reused.
-- Only unfiltered full graphs are cached. Each distinct filter combination
-  builds fresh.
+  Phase 2 (`feat/petgraph-live-snapshot`) adds `GraphState` warm-start.
+- Only unfiltered full graphs are cached. Each distinct filter combination builds fresh.
+- Community data is always computed at threshold 0. `min_nodes` is applied at read time — no recompute for different thresholds.
