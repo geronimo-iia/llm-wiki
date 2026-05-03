@@ -57,7 +57,7 @@ tantivy    = "0.26"
 
 # Graph
 petgraph   = "0.8"
-petgraph-live = { version = "0.3", features = ["snapshot-lz4"] }
+petgraph-live = { version = "0.3", features = ["snapshot-lz4", "snapshot-zstd"] }
 
 # Filesystem traversal
 walkdir    = "2"
