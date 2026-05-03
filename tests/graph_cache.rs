@@ -176,6 +176,7 @@ fn get_cached_community_map_returns_none_for_small_graph() {
         &space.type_registry,
         &space.index_manager,
         &space.graph_cache,
+        &space.community_cache,
         &searcher,
         30,
     )
@@ -199,6 +200,7 @@ fn get_cached_community_stats_returns_none_for_small_graph() {
         &space.type_registry,
         &space.index_manager,
         &space.graph_cache,
+        &space.community_cache,
         &searcher,
         30,
     )
@@ -511,6 +513,7 @@ fn get_cached_community_stats_returns_some_for_graph_above_min_nodes_threshold()
         &space.type_registry,
         &space.index_manager,
         &space.graph_cache,
+        &space.community_cache,
         &searcher,
         5,
     )
@@ -526,6 +529,7 @@ fn get_cached_community_stats_returns_some_for_graph_above_min_nodes_threshold()
         &space.type_registry,
         &space.index_manager,
         &space.graph_cache,
+        &space.community_cache,
         &searcher,
         5,
     )

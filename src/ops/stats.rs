@@ -95,6 +95,7 @@ pub fn stats(engine: &EngineState, wiki_name: &str) -> Result<WikiStats> {
         &space.type_registry,
         &space.index_manager,
         &space.graph_cache,
+        &space.community_cache,
         &searcher,
         resolved.graph.min_nodes_for_communities,
     )?;

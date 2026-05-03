@@ -1,7 +1,7 @@
 ---
 title: "petgraph-live Phase 1 — GenerationCache"
 summary: "Replace bespoke CachedGraph + RwLock<Option<CachedGraph>> with petgraph_live::cache::GenerationCache<WikiGraph> and a separate GenerationCache<CommunityData>. Zero behaviour change."
-status: proposed
+status: in-progress
 target_version: "0.4.0"
 branch: feat/petgraph-live-cache
 pr_target: dev/v0.4.0
