@@ -135,6 +135,14 @@ pub struct GraphConfig {
     /// Snapshot format: "bincode+lz4" | "bincode" | "bincode+zstd" (default: "bincode+lz4").
     #[serde(default = "default_snapshot_format")]
     pub snapshot_format: String,
+    /// Enable structural topology algorithms in wiki_stats (diameter, radius, center).
+    /// Lint rules articulation-point, bridge, periphery are always available via --rules.
+    /// Default: true. Set false to skip structural computation in stats entirely.
+    #[serde(default = "default_true")]
+    pub structural_algorithms: bool,
+    /// Maximum local node count before O(n²) diameter/radius/center/periphery algorithms are skipped (default: 2000).
+    #[serde(default = "default_max_nodes_for_diameter")]
+    pub max_nodes_for_diameter: usize,
 }
 
 impl Default for GraphConfig {
@@ -149,6 +157,8 @@ impl Default for GraphConfig {
             snapshot: true,
             snapshot_keep: 3,
             snapshot_format: "bincode+lz4".into(),
+            structural_algorithms: true,
+            max_nodes_for_diameter: default_max_nodes_for_diameter(),
         }
     }
 }
@@ -167,6 +177,9 @@ fn default_snapshot_keep() -> u32 {
 
 fn default_snapshot_format() -> String {
     "bincode+lz4".into()
+}
+fn default_max_nodes_for_diameter() -> usize {
+    2000
 }
 
 fn default_acp_max_sessions() -> usize {
