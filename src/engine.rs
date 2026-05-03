@@ -5,12 +5,12 @@ use std::sync::{Arc, RwLock};
 use anyhow::Result;
 
 use crate::config::{self, GlobalConfig, ResolvedConfig, WikiEntry};
-use petgraph_live::cache::GenerationCache;
 use crate::graph::{CommunityData, WikiGraph};
 use crate::index_manager::{IndexReport, SpaceIndexManager, StalenessKind, UpdateReport};
 use crate::index_schema::IndexSchema;
 use crate::space_builder;
 use crate::type_registry::SpaceTypeRegistry;
+use petgraph_live::cache::GenerationCache;
 
 // ── SpaceContext ──────────────────────────────────────────────────────────────
 
