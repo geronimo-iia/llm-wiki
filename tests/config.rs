@@ -654,3 +654,11 @@ fn wiki_config_wiki_root_parses_custom_value() {
     let cfg: WikiConfig = toml::from_str("name = \"test\"\nwiki_root = \"skills\"\n").unwrap();
     assert_eq!(cfg.wiki_root, "skills");
 }
+
+#[test]
+fn graph_config_snapshot_defaults() {
+    let cfg = GraphConfig::default();
+    assert!(cfg.snapshot);
+    assert_eq!(cfg.snapshot_keep, 3);
+    assert_eq!(cfg.snapshot_format, "bincode+lz4");
+}

@@ -125,6 +125,16 @@ pub struct GraphConfig {
     /// Maximum community-peer suggestions returned by `wiki_suggest` strategy 4 (default 2).
     #[serde(default = "default_community_suggestions_limit")]
     pub community_suggestions_limit: usize,
+    /// Enable snapshot warm-start for the graph cache (default: true).
+    /// Set false in CI or tests to avoid snapshot files.
+    #[serde(default = "default_true")]
+    pub snapshot: bool,
+    /// Number of snapshots to retain per wiki space (default: 3).
+    #[serde(default = "default_snapshot_keep")]
+    pub snapshot_keep: u32,
+    /// Snapshot format: "bincode+lz4" | "bincode" | "bincode+zstd" (default: "bincode+lz4").
+    #[serde(default = "default_snapshot_format")]
+    pub snapshot_format: String,
 }
 
 impl Default for GraphConfig {
@@ -136,6 +146,9 @@ impl Default for GraphConfig {
             output: String::new(),
             min_nodes_for_communities: default_min_nodes_for_communities(),
             community_suggestions_limit: default_community_suggestions_limit(),
+            snapshot: true,
+            snapshot_keep: 3,
+            snapshot_format: "bincode+lz4".into(),
         }
     }
 }
@@ -146,6 +159,14 @@ fn default_min_nodes_for_communities() -> usize {
 
 fn default_community_suggestions_limit() -> usize {
     2
+}
+
+fn default_snapshot_keep() -> u32 {
+    3
+}
+
+fn default_snapshot_format() -> String {
+    "bincode+lz4".into()
 }
 
 fn default_acp_max_sessions() -> usize {
@@ -718,6 +739,9 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "graph.format" => global.graph.format = value.into(),
         "graph.depth" => global.graph.depth = value.parse()?,
         "graph.output" => global.graph.output = value.into(),
+        "graph.snapshot" => global.graph.snapshot = value.parse()?,
+        "graph.snapshot_keep" => global.graph.snapshot_keep = value.parse()?,
+        "graph.snapshot_format" => global.graph.snapshot_format = value.into(),
         "serve.http" => global.serve.http = value.parse()?,
         "serve.http_port" => global.serve.http_port = value.parse()?,
         "serve.http_allowed_hosts" => {
@@ -764,6 +788,9 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "graph.format" => resolved.graph.format.clone(),
         "graph.depth" => resolved.graph.depth.to_string(),
         "graph.output" => resolved.graph.output.clone(),
+        "graph.snapshot" => resolved.graph.snapshot.to_string(),
+        "graph.snapshot_keep" => resolved.graph.snapshot_keep.to_string(),
+        "graph.snapshot_format" => resolved.graph.snapshot_format.clone(),
         "serve.http" => resolved.serve.http.to_string(),
         "serve.http_port" => resolved.serve.http_port.to_string(),
         "serve.http_allowed_hosts" => resolved.serve.http_allowed_hosts.join(","),
@@ -891,6 +918,24 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
                 .graph
                 .get_or_insert_with(GraphConfig::default)
                 .output = value.into();
+        }
+        "graph.snapshot" => {
+            wiki_cfg
+                .graph
+                .get_or_insert_with(GraphConfig::default)
+                .snapshot = value.parse()?;
+        }
+        "graph.snapshot_keep" => {
+            wiki_cfg
+                .graph
+                .get_or_insert_with(GraphConfig::default)
+                .snapshot_keep = value.parse()?;
+        }
+        "graph.snapshot_format" => {
+            wiki_cfg
+                .graph
+                .get_or_insert_with(GraphConfig::default)
+                .snapshot_format = value.into();
         }
         "global.default_wiki"
         | "index.auto_rebuild"
