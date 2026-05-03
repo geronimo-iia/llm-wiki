@@ -2,7 +2,7 @@
 title: "Engine Implementation"
 summary: "Top-level engine structs, space mounting, and how registries and indexes compose at runtime."
 status: ready
-last_updated: "2026-04-28"
+last_updated: "2026-05-03"
 ---
 
 # Engine Implementation
@@ -43,13 +43,14 @@ pub struct SpaceContext {
     pub type_registry: SpaceTypeRegistry,
     pub index_schema: IndexSchema,
     pub index_manager: SpaceIndexManager,
-    pub graph_cache: RwLock<Option<CachedGraph>>,  // v0.3.0
+    pub graph_cache:     GenerationCache<WikiGraph>,
+    pub community_cache: GenerationCache<CommunityData>,
 }
 ```
 
-`graph_cache` holds the last full unfiltered graph build. Invalidated
-automatically when `index_manager.generation()` changes. See
-[graph-cache.md](graph-cache.md).
+`graph_cache` and `community_cache` are generation-keyed caches backed by
+`petgraph_live::cache::GenerationCache`. Both invalidate automatically when
+`index_manager.generation()` changes. See [graph-cache.md](graph-cache.md).
 
 ## Startup
 
@@ -67,7 +68,7 @@ automatically when `index_manager.generation()` changes. See
       - TypesChanged → partial rebuild (affected types only)
       - FullRebuildNeeded → full rebuild
    e. Open tantivy index (with auto-recovery on corruption)
-   f. Initialize graph_cache: RwLock::new(None)
+   f. Initialize graph_cache: GenerationCache::new(), community_cache: GenerationCache::new()
    g. Return SpaceContext
 3. Per-wiki errors: warn and skip (don't fail the engine)
 4. Assemble EngineState, wrap in Arc<RwLock>
