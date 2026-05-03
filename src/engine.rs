@@ -390,9 +390,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
                         crate::space_builder::build_space_from_embedded(&tokenizer)
                     });
                 let searcher = im_build.searcher().map_err(|e| {
-                    petgraph_live::snapshot::SnapshotError::Io(std::io::Error::other(
-                        e.to_string(),
-                    ))
+                    petgraph_live::snapshot::SnapshotError::Io(std::io::Error::other(e.to_string()))
                 })?;
                 crate::graph::build_graph(
                     &searcher,
@@ -401,9 +399,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
                     &tr,
                 )
                 .map_err(|e| {
-                    petgraph_live::snapshot::SnapshotError::Io(std::io::Error::other(
-                        e.to_string(),
-                    ))
+                    petgraph_live::snapshot::SnapshotError::Io(std::io::Error::other(e.to_string()))
                 })
             },
         )?
@@ -426,7 +422,10 @@ fn build_wiki_graph_cache(
     state_dir: &Path,
     graph_cfg: &crate::config::GraphConfig,
     key_fn: impl Fn() -> Result<String, petgraph_live::snapshot::SnapshotError> + Send + Sync + 'static,
-    build_fn: impl Fn() -> Result<WikiGraph, petgraph_live::snapshot::SnapshotError> + Send + Sync + 'static,
+    build_fn: impl Fn() -> Result<WikiGraph, petgraph_live::snapshot::SnapshotError>
+    + Send
+    + Sync
+    + 'static,
 ) -> Result<WikiGraphCache> {
     if !graph_cfg.snapshot {
         return Ok(WikiGraphCache::NoSnapshot(GenerationCache::new()));

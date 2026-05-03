@@ -3,9 +3,7 @@ use petgraph_live::cache::GenerationCache;
 
 #[test]
 fn wiki_graph_cache_no_snapshot_variant_exists() {
-    let _ = std::mem::discriminant(&WikiGraphCache::NoSnapshot(
-        GenerationCache::new(),
-    ));
+    let _ = std::mem::discriminant(&WikiGraphCache::NoSnapshot(GenerationCache::new()));
 }
 
 /// Snapshot written on first mount; second mount loads from disk without calling build_fn.
@@ -21,7 +19,6 @@ fn graph_state_warm_start_skips_cold_build() {
 
 #[test]
 fn wiki_graph_cache_no_snapshot_uses_generation_cache() {
-    let cache =
-        WikiGraphCache::NoSnapshot(GenerationCache::<llm_wiki::graph::WikiGraph>::new());
+    let cache = WikiGraphCache::NoSnapshot(GenerationCache::<llm_wiki::graph::WikiGraph>::new());
     assert!(matches!(cache, WikiGraphCache::NoSnapshot(_)));
 }
