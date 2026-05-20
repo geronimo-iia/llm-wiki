@@ -69,7 +69,7 @@ chrono     = { version = "0.4", default-features = false, features = ["clock", "
 git2       = { version = "0.20", default-features = false, features = ["vendored-libgit2"] }
 
 # MCP server
-rmcp       = { version = "1.6", features = ["server", "transport-io", "transport-streamable-http-server"] }
+rmcp       = { version = "1.7", features = ["server", "transport-io", "transport-streamable-http-server"] }
 axum       = "0.8"
 
 # ACP server
