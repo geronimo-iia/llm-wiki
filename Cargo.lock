@@ -2129,9 +2129,9 @@ dependencies = [
 
 [[package]]
 name = "petgraph-live"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba2a13fcb4b775ae2ba73cb382665401387da089928836f289db022afa4c1407"
+checksum = "6a3928541b17b1eff6f64dca5a9f30f2a23806996bdd4aa8fe780aaffc91b2f2"
 dependencies = [
  "bincode",
  "lz4_flex",
