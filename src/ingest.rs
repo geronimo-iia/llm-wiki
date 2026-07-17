@@ -148,7 +148,8 @@ fn slug_from_path(abs_path: &Path, wiki_root: &Path) -> String {
         .unwrap_or(abs_path)
         .with_extension("")
         .to_string_lossy()
-        .into_owned()
+        // Slugs are always POSIX-style; normalize the OS path separator to `/`.
+        .replace(std::path::MAIN_SEPARATOR, "/")
 }
 
 fn validate_file(

@@ -30,6 +30,9 @@ impl Slug {
         } else {
             rel.with_extension("").to_string_lossy().into_owned()
         };
+        // Slugs are always POSIX-style. Replace the OS path separator with `/`
+        // so nested pages get forward-slash slugs on every platform.
+        let raw = raw.replace(std::path::MAIN_SEPARATOR, "/");
         Self::try_from(raw.as_str())
     }
 

@@ -67,6 +67,26 @@ fn from_path_outside_root() {
     assert!(Slug::from_path(path, root).is_err());
 }
 
+#[test]
+fn from_path_nested_uses_forward_slash() {
+    // Build the path with the OS separator (backslash on Windows) via `join`
+    // so the slug always comes out POSIX-style regardless of platform.
+    let root = Path::new("wiki");
+    let path = root.join("components").join("ai-schema-reviewer.md");
+    let s = Slug::from_path(&path, root).unwrap();
+    assert_eq!(s.as_str(), "components/ai-schema-reviewer");
+    assert!(!s.as_str().contains('\\'));
+}
+
+#[test]
+fn from_path_nested_bundle_uses_forward_slash() {
+    let root = Path::new("wiki");
+    let path = root.join("components").join("parser").join("index.md");
+    let s = Slug::from_path(&path, root).unwrap();
+    assert_eq!(s.as_str(), "components/parser");
+    assert!(!s.as_str().contains('\\'));
+}
+
 // ── Slug::title ───────────────────────────────────────────────────────────────
 
 #[test]
