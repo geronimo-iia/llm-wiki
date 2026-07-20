@@ -63,6 +63,49 @@ fn engine_builds_with_missing_config() {
     assert!(engine.spaces.is_empty());
 }
 
+#[test]
+fn engine_mount_fails_loud_on_broken_schema() {
+    let dir = tempfile::tempdir().unwrap();
+    let (config_path, wiki_path) = setup_wiki(dir.path(), "test");
+
+    // Corrupt a schema file — the wiki must fail to mount instead of
+    // silently falling back to embedded defaults.
+    fs::write(wiki_path.join("schemas/concept.json"), "not valid json {{{").unwrap();
+
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+    assert!(
+        engine.space("test").is_err(),
+        "wiki with a broken schema must not mount"
+    );
+
+    // The error chain names the wiki and the broken schema file.
+    let err = match llm_wiki::space_builder::build_space(&wiki_path, "en_stem") {
+        Err(e) => e,
+        Ok(_) => panic!("build_space should fail on a broken schema"),
+    };
+    let chain = format!("{err:#}");
+    assert!(
+        chain.contains("concept.json"),
+        "error should name the broken schema file: {chain}"
+    );
+}
+
+#[test]
+fn engine_mounts_wiki_without_schemas_dir() {
+    let dir = tempfile::tempdir().unwrap();
+    let (config_path, wiki_path) = setup_wiki(dir.path(), "test");
+
+    // A wiki with NO schemas/ directory must still mount, using the
+    // embedded defaults inside the schema-source collection.
+    fs::remove_dir_all(wiki_path.join("schemas")).unwrap();
+
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+    let space = engine.space("test").unwrap();
+    assert!(space.type_registry.is_known("concept"));
+}
+
 // ── space access ──────────────────────────────────────────────────────────────
 
 #[test]

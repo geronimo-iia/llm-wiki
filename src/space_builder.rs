@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use crate::config;
 use crate::default_schemas;
@@ -63,7 +63,10 @@ fn parse_from_dir(schemas_dir: &Path, repo_root: &Path) -> Result<Vec<ParsedSche
         seen_files.insert(filename.clone());
         let content = std::fs::read_to_string(&path)?;
         let schema_rel = format!("schemas/{filename}");
-        parsed.push(parse_schema_file(&schema_rel, &content)?);
+        parsed.push(
+            parse_schema_file(&schema_rel, &content)
+                .with_context(|| format!("invalid schema file: {}", path.display()))?,
+        );
     }
 
     // Add wiki.toml override schemas not already scanned
@@ -78,7 +81,10 @@ fn parse_from_dir(schemas_dir: &Path, repo_root: &Path) -> Result<Vec<ParsedSche
         if !seen_files.contains(&filename) {
             seen_files.insert(filename);
             let content = std::fs::read_to_string(&schema_path)?;
-            parsed.push(parse_schema_file(&type_entry.schema, &content)?);
+            parsed.push(
+                parse_schema_file(&type_entry.schema, &content)
+                    .with_context(|| format!("invalid schema file: {}", schema_path.display()))?,
+            );
         }
     }
 
