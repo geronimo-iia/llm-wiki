@@ -94,12 +94,19 @@ pub fn schema_add(
     jsonschema::Validator::new(&schema_value)
         .map_err(|e| anyhow::anyhow!("file is not a valid JSON Schema: {e}"))?;
 
-    // Copy to schemas/
+    // Write to schemas/. The validated content is written from memory rather
+    // than copied with fs::copy: when the source already IS the destination
+    // (e.g. `schema add` pointed at a file inside schemas/), fs::copy would
+    // truncate the file to 0 bytes before reading it.
     let filename = src_path
         .file_name()
         .ok_or_else(|| anyhow::anyhow!("invalid path"))?;
-    let dest = space.repo_root.join("schemas").join(filename);
-    std::fs::copy(src_path, &dest)?;
+    let schemas_dir = space.repo_root.join("schemas");
+    std::fs::create_dir_all(&schemas_dir)
+        .with_context(|| format!("failed to create {}", schemas_dir.display()))?;
+    let dest = schemas_dir.join(filename);
+    std::fs::write(&dest, &content)
+        .with_context(|| format!("failed to write {}", dest.display()))?;
 
     // Check if x-wiki-types declares the type
     let has_type = schema_value
