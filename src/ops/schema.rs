@@ -131,9 +131,35 @@ pub fn schema_add(
         msg.push_str(&format!(", added [types.{type_name}] to wiki.toml"));
     }
 
-    // Validate index resolution
-    if let Err(e) = space_builder::build_space(&space.repo_root, "en_stem") {
-        msg.push_str(&format!("\nWARNING: index resolution failed: {e}"));
+    // Validate index resolution, then rebuild the search index. Registering
+    // a type changes the union index schema; the existing tantivy index no
+    // longer matches it and any later rebuild would fail with "An index
+    // exists but the schema does not match". Clear the stale index and
+    // rebuild it with the new registry + schema so subsequent commands work.
+    match space_builder::build_space(&space.repo_root, &engine.config.index.tokenizer) {
+        Ok((new_registry, new_index_schema)) => {
+            let index_path = space.index_manager.index_path().to_path_buf();
+            let search_dir = index_path.join("search-index");
+            if search_dir.exists() {
+                std::fs::remove_dir_all(&search_dir)
+                    .with_context(|| format!("failed to clear {}", search_dir.display()))?;
+            }
+            // Fresh manager: the mounted one still holds a reader opened on
+            // the old schema, which must not be reused for the new index.
+            let manager = crate::index_manager::SpaceIndexManager::new(&space.name, &index_path);
+            match manager.rebuild(
+                &space.wiki_root,
+                &space.repo_root,
+                &new_index_schema,
+                &new_registry,
+            ) {
+                Ok(_) => msg.push_str(", search index rebuilt"),
+                Err(e) => msg.push_str(&format!(
+                    ", stale search index cleared (rebuild failed: {e}); it will be rebuilt on the next command"
+                )),
+            }
+        }
+        Err(e) => msg.push_str(&format!("\nWARNING: index resolution failed: {e}")),
     }
 
     Ok(msg)

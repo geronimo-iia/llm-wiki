@@ -225,6 +225,52 @@ fn schema_add_registers_custom_type() {
 }
 
 #[test]
+fn schema_add_rebuilds_search_index() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path());
+
+    // Register a type whose schema adds a new indexed field ("attendees"),
+    // changing the union tantivy schema.
+    let custom_schema = dir.path().join("meeting.json");
+    fs::write(
+        &custom_schema,
+        r#"{
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "x-wiki-types": {"meeting": "Meeting notes"},
+            "type": "object",
+            "required": ["title", "type"],
+            "properties": {
+                "title": {"type": "string"},
+                "type": {"type": "string"},
+                "attendees": {"type": "array", "items": {"type": "string"}}
+            },
+            "additionalProperties": true
+        }"#,
+    )
+    .unwrap();
+
+    {
+        let mgr = engine(&config_path);
+        let eng = mgr.state.read().unwrap();
+        let msg = ops::schema_add(&eng, "test", "meeting", &custom_schema).unwrap();
+        assert!(
+            msg.contains("search index rebuilt"),
+            "schema add should rebuild the search index: {msg}"
+        );
+    }
+
+    // A fresh engine must mount and rebuild without a tantivy schema
+    // mismatch ("An index exists but the schema does not match").
+    let mgr2 = engine(&config_path);
+    let report = mgr2.rebuild_index("test");
+    assert!(
+        report.is_ok(),
+        "index rebuild after schema add failed: {:?}",
+        report.unwrap_err()
+    );
+}
+
+#[test]
 fn schema_add_from_inside_schemas_dir_does_not_truncate() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
