@@ -27,7 +27,8 @@ pub struct PageRef {
     pub title: String,
     /// Adjusted BM25 score (multiplied by status and confidence).
     pub score: f32,
-    /// Frontmatter `confidence` value in [0, 1].
+    /// Frontmatter `confidence` value in [0, 1]; 1.0 (neutral) when the
+    /// page does not declare one.
     pub confidence: f32,
     /// HTML-highlighted body excerpt, if requested.
     pub excerpt: Option<String>,
@@ -51,7 +52,8 @@ pub struct PageSummary {
     pub status: String,
     /// Tags from frontmatter.
     pub tags: Vec<String>,
-    /// Frontmatter `confidence` value in [0, 1].
+    /// Frontmatter `confidence` value in [0, 1]; 1.0 (neutral) when the
+    /// page does not declare one.
     pub confidence: f32,
     /// Frontmatter `summary` field, if present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -244,7 +246,9 @@ pub fn search(
                     },
                     None => unknown_mult,
                 };
-                let confidence = conf_col.as_ref().and_then(|c| c.first(doc)).unwrap_or(0.5) as f32;
+                // Absent confidence is neutral (1.0): pages that don't
+                // declare confidence are not down-ranked.
+                let confidence = conf_col.as_ref().and_then(|c| c.first(doc)).unwrap_or(1.0) as f32;
                 score * status_mult * confidence
             }
         },
@@ -278,7 +282,7 @@ pub fn search(
         let confidence = f_confidence
             .and_then(|f| doc.get_first(f))
             .and_then(|v| v.as_f64())
-            .unwrap_or(0.5) as f32;
+            .unwrap_or(1.0) as f32;
 
         let excerpt = snippet_gen.as_ref().map(|sg| {
             let snippet: Snippet = sg.snippet_from_doc(&doc);
@@ -462,7 +466,7 @@ pub fn list(
         let confidence = f_confidence
             .and_then(|f| doc.get_first(f))
             .and_then(|v| v.as_f64())
-            .unwrap_or(0.5) as f32;
+            .unwrap_or(1.0) as f32;
 
         let summary = f_summary
             .and_then(|f| doc.get_first(f))

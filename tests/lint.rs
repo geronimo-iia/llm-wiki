@@ -261,6 +261,50 @@ fn stale_old_page_low_confidence_is_flagged() {
 }
 
 #[test]
+fn stale_old_page_without_confidence_not_flagged() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    // No confidence field at all: absence is neutral, not low.
+    write_page(
+        &wiki_root,
+        "concepts/no-confidence.md",
+        "---\ntitle: \"No Confidence\"\ntype: concept\nread_when: [\"x\"]\nlast_updated: \"2020-01-01\"\n---\n\nOld but confidence-less content.\n",
+    );
+
+    let engine = build_engine(dir.path(), &wiki_root);
+    let report = run_lint(&engine, "test", Some("stale"), None).unwrap();
+    let findings = findings_for_rule(&report.findings, "stale");
+
+    assert!(
+        findings.is_empty(),
+        "old page without declared confidence must NOT be stale: {findings:?}"
+    );
+}
+
+#[test]
+fn stale_old_page_explicit_low_confidence_is_flagged() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    write_page(
+        &wiki_root,
+        "concepts/shaky-old.md",
+        "---\ntitle: \"Shaky Old\"\ntype: concept\nread_when: [\"x\"]\nlast_updated: \"2020-01-01\"\nconfidence: 0.1\n---\n\nSpeculative and old.\n",
+    );
+
+    let engine = build_engine(dir.path(), &wiki_root);
+    let report = run_lint(&engine, "test", Some("stale"), None).unwrap();
+    let findings = findings_for_rule(&report.findings, "stale");
+
+    assert!(
+        !findings.is_empty(),
+        "old + explicit low confidence must be stale"
+    );
+    assert_eq!(findings[0].slug, "concepts/shaky-old");
+}
+
+#[test]
 fn stale_old_page_high_confidence_not_flagged() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());

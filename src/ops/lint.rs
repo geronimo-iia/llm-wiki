@@ -478,7 +478,9 @@ fn rule_stale(
         let is_low_confidence = if let Some(f_conf) = f_confidence {
             match doc.get_first(f_conf).and_then(|v| v.as_f64()) {
                 Some(v) => (v as f32) < stale_confidence_threshold,
-                None => true, // No confidence value — treat as low
+                // Absent confidence is NOT low — stale fires only on pages
+                // that explicitly declare a low confidence.
+                None => false,
             }
         } else {
             // Field not indexed — fall back to date-only

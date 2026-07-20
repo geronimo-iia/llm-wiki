@@ -5,18 +5,23 @@ use chrono::Local;
 use serde_yaml::Value;
 
 /// Read page-level `confidence` from frontmatter; map legacy string values.
-pub fn confidence(fm: &BTreeMap<String, Value>) -> f32 {
-    match fm.get("confidence") {
-        Some(Value::Number(n)) => n.as_f64().unwrap_or(0.5) as f32,
-        Some(Value::String(s)) => match s.as_str() {
+///
+/// Returns `None` when the page does not declare a confidence (or declares
+/// an uninterpretable value) — absence is meaningful and must not be
+/// conflated with an explicit medium confidence of 0.5. Present numeric
+/// values are clamped to `[0, 1]`.
+pub fn confidence(fm: &BTreeMap<String, Value>) -> Option<f32> {
+    let value = match fm.get("confidence")? {
+        Value::Number(n) => n.as_f64()? as f32,
+        Value::String(s) => match s.as_str() {
             "high" => 0.9,
             "medium" => 0.5,
             "low" => 0.2,
-            _ => 0.5,
+            _ => return None,
         },
-        _ => 0.5,
-    }
-    .clamp(0.0, 1.0)
+        _ => return None,
+    };
+    Some(value.clamp(0.0, 1.0))
 }
 
 use crate::slug::Slug;
