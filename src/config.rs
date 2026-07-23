@@ -779,9 +779,23 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "logging.log_max_files" => global.logging.log_max_files = value.parse()?,
         "logging.log_format" => global.logging.log_format = value.into(),
         "watch.debounce_ms" => global.watch.debounce_ms = value.parse()?,
-        _ => anyhow::bail!("unknown key: {key}"),
+        _ => {
+            if let Some(status_key) = search_status_key(key) {
+                global
+                    .search
+                    .status
+                    .insert(status_key.to_string(), value.parse()?);
+            } else {
+                anyhow::bail!("unknown key: {key}");
+            }
+        }
     }
     Ok(())
+}
+
+/// Return the `<status>` map key for a `search.status.<status>` dot key, if any.
+fn search_status_key(key: &str) -> Option<&str> {
+    key.strip_prefix("search.status.").filter(|k| !k.is_empty())
 }
 
 /// Read a dot-notation config key from `ResolvedConfig`/`GlobalConfig`. Returns `"unknown key"` for unrecognized keys.
@@ -827,7 +841,10 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "history.default_limit" => resolved.history.default_limit.to_string(),
         "suggest.default_limit" => resolved.suggest.default_limit.to_string(),
         "suggest.min_score" => resolved.suggest.min_score.to_string(),
-        _ => format!("unknown key: {key}"),
+        _ => match search_status_key(key).and_then(|k| resolved.search.status.get(k)) {
+            Some(mult) => mult.to_string(),
+            None => format!("unknown key: {key}"),
+        },
     }
 }
 
@@ -988,7 +1005,19 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
         "watch.debounce_ms" => {
             anyhow::bail!("{key} is a global-only key \u{2014} use --global");
         }
-        _ => anyhow::bail!("unknown key: {key}"),
+        _ => {
+            if let Some(status_key) = search_status_key(key) {
+                wiki_cfg
+                    .search
+                    .get_or_insert_with(|| SearchConfig {
+                        status: std::collections::HashMap::new(),
+                    })
+                    .status
+                    .insert(status_key.to_string(), value.parse()?);
+            } else {
+                anyhow::bail!("unknown key: {key}");
+            }
+        }
     }
     Ok(())
 }

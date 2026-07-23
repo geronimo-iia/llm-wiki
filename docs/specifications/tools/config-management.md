@@ -4,7 +4,7 @@ summary: "get, set, and list configuration values."
 read_when:
   - Reading or writing configuration via CLI or MCP
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2026-07-23"
 ---
 
 # Config Management
@@ -51,6 +51,11 @@ llm-wiki config set defaults.search_top_k 15 --global
 llm-wiki config set defaults.page_mode bundle --wiki research
 llm-wiki config list
 llm-wiki config list --global --format json
+
+# search.status multipliers — <key> is any status string (built-in or custom)
+llm-wiki config set search.status.archived 0.1 --global
+llm-wiki config set search.status.superseded 0.05 --wiki research
+llm-wiki config get search.status.archived
 ```
 
 ### config list output
