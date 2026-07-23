@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Dependencies
 
+- Bump `petgraph-live` `0.4.0` → `0.5.0`; snapshot format migrated from bincode to postcard — existing snapshots detected as `LegacyFormat` and transparently rebuilt on first use
+
 - Bump `agent-client-protocol` `0.15` → `1.3`; migrate all `schema::*` imports to `schema::v1::*`
 - Bump `rmcp` `1.8` → `2.2`; `Content` → `ContentBlock`, `RawResource` → `Resource`, drop `AnnotateAble`, use `ResourceUpdatedNotificationParam::new()`
 - Bump `crossbeam-epoch` `0.9.18` → `0.9.20` (fixes RUSTSEC-2026-0204: invalid pointer dereference)
