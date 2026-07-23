@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering;
 
-use agent_client_protocol::schema::{SessionId, ToolCallStatus, ToolKind};
+use agent_client_protocol::schema::v1::{SessionId, ToolCallStatus, ToolKind};
 use agent_client_protocol::{Client, ConnectionTo};
 
 use crate::engine::WikiEngine;
@@ -31,7 +31,7 @@ pub fn step_ingest(
         let engine = manager
             .state
             .read()
-            .map_err(|_| agent_client_protocol::schema::Error::internal_error())?;
+            .map_err(|_| agent_client_protocol::schema::v1::Error::internal_error())?;
         ops::ingest(&engine, manager, path, false, wiki_name)
     };
 

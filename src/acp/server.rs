@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     AgentCapabilities, CancelNotification, InitializeRequest, InitializeResponse,
     ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, LoadSessionResponse,
     NewSessionRequest, NewSessionResponse, PromptCapabilities, PromptRequest, PromptResponse,
@@ -78,7 +78,7 @@ pub async fn serve_acp(
                                         .list(SessionListCapabilities::new()),
                                 ),
                         )
-                        .agent_info(agent_client_protocol::schema::Implementation::new(
+                        .agent_info(agent_client_protocol::schema::v1::Implementation::new(
                             "llm-wiki",
                             env!("CARGO_PKG_VERSION"),
                         )),
@@ -96,8 +96,8 @@ pub async fn serve_acp(
                         let sessions = sessions.lock().unwrap();
                         if sessions.len() >= config.acp_max_sessions {
                             return responder.respond_with_error(
-                                agent_client_protocol::schema::Error::new(
-                                    i32::from(agent_client_protocol::schema::ErrorCode::InvalidParams),
+                                agent_client_protocol::schema::v1::Error::new(
+                                    i32::from(agent_client_protocol::schema::v1::ErrorCode::InvalidParams),
                                     format!("Session limit reached (max: {})", config.acp_max_sessions),
                                 ),
                             );
@@ -140,8 +140,8 @@ pub async fn serve_acp(
                         responder.respond(LoadSessionResponse::new())
                     } else {
                         responder.respond_with_error(
-                            agent_client_protocol::schema::Error::new(
-                                i32::from(agent_client_protocol::schema::ErrorCode::InvalidParams),
+                            agent_client_protocol::schema::v1::Error::new(
+                                i32::from(agent_client_protocol::schema::v1::ErrorCode::InvalidParams),
                                 format!("session {} not found", req.session_id),
                             ),
                         )

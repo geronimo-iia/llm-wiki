@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
-use agent_client_protocol::schema::{ContentBlock, PromptRequest};
+use agent_client_protocol::schema::v1::{ContentBlock, PromptRequest};
 
 pub use server::serve_acp;
 
@@ -62,7 +62,7 @@ fn extract_prompt_text(req: &PromptRequest) -> String {
 }
 
 /// Convenience alias for ACP step return values.
-pub type StepResult<T = ()> = std::result::Result<T, agent_client_protocol::schema::Error>;
+pub type StepResult<T = ()> = std::result::Result<T, agent_client_protocol::schema::v1::Error>;
 
 /// Generate a unique tool-run ID from workflow name, step name, and current timestamp.
 pub fn make_tool_id(workflow: &str, step: &str) -> String {
