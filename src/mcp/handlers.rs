@@ -1,4 +1,4 @@
-use rmcp::model::Content;
+use rmcp::model::ContentBlock as Content;
 use serde_json::{Map, Value};
 
 use crate::ops;
