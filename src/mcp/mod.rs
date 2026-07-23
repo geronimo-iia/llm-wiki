@@ -10,10 +10,9 @@ use std::sync::Arc;
 
 use rmcp::ErrorData as McpError;
 use rmcp::ServerHandler;
-use rmcp::model::AnnotateAble;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Implementation, ListResourcesResult, ListToolsResult,
-    PaginatedRequestParams, RawResource, ReadResourceRequestParams, ReadResourceResult,
+    PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, Resource,
     ResourceContents, ServerCapabilities, ServerInfo,
 };
 use rmcp::service::{RequestContext, RoleServer};
@@ -59,7 +58,7 @@ impl McpServer {
             for entry in walker {
                 if let Ok(slug) = Slug::from_path(entry.path(), &space.wiki_root) {
                     let uri = format!("wiki://{wiki_name}/{slug}");
-                    resources.push(RawResource::new(uri, slug.title()).no_annotation());
+                    resources.push(Resource::new(uri, slug.title()));
                 }
             }
         }
@@ -108,9 +107,9 @@ impl ServerHandler for McpServer {
             tokio::spawn(async move {
                 for uri in uris {
                     if let Err(e) = peer
-                        .notify_resource_updated(rmcp::model::ResourceUpdatedNotificationParam {
-                            uri: uri.clone(),
-                        })
+                        .notify_resource_updated(
+                            rmcp::model::ResourceUpdatedNotificationParam::new(uri.clone()),
+                        )
                         .await
                     {
                         tracing::warn!(error = %e, uri = %uri, "resource notification failed");

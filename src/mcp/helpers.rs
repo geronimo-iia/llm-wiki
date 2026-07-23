@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use rmcp::model::Content;
+use rmcp::model::ContentBlock as Content;
 use serde_json::{Map, Value};
 
 use crate::engine::EngineState;
