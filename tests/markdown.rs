@@ -290,3 +290,44 @@ fn promote_to_bundle_missing_errors() {
 
     assert!(promote_to_bundle(&slug("concepts/nope"), &wiki).is_err());
 }
+
+// ── Issue 6: promote_to_bundle guard ─────────────────────────────────────────
+
+#[test]
+fn promote_to_bundle_ok() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki = setup_wiki(dir.path());
+    write_file(&wiki, "topics/guide.md", SAMPLE);
+
+    promote_to_bundle(&slug("topics/guide"), &wiki).unwrap();
+
+    assert!(!wiki.join("topics/guide.md").exists(), "flat removed");
+    assert!(wiki.join("topics/guide/index.md").is_file(), "bundle created");
+}
+
+#[test]
+fn promote_to_bundle_already_exists_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki = setup_wiki(dir.path());
+    write_file(&wiki, "topics/guide.md", SAMPLE);
+    // Pre-create the bundle destination
+    write_file(&wiki, "topics/guide/index.md", SAMPLE);
+
+    let err = promote_to_bundle(&slug("topics/guide"), &wiki).unwrap_err();
+    assert!(
+        err.to_string().contains("bundle already exists"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn promote_to_bundle_flat_not_found_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki = setup_wiki(dir.path());
+
+    let err = promote_to_bundle(&slug("topics/missing"), &wiki).unwrap_err();
+    assert!(
+        err.to_string().contains("flat page not found"),
+        "unexpected error: {err}"
+    );
+}

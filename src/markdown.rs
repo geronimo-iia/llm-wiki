@@ -164,8 +164,14 @@ pub fn promote_to_bundle(slug: &Slug, wiki_root: &Path) -> Result<()> {
         bail!("flat page not found for slug: {slug}");
     }
     let bundle_dir = wiki_root.join(slug.as_str());
-    std::fs::create_dir_all(&bundle_dir)?;
     let dest = bundle_dir.join("index.md");
+    if dest.exists() {
+        bail!(
+            "bundle already exists at {}; remove it manually before promoting",
+            dest.display()
+        );
+    }
+    std::fs::create_dir_all(&bundle_dir)?;
     std::fs::rename(&flat, &dest)?;
     Ok(())
 }

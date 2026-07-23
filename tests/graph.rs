@@ -7,6 +7,7 @@ use llm_wiki::index_manager::SpaceIndexManager;
 use llm_wiki::index_schema::IndexSchema;
 use llm_wiki::space_builder;
 use llm_wiki::type_registry::SpaceTypeRegistry;
+use petgraph_live;
 
 fn schema_and_registry() -> (IndexSchema, SpaceTypeRegistry) {
     let (registry, schema) = space_builder::build_space_from_embedded("en_stem");
@@ -879,4 +880,59 @@ fn graphfilter_with_root_not_default() {
         ..Default::default()
     };
     assert!(!f.is_default());
+}
+
+// ── Issue 4: empty graph contract ─────────────────────────────────────────────
+
+#[test]
+fn build_graph_empty_wiki() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    // No pages — build an empty index
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
+
+    assert_eq!(g.node_count(), 0, "no nodes");
+    assert_eq!(g.edge_count(), 0, "no edges");
+}
+
+#[test]
+fn graph_diameter_empty() {
+    let g = llm_wiki::graph::WikiGraph::new();
+    // petgraph-live returns None for empty graph — assert the contract
+    let result = petgraph_live::metrics::diameter(&g);
+    assert!(result.is_none(), "diameter of empty graph must be None");
+}
+
+#[test]
+fn graph_radius_empty() {
+    let g = llm_wiki::graph::WikiGraph::new();
+    let result = petgraph_live::metrics::radius(&g);
+    assert!(result.is_none(), "radius of empty graph must be None");
+}
+
+#[test]
+fn resolve_or_external_empty() {
+    // build_graph on empty index returns empty graph — no panic on build
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
+    // No node for "concepts/foo" in empty graph
+    let idx = g.node_indices().find(|&i| g[i].slug == "concepts/foo");
+    assert!(idx.is_none(), "slug not in empty graph");
 }

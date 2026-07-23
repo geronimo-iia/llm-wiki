@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`index_manager` atomic rebuild** — rebuild now writes to a temp `search-index-building/` directory and promotes it via atomic renames; live index is untouched until `commit()` succeeds; `reload_reader()` failure after swap triggers full rollback and returns a hard error instead of silently serving stale results
 - **`export` CRLF frontmatter** — `strip_frontmatter()` now correctly skips `\r\n` after the closing `---`; previously `\r` leaked into the body on Windows line endings
 - **`index_manager`/`git` wrong-prefix fallback** — `wiki_root.strip_prefix(repo_root).unwrap_or("wiki")` replaced with explicit error propagation in `update()`, `changed_wiki_files()`, and `changed_since_commit()`; ingest now surfaces the error instead of logging and continuing
+- **`ops/content` path traversal in `resolve_body_template`** — type names containing `..` components were passed directly into `repo_root.join("schemas/{type_name}.md")`, allowing reads outside the schemas directory; a `Component::ParentDir` guard now returns `None` immediately for any such input
+- **`export` bundle body not loaded** — `load_bodies` only checked for flat `{slug}.md` files; bundle pages stored as `{slug}/index.md` had their body silently skipped; a `resolve_page_path` helper now tries the flat path first and falls back to the bundle path
+- **`export` stale index entry warning** — when an index entry references a page that no longer exists on disk, `load_bodies` previously silently left the body `None`; it now emits `tracing::warn` with the slug so operators can detect index/disk drift
+- **`export` 100k page limit silent truncation** — `collect_pages` searches with `TopDocs::with_limit(100_000)` and returned results without signalling overflow; a `tracing::warn` is now emitted when the result set hits the limit so large wikis are not silently truncated
+- **`markdown::promote_to_bundle` missing pre-checks** — the function panicked or produced corrupt state when called on a non-existent flat page or when a bundle destination already existed; explicit pre-checks now return descriptive errors (`"flat page not found"`, `"bundle already exists"`) before any filesystem mutation
 
 ### Semver note
 

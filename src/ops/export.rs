@@ -174,6 +174,12 @@ fn collect_pages(
     let f_summary = is.try_field("summary");
 
     let top_docs = searcher.search(&AllQuery, &TopDocs::with_limit(100_000).order_by_score())?;
+    if top_docs.len() == 100_000 {
+        tracing::warn!(
+            limit = 100_000,
+            "export hit page limit — output may be truncated; use a smaller export or split by type"
+        );
+    }
 
     let mut pages = Vec::new();
     for (_score, doc_addr) in &top_docs {
@@ -254,14 +260,25 @@ fn collect_pages(
     Ok(pages)
 }
 
+fn resolve_page_path(slug: &str, wiki_root: &Path) -> Option<std::path::PathBuf> {
+    let flat = wiki_root.join(format!("{slug}.md"));
+    if flat.exists() {
+        return Some(flat);
+    }
+    let bundle = wiki_root.join(slug).join("index.md");
+    if bundle.exists() {
+        return Some(bundle);
+    }
+    None
+}
+
 fn load_bodies(
     mut pages: Vec<PageEntry>,
     wiki_root: &Path,
     with_frontmatter: bool,
 ) -> Result<Vec<PageEntry>> {
     for page in &mut pages {
-        let path = wiki_root.join(format!("{}.md", page.slug));
-        if path.exists() {
+        if let Some(path) = resolve_page_path(&page.slug, wiki_root) {
             let raw = std::fs::read_to_string(&path)
                 .with_context(|| format!("failed to read {}", path.display()))?;
             if with_frontmatter {
@@ -272,6 +289,11 @@ fn load_bodies(
                 let body = strip_frontmatter(&raw);
                 page.body = Some(body.to_string());
             }
+        } else {
+            tracing::warn!(
+                slug = %page.slug,
+                "stale index entry — page on disk not found; skipping body load"
+            );
         }
     }
     Ok(pages)
