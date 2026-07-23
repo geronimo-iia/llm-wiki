@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`config set/get search.status.<key>`** — `search.status` multipliers are now accessible via dot-notation in `config set`/`config get`; custom status keys (e.g. `superseded`) are supported alongside built-ins; works at global and per-wiki scope (ported from [como-technologies/llm-wiki#6](https://github.com/como-technologies/llm-wiki/pull/6))
 - **`export --format json` custom frontmatter** — JSON export now includes a `frontmatter` object per page with all frontmatter fields not already surfaced at the top level (e.g. `created`, `reference`, `deciders`); object is omitted when the page has no extra fields (ported from [como-technologies/llm-wiki#11](https://github.com/como-technologies/llm-wiki/pull/11))
 
 ### Fixed
