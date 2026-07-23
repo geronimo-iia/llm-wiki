@@ -265,7 +265,7 @@ fn load_bodies(
             let raw = std::fs::read_to_string(&path)
                 .with_context(|| format!("failed to read {}", path.display()))?;
             if with_frontmatter {
-                let parsed = crate::frontmatter::parse(&raw);
+                let parsed = crate::frontmatter::parse(&raw, Some(&path));
                 page.frontmatter = remaining_frontmatter(&parsed.frontmatter);
                 page.body = Some(parsed.body);
             } else {

@@ -167,7 +167,7 @@ fn create_page_flat() {
     assert_eq!(path, wiki.join("concepts/bar.md"));
     assert!(path.is_file());
 
-    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap());
+    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap(), None);
     assert_eq!(page.title(), Some("Bar"));
     assert_eq!(page.page_type(), Some("page"));
     assert_eq!(page.status(), Some("draft"));
@@ -197,7 +197,7 @@ fn create_page_with_name_override() {
         None,
     )
     .unwrap();
-    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap());
+    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap(), None);
     assert_eq!(page.title(), Some("Custom Title"));
 }
 
@@ -215,7 +215,7 @@ fn create_page_with_type_override() {
         None,
     )
     .unwrap();
-    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap());
+    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap(), None);
     assert_eq!(page.page_type(), Some("paper"));
 }
 
@@ -228,13 +228,13 @@ fn create_page_auto_creates_parent_sections() {
 
     let a_index = wiki.join("a/index.md");
     assert!(a_index.is_file());
-    let page = frontmatter::parse(&fs::read_to_string(&a_index).unwrap());
+    let page = frontmatter::parse(&fs::read_to_string(&a_index).unwrap(), None);
     assert_eq!(page.page_type(), Some("section"));
     assert_eq!(page.title(), Some("A"));
 
     let ab_index = wiki.join("a/b/index.md");
     assert!(ab_index.is_file());
-    let page = frontmatter::parse(&fs::read_to_string(&ab_index).unwrap());
+    let page = frontmatter::parse(&fs::read_to_string(&ab_index).unwrap(), None);
     assert_eq!(page.page_type(), Some("section"));
 
     assert!(wiki.join("a/b/c.md").is_file());
@@ -251,7 +251,7 @@ fn create_section_creates_index_md() {
     assert_eq!(path, wiki.join("skills/index.md"));
     assert!(path.is_file());
 
-    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap());
+    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap(), None);
     assert_eq!(page.title(), Some("Skills"));
     assert_eq!(page.page_type(), Some("section"));
     assert_eq!(page.status(), Some("draft"));

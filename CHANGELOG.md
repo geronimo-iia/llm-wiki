@@ -10,9 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **`search` tags split on whitespace** — `list()` was calling `get_first(f_tags)` + `split_whitespace`, which dropped all tags after the first and split multi-word tags (e.g. `"machine learning"` → `["machine", "learning"]`); fixed by classifying arrays with `x-keyword: true` as per-value keyword fields at index time and replacing `get_first` + `split_whitespace` with `get_all` at read time; tag values are now lowercased at index time to enforce the schema convention; all six schema files updated with `"x-keyword": true` on the `tags` field; schema hash change triggers automatic full index rebuild on next open
+- **`frontmatter::parse` silent YAML failure** — malformed YAML in a page's frontmatter block previously returned an empty `BTreeMap` with no diagnostic; callers now receive a `tracing::warn` with the file path and YAML error, and the page is indexed with empty frontmatter so processing continues; `parse()` gains an `Option<&Path>` parameter (breaking — see Semver note below)
+- **`frontmatter::write` panic on non-serializable values** — `serde_yaml::to_string()` failure was a hard panic; `write()` now returns `Result<String>` and propagates the error to callers via `?` (breaking — see Semver note below)
 - **`index_manager` atomic rebuild** — rebuild now writes to a temp `search-index-building/` directory and promotes it via atomic renames; live index is untouched until `commit()` succeeds; `reload_reader()` failure after swap triggers full rollback and returns a hard error instead of silently serving stale results
 - **`export` CRLF frontmatter** — `strip_frontmatter()` now correctly skips `\r\n` after the closing `---`; previously `\r` leaked into the body on Windows line endings
 - **`index_manager`/`git` wrong-prefix fallback** — `wiki_root.strip_prefix(repo_root).unwrap_or("wiki")` replaced with explicit error propagation in `update()`, `changed_wiki_files()`, and `changed_since_commit()`; ingest now surfaces the error instead of logging and continuing
+
+### Semver note
+
+`frontmatter::parse` and `frontmatter::write` are `pub` — their signature changes (`parse` gains `Option<&Path>`, `write` returns `Result<String>`) are technically breaking. They ship in this patch because the previous signatures were latent panics, not stable contracts.
 
 ## [0.5.0] — 2026-07-23
 

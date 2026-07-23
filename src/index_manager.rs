@@ -308,7 +308,7 @@ impl SpaceIndexManager {
                 }
             };
             let uri = format!("wiki://{}/{slug}", self.wiki_name);
-            let page = frontmatter::parse(&content);
+            let page = frontmatter::parse(&content, Some(path));
 
             writer.add_document(index_page(is, registry, slug.as_str(), &uri, &page))?;
 
@@ -418,7 +418,7 @@ impl SpaceIndexManager {
             } else {
                 let full_path = repo_root.join(path);
                 if let Ok(content) = std::fs::read_to_string(&full_path) {
-                    let page = frontmatter::parse(&content);
+                    let page = frontmatter::parse(&content, Some(&full_path));
                     let uri = format!("wiki://{}/{slug}", self.wiki_name);
                     writer.add_document(index_page(is, registry, slug.as_str(), &uri, &page))?;
                     updated += 1;
@@ -583,7 +583,7 @@ impl SpaceIndexManager {
                     continue;
                 }
             };
-            let page = frontmatter::parse(&content);
+            let page = frontmatter::parse(&content, Some(path));
             let page_type = page.page_type().unwrap_or("page");
             if !type_set.contains(page_type) {
                 continue;

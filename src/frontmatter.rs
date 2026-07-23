@@ -80,8 +80,10 @@ impl ParsedPage {
 /// Parse a markdown file into frontmatter (YAML) and body.
 ///
 /// If no `---` opening is found, returns empty frontmatter and the
-/// entire content as body.
-pub fn parse(content: &str) -> ParsedPage {
+/// entire content as body. Malformed YAML emits a `tracing::warn` with
+/// the file path and error, then returns empty frontmatter so callers
+/// can continue processing.
+pub fn parse(content: &str, path: Option<&std::path::Path>) -> ParsedPage {
     let trimmed = content.trim_start_matches('\u{feff}');
     if !trimmed.starts_with("---") {
         return ParsedPage {
@@ -104,7 +106,17 @@ pub fn parse(content: &str) -> ParsedPage {
         .or_else(|| after_close.strip_prefix('\n'))
         .unwrap_or(after_close);
 
-    let frontmatter: BTreeMap<String, Value> = serde_yaml::from_str(yaml_str).unwrap_or_default();
+    let frontmatter: BTreeMap<String, Value> = match serde_yaml::from_str(yaml_str) {
+        Ok(fm) => fm,
+        Err(e) => {
+            tracing::warn!(
+                path = path.map(|p| p.display().to_string()).as_deref().unwrap_or("<unknown>"),
+                error = %e,
+                "invalid YAML frontmatter — indexing with empty frontmatter"
+            );
+            BTreeMap::new()
+        }
+    };
 
     ParsedPage {
         frontmatter,
@@ -140,9 +152,10 @@ pub fn parse_strict(content: &str) -> Result<ParsedPage> {
 }
 
 /// Serialize frontmatter + body back to a markdown string.
-pub fn write(frontmatter: &BTreeMap<String, Value>, body: &str) -> String {
-    let yaml = serde_yaml::to_string(frontmatter).expect("frontmatter serialization failed");
-    format!("---\n{yaml}---\n\n{body}")
+pub fn write(frontmatter: &BTreeMap<String, Value>, body: &str) -> Result<String> {
+    let yaml = serde_yaml::to_string(frontmatter)
+        .map_err(|e| anyhow::anyhow!("frontmatter serialization failed: {e}"))?;
+    Ok(format!("---\n{yaml}---\n\n{body}"))
 }
 
 /// Generate minimal frontmatter for a file without any.

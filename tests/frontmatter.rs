@@ -7,7 +7,7 @@ use llm_wiki::slug::Slug;
 fn parse_extracts_frontmatter_and_body() {
     let content = "---\ntitle: \"Test Page\"\ntype: concept\nstatus: active\ntags:\n  - test\n  - demo\nsources:\n  - sources/foo\n---\n\n## Body\n\nHello world.\n";
 
-    let page = parse(content);
+    let page = parse(content, None);
     assert_eq!(page.title(), Some("Test Page"));
     assert_eq!(page.page_type(), Some("concept"));
     assert_eq!(page.status(), Some("active"));
@@ -20,14 +20,14 @@ fn parse_extracts_frontmatter_and_body() {
 #[test]
 fn parse_handles_bom() {
     let content = "\u{feff}---\ntitle: \"BOM Page\"\n---\n\nBody.\n";
-    let page = parse(content);
+    let page = parse(content, None);
     assert_eq!(page.title(), Some("BOM Page"));
 }
 
 #[test]
 fn parse_no_frontmatter_returns_empty_fm_and_full_body() {
     let content = "# Just a heading\n\nSome body text.\n";
-    let page = parse(content);
+    let page = parse(content, None);
     assert!(page.frontmatter.is_empty());
     assert!(page.body.contains("# Just a heading"));
 }
@@ -35,7 +35,7 @@ fn parse_no_frontmatter_returns_empty_fm_and_full_body() {
 #[test]
 fn parse_no_closing_returns_empty_fm() {
     let content = "---\ntitle: \"Broken\"\nno closing marker\n";
-    let page = parse(content);
+    let page = parse(content, None);
     assert!(page.frontmatter.is_empty());
 }
 
@@ -63,21 +63,21 @@ fn parse_strict_succeeds_on_valid() {
 #[test]
 fn superseded_by_accessor() {
     let content = "---\ntitle: \"Old\"\nsuperseded_by: concepts/new\n---\n\n";
-    let page = parse(content);
+    let page = parse(content, None);
     assert_eq!(page.superseded_by(), Some("concepts/new"));
 }
 
 #[test]
 fn superseded_by_absent() {
     let content = "---\ntitle: \"Current\"\n---\n\n";
-    let page = parse(content);
+    let page = parse(content, None);
     assert_eq!(page.superseded_by(), None);
 }
 
 #[test]
 fn string_list_missing_key() {
     let content = "---\ntitle: \"Page\"\n---\n\n";
-    let page = parse(content);
+    let page = parse(content, None);
     assert!(page.string_list("sources").is_empty());
 }
 
@@ -86,9 +86,9 @@ fn string_list_missing_key() {
 #[test]
 fn write_round_trips() {
     let content = "---\ntitle: \"Round Trip\"\ntype: concept\n---\n\n## Body\n\nContent.\n";
-    let page = parse(content);
-    let output = write(&page.frontmatter, &page.body);
-    let page2 = parse(&output);
+    let page = parse(content, None);
+    let output = write(&page.frontmatter, &page.body).unwrap();
+    let page2 = parse(&output, None);
     assert_eq!(page2.title(), Some("Round Trip"));
     assert_eq!(page2.page_type(), Some("concept"));
     assert!(page2.body.contains("## Body"));
@@ -97,8 +97,8 @@ fn write_round_trips() {
 #[test]
 fn write_produces_valid_structure() {
     let content = "---\ntitle: \"Test\"\n---\n\nBody.\n";
-    let page = parse(content);
-    let output = write(&page.frontmatter, &page.body);
+    let page = parse(content, None);
+    let output = write(&page.frontmatter, &page.body).unwrap();
     assert!(output.starts_with("---\n"));
     assert!(output.contains("\n---\n\n"));
 }
@@ -221,12 +221,49 @@ fn title_from_filename_fallback() {
     assert_eq!(title, "My Page Name");
 }
 
+// ── parse invalid YAML ────────────────────────────────────────────────────────
+
+#[test]
+fn parse_invalid_yaml_returns_empty_frontmatter() {
+    let content = "---\n: :\n---\nbody";
+    let page = parse(content, None);
+    assert!(page.frontmatter.is_empty());
+}
+
+#[test]
+fn parse_invalid_yaml_body_preserved() {
+    let content = "---\n: :\n---\nbody text";
+    let page = parse(content, None);
+    assert_eq!(page.body, "body text");
+}
+
+// ── write ─────────────────────────────────────────────────────────────────────
+
+#[test]
+fn write_roundtrip_scaffold() {
+    let slug = Slug::try_from("concepts/test-page").unwrap();
+    let fm = scaffold(&slug, false);
+    let out = write(&fm, "body").unwrap();
+    let page = parse(&out, None);
+    assert_eq!(page.frontmatter.get("title"), fm.get("title"));
+    assert_eq!(page.body.trim_start_matches('\n'), "body");
+}
+
+#[test]
+#[ignore = "serde_yaml::Number rejects non-finite floats at construction time; \
+             no public API path produces a Value that fails to_string(). \
+             This test is kept as a placeholder so the invariant is visible \
+             to future contributors if the serde_yaml API changes."]
+fn write_err_on_non_roundtrippable_value() {
+    todo!()
+}
+
 // ── preserves arbitrary fields ────────────────────────────────────────────────
 
 #[test]
 fn preserves_unknown_fields() {
     let content = "---\ntitle: \"Skill\"\nname: ingest\ndescription: \"Process sources\"\nallowed-tools: Read Write\n---\n\nBody.\n";
-    let page = parse(content);
+    let page = parse(content, None);
     assert_eq!(
         page.frontmatter.get("name").unwrap().as_str(),
         Some("ingest")

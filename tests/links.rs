@@ -5,6 +5,7 @@ use llm_wiki::links::{ParsedLink, extract_body_wikilinks, extract_links, extract
 fn extract_links_from_sources() {
     let page = frontmatter::parse(
         "---\ntitle: \"Test\"\ntype: concept\nsources:\n  - sources/paper-a\n  - sources/paper-b\n---\n\nBody.\n",
+        None,
     );
     let links = extract_links(&page);
     assert!(links.contains(&"sources/paper-a".to_string()));
@@ -15,6 +16,7 @@ fn extract_links_from_sources() {
 fn extract_links_from_concepts() {
     let page = frontmatter::parse(
         "---\ntitle: \"Test\"\ntype: concept\nconcepts:\n  - concepts/scaling-laws\n  - concepts/moe\n---\n\nBody.\n",
+        None,
     );
     let links = extract_links(&page);
     assert!(links.contains(&"concepts/scaling-laws".to_string()));
@@ -25,6 +27,7 @@ fn extract_links_from_concepts() {
 fn extract_links_from_body_wikilinks() {
     let page = frontmatter::parse(
         "---\ntitle: \"Test\"\ntype: concept\n---\n\nSee [[concepts/attention]] and [[sources/transformer-2017]].\n",
+        None,
     );
     let links = extract_links(&page);
     assert!(links.contains(&"concepts/attention".to_string()));
@@ -35,6 +38,7 @@ fn extract_links_from_body_wikilinks() {
 fn extract_links_deduplicates() {
     let page = frontmatter::parse(
         "---\ntitle: \"Test\"\ntype: concept\nsources:\n  - sources/paper-a\nconcepts:\n  - sources/paper-a\n---\n\nAlso [[sources/paper-a]].\n",
+        None,
     );
     let links = extract_links(&page);
     let count = links.iter().filter(|l| *l == "sources/paper-a").count();
@@ -43,14 +47,14 @@ fn extract_links_deduplicates() {
 
 #[test]
 fn extract_links_empty_when_no_links() {
-    let page = frontmatter::parse("---\ntitle: \"Test\"\ntype: concept\n---\n\nNo links here.\n");
+    let page = frontmatter::parse("---\ntitle: \"Test\"\ntype: concept\n---\n\nNo links here.\n", None);
     let links = extract_links(&page);
     assert!(links.is_empty());
 }
 
 #[test]
 fn extract_links_no_frontmatter() {
-    let page = frontmatter::parse("No frontmatter, just [[concepts/moe]] in body.\n");
+    let page = frontmatter::parse("No frontmatter, just [[concepts/moe]] in body.\n", None);
     let links = extract_links(&page);
     assert!(links.contains(&"concepts/moe".to_string()));
 }
@@ -113,6 +117,7 @@ fn parsed_link_cross_wiki_no_slash_is_local() {
 fn extract_parsed_links_returns_cross_wiki_variant() {
     let page = frontmatter::parse(
         "---\ntitle: \"Test\"\ntype: concept\nsources:\n  - wiki://other/concepts/foo\n  - concepts/local\n---\n\nBody with [[wiki://third/bar]].\n",
+        None,
     );
     let links = extract_parsed_links(&page);
     assert!(links.contains(&ParsedLink::CrossWiki {
@@ -138,6 +143,7 @@ fn commonmark_basic_local_link() {
 fn commonmark_cross_wiki_link_in_body() {
     let page = frontmatter::parse(
         "---\ntitle: \"Test\"\ntype: concept\n---\n\nSee [MoE](wiki://research/concepts/moe).\n",
+        None,
     );
     let links = extract_parsed_links(&page);
     assert!(links.contains(&ParsedLink::CrossWiki {

@@ -165,7 +165,7 @@ fn validate_file(
 
     // Redaction pass — body only, before validation
     if let Some(cfg) = redact_cfg {
-        let parsed = frontmatter::parse(&content);
+        let parsed = frontmatter::parse(&content, Some(path));
         let separator = "---";
         // Find where body starts (after the closing frontmatter delimiter)
         let body_start = if content.starts_with(separator) {
@@ -214,7 +214,7 @@ fn validate_file(
         let _ = parsed; // parsed only used to determine frontmatter presence above
     }
 
-    let page = frontmatter::parse(&content);
+    let page = frontmatter::parse(&content, Some(path));
 
     // No frontmatter — warn but count as validated
     if page.frontmatter.is_empty() {
