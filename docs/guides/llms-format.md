@@ -111,6 +111,10 @@ wiki_export(wiki: "research", format: "json")           # JSON array
 wiki_export(wiki: "research", status: "all")            # include archived
 ```
 
+`format: "json"` includes a `frontmatter` object per page with custom
+fields not surfaced at the top level (e.g. `created`, `deciders`) —
+useful for batch processing without per-page content reads.
+
 This is not a session tool — it writes to disk and is most useful for
 publishing, sharing, or batch processing outside the session.
 

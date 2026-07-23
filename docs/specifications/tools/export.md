@@ -6,7 +6,7 @@ read_when:
   - Offline analysis or CI auditing
   - Batch processing scripts
 status: ready
-last_updated: "2026-04-27"
+last_updated: "2026-07-23"
 ---
 
 # Export
@@ -109,10 +109,27 @@ JSON array of page objects. Each object includes metadata and body:
     "status": "active",
     "confidence": 0.9,
     "summary": "Sparse routing of tokens to expert subnetworks.",
+    "frontmatter": {
+      "tags": ["ml", "architecture"],
+      "created": "2026-07-19"
+    },
     "body": "Mixture of Experts (MoE) is a technique..."
   }
 ]
 ```
+
+### `frontmatter`
+
+The `frontmatter` object carries the page's remaining frontmatter
+fields — everything the page declares that is not already surfaced as
+a top-level entry field (`id`, `title`, `type`, `status`, `confidence`,
+`summary`). This includes custom fields declared by registered types
+(e.g. a `decision` type's `created`, `deciders`, `supersedes`), so
+downstream consumers can build summary rows from the export alone
+without per-page `content read` calls. Values preserve their YAML
+typing (strings, numbers, arrays; YAML dates are strings). The object
+is omitted when a page has no extra fields. JSON format only —
+`llms-txt` and `llms-full` are unchanged.
 
 ## Response (MCP tool)
 
