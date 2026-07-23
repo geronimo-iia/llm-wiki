@@ -157,7 +157,7 @@ llm-wiki serve --acp --http :18765
 | `wiki_suggest` | Find pages worth linking by tag overlap, graph distance, BM25 similarity |
 | `wiki_stats` | Wiki health: page counts, type distribution, staleness, graph density |
 | `wiki_lint` | Deterministic quality rules: orphans, broken links, missing fields, stale pages |
-| `wiki_export` | Write full wiki to `llms.txt` at wiki root — for ecosystem publishing or audit |
+| `wiki_export` | Write full wiki to `llms.txt`, `llms-full`, or JSON — JSON includes custom frontmatter fields per page |
 | `wiki_history` | Git commit history for a page, with rename following |
 | `wiki_schema` | Show, validate, or template a type schema |
 | `wiki_spaces_*` | Create, register, list, remove wiki spaces; supports custom `wiki_root` |
