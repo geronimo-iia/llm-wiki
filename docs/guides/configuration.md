@@ -154,6 +154,14 @@ archived = 0.0   # suppress archived pages entirely
 stub     = 0.6   # demote stubs without hiding them
 ```
 
+Or via CLI (any status string, including custom ones):
+
+```bash
+llm-wiki config set search.status.archived 0.0 --wiki research
+llm-wiki config set search.status.superseded 0.05 --global
+llm-wiki config get search.status.archived
+```
+
 Only declare the entries that differ from the global defaults — the rest
 are inherited automatically. See [search-ranking.md](search-ranking.md)
 for the full reference.
