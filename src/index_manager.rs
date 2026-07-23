@@ -598,10 +598,13 @@ fn index_page(
     doc.add_text(is.field("slug"), slug);
     doc.add_text(is.field("uri"), uri);
 
-    // Write confidence as f64 FAST field using the dedicated getter
-    if let Some(conf_field) = is.try_field("confidence") {
-        let conf = frontmatter::confidence(&page.frontmatter) as f64;
-        doc.add_f64(conf_field, conf);
+    // Write confidence as f64 FAST field only when the page declares one.
+    // A page without confidence is indexed without the field — consumers
+    // treat absence as neutral instead of a fabricated 0.5.
+    if let Some(conf_field) = is.try_field("confidence")
+        && let Some(conf) = frontmatter::confidence(&page.frontmatter)
+    {
+        doc.add_f64(conf_field, conf as f64);
     }
 
     let resolved = resolve_fields(page, registry);

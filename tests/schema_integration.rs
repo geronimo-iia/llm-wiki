@@ -224,6 +224,96 @@ fn schema_add_registers_custom_type() {
     assert!(space.repo_root.join("schemas/meeting.json").exists());
 }
 
+#[test]
+fn schema_add_rebuilds_search_index() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path());
+
+    // Register a type whose schema adds a new indexed field ("attendees"),
+    // changing the union tantivy schema.
+    let custom_schema = dir.path().join("meeting.json");
+    fs::write(
+        &custom_schema,
+        r#"{
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "x-wiki-types": {"meeting": "Meeting notes"},
+            "type": "object",
+            "required": ["title", "type"],
+            "properties": {
+                "title": {"type": "string"},
+                "type": {"type": "string"},
+                "attendees": {"type": "array", "items": {"type": "string"}}
+            },
+            "additionalProperties": true
+        }"#,
+    )
+    .unwrap();
+
+    {
+        let mgr = engine(&config_path);
+        let eng = mgr.state.read().unwrap();
+        let msg = ops::schema_add(&eng, "test", "meeting", &custom_schema).unwrap();
+        assert!(
+            msg.contains("search index rebuilt"),
+            "schema add should rebuild the search index: {msg}"
+        );
+    }
+
+    // A fresh engine must mount and rebuild without a tantivy schema
+    // mismatch ("An index exists but the schema does not match").
+    let mgr2 = engine(&config_path);
+    let report = mgr2.rebuild_index("test");
+    assert!(
+        report.is_ok(),
+        "index rebuild after schema add failed: {:?}",
+        report.unwrap_err()
+    );
+}
+
+#[test]
+fn schema_add_from_inside_schemas_dir_does_not_truncate() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path());
+    let mgr = engine(&config_path);
+    let eng = mgr.state.read().unwrap();
+
+    let schema_json = r#"{
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "x-wiki-types": {"meeting": "Meeting notes"},
+        "type": "object",
+        "required": ["title", "type"],
+        "properties": {
+            "title": {"type": "string"},
+            "type": {"type": "string"},
+            "attendees": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": true
+    }"#;
+
+    // Author the schema directly inside schemas/ — src == dest.
+    let (repo_root, in_place) = {
+        let space = eng.space("test").unwrap();
+        let in_place = space.repo_root.join("schemas/meeting.json");
+        fs::write(&in_place, schema_json).unwrap();
+        (space.repo_root.clone(), in_place)
+    };
+
+    ops::schema_add(&eng, "test", "meeting", &in_place).unwrap();
+
+    // The file must still contain the schema (fs::copy onto itself truncates).
+    let after = fs::read_to_string(&in_place).unwrap();
+    assert!(
+        after.contains("x-wiki-types"),
+        "schema file was truncated: {after:?}"
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&after).unwrap();
+    assert_eq!(parsed["x-wiki-types"]["meeting"], "Meeting notes");
+
+    // And the type registers when the space is rebuilt from disk.
+    let (registry, _) = llm_wiki::space_builder::build_space(&repo_root, "en_stem").unwrap();
+    assert!(registry.is_known("meeting"), "meeting type should register");
+}
+
 // ── schema validate ───────────────────────────────────────────────────────────
 
 #[test]

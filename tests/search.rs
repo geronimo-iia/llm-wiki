@@ -451,6 +451,61 @@ fn search_ranking_high_confidence_above_low() {
 }
 
 #[test]
+fn search_absent_confidence_is_neutral() {
+    // A page with no confidence field must NOT be down-ranked: it scores
+    // the same as an equal-relevance page with explicit confidence 1.0.
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/no-confidence.md",
+        "---\ntitle: \"No Confidence\"\nstatus: active\ntype: concept\n---\n\nidentical ranking body text for testing\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/full-confidence.md",
+        &confidence_page("Full", 1.0),
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let results = search(
+        "identical ranking body",
+        &SearchOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert_eq!(results.results.len(), 2);
+    let score_absent = results
+        .results
+        .iter()
+        .find(|r| r.slug == "concepts/no-confidence")
+        .unwrap()
+        .score;
+    let score_full = results
+        .results
+        .iter()
+        .find(|r| r.slug == "concepts/full-confidence")
+        .unwrap()
+        .score;
+    assert!(
+        (score_absent - score_full).abs() < 1e-5,
+        "absent confidence must be neutral (1.0), not penalized; got {score_absent} vs {score_full}"
+    );
+    // The reported confidence for a confidence-less page is neutral 1.0
+    let conf_absent = results
+        .results
+        .iter()
+        .find(|r| r.slug == "concepts/no-confidence")
+        .unwrap()
+        .confidence;
+    assert!((conf_absent - 1.0).abs() < f32::EPSILON);
+}
+
+#[test]
 fn search_ranking_archived_high_confidence_below_active_medium() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use petgraph_live::cache::GenerationCache;
 use petgraph_live::live::{GraphState, GraphStateConfig};
@@ -108,7 +108,7 @@ impl WikiEngine {
                 }
                 Err(e) => {
                     tracing::warn!(
-                        wiki = %entry.name, error = %e,
+                        wiki = %entry.name, error = %format_args!("{e:#}"),
                         "failed to mount wiki, skipping",
                     );
                 }
@@ -279,14 +279,18 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
     let wiki_root = repo_root.join(&wiki_cfg.wiki_root);
     let index_path = state_dir.join("indexes").join(&entry.name);
 
+    // A broken schemas/ directory is a hard error: silently falling back to
+    // embedded defaults would index pages against the wrong schema. A wiki
+    // with no schemas/ directory at all still works — build_space handles
+    // that case internally by using the embedded defaults.
     let (type_registry, index_schema) =
-        space_builder::build_space(&repo_root, &config.index.tokenizer).unwrap_or_else(|e| {
-            tracing::warn!(
-                wiki = %entry.name, error = %e,
-                "failed to build type registry, using embedded defaults"
-            );
-            space_builder::build_space_from_embedded(&config.index.tokenizer)
-        });
+        space_builder::build_space(&repo_root, &config.index.tokenizer).with_context(|| {
+            format!(
+                "failed to build type registry for wiki \"{}\" from {}",
+                entry.name,
+                repo_root.join("schemas").display()
+            )
+        })?;
 
     let index_manager = Arc::new(SpaceIndexManager::new(&entry.name, &index_path));
 
