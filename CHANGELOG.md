@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] — 2026-07-24
+
+### Fixed
+
+- **`index_manager` atomic rebuild** — rebuild now writes to a temp `search-index-building/` directory and promotes it via atomic renames; live index is untouched until `commit()` succeeds; `reload_reader()` failure after swap triggers full rollback and returns a hard error instead of silently serving stale results
+
 ## [0.5.0] — 2026-07-23
 
 ### Added

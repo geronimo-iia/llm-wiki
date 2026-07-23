@@ -262,15 +262,23 @@ impl SpaceIndexManager {
     ) -> Result<IndexReport> {
         let start = std::time::Instant::now();
 
-        let search_dir = self.index_path.join("search-index");
-        std::fs::create_dir_all(&search_dir)?;
+        let live_dir   = self.index_path.join("search-index");
+        let build_dir  = self.index_path.join("search-index-building");
+        let backup_dir = self.index_path.join("search-index-prev");
 
-        // Always open_or_create for rebuild (schema may have changed)
-        let dir = MmapDirectory::open(&search_dir)
-            .with_context(|| format!("failed to open index dir: {}", search_dir.display()))?;
+        // Unconditional entry cleanup — a crashed previous rebuild may have left a
+        // lock file inside build_dir; opening a writer before wiping would reuse a
+        // corrupt partial state.
+        if build_dir.exists() {
+            std::fs::remove_dir_all(&build_dir)
+                .context("failed to remove stale build dir")?;
+        }
+        std::fs::create_dir_all(&build_dir)?;
+
+        let dir = MmapDirectory::open(&build_dir)
+            .with_context(|| format!("failed to open build dir: {}", build_dir.display()))?;
         let index = Index::open_or_create(dir, is.schema.clone())?;
         let mut writer: IndexWriter = index.writer(50_000_000)?;
-        writer.delete_all_documents()?;
 
         let mut pages = 0usize;
         let mut sections = 0usize;
@@ -311,7 +319,40 @@ impl SpaceIndexManager {
         }
 
         writer.commit()?;
-        self.reload_reader()?;
+
+        // Atomic swap: live → prev, building → live.
+        // Both dirs are under self.index_path — same filesystem, rename is atomic.
+        if backup_dir.exists() {
+            std::fs::remove_dir_all(&backup_dir)
+                .context("failed to remove stale backup dir")?;
+        }
+        if live_dir.exists() {
+            std::fs::rename(&live_dir, &backup_dir)
+                .context("failed to move live dir to backup")?;
+        }
+        std::fs::rename(&build_dir, &live_dir)
+            .context("failed to promote build dir to live")?;
+
+        // Activate new reader. On failure: roll back all renames and return error.
+        if let Err(e) = self.reload_reader() {
+            tracing::error!(
+                index_path = %self.index_path.display(),
+                error = %e,
+                "reload_reader failed after index swap — rolling back"
+            );
+            let r1 = std::fs::rename(&live_dir, &build_dir);
+            let r2 = std::fs::rename(&backup_dir, &live_dir);
+            if let Err(e2) = &r1 {
+                tracing::error!(error = %e2, "rollback step 1 failed — index unavailable, manual intervention required");
+            }
+            if let Err(e2) = &r2 {
+                tracing::error!(error = %e2, "rollback step 2 failed — index unavailable, manual intervention required");
+            }
+            let _ = std::fs::remove_dir_all(&build_dir);
+            return Err(e).context("reload_reader failed after index rebuild; index may be unavailable");
+        }
+
+        let _ = std::fs::remove_dir_all(&backup_dir);
 
         let commit = git::current_head(repo_root).unwrap_or_default();
         let state = IndexState {

@@ -825,6 +825,95 @@ fn staleness_kind_detects_type_modification() {
     }
 }
 
+// ── rebuild atomicity ─────────────────────────────────────────────────────────
+
+#[test]
+fn rebuild_leaves_no_build_dir() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+
+    let mgr = build_index(dir.path(), &wiki_root);
+
+    let build_dir = mgr.index_path().join("search-index-building");
+    assert!(!build_dir.exists(), "search-index-building must be absent after successful rebuild");
+}
+
+#[test]
+fn rebuild_leaves_no_backup_dir() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+
+    let mgr = build_index(dir.path(), &wiki_root);
+
+    let backup_dir = mgr.index_path().join("search-index-prev");
+    assert!(!backup_dir.exists(), "search-index-prev must be absent after successful rebuild");
+}
+
+#[test]
+fn rebuild_stale_build_dir_wiped_at_entry() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+
+    let mgr = make_manager(dir.path());
+    git::commit(dir.path(), "pages").unwrap();
+
+    // Simulate a leftover build dir from a previous crashed rebuild
+    let build_dir = mgr.index_path().join("search-index-building");
+    fs::create_dir_all(&build_dir).unwrap();
+    fs::write(build_dir.join("stale_artifact.txt"), b"crash leftovers").unwrap();
+
+    let result = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry());
+    assert!(result.is_ok(), "rebuild must succeed despite stale build dir");
+    assert!(!build_dir.exists(), "stale build dir must be gone after rebuild");
+}
+
+#[test]
+fn rebuild_empty_wiki() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    // No .md files written
+
+    let mgr = make_manager(dir.path());
+    git::commit(dir.path(), "empty").unwrap();
+
+    let report = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry()).unwrap();
+    assert_eq!(report.pages_indexed, 0);
+    assert_eq!(report.skipped, 0);
+}
+
+#[test]
+fn rebuild_then_query() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/alpha.md", &concept_page("AlphaPage", "unique body content"));
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let reg = registry();
+
+    // Second rebuild with an extra page
+    write_page(&wiki_root, "concepts/beta.md", &concept_page("BetaPage", "second page content"));
+    git::commit(dir.path(), "add beta").unwrap();
+    mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
+
+    let searcher = mgr.searcher().unwrap();
+    let results = search::search(
+        "BetaPage",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert!(
+        results.results.iter().any(|r| r.title == "BetaPage"),
+        "freshly rebuilt index must contain newly added page"
+    );
+}
+
 // ── reader reload ─────────────────────────────────────────────────────────────
 
 #[test]

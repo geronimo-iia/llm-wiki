@@ -6,7 +6,7 @@ read_when:
   - Understanding staleness detection and auto-recovery
   - Understanding incremental vs full rebuild
 status: ready
-last_updated: "2026-04-28"
+last_updated: "2026-07-24"
 ---
 
 # Index Management
@@ -105,13 +105,25 @@ Triggered by: `wiki_ingest`.
 
 ## Full Rebuild
 
-Drops all documents and re-indexes the entire wiki tree:
+Builds a new index in an isolated temp directory, then promotes it via atomic
+renames. The live index is untouched until `commit()` succeeds.
 
 ```
-delete_all_documents()
+wipe search-index-building/            (handles crash leftovers from prior run)
+create search-index-building/
+open Index in search-index-building/
 walk wiki/ -> parse each .md -> add_document()
 writer.commit()
-update state.toml
+
+// three-rename atomic swap
+search-index/          -> search-index-prev/
+search-index-building/ -> search-index/
+reload_reader()
+  ok  -> rm -rf search-index-prev/
+         update state.toml
+  err -> search-index/      -> search-index-building/   (rollback)
+         search-index-prev/ -> search-index/             (rollback)
+         return error (fatal — previous index restored)
 ```
 
 Cost: O(n) where n = total pages.
