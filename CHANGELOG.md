@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Windows slug separator** — nested pages now always use forward-slash slugs (`components/foo` not `components\foo`); fixes broken graph edges, false `wiki_lint` broken-link errors, and duplicate search results on Windows (#91)
+- **Engine type-registry build failure** — panic on startup when the type registry fails to build now surfaces as a clear error instead of a silent crash
+- **`schema add` truncation** — adding a schema no longer truncates a source file that lives inside the `schemas/` directory
+- **Search index stale after `schema add`** — search index is now rebuilt after `schema add` so new schema fields are immediately queryable
+- **Confidence indexing** — pages without a `confidence` frontmatter field are no longer indexed with a fabricated `0.5`; absence is now represented as absent in the index
 
 ### Changed
 
