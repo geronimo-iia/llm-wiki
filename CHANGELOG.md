@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Windows slug separator** — nested pages now always use forward-slash slugs (`components/foo` not `components\foo`); fixes broken graph edges, false `wiki_lint` broken-link errors, and duplicate search results on Windows (#91)
+
+### Changed
+
+- **CI: `cargo-audit`** — replaced slow `cargo install cargo-audit` with `taiki-e/install-action@v2` (prebuilt binary) in `ci.yml`; added `test` job (fmt + clippy + tests + audit) as gate before release builds in `release.yml`
+
+### Dependencies
+
+- Bump `agent-client-protocol` `0.15` → `1.3`; migrate all `schema::*` imports to `schema::v1::*`
+- Bump `rmcp` `1.8` → `2.2`; `Content` → `ContentBlock`, `RawResource` → `Resource`, drop `AnnotateAble`, use `ResourceUpdatedNotificationParam::new()`
+- Bump `crossbeam-epoch` `0.9.18` → `0.9.20` (fixes RUSTSEC-2026-0204: invalid pointer dereference)
+
 ## [0.4.1] -  2026-05-08
 
 ### Added
