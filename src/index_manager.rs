@@ -395,7 +395,10 @@ impl SpaceIndexManager {
         let f_slug = is.field("slug");
         let wiki_prefix = wiki_root
             .strip_prefix(repo_root)
-            .unwrap_or(Path::new("wiki"));
+            .with_context(|| format!(
+                "wiki_root {} is not under repo_root {}; check space configuration",
+                wiki_root.display(), repo_root.display()
+            ))?;
         let mut updated = 0;
         let mut deleted = 0;
 

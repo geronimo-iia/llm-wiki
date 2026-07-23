@@ -74,9 +74,7 @@ pub fn ingest_with_redact(
     )?;
 
     if !dry_run {
-        if let Err(e) = manager.refresh_index(wiki_name) {
-            tracing::warn!(error = %e, "incremental index update failed after ingest");
-        }
+        manager.refresh_index(wiki_name)?;
 
         // Validate edge targets after index update (targets must be indexed)
         let edge_warnings = validate_edge_targets(space)?;

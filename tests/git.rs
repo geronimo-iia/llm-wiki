@@ -232,3 +232,24 @@ fn collect_changed_files_empty_when_clean() {
     let changes = git::collect_changed_files(dir.path(), &wiki, Some(&head)).unwrap();
     assert!(changes.is_empty());
 }
+
+// ── custom wiki_root ──────────────────────────────────────────────────────────
+
+#[test]
+fn changed_wiki_files_custom_root() {
+    let dir = tempfile::tempdir().unwrap();
+    git::init_repo(dir.path()).unwrap();
+    // wiki at non-default path: repo_root/notes/
+    let wiki = dir.path().join("notes");
+    fs::create_dir_all(&wiki).unwrap();
+    fs::write(dir.path().join("README.md"), "# test\n").unwrap();
+    git::commit(dir.path(), "init").unwrap();
+
+    fs::write(wiki.join("page.md"), "---\ntitle: Page\n---\n").unwrap();
+
+    let changes = git::changed_wiki_files(dir.path(), &wiki).unwrap();
+    assert!(
+        changes.iter().any(|c| c.path.ends_with("page.md")),
+        "changed_wiki_files must detect changes under a non-default wiki_root"
+    );
+}

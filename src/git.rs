@@ -103,7 +103,10 @@ pub fn changed_wiki_files(repo_root: &Path, wiki_root: &Path) -> Result<Vec<Chan
     let diff = repo.diff_tree_to_workdir_with_index(Some(&head_tree), Some(&mut opts))?;
     let prefix = wiki_root
         .strip_prefix(repo_root)
-        .unwrap_or(Path::new("wiki"));
+        .with_context(|| format!(
+            "wiki_root {} is not under repo_root {}; check space configuration",
+            wiki_root.display(), repo_root.display()
+        ))?;
     Ok(collect_md_changes(&diff, prefix))
 }
 
@@ -125,7 +128,10 @@ pub fn changed_since_commit(
     let diff = repo.diff_tree_to_tree(Some(&from_tree), Some(&head_tree), None)?;
     let prefix = wiki_root
         .strip_prefix(repo_root)
-        .unwrap_or(Path::new("wiki"));
+        .with_context(|| format!(
+            "wiki_root {} is not under repo_root {}; check space configuration",
+            wiki_root.display(), repo_root.display()
+        ))?;
     Ok(collect_md_changes(&diff, prefix))
 }
 

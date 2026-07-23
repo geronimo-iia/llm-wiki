@@ -998,3 +998,86 @@ fn update_refreshes_reader_immediately() {
         "held reader must see new page after update() without calling open() again"
     );
 }
+
+// ── custom wiki_root ──────────────────────────────────────────────────────────
+
+#[test]
+fn update_default_wiki_root_slug_correct() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path()); // wiki at repo_root/wiki/
+    let is = schema();
+    let reg = registry();
+
+    let mgr = make_manager(dir.path());
+    mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
+
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        &concept_page("FooDefault", "body"),
+    );
+
+    mgr.update(&wiki_root, dir.path(), None, &is, &reg)
+        .unwrap();
+
+    let searcher = open_searcher(&mgr, &is);
+    let results = search::search(
+        "FooDefault",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
+    let hit = results
+        .results
+        .iter()
+        .find(|r| r.title == "FooDefault")
+        .expect("page not found");
+    assert_eq!(hit.slug, "concepts/foo", "slug must not include wiki/ prefix");
+}
+
+#[test]
+fn update_custom_wiki_root_slug_correct() {
+    let dir = tempfile::tempdir().unwrap();
+    // wiki at repo_root/notes/ (non-default)
+    let wiki_root = dir.path().join("notes");
+    fs::create_dir_all(&wiki_root).unwrap();
+    git::init_repo(dir.path()).unwrap();
+    fs::write(dir.path().join("README.md"), "# test\n").unwrap();
+    git::commit(dir.path(), "init").unwrap();
+
+    let is = schema();
+    let reg = registry();
+
+    let mgr = make_manager(dir.path());
+    mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
+
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        &concept_page("FooCustom", "body"),
+    );
+
+    mgr.update(&wiki_root, dir.path(), None, &is, &reg)
+        .unwrap();
+
+    let searcher = open_searcher(&mgr, &is);
+    let results = search::search(
+        "FooCustom",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
+    let hit = results
+        .results
+        .iter()
+        .find(|r| r.title == "FooCustom")
+        .expect("page not found in custom wiki_root");
+    assert_eq!(
+        hit.slug, "concepts/foo",
+        "slug must not include notes/ prefix"
+    );
+}
