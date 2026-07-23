@@ -728,8 +728,13 @@ fn index_value(
 ) {
     if let Some(field_handle) = is.try_field(canonical) {
         if is.is_keyword(canonical) {
+            let normalize = is.is_normalized_keyword(canonical);
             for s in yaml_to_strings(value) {
-                doc.add_text(field_handle, &s);
+                if normalize {
+                    doc.add_text(field_handle, &s.to_lowercase());
+                } else {
+                    doc.add_text(field_handle, &s);
+                }
             }
         } else {
             let text = yaml_to_text(value);

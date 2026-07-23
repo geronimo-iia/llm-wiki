@@ -452,13 +452,9 @@ pub fn list(
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
-        let tags_str = doc
-            .get_first(f_tags)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        let tags: Vec<String> = tags_str
-            .split_whitespace()
+        let tags: Vec<String> = doc
+            .get_all(f_tags)
+            .filter_map(|v| v.as_str())
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
             .collect();

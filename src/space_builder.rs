@@ -180,8 +180,15 @@ fn assemble(
             seen_fields.insert(field_name.clone());
 
             let is_slug = pf.edge_fields.contains(field_name);
+            let x_keyword = field_def
+                .get("x-keyword")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             match classify_field(field_def, is_slug) {
                 FieldClass::Text => schema_builder.add_text(field_name),
+                FieldClass::Keyword if x_keyword => {
+                    schema_builder.add_normalized_keyword(field_name)
+                }
                 FieldClass::Keyword => schema_builder.add_keyword(field_name),
                 FieldClass::Numeric => schema_builder.add_numeric(field_name),
             }
@@ -253,8 +260,15 @@ fn assemble_without_overrides(
             seen_fields.insert(field_name.clone());
 
             let is_slug = pf.edge_fields.contains(field_name);
+            let x_keyword = field_def
+                .get("x-keyword")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             match classify_field(field_def, is_slug) {
                 FieldClass::Text => schema_builder.add_text(field_name),
+                FieldClass::Keyword if x_keyword => {
+                    schema_builder.add_normalized_keyword(field_name)
+                }
                 FieldClass::Keyword => schema_builder.add_keyword(field_name),
                 FieldClass::Numeric => schema_builder.add_numeric(field_name),
             }

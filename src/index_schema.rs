@@ -23,6 +23,8 @@ pub struct IndexSchema {
     pub fields: HashMap<String, Field>,
     keyword_fields: HashSet<String>,
     numeric_fields: HashSet<String>,
+    /// Keyword fields that should have values lowercased at index time.
+    normalized_keyword_fields: HashSet<String>,
 }
 
 impl IndexSchema {
@@ -83,6 +85,11 @@ impl IndexSchema {
         self.keyword_fields.contains(name)
     }
 
+    /// Return true if keyword values for `name` should be lowercased at index time.
+    pub fn is_normalized_keyword(&self, name: &str) -> bool {
+        self.normalized_keyword_fields.contains(name)
+    }
+
     /// Return true if `name` is stored as a numeric (f64 FAST) field.
     pub fn is_numeric(&self, name: &str) -> bool {
         self.numeric_fields.contains(name)
@@ -101,6 +108,7 @@ impl IndexSchema {
 
 // ── Field classification ──────────────────────────────────────────────────────
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum FieldClass {
     Text,
     Keyword,
@@ -126,6 +134,10 @@ pub(crate) fn classify_field(prop: &serde_json::Value, is_slug_field: bool) -> F
         }
         "boolean" => FieldClass::Keyword,
         "array" => {
+            // x-keyword: true opts this array into per-value keyword storage
+            if prop.get("x-keyword").and_then(|v| v.as_bool()) == Some(true) {
+                return FieldClass::Keyword;
+            }
             // Array of strings with enum items → keyword
             if let Some(items) = prop.get("items")
                 && (items.get("enum").is_some() || items.get("const").is_some())
@@ -243,6 +255,7 @@ pub(crate) struct SchemaBuilder {
     fields: HashMap<String, Field>,
     keyword_fields: HashSet<String>,
     numeric_fields: HashSet<String>,
+    normalized_keyword_fields: HashSet<String>,
     text_opts: TextOptions,
 }
 
@@ -260,6 +273,7 @@ impl SchemaBuilder {
             fields: HashMap::new(),
             keyword_fields: HashSet::new(),
             numeric_fields: HashSet::new(),
+            normalized_keyword_fields: HashSet::new(),
             text_opts,
         }
     }
@@ -290,6 +304,11 @@ impl SchemaBuilder {
         }
     }
 
+    pub(crate) fn add_normalized_keyword(&mut self, name: &str) {
+        self.add_keyword(name);
+        self.normalized_keyword_fields.insert(name.to_string());
+    }
+
     pub(crate) fn add_numeric(&mut self, name: &str) {
         if !self.fields.contains_key(name) {
             let opts = NumericOptions::default() | FAST | STORED;
@@ -305,6 +324,31 @@ impl SchemaBuilder {
             fields: self.fields,
             keyword_fields: self.keyword_fields,
             numeric_fields: self.numeric_fields,
+            normalized_keyword_fields: self.normalized_keyword_fields,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn classify_array_with_x_keyword_true_is_keyword() {
+        let prop = json!({"type": "array", "items": {"type": "string"}, "x-keyword": true});
+        assert_eq!(classify_field(&prop, false), FieldClass::Keyword);
+    }
+
+    #[test]
+    fn classify_plain_array_without_x_keyword_is_text() {
+        let prop = json!({"type": "array", "items": {"type": "string"}});
+        assert_eq!(classify_field(&prop, false), FieldClass::Text);
+    }
+
+    #[test]
+    fn classify_array_x_keyword_false_is_text() {
+        let prop = json!({"type": "array", "items": {"type": "string"}, "x-keyword": false});
+        assert_eq!(classify_field(&prop, false), FieldClass::Text);
     }
 }

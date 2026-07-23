@@ -289,6 +289,86 @@ fn list_pagination() {
     assert_eq!(result.pages.len(), 1);
 }
 
+// ── list tags round-trip ──────────────────────────────────────────────────────
+
+#[test]
+fn list_tags_single_word() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        "---\ntitle: \"Foo\"\nstatus: active\ntype: concept\ntags:\n  - rust\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(&ListOptions::default(), &mgr.searcher().unwrap(), "test", &is).unwrap();
+
+    assert_eq!(result.pages.len(), 1);
+    assert_eq!(result.pages[0].tags, vec!["rust"]);
+}
+
+#[test]
+fn list_tags_multi_word() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        "---\ntitle: \"Foo\"\nstatus: active\ntype: concept\ntags:\n  - machine learning\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(&ListOptions::default(), &mgr.searcher().unwrap(), "test", &is).unwrap();
+
+    assert_eq!(result.pages.len(), 1);
+    assert_eq!(
+        result.pages[0].tags,
+        vec!["machine learning"],
+        "multi-word tag must not be split on whitespace"
+    );
+}
+
+#[test]
+fn list_tags_multiple() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        "---\ntitle: \"Foo\"\nstatus: active\ntype: concept\ntags:\n  - machine learning\n  - nlp\n  - deep learning\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(&ListOptions::default(), &mgr.searcher().unwrap(), "test", &is).unwrap();
+
+    assert_eq!(result.pages.len(), 1);
+    let mut tags = result.pages[0].tags.clone();
+    tags.sort();
+    assert_eq!(tags, vec!["deep learning", "machine learning", "nlp"]);
+}
+
+#[test]
+fn list_tags_empty() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        "---\ntitle: \"Foo\"\nstatus: active\ntype: concept\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(&ListOptions::default(), &mgr.searcher().unwrap(), "test", &is).unwrap();
+
+    assert_eq!(result.pages.len(), 1);
+    assert!(result.pages[0].tags.is_empty());
+}
+
 // ── search_all ────────────────────────────────────────────────────────────────
 
 #[test]
