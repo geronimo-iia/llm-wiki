@@ -52,7 +52,9 @@ How frontmatter fields map to roles:
 - **Base fields** (`title`, `summary`, `tags`, `type`, `status`,
   `owner`, `superseded_by`, `last_updated`) are indexed according to
   their type — strings as text, enums as keywords, lists of slugs as
-  keyword per entry. See [types/base.md](../model/types/base.md).
+  keyword per entry. Arrays with `"x-keyword": true` are stored as one
+  keyword value per entry with values lowercased at index time (`tags`
+  uses this). See [types/base.md](../model/types/base.md).
 - **Type-specific fields** (`read_when`, `tldr`, `sources`, `concepts`,
   `confidence`, `claims`, `document_refs`, etc.) are indexed the same
   way when present. See the individual type docs under
