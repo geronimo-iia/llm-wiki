@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`export --format json` custom frontmatter** — JSON export now includes a `frontmatter` object per page with all frontmatter fields not already surfaced at the top level (e.g. `created`, `reference`, `deciders`); object is omitted when the page has no extra fields
+- **`export --format json` custom frontmatter** — JSON export now includes a `frontmatter` object per page with all frontmatter fields not already surfaced at the top level (e.g. `created`, `reference`, `deciders`); object is omitted when the page has no extra fields (ported from [como-technologies/llm-wiki#11](https://github.com/como-technologies/llm-wiki/pull/11))
 
 ### Fixed
 

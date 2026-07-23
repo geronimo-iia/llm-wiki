@@ -11,6 +11,10 @@ date: "2026-07-23"
 
 Add a `frontmatter` object to each JSON export entry. It contains every frontmatter field the page declares that is not already surfaced as a top-level field (`id`, `title`, `type`, `status`, `confidence`, `summary`). The object is omitted when a page has no extra fields. `llms-txt` and `llms-full` are unchanged.
 
+## Origin
+
+Ported from [como-technologies/llm-wiki#11](https://github.com/como-technologies/llm-wiki/pull/11). Logic adapted manually; conflict-free on our codebase at the time of integration.
+
 ## Context
 
 `export --format json` previously emitted a fixed field set. Pages with custom type schemas (e.g. `decision` with `created`, `deciders`, `supersedes`; `source` with `year`, `authors`) exposed those fields only through per-page content reads. Consumers building summary tables or structured pipelines had to issue N+1 reads after the export.
