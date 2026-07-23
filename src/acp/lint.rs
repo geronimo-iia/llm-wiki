@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use agent_client_protocol::schema::{SessionId, ToolCallStatus, ToolKind};
+use agent_client_protocol::schema::v1::{SessionId, ToolCallStatus, ToolKind};
 use agent_client_protocol::{Client, ConnectionTo};
 
 use crate::engine::WikiEngine;
@@ -32,7 +32,7 @@ pub fn step_lint(
         let engine = manager
             .state
             .read()
-            .map_err(|_| agent_client_protocol::schema::Error::internal_error())?;
+            .map_err(|_| agent_client_protocol::schema::v1::Error::internal_error())?;
         ops::run_lint(&engine, wiki_name, rules, None)
     };
 

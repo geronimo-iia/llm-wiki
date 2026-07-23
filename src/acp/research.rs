@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering;
 
-use agent_client_protocol::schema::{SessionId, ToolCallStatus, ToolKind};
+use agent_client_protocol::schema::v1::{SessionId, ToolCallStatus, ToolKind};
 use agent_client_protocol::{Client, ConnectionTo};
 
 use crate::engine::WikiEngine;
@@ -21,7 +21,7 @@ pub fn step_search(
     query: &str,
     wiki_name: &str,
     top_k: usize,
-) -> std::result::Result<Vec<crate::search::PageRef>, agent_client_protocol::schema::Error> {
+) -> std::result::Result<Vec<crate::search::PageRef>, agent_client_protocol::schema::v1::Error> {
     let tool_id = make_tool_id(workflow, "search");
     send_tool_call(
         cx,
@@ -35,7 +35,7 @@ pub fn step_search(
         let engine = manager
             .state
             .read()
-            .map_err(|_| agent_client_protocol::schema::Error::internal_error())?;
+            .map_err(|_| agent_client_protocol::schema::v1::Error::internal_error())?;
         ops::search(
             &engine,
             wiki_name,
@@ -82,7 +82,7 @@ pub fn step_read(
     slug: &str,
     wiki_name: &str,
     stream_content: bool,
-) -> std::result::Result<(), agent_client_protocol::schema::Error> {
+) -> std::result::Result<(), agent_client_protocol::schema::v1::Error> {
     let tool_id = make_tool_id(workflow, "read");
     send_tool_call(
         cx,
@@ -96,7 +96,7 @@ pub fn step_read(
         let engine = manager
             .state
             .read()
-            .map_err(|_| agent_client_protocol::schema::Error::internal_error())?;
+            .map_err(|_| agent_client_protocol::schema::v1::Error::internal_error())?;
         ops::content_read(&engine, slug, Some(wiki_name), false, false)
     };
 
@@ -124,7 +124,7 @@ pub fn step_report_results(
     session_id: &SessionId,
     results: &[crate::search::PageRef],
     wiki_name: &str,
-) -> std::result::Result<(), agent_client_protocol::schema::Error> {
+) -> std::result::Result<(), agent_client_protocol::schema::v1::Error> {
     if results.is_empty() {
         return Ok(());
     }
@@ -153,7 +153,7 @@ pub fn run_research(
     session_id: &SessionId,
     query: &str,
     wiki_name: &str,
-) -> std::result::Result<(), agent_client_protocol::schema::Error> {
+) -> std::result::Result<(), agent_client_protocol::schema::v1::Error> {
     let cancelled = get_cancelled(sessions, &session_id.to_string());
 
     send_text(cx, session_id, &format!("Searching for: {query}..."))?;

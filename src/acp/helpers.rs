@@ -4,7 +4,7 @@ use std::sync::atomic::AtomicBool;
 
 use agent_client_protocol::Client;
 use agent_client_protocol::ConnectionTo;
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     ContentBlock, ContentChunk, SessionId, SessionNotification, SessionUpdate, TextContent,
     ToolCall, ToolCallId, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
@@ -19,7 +19,7 @@ pub fn send_text(
     cx: &ConnectionTo<Client>,
     session_id: &SessionId,
     text: &str,
-) -> std::result::Result<(), agent_client_protocol::schema::Error> {
+) -> std::result::Result<(), agent_client_protocol::schema::v1::Error> {
     cx.send_notification(SessionNotification::new(
         session_id.clone(),
         SessionUpdate::AgentMessageChunk(ContentChunk::new(ContentBlock::Text(TextContent::new(
@@ -34,7 +34,7 @@ pub fn send_tool_call(
     id: &str,
     title: &str,
     kind: ToolKind,
-) -> std::result::Result<(), agent_client_protocol::schema::Error> {
+) -> std::result::Result<(), agent_client_protocol::schema::v1::Error> {
     cx.send_notification(SessionNotification::new(
         session_id.clone(),
         SessionUpdate::ToolCall(
@@ -51,7 +51,7 @@ pub fn send_tool_result(
     id: &str,
     status: ToolCallStatus,
     content: &str,
-) -> std::result::Result<(), agent_client_protocol::schema::Error> {
+) -> std::result::Result<(), agent_client_protocol::schema::v1::Error> {
     cx.send_notification(SessionNotification::new(
         session_id.clone(),
         SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
