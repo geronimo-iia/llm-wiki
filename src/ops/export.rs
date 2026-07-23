@@ -299,7 +299,9 @@ fn strip_frontmatter(content: &str) -> &str {
     if let Some(rest) = content[3..].find("\n---") {
         let end = 3 + rest + 4; // skip past the closing ---
         // Skip past optional newline after ---
-        let end = if content[end..].starts_with('\n') {
+        let end = if content[end..].starts_with("\r\n") {
+            end + 2
+        } else if content[end..].starts_with('\n') {
             end + 1
         } else {
             end
@@ -351,4 +353,50 @@ fn render_llms_full(pages: &[PageEntry], wiki_name: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod strip_tests {
+    use super::strip_frontmatter;
+
+    #[test]
+    fn lf_newline_after_closing_delimiter() {
+        assert_eq!(strip_frontmatter("---\ntitle: x\n---\nbody"), "body");
+    }
+
+    #[test]
+    fn crlf_newline_after_closing_delimiter() {
+        assert_eq!(strip_frontmatter("---\r\ntitle: x\r\n---\r\nbody"), "body");
+    }
+
+    #[test]
+    fn no_newline_after_closing_delimiter() {
+        assert_eq!(strip_frontmatter("---\ntitle: x\n---"), "");
+    }
+
+    #[test]
+    fn no_frontmatter() {
+        assert_eq!(strip_frontmatter("just body"), "just body");
+    }
+
+    #[test]
+    fn unclosed_frontmatter() {
+        let s = "---\ntitle: x\n";
+        assert_eq!(strip_frontmatter(s), s);
+    }
+
+    #[test]
+    fn empty_frontmatter_lf() {
+        assert_eq!(strip_frontmatter("---\n---\nbody"), "body");
+    }
+
+    #[test]
+    fn empty_frontmatter_crlf() {
+        assert_eq!(strip_frontmatter("---\r\n---\r\nbody"), "body");
+    }
+
+    #[test]
+    fn crlf_empty_body() {
+        assert_eq!(strip_frontmatter("---\r\ntitle: x\r\n---\r\n"), "");
+    }
 }

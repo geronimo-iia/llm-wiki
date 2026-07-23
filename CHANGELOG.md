@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **`index_manager` atomic rebuild** — rebuild now writes to a temp `search-index-building/` directory and promotes it via atomic renames; live index is untouched until `commit()` succeeds; `reload_reader()` failure after swap triggers full rollback and returns a hard error instead of silently serving stale results
+- **`export` CRLF frontmatter** — `strip_frontmatter()` now correctly skips `\r\n` after the closing `---`; previously `\r` leaked into the body on Windows line endings
 
 ## [0.5.0] — 2026-07-23
 
