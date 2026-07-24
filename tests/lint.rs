@@ -697,3 +697,57 @@ fn lint_finding_path_is_populated() {
         );
     }
 }
+
+// ── stale rule edge cases ─────────────────────────────────────────────────────
+
+#[test]
+fn lint_stale_rule_no_false_positive_on_draft() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    // Draft page with old date and low confidence — stale must NOT fire
+    write_page(
+        &wiki_root,
+        "concepts/wip.md",
+        "---\ntitle: \"WIP\"\ntype: concept\nstatus: draft\nconfidence: 0.1\nlast_updated: \"2019-01-01\"\n---\n\nDraft content.\n",
+    );
+
+    let engine = build_engine(dir.path(), &wiki_root);
+    let report = run_lint(&engine, "test", Some("stale"), None).unwrap();
+    let findings = findings_for_rule(&report.findings, "stale");
+
+    assert!(
+        findings.iter().all(|f| f.slug != "concepts/wip"),
+        "draft page must not be flagged as stale: {findings:?}"
+    );
+}
+
+// ── broken-link cross-section contract ───────────────────────────────────────
+
+#[test]
+fn lint_broken_link_cross_section_page_not_flagged() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+
+    // Section page exists in the index
+    write_page(
+        &wiki_root,
+        "concepts/index.md",
+        "---\ntitle: \"Concepts\"\ntype: section\nstatus: active\n---\n\nSection root.\n",
+    );
+    // Regular page links to the section slug
+    write_page(
+        &wiki_root,
+        "concepts/alpha.md",
+        "---\ntitle: \"Alpha\"\ntype: concept\nread_when: [\"x\"]\nstatus: active\n---\n\nSee [[concepts]] for overview.\n",
+    );
+
+    let engine = build_engine(dir.path(), &wiki_root);
+    let report = run_lint(&engine, "test", Some("broken-link"), None).unwrap();
+    let findings = findings_for_rule(&report.findings, "broken-link");
+
+    assert!(
+        findings.is_empty(),
+        "link to existing section slug must not be flagged: {findings:?}"
+    );
+}

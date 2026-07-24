@@ -379,3 +379,116 @@ fn export_loads_bundle_body() {
     let body = bundle["body"].as_str().unwrap_or("");
     assert!(body.contains("Bundle body content."), "bundle body: {body}");
 }
+
+// ── empty wiki ────────────────────────────────────────────────────────────────
+
+fn setup_empty_wiki(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    let config_path = dir.join("state").join("config.toml");
+    let wiki_path = dir.join(name);
+    llm_wiki::spaces::create(&wiki_path, name, None, false, true, &config_path, None).unwrap();
+    llm_wiki::git::commit(&wiki_path, "init empty").unwrap();
+    config_path
+}
+
+#[test]
+fn export_llms_txt_empty_wiki() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_empty_wiki(dir.path(), "test");
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+
+    let report = ops::export(
+        &engine,
+        &ExportOptions {
+            wiki: "test".into(),
+            path: Some("llms.txt".into()),
+            format: ExportFormat::LlmsTxt,
+            include_archived: false,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(report.format, "llms-txt");
+    assert_eq!(report.pages_written, 0);
+    let content = fs::read_to_string(&report.path).unwrap();
+    // Minimal header must be present; body entries are absent
+    assert!(content.contains("# test"), "header: {content}");
+}
+
+#[test]
+fn export_llms_full_empty_wiki() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_empty_wiki(dir.path(), "test");
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+
+    let report = ops::export(
+        &engine,
+        &ExportOptions {
+            wiki: "test".into(),
+            path: Some("llms-full.txt".into()),
+            format: ExportFormat::LlmsFull,
+            include_archived: false,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(report.pages_written, 0);
+}
+
+#[test]
+fn export_json_empty_wiki() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_empty_wiki(dir.path(), "test");
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+
+    let report = ops::export(
+        &engine,
+        &ExportOptions {
+            wiki: "test".into(),
+            path: Some("wiki.json".into()),
+            format: ExportFormat::Json,
+            include_archived: false,
+        },
+    )
+    .unwrap();
+
+    let content = fs::read_to_string(&report.path).unwrap();
+    let pages: serde_json::Value = serde_json::from_str(&content).unwrap();
+    assert!(pages.as_array().unwrap().is_empty(), "empty wiki must export []");
+}
+
+#[test]
+fn export_unicode_in_fields() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "test");
+
+    // Append a unicode page before building the engine
+    let wiki_root = dir.path().join("test").join("wiki");
+    fs::create_dir_all(wiki_root.join("concepts")).unwrap();
+    fs::write(
+        wiki_root.join("concepts/neural.md"),
+        "---\ntitle: \"Réseaux de neurones\"\ntype: concept\nstatus: active\n---\n\n神经网络。Transformer attention.\n",
+    )
+    .unwrap();
+    llm_wiki::git::commit(dir.path().join("test").as_path(), "add unicode page").unwrap();
+
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+
+    let report = ops::export(
+        &engine,
+        &ExportOptions {
+            wiki: "test".into(),
+            path: Some("wiki.json".into()),
+            format: ExportFormat::Json,
+            include_archived: false,
+        },
+    )
+    .unwrap();
+
+    let content = fs::read_to_string(&report.path).unwrap();
+    assert!(content.contains("Réseaux de neurones"), "title: {content}");
+    assert!(content.contains("神经网络"), "CJK body: {content}");
+}

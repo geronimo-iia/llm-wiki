@@ -780,3 +780,70 @@ fn search_ranking_custom_status_falls_back_to_unknown() {
         "stub (no map entry) and no-status should score the same; got {score_stub} vs {score_no_status}"
     );
 }
+
+// ── list pagination edge cases ────────────────────────────────────────────────
+
+#[test]
+fn list_page_size_zero_returns_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions {
+            page_size: 0,
+            ..Default::default()
+        },
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    );
+    assert!(result.is_err(), "page_size=0 must return Err, not panic");
+}
+
+#[test]
+fn list_page_size_one_exact() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/solo.md", &concept_page("Solo", "body"));
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions {
+            page: 1,
+            page_size: 1,
+            ..Default::default()
+        },
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert_eq!(result.total, 1);
+    assert_eq!(result.pages.len(), 1);
+}
+
+#[test]
+fn list_facet_on_absent_type_returns_empty() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions {
+            r#type: Some("nonexistent_type".into()),
+            ..Default::default()
+        },
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert_eq!(result.total, 0);
+    assert!(result.pages.is_empty());
+}

@@ -1104,3 +1104,75 @@ fn update_custom_wiki_root_slug_correct() {
         "slug must not include notes/ prefix"
     );
 }
+
+// ── empty wiki and no-commit scenarios ───────────────────────────────────────
+
+#[test]
+fn rebuild_empty_wiki_state_written_and_searchable() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    // No pages written — wiki_root exists but is empty
+
+    let mgr = make_manager(dir.path());
+    git::commit(dir.path(), "empty").unwrap();
+    let report = mgr
+        .rebuild(&wiki_root, dir.path(), &schema(), &registry())
+        .unwrap();
+
+    assert_eq!(report.pages_indexed, 0, "empty wiki must index zero pages");
+    assert!(
+        dir.path().join("index-store").join("state.toml").exists(),
+        "state.toml must be written even for empty wiki"
+    );
+
+    mgr.open(&schema(), None).unwrap();
+    let searcher = mgr.searcher().unwrap();
+    let results = search::search(
+        "anything",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &schema(),
+    )
+    .unwrap();
+    assert_eq!(results.results.len(), 0);
+}
+
+#[test]
+fn rebuild_no_commits() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = dir.path().join("wiki");
+    std::fs::create_dir_all(&wiki_root).unwrap();
+    // Init repo but do NOT commit — HEAD is unborn
+    git::init_repo(dir.path()).unwrap();
+
+    let mgr = make_manager(dir.path());
+    // Must not panic; commit field will be empty string
+    let result = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry());
+    assert!(result.is_ok(), "rebuild on unborn HEAD must not panic: {result:?}");
+
+    let state_path = dir.path().join("index-store").join("state.toml");
+    assert!(state_path.exists(), "state.toml written even with no commits");
+    let state: toml::Value =
+        toml::from_str(&std::fs::read_to_string(&state_path).unwrap()).unwrap();
+    // commit field present; may be empty string or absent — either is valid
+    assert_eq!(state["pages"].as_integer().unwrap(), 0);
+}
+
+#[test]
+fn update_no_commits_graceful() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = dir.path().join("wiki");
+    std::fs::create_dir_all(&wiki_root).unwrap();
+    git::init_repo(dir.path()).unwrap();
+
+    let mgr = make_manager(dir.path());
+    // rebuild first so the index exists
+    mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry())
+        .unwrap();
+
+    // update on unborn HEAD must not panic
+    let result = mgr.update(&wiki_root, dir.path(), None, &schema(), &registry());
+    // Either Ok or Err is acceptable — no panic is the contract
+    let _ = result;
+}

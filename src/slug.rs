@@ -1,5 +1,5 @@
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{Result, bail};
 
@@ -77,8 +77,14 @@ impl TryFrom<&str> for Slug {
         if s.starts_with('/') {
             bail!("slug cannot start with /: {s}");
         }
-        if s.contains("../") || s.contains("..\\") {
+        if std::path::Path::new(s)
+            .components()
+            .any(|c| c == Component::ParentDir)
+        {
             bail!("slug cannot contain path traversal: {s}");
+        }
+        if s.split('/').any(|seg| seg.starts_with('.')) {
+            bail!("slug cannot contain hidden components: {s}");
         }
         // Reject if the last segment has a file extension
         if let Some(last) = s.rsplit('/').next()

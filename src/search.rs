@@ -1,7 +1,7 @@
 use std::cmp::Reverse;
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use tantivy::{
     DocId, Order, Score, Searcher, Term,
@@ -413,6 +413,9 @@ pub fn list(
     // Fetch sorted by _slug_ord, limited to offset + page_size
     let page = options.page;
     let page_size = options.page_size;
+    if page_size == 0 {
+        bail!("page_size must be at least 1");
+    }
     let offset = (page - 1) * page_size;
     let limit = offset + page_size;
 

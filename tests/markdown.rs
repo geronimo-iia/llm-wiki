@@ -156,6 +156,21 @@ fn read_asset_missing_errors() {
     assert!(read_asset(&slug("concepts/foo"), "nope.png", &wiki).is_err());
 }
 
+// The binary asset gap: PNG header bytes are not valid UTF-8. read_asset must
+// return raw bytes without attempting UTF-8 decoding.
+#[test]
+fn read_asset_binary_file_not_utf8_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki = setup_wiki(dir.path());
+    write_file(&wiki, "concepts/foo/index.md", SAMPLE);
+    // PNG magic bytes — invalid UTF-8 sequence
+    let png_magic: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    fs::write(wiki.join("concepts/foo/image.png"), png_magic).unwrap();
+
+    let bytes = read_asset(&slug("concepts/foo"), "image.png", &wiki).unwrap();
+    assert_eq!(&bytes[..8], png_magic, "raw PNG bytes must be preserved");
+}
+
 // ── create_page ───────────────────────────────────────────────────────────────
 
 #[test]

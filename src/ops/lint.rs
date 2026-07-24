@@ -439,6 +439,7 @@ fn rule_stale(
         None => return Ok(vec![]),
     };
     let f_confidence = is.try_field("confidence");
+    let f_status = is.try_field("status");
 
     let today = chrono::Utc::now().date_naive();
     let threshold_date = today - chrono::Duration::days(stale_days as i64);
@@ -456,6 +457,14 @@ fn rule_stale(
             .to_string();
         if slug.is_empty() {
             continue;
+        }
+
+        // Stale only applies to active pages; skip drafts and archived
+        if let Some(f_st) = f_status {
+            let status = doc.get_first(f_st).and_then(|v| v.as_str()).unwrap_or("");
+            if status != "active" && !status.is_empty() {
+                continue;
+            }
         }
 
         let date_str = doc

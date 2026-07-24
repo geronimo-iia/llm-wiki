@@ -12,7 +12,13 @@ use serde_yaml::Value;
 /// values are clamped to `[0, 1]`.
 pub fn confidence(fm: &BTreeMap<String, Value>) -> Option<f32> {
     let value = match fm.get("confidence")? {
-        Value::Number(n) => n.as_f64()? as f32,
+        Value::Number(n) => {
+            let v = n.as_f64()? as f32;
+            if !v.is_finite() {
+                return None;
+            }
+            v
+        }
         Value::String(s) => match s.as_str() {
             "high" => 0.9,
             "medium" => 0.5,
@@ -93,14 +99,19 @@ pub fn parse(content: &str, path: Option<&std::path::Path>) -> ParsedPage {
     }
     let after_open = &trimmed[3..];
     let rest = after_open.trim_start_matches('\r').trim_start_matches('\n');
-    let Some(close) = rest.find("\n---") else {
+    // Handle empty frontmatter block: rest starts with "---" immediately
+    let (close, after_close_start) = if rest.starts_with("---") {
+        (0usize, 3usize)
+    } else if let Some(pos) = rest.find("\n---") {
+        (pos, pos + 4)
+    } else {
         return ParsedPage {
             frontmatter: BTreeMap::new(),
             body: trimmed.to_string(),
         };
     };
     let yaml_str = &rest[..close];
-    let after_close = &rest[close + 4..];
+    let after_close = &rest[after_close_start..];
     let body = after_close
         .strip_prefix("\r\n")
         .or_else(|| after_close.strip_prefix('\n'))
@@ -132,11 +143,15 @@ pub fn parse_strict(content: &str) -> Result<ParsedPage> {
     }
     let after_open = &trimmed[3..];
     let rest = after_open.trim_start_matches('\r').trim_start_matches('\n');
-    let close = rest
-        .find("\n---")
-        .ok_or_else(|| anyhow::anyhow!("no closing --- found"))?;
+    let (close, after_close_start) = if rest.starts_with("---") {
+        (0usize, 3usize)
+    } else if let Some(pos) = rest.find("\n---") {
+        (pos, pos + 4)
+    } else {
+        anyhow::bail!("no closing --- found");
+    };
     let yaml_str = &rest[..close];
-    let after_close = &rest[close + 4..];
+    let after_close = &rest[after_close_start..];
     let body = after_close
         .strip_prefix("\r\n")
         .or_else(|| after_close.strip_prefix('\n'))

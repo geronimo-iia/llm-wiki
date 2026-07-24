@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`frontmatter::confidence` NaN** — `confidence: .nan` returned `Some(NaN)` due to missing `is_finite()` guard before clamp; now returns `None`
+- **`frontmatter::parse` empty frontmatter block** — `"---\n---\n"` and `"---\r\n---\r\n"` failed to find the closing delimiter and returned the raw content as body; parser now handles zero-length YAML sections
+- **`search::list` page_size=0 panic** — `page_size: 0` reached `TopDocs::with_limit(0)` in tantivy; now returns `Err("page_size must be at least 1")`
+- **`slug` path traversal — bare `..`** — `Slug::try_from("..")` and `"concepts/.."` were not rejected; replaced `contains("../")` check with `Component::ParentDir` traversal via `std::path::Path::components()`
+- **`slug` dotfile components** — slugs with hidden path segments (`.env`, `concepts/.hidden`) were accepted; a new guard rejects any segment starting with `.`
+- **`lint` stale rule false positive on drafts** — `rule_stale` applied to all pages regardless of `status`; now skips pages where `status` is not `"active"`, preventing draft and archived pages from being flagged
+
+### Added (tests)
+
+- **`frontmatter`** — `parse_empty_body`, `parse_empty_body_crlf`, `parse_title_null`, `confidence_nan_returns_none`
+- **`search`** — `list_page_size_zero_returns_error`, `list_page_size_one_exact`, `list_facet_on_absent_type_returns_empty`
+- **`slug`** — `slug_rejects_bare_dotdot`, `slug_rejects_dotdot_segment`, `slug_rejects_dotfile_component`, `slug_rejects_dotfile_in_path`, `slug_trailing_index_allowed`, `from_path_dotfile_errors`
+- **`index_manager`** — `rebuild_empty_wiki_state_written_and_searchable`, `rebuild_no_commits`, `update_no_commits_graceful`
+- **`export`** — `export_llms_txt_empty_wiki`, `export_llms_full_empty_wiki`, `export_json_empty_wiki`, `export_unicode_in_fields`
+- **`graph`** — `build_graph_self_referential_page`, `build_graph_disconnected_components`, `compute_metrics_empty_graph`, `render_mermaid_empty_graph_no_panic`, `render_dot_empty_graph_no_panic`, `render_llms_empty_graph_no_panic`
+- **`lint`** — `lint_stale_rule_no_false_positive_on_draft`, `lint_broken_link_cross_section_page_not_flagged`
+- **`markdown`** — `read_asset_binary_file_not_utf8_error`
+
 ## [0.5.1] — 2026-07-24
 
 ### Fixed

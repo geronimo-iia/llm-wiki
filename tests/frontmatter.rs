@@ -258,6 +258,53 @@ fn write_err_on_non_roundtrippable_value() {
     todo!()
 }
 
+// ── parse edge cases ──────────────────────────────────────────────────────────
+
+#[test]
+fn parse_empty_body() {
+    let content = "---\n---\n";
+    let page = parse(content, None);
+    assert!(page.frontmatter.is_empty());
+    assert_eq!(page.body, "");
+}
+
+#[test]
+fn parse_empty_body_crlf() {
+    let content = "---\r\n---\r\n";
+    let page = parse(content, None);
+    assert!(page.frontmatter.is_empty());
+    assert_eq!(page.body, "");
+}
+
+#[test]
+fn parse_title_null() {
+    let content = "---\ntitle: null\n---\nbody";
+    let page = parse(content, None);
+    assert_eq!(page.title(), None, "null title must return None, not Some(\"null\")");
+}
+
+#[test]
+fn confidence_nan_returns_none() {
+    use serde_yaml::Value;
+    use std::collections::BTreeMap;
+
+    // serde_yaml parses `.nan` as a Number that produces f64::NAN via as_f64()
+    let content = "---\nconfidence: .nan\n---\n";
+    let page = parse(content, None);
+    let result = confidence(&page.frontmatter);
+    assert!(
+        result.is_none(),
+        "confidence: .nan must return None, not Some(NaN); got {result:?}"
+    );
+
+    // Also verify directly via BTreeMap
+    let fm: BTreeMap<String, Value> = serde_yaml::from_str("confidence: .nan").unwrap();
+    assert!(
+        confidence(&fm).is_none(),
+        "NaN confidence via direct BTreeMap must return None"
+    );
+}
+
 // ── preserves arbitrary fields ────────────────────────────────────────────────
 
 #[test]

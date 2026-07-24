@@ -936,3 +936,98 @@ fn resolve_or_external_empty() {
     let idx = g.node_indices().find(|&i| g[i].slug == "concepts/foo");
     assert!(idx.is_none(), "slug not in empty graph");
 }
+
+// ── self-referential page ─────────────────────────────────────────────────────
+
+#[test]
+fn build_graph_self_referential_page() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/self.md",
+        &page_with_body_links("Self", "See [[concepts/self]]."),
+    );
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+
+    // Must not panic or loop infinitely
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
+
+    assert_eq!(g.node_count(), 1, "one node for self-referential page");
+    // Self-edge may be present or silently dropped — either is fine; no panic is the contract
+    let metrics = compute_metrics(&g);
+    assert_eq!(metrics.nodes, 1);
+}
+
+// ── disconnected components ───────────────────────────────────────────────────
+
+#[test]
+fn build_graph_disconnected_components() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    // Cluster A
+    write_page(&wiki_root, "cluster-a/alpha.md", &page_with_body_links("Alpha", "See [[cluster-a/beta]]."));
+    write_page(&wiki_root, "cluster-a/beta.md", &simple_page("Beta", "concept"));
+    // Cluster B (no link to/from cluster A)
+    write_page(&wiki_root, "cluster-b/gamma.md", &page_with_body_links("Gamma", "See [[cluster-b/delta]]."));
+    write_page(&wiki_root, "cluster-b/delta.md", &simple_page("Delta", "concept"));
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
+
+    assert_eq!(g.node_count(), 4, "all four nodes present");
+    assert!(g.edge_count() >= 2, "at least two edges (one per cluster)");
+
+    let metrics = compute_metrics(&g);
+    assert_eq!(metrics.nodes, 4);
+    assert!(metrics.density >= 0.0, "density is non-negative");
+}
+
+// ── empty graph render + metrics ──────────────────────────────────────────────
+
+#[test]
+fn compute_metrics_empty_graph() {
+    let g = llm_wiki::graph::WikiGraph::new();
+    let m = compute_metrics(&g);
+    assert_eq!(m.nodes, 0);
+    assert_eq!(m.edges, 0);
+    assert_eq!(m.orphans, 0);
+    assert!((m.avg_connections - 0.0).abs() < f64::EPSILON);
+    assert!((m.density - 0.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn render_mermaid_empty_graph_no_panic() {
+    let g = llm_wiki::graph::WikiGraph::new();
+    let out = render_mermaid(&g);
+    assert!(!out.is_empty(), "mermaid output must not be empty string");
+}
+
+#[test]
+fn render_dot_empty_graph_no_panic() {
+    let g = llm_wiki::graph::WikiGraph::new();
+    let out = render_dot(&g);
+    assert!(!out.is_empty(), "dot output must not be empty string");
+}
+
+#[test]
+fn render_llms_empty_graph_no_panic() {
+    let g = llm_wiki::graph::WikiGraph::new();
+    let out = render_llms(&g);
+    // Should not panic; output may be empty or contain header text
+    let _ = out;
+}
