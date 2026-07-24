@@ -93,6 +93,7 @@
     "tags": {
       "type": "array",
       "items": { "type": "string" },
+      "x-keyword": true,
       "description": "Search terms"
     },
     "owner": {

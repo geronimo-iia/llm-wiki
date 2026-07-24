@@ -25,10 +25,12 @@ custom meeting-notes type), it becomes a new tantivy field.
 3. Collect every field name across all types (after alias resolution)
 4. Classify each by JSON Schema type:
    - `string` → `TEXT | STORED` (tokenized for BM25)
-   - `string` with `enum` → `STRING | STORED | FAST` (keyword)
-   - `array` of `string` → `STRING | STORED` multi-valued (keyword per entry)
-   - `string` with `format: date` → `DATE | STORED | FAST`
-   - `object` / `array` of `object` → `JSON | STORED` (stored, not searched)
+   - `string` with `enum` or `const` → `STRING | STORED | FAST` (keyword)
+   - `array` with `"x-keyword": true` → `STRING | STORED | FAST` per value (keyword per entry; values lowercased at index time)
+   - `array` of `string` items with `enum`/`const` → `STRING | STORED | FAST` per value (keyword per entry)
+   - `array` of plain `string` items (no `x-keyword`) → `TEXT | STORED` (joined and tokenized)
+   - `number` / `integer` → `f64 | FAST | STORED`
+   - `object` / `array` of `object` → serialized as text
 5. Add fixed fields: `slug` (STRING | STORED | FAST), `uri` (STRING | STORED),
    `body` (TEXT)
 6. Build the tantivy schema

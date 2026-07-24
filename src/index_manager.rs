@@ -111,6 +111,10 @@ pub struct SpaceIndexManager {
     wiki_name: String,
     index_path: PathBuf,
     inner: RwLock<IndexInner>,
+    /// When `true`, the next `reload_reader()` call returns `Err` and clears the flag.
+    /// Never set in production code — only meaningful in tests.
+    #[doc(hidden)]
+    pub fail_next_reload: std::sync::atomic::AtomicBool,
 }
 
 impl SpaceIndexManager {
@@ -124,6 +128,7 @@ impl SpaceIndexManager {
                 index_reader: None,
                 generation: AtomicU64::new(0),
             }),
+            fail_next_reload: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -211,6 +216,12 @@ impl SpaceIndexManager {
     /// Reload the held IndexReader so searchers see the latest commit.
     /// No-op if the reader is not yet open. Safe to call after every write.
     fn reload_reader(&self) -> Result<()> {
+        if self
+            .fail_next_reload
+            .swap(false, std::sync::atomic::Ordering::AcqRel)
+        {
+            return Err(anyhow::anyhow!("injected reload_reader failure"));
+        }
         let inner = self
             .inner
             .read()
@@ -262,15 +273,22 @@ impl SpaceIndexManager {
     ) -> Result<IndexReport> {
         let start = std::time::Instant::now();
 
-        let search_dir = self.index_path.join("search-index");
-        std::fs::create_dir_all(&search_dir)?;
+        let live_dir = self.index_path.join("search-index");
+        let build_dir = self.index_path.join("search-index-building");
+        let backup_dir = self.index_path.join("search-index-prev");
 
-        // Always open_or_create for rebuild (schema may have changed)
-        let dir = MmapDirectory::open(&search_dir)
-            .with_context(|| format!("failed to open index dir: {}", search_dir.display()))?;
+        // Unconditional entry cleanup — a crashed previous rebuild may have left a
+        // lock file inside build_dir; opening a writer before wiping would reuse a
+        // corrupt partial state.
+        if build_dir.exists() {
+            std::fs::remove_dir_all(&build_dir).context("failed to remove stale build dir")?;
+        }
+        std::fs::create_dir_all(&build_dir)?;
+
+        let dir = MmapDirectory::open(&build_dir)
+            .with_context(|| format!("failed to open build dir: {}", build_dir.display()))?;
         let index = Index::open_or_create(dir, is.schema.clone())?;
         let mut writer: IndexWriter = index.writer(50_000_000)?;
-        writer.delete_all_documents()?;
 
         let mut pages = 0usize;
         let mut sections = 0usize;
@@ -300,7 +318,7 @@ impl SpaceIndexManager {
                 }
             };
             let uri = format!("wiki://{}/{slug}", self.wiki_name);
-            let page = frontmatter::parse(&content);
+            let page = frontmatter::parse(&content, Some(path));
 
             writer.add_document(index_page(is, registry, slug.as_str(), &uri, &page))?;
 
@@ -311,7 +329,41 @@ impl SpaceIndexManager {
         }
 
         writer.commit()?;
-        self.reload_reader()?;
+
+        // Atomic swap: live → prev, building → live.
+        // Both dirs are under self.index_path — same filesystem, rename is atomic.
+        if backup_dir.exists() {
+            std::fs::remove_dir_all(&backup_dir).context("failed to remove stale backup dir")?;
+        }
+        if live_dir.exists() {
+            std::fs::rename(&live_dir, &backup_dir).context("failed to move live dir to backup")?;
+        }
+        std::fs::rename(&build_dir, &live_dir).context("failed to promote build dir to live")?;
+
+        // Activate new reader. On failure: roll back all renames and return error.
+        if let Err(e) = self.reload_reader() {
+            tracing::error!(
+                index_path = %self.index_path.display(),
+                error = %e,
+                "reload_reader failed after index swap — rolling back"
+            );
+            let r1 = std::fs::rename(&live_dir, &build_dir);
+            if let Err(e2) = &r1 {
+                tracing::error!(error = %e2, "rollback step 1 failed — index unavailable, manual intervention required");
+            }
+            // backup_dir only exists when there was a prior live_dir (not first build)
+            if backup_dir.exists() {
+                let r2 = std::fs::rename(&backup_dir, &live_dir);
+                if let Err(e2) = &r2 {
+                    tracing::error!(error = %e2, "rollback step 2 failed — index unavailable, manual intervention required");
+                }
+            }
+            let _ = std::fs::remove_dir_all(&build_dir);
+            return Err(e)
+                .context("reload_reader failed after index rebuild; index may be unavailable");
+        }
+
+        let _ = std::fs::remove_dir_all(&backup_dir);
 
         let commit = git::current_head(repo_root).unwrap_or_default();
         let state = IndexState {
@@ -352,9 +404,13 @@ impl SpaceIndexManager {
         let mut writer = self.writer()?;
 
         let f_slug = is.field("slug");
-        let wiki_prefix = wiki_root
-            .strip_prefix(repo_root)
-            .unwrap_or(Path::new("wiki"));
+        let wiki_prefix = wiki_root.strip_prefix(repo_root).with_context(|| {
+            format!(
+                "wiki_root {} is not under repo_root {}; check space configuration",
+                wiki_root.display(),
+                repo_root.display()
+            )
+        })?;
         let mut updated = 0;
         let mut deleted = 0;
 
@@ -374,7 +430,7 @@ impl SpaceIndexManager {
             } else {
                 let full_path = repo_root.join(path);
                 if let Ok(content) = std::fs::read_to_string(&full_path) {
-                    let page = frontmatter::parse(&content);
+                    let page = frontmatter::parse(&content, Some(&full_path));
                     let uri = format!("wiki://{}/{slug}", self.wiki_name);
                     writer.add_document(index_page(is, registry, slug.as_str(), &uri, &page))?;
                     updated += 1;
@@ -539,7 +595,7 @@ impl SpaceIndexManager {
                     continue;
                 }
             };
-            let page = frontmatter::parse(&content);
+            let page = frontmatter::parse(&content, Some(path));
             let page_type = page.page_type().unwrap_or("page");
             if !type_set.contains(page_type) {
                 continue;
@@ -684,8 +740,13 @@ fn index_value(
 ) {
     if let Some(field_handle) = is.try_field(canonical) {
         if is.is_keyword(canonical) {
+            let normalize = is.is_normalized_keyword(canonical);
             for s in yaml_to_strings(value) {
-                doc.add_text(field_handle, &s);
+                if normalize {
+                    doc.add_text(field_handle, s.to_lowercase());
+                } else {
+                    doc.add_text(field_handle, &s);
+                }
             }
         } else {
             let text = yaml_to_text(value);

@@ -156,6 +156,21 @@ fn read_asset_missing_errors() {
     assert!(read_asset(&slug("concepts/foo"), "nope.png", &wiki).is_err());
 }
 
+// The binary asset gap: PNG header bytes are not valid UTF-8. read_asset must
+// return raw bytes without attempting UTF-8 decoding.
+#[test]
+fn read_asset_binary_file_not_utf8_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki = setup_wiki(dir.path());
+    write_file(&wiki, "concepts/foo/index.md", SAMPLE);
+    // PNG magic bytes — invalid UTF-8 sequence
+    let png_magic: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    fs::write(wiki.join("concepts/foo/image.png"), png_magic).unwrap();
+
+    let bytes = read_asset(&slug("concepts/foo"), "image.png", &wiki).unwrap();
+    assert_eq!(&bytes[..8], png_magic, "raw PNG bytes must be preserved");
+}
+
 // ── create_page ───────────────────────────────────────────────────────────────
 
 #[test]
@@ -167,7 +182,7 @@ fn create_page_flat() {
     assert_eq!(path, wiki.join("concepts/bar.md"));
     assert!(path.is_file());
 
-    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap());
+    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap(), None);
     assert_eq!(page.title(), Some("Bar"));
     assert_eq!(page.page_type(), Some("page"));
     assert_eq!(page.status(), Some("draft"));
@@ -197,7 +212,7 @@ fn create_page_with_name_override() {
         None,
     )
     .unwrap();
-    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap());
+    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap(), None);
     assert_eq!(page.title(), Some("Custom Title"));
 }
 
@@ -215,7 +230,7 @@ fn create_page_with_type_override() {
         None,
     )
     .unwrap();
-    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap());
+    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap(), None);
     assert_eq!(page.page_type(), Some("paper"));
 }
 
@@ -228,13 +243,13 @@ fn create_page_auto_creates_parent_sections() {
 
     let a_index = wiki.join("a/index.md");
     assert!(a_index.is_file());
-    let page = frontmatter::parse(&fs::read_to_string(&a_index).unwrap());
+    let page = frontmatter::parse(&fs::read_to_string(&a_index).unwrap(), None);
     assert_eq!(page.page_type(), Some("section"));
     assert_eq!(page.title(), Some("A"));
 
     let ab_index = wiki.join("a/b/index.md");
     assert!(ab_index.is_file());
-    let page = frontmatter::parse(&fs::read_to_string(&ab_index).unwrap());
+    let page = frontmatter::parse(&fs::read_to_string(&ab_index).unwrap(), None);
     assert_eq!(page.page_type(), Some("section"));
 
     assert!(wiki.join("a/b/c.md").is_file());
@@ -251,7 +266,7 @@ fn create_section_creates_index_md() {
     assert_eq!(path, wiki.join("skills/index.md"));
     assert!(path.is_file());
 
-    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap());
+    let page = frontmatter::parse(&fs::read_to_string(&path).unwrap(), None);
     assert_eq!(page.title(), Some("Skills"));
     assert_eq!(page.page_type(), Some("section"));
     assert_eq!(page.status(), Some("draft"));
@@ -289,4 +304,48 @@ fn promote_to_bundle_missing_errors() {
     let wiki = setup_wiki(dir.path());
 
     assert!(promote_to_bundle(&slug("concepts/nope"), &wiki).is_err());
+}
+
+// ── Issue 6: promote_to_bundle guard ─────────────────────────────────────────
+
+#[test]
+fn promote_to_bundle_ok() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki = setup_wiki(dir.path());
+    write_file(&wiki, "topics/guide.md", SAMPLE);
+
+    promote_to_bundle(&slug("topics/guide"), &wiki).unwrap();
+
+    assert!(!wiki.join("topics/guide.md").exists(), "flat removed");
+    assert!(
+        wiki.join("topics/guide/index.md").is_file(),
+        "bundle created"
+    );
+}
+
+#[test]
+fn promote_to_bundle_already_exists_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki = setup_wiki(dir.path());
+    write_file(&wiki, "topics/guide.md", SAMPLE);
+    // Pre-create the bundle destination
+    write_file(&wiki, "topics/guide/index.md", SAMPLE);
+
+    let err = promote_to_bundle(&slug("topics/guide"), &wiki).unwrap_err();
+    assert!(
+        err.to_string().contains("bundle already exists"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn promote_to_bundle_flat_not_found_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki = setup_wiki(dir.path());
+
+    let err = promote_to_bundle(&slug("topics/missing"), &wiki).unwrap_err();
+    assert!(
+        err.to_string().contains("flat page not found"),
+        "unexpected error: {err}"
+    );
 }

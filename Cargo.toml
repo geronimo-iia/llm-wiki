@@ -1,6 +1,6 @@
 [package]
 name = "llm-wiki-engine"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2024"
 rust-version = "1.95"
 description = "Git-backed wiki engine with MCP/ACP server — bring your own LLM"
@@ -13,6 +13,7 @@ readme = "README.md"
 keywords = ["wiki", "knowledge-base", "mcp", "git", "acp"]
 categories = ["command-line-utilities", "development-tools"]
 exclude = [".github/", "tests/", "tests-integration/", "docs/"]
+
 
 [lib]
 name = "llm_wiki"
@@ -78,7 +79,8 @@ tokio-util = { version = "0.7", features = ["compat"] }
 notify = "8"
 
 [dev-dependencies]
-tempfile   = "3"
+tempfile      = "3"
+tracing-test  = "0.2"
 
 [profile.release]
 opt-level      = 3

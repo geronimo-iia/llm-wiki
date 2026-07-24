@@ -59,7 +59,8 @@ Create `schemas/meeting.json`:
     },
     "tags": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": { "type": "string" },
+      "x-keyword": true
     },
     "concepts": {
       "type": "array",
@@ -186,6 +187,19 @@ edges.
 
 Fields declared in `x-graph-edges` are automatically indexed as
 keywords (slug lists).
+
+To index a plain-string array as one keyword value per entry (instead
+of joining all values into one text string), add `"x-keyword": true`
+to the field definition. Values are lowercased at index time. Use this
+for tag-like fields where each value is a discrete term, not prose:
+
+```json
+"tags": {
+  "type": "array",
+  "items": { "type": "string" },
+  "x-keyword": true
+}
+```
 
 ## Override via wiki.toml
 

@@ -1,6 +1,8 @@
 use std::fs;
 
 use llm_wiki::config::*;
+use llm_wiki::index_manager::SpaceIndexManager;
+use llm_wiki::space_builder;
 
 // ── load_global ───────────────────────────────────────────────────────────────
 
@@ -714,5 +716,104 @@ fn set_wiki_search_status_merges_into_resolved() {
         resolved.search.status.get("active").copied(),
         Some(1.0_f32),
         "untouched global defaults inherited"
+    );
+}
+
+// ── Issue 5: config coverage ──────────────────────────────────────────────────
+
+#[test]
+fn config_no_wiki_toml_uses_defaults() {
+    let dir = tempfile::tempdir().unwrap();
+    // No wiki.toml in dir — load_wiki should return defaults without panicking
+    let wiki_cfg = load_wiki(dir.path()).unwrap();
+    // wiki_root defaults to "wiki" only when parsed from TOML (serde default);
+    // WikiConfig::default() used by load_wiki returns "" for the in-memory default
+    assert!(wiki_cfg.defaults.is_none());
+    assert!(wiki_cfg.search.is_none());
+    // Resolve with global defaults; no panic
+    let global = GlobalConfig::default();
+    let resolved = resolve(&global, &wiki_cfg);
+    assert_eq!(resolved.defaults.search_top_k, 10);
+    assert_eq!(resolved.index.tokenizer, "en_stem");
+    assert_eq!(resolved.index.memory_budget_mb, 50);
+}
+
+#[test]
+fn config_invalid_tokenizer_name_no_panic() {
+    // Tantivy does not validate tokenizer names at schema-build or index-open time.
+    // An unknown tokenizer only errors at query time when tokenization is attempted.
+    // This test verifies: build_space_from_embedded with an unknown tokenizer does
+    // not panic, and rebuild on an empty wiki succeeds (no pages to tokenize).
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = dir.path().join("wiki");
+    fs::create_dir_all(&wiki_root).unwrap();
+
+    // Should not panic
+    let (registry, schema) = space_builder::build_space_from_embedded("nonexistent_tokenizer");
+    let index_path = dir.path().join("idx");
+    let mgr = SpaceIndexManager::new("test", &index_path);
+    // Empty wiki — no documents to tokenize, so rebuild succeeds
+    let result = mgr.rebuild(&wiki_root, dir.path(), &schema, &registry);
+    assert!(
+        result.is_ok(),
+        "rebuild with unknown tokenizer on empty wiki should not fail: {result:?}"
+    );
+    // TODO: test that querying/indexing with an unknown tokenizer returns Err, not panic
+}
+
+#[test]
+fn config_memory_budget_zero_parses_in_config() {
+    // memory_budget_mb = 0 is a valid TOML value from config's perspective.
+    // The config layer accepts it; validation/rejection would happen at index-writer creation.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(
+        &path,
+        "[index]\nmemory_budget_mb = 0\ntokenizer = \"en_stem\"\n",
+    )
+    .unwrap();
+    let config = load_global(&path).unwrap();
+    assert_eq!(config.index.memory_budget_mb, 0);
+    // TODO: integration test — index writer should reject memory_budget_mb = 0
+    // at writer creation time with a descriptive Err, not a panic.
+}
+
+#[test]
+fn config_per_wiki_search_status_override_merged() {
+    let mut global = GlobalConfig::default();
+    // Global default: active=1.0, archived=0.3
+    global.search.status.insert("active".into(), 1.0);
+    global.search.status.insert("archived".into(), 0.3);
+
+    let wiki_cfg = WikiConfig {
+        search: Some(SearchConfig {
+            status: [
+                ("archived".into(), 0.1_f32),
+                ("superseded".into(), 0.05_f32),
+            ]
+            .into_iter()
+            .collect(),
+        }),
+        ..Default::default()
+    };
+
+    let resolved = resolve(&global, &wiki_cfg);
+    // Per-wiki overrides global for "archived"
+    assert_eq!(
+        resolved.search.status.get("archived").copied(),
+        Some(0.1_f32),
+        "wiki override for archived"
+    );
+    // Global default inherited for "active"
+    assert_eq!(
+        resolved.search.status.get("active").copied(),
+        Some(1.0_f32),
+        "global active inherited"
+    );
+    // Wiki-only key present
+    assert_eq!(
+        resolved.search.status.get("superseded").copied(),
+        Some(0.05_f32),
+        "wiki-only key present"
     );
 }

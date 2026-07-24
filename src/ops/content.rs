@@ -207,6 +207,13 @@ pub fn content_new(
 /// 2. Embedded default template
 /// 3. None
 fn resolve_body_template(repo_root: &Path, type_name: &str) -> Option<String> {
+    use std::path::Component;
+    if std::path::Path::new(type_name)
+        .components()
+        .any(|c| c == Component::ParentDir)
+    {
+        return None;
+    }
     let template_path = repo_root.join("schemas").join(format!("{type_name}.md"));
     if template_path.is_file() {
         return std::fs::read_to_string(&template_path).ok();
@@ -255,4 +262,33 @@ pub fn content_commit(
     let default_msg = format!("commit: {}", slugs.join(", "));
     let msg = message.unwrap_or(&default_msg);
     git::commit_paths(&space.repo_root, &path_refs, msg)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn template_path_traversal_returns_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = resolve_body_template(dir.path(), "../../etc/passwd");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn template_path_single_dot_allowed() {
+        // "." has no ParentDir component — it normalises to CurDir, which is permitted
+        let dir = tempfile::tempdir().unwrap();
+        // No schemas/..md file exists, so result is None (from embedded fallback), not an error
+        let result = resolve_body_template(dir.path(), ".");
+        // Just verify it doesn't panic — result may be None
+        let _ = result;
+    }
+
+    #[test]
+    fn template_path_nested_traversal_returns_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = resolve_body_template(dir.path(), "foo/../../../etc/passwd");
+        assert!(result.is_none());
+    }
 }

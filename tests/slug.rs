@@ -32,6 +32,40 @@ fn slug_rejects_traversal() {
 }
 
 #[test]
+fn slug_rejects_bare_dotdot() {
+    assert!(Slug::try_from("..").is_err());
+}
+
+#[test]
+fn slug_rejects_dotdot_segment() {
+    assert!(Slug::try_from("concepts/..").is_err());
+}
+
+#[test]
+fn slug_rejects_dotfile_component() {
+    assert!(Slug::try_from(".env").is_err());
+}
+
+#[test]
+fn slug_rejects_dotfile_in_path() {
+    assert!(Slug::try_from("concepts/.hidden").is_err());
+}
+
+#[test]
+fn slug_trailing_index_allowed() {
+    // "index" does not start with '.' — valid slug, documents the contract
+    let s = Slug::try_from("concepts/index").unwrap();
+    assert_eq!(s.as_str(), "concepts/index");
+}
+
+#[test]
+fn from_path_dotfile_errors() {
+    let root = Path::new("/wiki");
+    let path = Path::new("/wiki/.env");
+    assert!(Slug::from_path(path, root).is_err());
+}
+
+#[test]
 fn slug_rejects_extension() {
     assert!(Slug::try_from("concepts/moe.md").is_err());
 }

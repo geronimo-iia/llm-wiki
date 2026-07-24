@@ -2,7 +2,7 @@
 title: "Index Manager Implementation"
 summary: "SpaceIndexManager — incremental update, full rebuild, staleness detection, corruption recovery."
 status: ready
-last_updated: "2026-04-28"
+last_updated: "2026-07-24"
 ---
 
 # Index Manager Implementation
@@ -98,12 +98,23 @@ Called when `schema_hash` mismatches, on corruption recovery, or
 explicitly via `llm-wiki index rebuild`:
 
 ```
-delete_all_documents()
+wipe search-index-building/            (handles crash leftovers)
+create search-index-building/
+open Index in search-index-building/
 walk wiki/ -> parse each .md -> add_document()
 writer.commit()
-writer.wait_merging_threads()
-update state.toml
+
+// atomic swap
+search-index/          -> search-index-prev/
+search-index-building/ -> search-index/
+reload_reader()
+  ok  -> rm -rf search-index-prev/ ; update state.toml
+  err -> rollback both renames ; return fatal error
 ```
+
+Live index is untouched until `commit()` succeeds. `reload_reader()`
+failure after swap triggers full rollback and returns an error — not a
+silent stale reader.
 
 ### Partial rebuild
 

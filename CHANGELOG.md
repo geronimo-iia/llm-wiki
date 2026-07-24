@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.5.1] — 2026-07-25
+
+### Fixed
+
+- **`search` tags** — multi-word tags (e.g. `"machine learning"`) were split on whitespace; multi-value tags truncated to first value; uppercase variants not normalized; all corrected — tags stored per-value and lowercased at index time; triggers automatic full index rebuild on next open
+- **`frontmatter::parse` silent YAML failure** — malformed frontmatter returned empty data with no diagnostic; now logs a warning with the file path and continues indexing; `parse()` gains an `Option<&Path>` parameter (see Semver note)
+- **`frontmatter::write` panic** — non-serializable values caused a hard panic; `write()` now returns `Result<String>` (see Semver note)
+- **`index_manager` atomic rebuild** — rebuild promotes via atomic renames; live index untouched until commit succeeds; `reload_reader()` failure triggers full rollback instead of silently serving stale results; misleading "manual intervention required" log no longer emitted on first-ever build
+- **`export` CRLF frontmatter** — `\r` leaked into page body on Windows line endings; fixed
+- **`export` bundle body not loaded** — bundle pages (`{slug}/index.md`) had body silently skipped; now resolved correctly alongside flat pages
+- **`export` stale index entry** — missing on-disk page now emits a warning instead of silently leaving body empty
+- **`export` 100k page limit** — silent truncation at 100k results now emits a warning
+- **`ops/content` path traversal** — type names with `..` components in `resolve_body_template` could read outside the schemas directory; rejected at input
+- **`markdown::promote_to_bundle` missing pre-checks** — panicked on missing source or existing bundle destination; now returns descriptive errors before any mutation
+- **`frontmatter::confidence` NaN** — `confidence: .nan` returned `Some(NaN)`; now returns `None`
+- **`frontmatter::parse` empty frontmatter block** — `"---\n---\n"` returned raw content as body; now parsed correctly
+- **`search::list` page_size=0 panic** — `page_size: 0` reached tantivy's `TopDocs::with_limit(0)`; now returns an error
+- **`slug` path traversal** — bare `..` and `concepts/..` were accepted; rejected via `Component::ParentDir` check
+- **`slug` dotfile components** — hidden path segments (`.env`, `concepts/.hidden`) were accepted; now rejected
+- **`index_manager`/`git` wrong-prefix fallback** — silent `unwrap_or("wiki")` on prefix mismatch replaced with explicit error propagation
+- **`lint` stale rule false positive** — draft and archived pages were flagged as stale; rule now applies only to `status: active` pages
+
+### Semver note
+
+`frontmatter::parse` and `frontmatter::write` are `pub` — signature changes ship in this patch because the previous signatures were latent panics, not stable contracts.
+
 ## [0.5.0] — 2026-07-23
 
 ### Added

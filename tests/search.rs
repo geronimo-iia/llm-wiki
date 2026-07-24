@@ -289,6 +289,209 @@ fn list_pagination() {
     assert_eq!(result.pages.len(), 1);
 }
 
+// ── list tags round-trip ──────────────────────────────────────────────────────
+
+#[test]
+fn list_tags_single_word() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        "---\ntitle: \"Foo\"\nstatus: active\ntype: concept\ntags:\n  - rust\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert_eq!(result.pages.len(), 1);
+    assert_eq!(result.pages[0].tags, vec!["rust"]);
+}
+
+#[test]
+fn list_tags_multi_word() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        "---\ntitle: \"Foo\"\nstatus: active\ntype: concept\ntags:\n  - machine learning\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert_eq!(result.pages.len(), 1);
+    assert_eq!(
+        result.pages[0].tags,
+        vec!["machine learning"],
+        "multi-word tag must not be split on whitespace"
+    );
+}
+
+#[test]
+fn list_tags_multiple() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        "---\ntitle: \"Foo\"\nstatus: active\ntype: concept\ntags:\n  - machine learning\n  - nlp\n  - deep learning\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert_eq!(result.pages.len(), 1);
+    let mut tags = result.pages[0].tags.clone();
+    tags.sort();
+    assert_eq!(tags, vec!["deep learning", "machine learning", "nlp"]);
+}
+
+#[test]
+fn list_tags_empty() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        "---\ntitle: \"Foo\"\nstatus: active\ntype: concept\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert_eq!(result.pages.len(), 1);
+    assert!(result.pages[0].tags.is_empty());
+}
+
+#[test]
+fn list_tags_uppercase_normalized() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        "---\ntitle: \"Foo\"\nstatus: active\ntype: concept\ntags:\n  - Machine Learning\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert_eq!(result.pages.len(), 1);
+    assert_eq!(
+        result.pages[0].tags,
+        vec!["machine learning"],
+        "uppercase tag must be lowercased at index time"
+    );
+}
+
+#[test]
+fn list_tags_mixed_case_round_trip() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        "---\ntitle: \"Foo\"\nstatus: active\ntype: concept\ntags:\n  - NLP\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert_eq!(result.pages.len(), 1);
+    assert_eq!(
+        result.pages[0].tags,
+        vec!["nlp"],
+        "mixed-case tag must be stored as lowercase in PageSummary"
+    );
+}
+
+#[test]
+fn list_tags_facet_case_insensitive() {
+    // Verifies that two pages — one tagged "NLP", one tagged "nlp" — produce
+    // a single facet bucket "nlp" with count 2, confirming normalization is
+    // applied consistently so uppercase and lowercase variants coalesce.
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/a.md",
+        "---\ntitle: \"A\"\nstatus: active\ntype: concept\ntags:\n  - nlp\n---\n\nbody\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/b.md",
+        "---\ntitle: \"B\"\nstatus: active\ntype: concept\ntags:\n  - NLP\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions {
+            facets_top_tags: 10,
+            ..ListOptions::default()
+        },
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert_eq!(result.pages.len(), 2);
+    assert_eq!(
+        result.facets.tags.get("nlp").copied(),
+        Some(2),
+        "uppercase and lowercase 'nlp' must coalesce into one facet bucket"
+    );
+    assert!(
+        !result.facets.tags.contains_key("NLP"),
+        "uppercase variant must not appear as a separate facet bucket"
+    );
+}
+
 // ── search_all ────────────────────────────────────────────────────────────────
 
 #[test]
@@ -675,4 +878,75 @@ fn search_ranking_custom_status_falls_back_to_unknown() {
         (score_stub - score_no_status).abs() < 1e-5,
         "stub (no map entry) and no-status should score the same; got {score_stub} vs {score_no_status}"
     );
+}
+
+// ── list pagination edge cases ────────────────────────────────────────────────
+
+#[test]
+fn list_page_size_zero_returns_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions {
+            page_size: 0,
+            ..Default::default()
+        },
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    );
+    assert!(result.is_err(), "page_size=0 must return Err, not panic");
+}
+
+#[test]
+fn list_page_size_one_exact() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/solo.md",
+        &concept_page("Solo", "body"),
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions {
+            page: 1,
+            page_size: 1,
+            ..Default::default()
+        },
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert_eq!(result.total, 1);
+    assert_eq!(result.pages.len(), 1);
+}
+
+#[test]
+fn list_facet_on_absent_type_returns_empty() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions {
+            r#type: Some("nonexistent_type".into()),
+            ..Default::default()
+        },
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert_eq!(result.total, 0);
+    assert!(result.pages.is_empty());
 }

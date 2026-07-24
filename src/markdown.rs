@@ -11,7 +11,7 @@ pub fn read_page(slug: &Slug, wiki_root: &Path, no_frontmatter: bool) -> Result<
     let path = slug.resolve(wiki_root)?;
     let content = std::fs::read_to_string(&path)?;
 
-    let page = frontmatter::parse(&content);
+    let page = frontmatter::parse(&content, Some(&path));
     let notice = page
         .superseded_by()
         .map(|s| format!("\n> **Superseded** by [{s}](wiki://{s})\n"));
@@ -106,7 +106,7 @@ pub fn create_page(
                 std::fs::create_dir_all(&parent_dir)?;
                 let parent_s = Slug::try_from(parent_slug.as_str())?;
                 let fm = frontmatter::scaffold(&parent_s, true);
-                let content = frontmatter::write(&fm, "");
+                let content = frontmatter::write(&fm, "")?;
                 std::fs::write(parent_dir.join("index.md"), content)?;
             }
         }
@@ -120,7 +120,7 @@ pub fn create_page(
         fm.insert("type".into(), serde_yaml::Value::String(t.to_string()));
     }
     let body = body_template.unwrap_or("");
-    let content = frontmatter::write(&fm, body);
+    let content = frontmatter::write(&fm, body)?;
 
     let path = if bundle {
         let dir = wiki_root.join(slug_str);
@@ -151,7 +151,7 @@ pub fn create_section(
 
     let fm = frontmatter::scaffold(slug, true);
     let body = body_template.unwrap_or("");
-    let content = frontmatter::write(&fm, body);
+    let content = frontmatter::write(&fm, body)?;
     let path = dir.join("index.md");
     std::fs::write(&path, content)?;
     Ok(path)
@@ -164,8 +164,14 @@ pub fn promote_to_bundle(slug: &Slug, wiki_root: &Path) -> Result<()> {
         bail!("flat page not found for slug: {slug}");
     }
     let bundle_dir = wiki_root.join(slug.as_str());
-    std::fs::create_dir_all(&bundle_dir)?;
     let dest = bundle_dir.join("index.md");
+    if dest.exists() {
+        bail!(
+            "bundle already exists at {}; remove it manually before promoting",
+            dest.display()
+        );
+    }
+    std::fs::create_dir_all(&bundle_dir)?;
     std::fs::rename(&flat, &dest)?;
     Ok(())
 }

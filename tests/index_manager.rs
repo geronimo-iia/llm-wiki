@@ -825,6 +825,117 @@ fn staleness_kind_detects_type_modification() {
     }
 }
 
+// ── rebuild atomicity ─────────────────────────────────────────────────────────
+
+#[test]
+fn rebuild_leaves_no_build_dir() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+
+    let mgr = build_index(dir.path(), &wiki_root);
+
+    let build_dir = mgr.index_path().join("search-index-building");
+    assert!(
+        !build_dir.exists(),
+        "search-index-building must be absent after successful rebuild"
+    );
+}
+
+#[test]
+fn rebuild_leaves_no_backup_dir() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+
+    let mgr = build_index(dir.path(), &wiki_root);
+
+    let backup_dir = mgr.index_path().join("search-index-prev");
+    assert!(
+        !backup_dir.exists(),
+        "search-index-prev must be absent after successful rebuild"
+    );
+}
+
+#[test]
+fn rebuild_stale_build_dir_wiped_at_entry() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+
+    let mgr = make_manager(dir.path());
+    git::commit(dir.path(), "pages").unwrap();
+
+    // Simulate a leftover build dir from a previous crashed rebuild
+    let build_dir = mgr.index_path().join("search-index-building");
+    fs::create_dir_all(&build_dir).unwrap();
+    fs::write(build_dir.join("stale_artifact.txt"), b"crash leftovers").unwrap();
+
+    let result = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry());
+    assert!(
+        result.is_ok(),
+        "rebuild must succeed despite stale build dir"
+    );
+    assert!(
+        !build_dir.exists(),
+        "stale build dir must be gone after rebuild"
+    );
+}
+
+#[test]
+fn rebuild_empty_wiki() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    // No .md files written
+
+    let mgr = make_manager(dir.path());
+    git::commit(dir.path(), "empty").unwrap();
+
+    let report = mgr
+        .rebuild(&wiki_root, dir.path(), &schema(), &registry())
+        .unwrap();
+    assert_eq!(report.pages_indexed, 0);
+    assert_eq!(report.skipped, 0);
+}
+
+#[test]
+fn rebuild_then_query() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/alpha.md",
+        &concept_page("AlphaPage", "unique body content"),
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let reg = registry();
+
+    // Second rebuild with an extra page
+    write_page(
+        &wiki_root,
+        "concepts/beta.md",
+        &concept_page("BetaPage", "second page content"),
+    );
+    git::commit(dir.path(), "add beta").unwrap();
+    mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
+
+    let searcher = mgr.searcher().unwrap();
+    let results = search::search(
+        "BetaPage",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert!(
+        results.results.iter().any(|r| r.title == "BetaPage"),
+        "freshly rebuilt index must contain newly added page"
+    );
+}
+
 // ── reader reload ─────────────────────────────────────────────────────────────
 
 #[test]
@@ -908,4 +1019,240 @@ fn update_refreshes_reader_immediately() {
         results.results.iter().any(|r| r.title == "FreshPage"),
         "held reader must see new page after update() without calling open() again"
     );
+}
+
+// ── custom wiki_root ──────────────────────────────────────────────────────────
+
+#[test]
+fn update_default_wiki_root_slug_correct() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path()); // wiki at repo_root/wiki/
+    let is = schema();
+    let reg = registry();
+
+    let mgr = make_manager(dir.path());
+    mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
+
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        &concept_page("FooDefault", "body"),
+    );
+
+    mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
+
+    let searcher = open_searcher(&mgr, &is);
+    let results = search::search(
+        "FooDefault",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
+    let hit = results
+        .results
+        .iter()
+        .find(|r| r.title == "FooDefault")
+        .expect("page not found");
+    assert_eq!(
+        hit.slug, "concepts/foo",
+        "slug must not include wiki/ prefix"
+    );
+}
+
+#[test]
+fn update_custom_wiki_root_slug_correct() {
+    let dir = tempfile::tempdir().unwrap();
+    // wiki at repo_root/notes/ (non-default)
+    let wiki_root = dir.path().join("notes");
+    fs::create_dir_all(&wiki_root).unwrap();
+    git::init_repo(dir.path()).unwrap();
+    fs::write(dir.path().join("README.md"), "# test\n").unwrap();
+    git::commit(dir.path(), "init").unwrap();
+
+    let is = schema();
+    let reg = registry();
+
+    let mgr = make_manager(dir.path());
+    mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
+
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        &concept_page("FooCustom", "body"),
+    );
+
+    mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
+
+    let searcher = open_searcher(&mgr, &is);
+    let results = search::search(
+        "FooCustom",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &is,
+    )
+    .unwrap();
+    let hit = results
+        .results
+        .iter()
+        .find(|r| r.title == "FooCustom")
+        .expect("page not found in custom wiki_root");
+    assert_eq!(
+        hit.slug, "concepts/foo",
+        "slug must not include notes/ prefix"
+    );
+}
+
+// ── empty wiki and no-commit scenarios ───────────────────────────────────────
+
+#[test]
+fn rebuild_empty_wiki_state_written_and_searchable() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    // No pages written — wiki_root exists but is empty
+
+    let mgr = make_manager(dir.path());
+    git::commit(dir.path(), "empty").unwrap();
+    let report = mgr
+        .rebuild(&wiki_root, dir.path(), &schema(), &registry())
+        .unwrap();
+
+    assert_eq!(report.pages_indexed, 0, "empty wiki must index zero pages");
+    assert!(
+        dir.path().join("index-store").join("state.toml").exists(),
+        "state.toml must be written even for empty wiki"
+    );
+
+    mgr.open(&schema(), None).unwrap();
+    let searcher = mgr.searcher().unwrap();
+    let results = search::search(
+        "anything",
+        &search::SearchOptions::default(),
+        &searcher,
+        "test",
+        &schema(),
+    )
+    .unwrap();
+    assert_eq!(results.results.len(), 0);
+}
+
+#[test]
+fn rebuild_no_commits() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = dir.path().join("wiki");
+    std::fs::create_dir_all(&wiki_root).unwrap();
+    // Init repo but do NOT commit — HEAD is unborn
+    git::init_repo(dir.path()).unwrap();
+
+    let mgr = make_manager(dir.path());
+    // Must not panic; commit field will be empty string
+    let result = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry());
+    assert!(
+        result.is_ok(),
+        "rebuild on unborn HEAD must not panic: {result:?}"
+    );
+
+    let state_path = dir.path().join("index-store").join("state.toml");
+    assert!(
+        state_path.exists(),
+        "state.toml written even with no commits"
+    );
+    let state: toml::Value =
+        toml::from_str(&std::fs::read_to_string(&state_path).unwrap()).unwrap();
+    // commit field present; may be empty string or absent — either is valid
+    assert_eq!(state["pages"].as_integer().unwrap(), 0);
+}
+
+#[test]
+fn update_no_commits_graceful() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = dir.path().join("wiki");
+    std::fs::create_dir_all(&wiki_root).unwrap();
+    git::init_repo(dir.path()).unwrap();
+
+    let mgr = make_manager(dir.path());
+    // rebuild first so the index exists
+    mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry())
+        .unwrap();
+
+    // update on unborn HEAD must not panic
+    let result = mgr.update(&wiki_root, dir.path(), None, &schema(), &registry());
+    // Either Ok or Err is acceptable — no panic is the contract
+    let _ = result;
+}
+
+// ── reload_reader failure rollback ────────────────────────────────────────────
+
+#[test]
+#[tracing_test::traced_test]
+fn rebuild_rollback_first_build_no_prior_index() {
+    // First-ever build: no pre-existing live index, reload_reader injected to fail.
+    // All dirs must be cleaned up; no "step 2 failed" log (backup never created).
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+    git::commit(dir.path(), "pages").unwrap();
+
+    let mgr = make_manager(dir.path());
+    mgr.fail_next_reload
+        .store(true, std::sync::atomic::Ordering::Release);
+
+    let result = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry());
+
+    assert!(
+        result.is_err(),
+        "rebuild must fail when reload_reader fails"
+    );
+    assert!(
+        !mgr.index_path().join("search-index-building").exists(),
+        "build dir must be cleaned up after rollback"
+    );
+    assert!(
+        !mgr.index_path().join("search-index-prev").exists(),
+        "prev dir must not exist on first build"
+    );
+    assert!(!logs_contain("step 2 failed"));
+}
+
+#[test]
+#[tracing_test::traced_test]
+fn rebuild_rollback_subsequent_build_restores_prior_index() {
+    // Rebuild on top of existing live index; reload_reader injected to fail.
+    // Prior live index must be restored; all temp dirs cleaned up.
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+
+    let mgr = build_index(dir.path(), &wiki_root);
+
+    let live_dir = mgr.index_path().join("search-index");
+    assert!(live_dir.exists(), "live dir must exist after first build");
+
+    mgr.fail_next_reload
+        .store(true, std::sync::atomic::Ordering::Release);
+
+    write_page(&wiki_root, "concepts/bar.md", &concept_page("Bar", "body"));
+    git::commit(dir.path(), "second build").unwrap();
+    let result = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry());
+
+    assert!(
+        result.is_err(),
+        "rebuild must fail when reload_reader fails"
+    );
+    assert!(
+        live_dir.exists(),
+        "live dir must be restored from backup after rollback"
+    );
+    assert!(
+        !mgr.index_path().join("search-index-building").exists(),
+        "build dir must be cleaned up after rollback"
+    );
+    assert!(
+        !mgr.index_path().join("search-index-prev").exists(),
+        "prev dir must be absent after rollback completes"
+    );
+    assert!(!logs_contain("step 1 failed"));
+    assert!(!logs_contain("step 2 failed"));
 }
