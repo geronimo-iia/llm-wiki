@@ -7,42 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.1] — 2026-07-24
-
-### Added (tests)
-
-- **`frontmatter`** — `parse_empty_body`, `parse_empty_body_crlf`, `parse_title_null`, `confidence_nan_returns_none`
-- **`search`** — `list_page_size_zero_returns_error`, `list_page_size_one_exact`, `list_facet_on_absent_type_returns_empty`
-- **`slug`** — `slug_rejects_bare_dotdot`, `slug_rejects_dotdot_segment`, `slug_rejects_dotfile_component`, `slug_rejects_dotfile_in_path`, `slug_trailing_index_allowed`, `from_path_dotfile_errors`
-- **`index_manager`** — `rebuild_empty_wiki_state_written_and_searchable`, `rebuild_no_commits`, `update_no_commits_graceful`
-- **`export`** — `export_llms_txt_empty_wiki`, `export_llms_full_empty_wiki`, `export_json_empty_wiki`, `export_unicode_in_fields`
-- **`graph`** — `build_graph_self_referential_page`, `build_graph_disconnected_components`, `compute_metrics_empty_graph`, `render_mermaid_empty_graph_no_panic`, `render_dot_empty_graph_no_panic`, `render_llms_empty_graph_no_panic`
-- **`lint`** — `lint_stale_rule_no_false_positive_on_draft`, `lint_broken_link_cross_section_page_not_flagged`
-- **`markdown`** — `read_asset_binary_file_not_utf8_error`
+## [0.5.1] — 2026-07-25
 
 ### Fixed
 
-- **`search` tags split on whitespace** — `list()` was calling `get_first(f_tags)` + `split_whitespace`, which dropped all tags after the first and split multi-word tags (e.g. `"machine learning"` → `["machine", "learning"]`); fixed by classifying arrays with `x-keyword: true` as per-value keyword fields at index time and replacing `get_first` + `split_whitespace` with `get_all` at read time; tag values are now lowercased at index time to enforce the schema convention; all six schema files updated with `"x-keyword": true` on the `tags` field; schema hash change triggers automatic full index rebuild on next open
-- **`frontmatter::parse` silent YAML failure** — malformed YAML in a page's frontmatter block previously returned an empty `BTreeMap` with no diagnostic; callers now receive a `tracing::warn` with the file path and YAML error, and the page is indexed with empty frontmatter so processing continues; `parse()` gains an `Option<&Path>` parameter (breaking — see Semver note below)
-- **`frontmatter::write` panic on non-serializable values** — `serde_yaml::to_string()` failure was a hard panic; `write()` now returns `Result<String>` and propagates the error to callers via `?` (breaking — see Semver note below)
-- **`index_manager` atomic rebuild** — rebuild now writes to a temp `search-index-building/` directory and promotes it via atomic renames; live index is untouched until `commit()` succeeds; `reload_reader()` failure after swap triggers full rollback and returns a hard error instead of silently serving stale results
-- **`export` CRLF frontmatter** — `strip_frontmatter()` now correctly skips `\r\n` after the closing `---`; previously `\r` leaked into the body on Windows line endings
-- **`index_manager`/`git` wrong-prefix fallback** — `wiki_root.strip_prefix(repo_root).unwrap_or("wiki")` replaced with explicit error propagation in `update()`, `changed_wiki_files()`, and `changed_since_commit()`; ingest now surfaces the error instead of logging and continuing
-- **`ops/content` path traversal in `resolve_body_template`** — type names containing `..` components were passed directly into `repo_root.join("schemas/{type_name}.md")`, allowing reads outside the schemas directory; a `Component::ParentDir` guard now returns `None` immediately for any such input
-- **`export` bundle body not loaded** — `load_bodies` only checked for flat `{slug}.md` files; bundle pages stored as `{slug}/index.md` had their body silently skipped; a `resolve_page_path` helper now tries the flat path first and falls back to the bundle path
-- **`export` stale index entry warning** — when an index entry references a page that no longer exists on disk, `load_bodies` previously silently left the body `None`; it now emits `tracing::warn` with the slug so operators can detect index/disk drift
-- **`export` 100k page limit silent truncation** — `collect_pages` searches with `TopDocs::with_limit(100_000)` and returned results without signalling overflow; a `tracing::warn` is now emitted when the result set hits the limit so large wikis are not silently truncated
-- **`markdown::promote_to_bundle` missing pre-checks** — the function panicked or produced corrupt state when called on a non-existent flat page or when a bundle destination already existed; explicit pre-checks now return descriptive errors (`"flat page not found"`, `"bundle already exists"`) before any filesystem mutation
-- **`frontmatter::confidence` NaN** — `confidence: .nan` returned `Some(NaN)` due to missing `is_finite()` guard before clamp; now returns `None`
-- **`frontmatter::parse` empty frontmatter block** — `"---\n---\n"` and `"---\r\n---\r\n"` failed to find the closing delimiter and returned the raw content as body; parser now handles zero-length YAML sections
-- **`search::list` page_size=0 panic** — `page_size: 0` reached `TopDocs::with_limit(0)` in tantivy; now returns `Err("page_size must be at least 1")`
-- **`slug` path traversal — bare `..`** — `Slug::try_from("..")` and `"concepts/.."` were not rejected; replaced `contains("../")` check with `Component::ParentDir` traversal via `std::path::Path::components()`
-- **`slug` dotfile components** — slugs with hidden path segments (`.env`, `concepts/.hidden`) were accepted; a new guard rejects any segment starting with `.`
-- **`lint` stale rule false positive on drafts** — `rule_stale` applied to all pages regardless of `status`; now skips pages where `status` is not `"active"`, preventing draft and archived pages from being flagged
+- **`search` tags** — multi-word tags (e.g. `"machine learning"`) were split on whitespace; multi-value tags truncated to first value; uppercase variants not normalized; all corrected — tags stored per-value and lowercased at index time; triggers automatic full index rebuild on next open
+- **`frontmatter::parse` silent YAML failure** — malformed frontmatter returned empty data with no diagnostic; now logs a warning with the file path and continues indexing; `parse()` gains an `Option<&Path>` parameter (see Semver note)
+- **`frontmatter::write` panic** — non-serializable values caused a hard panic; `write()` now returns `Result<String>` (see Semver note)
+- **`index_manager` atomic rebuild** — rebuild promotes via atomic renames; live index untouched until commit succeeds; `reload_reader()` failure triggers full rollback instead of silently serving stale results; misleading "manual intervention required" log no longer emitted on first-ever build
+- **`export` CRLF frontmatter** — `\r` leaked into page body on Windows line endings; fixed
+- **`export` bundle body not loaded** — bundle pages (`{slug}/index.md`) had body silently skipped; now resolved correctly alongside flat pages
+- **`export` stale index entry** — missing on-disk page now emits a warning instead of silently leaving body empty
+- **`export` 100k page limit** — silent truncation at 100k results now emits a warning
+- **`ops/content` path traversal** — type names with `..` components in `resolve_body_template` could read outside the schemas directory; rejected at input
+- **`markdown::promote_to_bundle` missing pre-checks** — panicked on missing source or existing bundle destination; now returns descriptive errors before any mutation
+- **`frontmatter::confidence` NaN** — `confidence: .nan` returned `Some(NaN)`; now returns `None`
+- **`frontmatter::parse` empty frontmatter block** — `"---\n---\n"` returned raw content as body; now parsed correctly
+- **`search::list` page_size=0 panic** — `page_size: 0` reached tantivy's `TopDocs::with_limit(0)`; now returns an error
+- **`slug` path traversal** — bare `..` and `concepts/..` were accepted; rejected via `Component::ParentDir` check
+- **`slug` dotfile components** — hidden path segments (`.env`, `concepts/.hidden`) were accepted; now rejected
+- **`index_manager`/`git` wrong-prefix fallback** — silent `unwrap_or("wiki")` on prefix mismatch replaced with explicit error propagation
+- **`lint` stale rule false positive** — draft and archived pages were flagged as stale; rule now applies only to `status: active` pages
 
 ### Semver note
 
-`frontmatter::parse` and `frontmatter::write` are `pub` — their signature changes (`parse` gains `Option<&Path>`, `write` returns `Result<String>`) are technically breaking. They ship in this patch because the previous signatures were latent panics, not stable contracts.
+`frontmatter::parse` and `frontmatter::write` are `pub` — signature changes ship in this patch because the previous signatures were latent panics, not stable contracts.
 
 ## [0.5.0] — 2026-07-23
 

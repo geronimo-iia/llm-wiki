@@ -393,6 +393,105 @@ fn list_tags_empty() {
     assert!(result.pages[0].tags.is_empty());
 }
 
+#[test]
+fn list_tags_uppercase_normalized() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        "---\ntitle: \"Foo\"\nstatus: active\ntype: concept\ntags:\n  - Machine Learning\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert_eq!(result.pages.len(), 1);
+    assert_eq!(
+        result.pages[0].tags,
+        vec!["machine learning"],
+        "uppercase tag must be lowercased at index time"
+    );
+}
+
+#[test]
+fn list_tags_mixed_case_round_trip() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/foo.md",
+        "---\ntitle: \"Foo\"\nstatus: active\ntype: concept\ntags:\n  - NLP\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert_eq!(result.pages.len(), 1);
+    assert_eq!(
+        result.pages[0].tags,
+        vec!["nlp"],
+        "mixed-case tag must be stored as lowercase in PageSummary"
+    );
+}
+
+#[test]
+fn list_tags_facet_case_insensitive() {
+    // Verifies that two pages — one tagged "NLP", one tagged "nlp" — produce
+    // a single facet bucket "nlp" with count 2, confirming normalization is
+    // applied consistently so uppercase and lowercase variants coalesce.
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/a.md",
+        "---\ntitle: \"A\"\nstatus: active\ntype: concept\ntags:\n  - nlp\n---\n\nbody\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/b.md",
+        "---\ntitle: \"B\"\nstatus: active\ntype: concept\ntags:\n  - NLP\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions {
+            facets_top_tags: 10,
+            ..ListOptions::default()
+        },
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert_eq!(result.pages.len(), 2);
+    assert_eq!(
+        result.facets.tags.get("nlp").copied(),
+        Some(2),
+        "uppercase and lowercase 'nlp' must coalesce into one facet bucket"
+    );
+    assert!(
+        !result.facets.tags.contains_key("NLP"),
+        "uppercase variant must not appear as a separate facet bucket"
+    );
+}
+
 // ── search_all ────────────────────────────────────────────────────────────────
 
 #[test]

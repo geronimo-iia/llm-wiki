@@ -14,6 +14,7 @@ keywords = ["wiki", "knowledge-base", "mcp", "git", "acp"]
 categories = ["command-line-utilities", "development-tools"]
 exclude = [".github/", "tests/", "tests-integration/", "docs/"]
 
+
 [lib]
 name = "llm_wiki"
 path = "src/lib.rs"
@@ -78,7 +79,8 @@ tokio-util = { version = "0.7", features = ["compat"] }
 notify = "8"
 
 [dev-dependencies]
-tempfile   = "3"
+tempfile      = "3"
+tracing-test  = "0.2"
 
 [profile.release]
 opt-level      = 3

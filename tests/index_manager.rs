@@ -1182,3 +1182,77 @@ fn update_no_commits_graceful() {
     // Either Ok or Err is acceptable — no panic is the contract
     let _ = result;
 }
+
+// ── reload_reader failure rollback ────────────────────────────────────────────
+
+#[test]
+#[tracing_test::traced_test]
+fn rebuild_rollback_first_build_no_prior_index() {
+    // First-ever build: no pre-existing live index, reload_reader injected to fail.
+    // All dirs must be cleaned up; no "step 2 failed" log (backup never created).
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+    git::commit(dir.path(), "pages").unwrap();
+
+    let mgr = make_manager(dir.path());
+    mgr.fail_next_reload
+        .store(true, std::sync::atomic::Ordering::Release);
+
+    let result = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry());
+
+    assert!(
+        result.is_err(),
+        "rebuild must fail when reload_reader fails"
+    );
+    assert!(
+        !mgr.index_path().join("search-index-building").exists(),
+        "build dir must be cleaned up after rollback"
+    );
+    assert!(
+        !mgr.index_path().join("search-index-prev").exists(),
+        "prev dir must not exist on first build"
+    );
+    assert!(!logs_contain("step 2 failed"));
+}
+
+#[test]
+#[tracing_test::traced_test]
+fn rebuild_rollback_subsequent_build_restores_prior_index() {
+    // Rebuild on top of existing live index; reload_reader injected to fail.
+    // Prior live index must be restored; all temp dirs cleaned up.
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(&wiki_root, "concepts/foo.md", &concept_page("Foo", "body"));
+
+    let mgr = build_index(dir.path(), &wiki_root);
+
+    let live_dir = mgr.index_path().join("search-index");
+    assert!(live_dir.exists(), "live dir must exist after first build");
+
+    mgr.fail_next_reload
+        .store(true, std::sync::atomic::Ordering::Release);
+
+    write_page(&wiki_root, "concepts/bar.md", &concept_page("Bar", "body"));
+    git::commit(dir.path(), "second build").unwrap();
+    let result = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry());
+
+    assert!(
+        result.is_err(),
+        "rebuild must fail when reload_reader fails"
+    );
+    assert!(
+        live_dir.exists(),
+        "live dir must be restored from backup after rollback"
+    );
+    assert!(
+        !mgr.index_path().join("search-index-building").exists(),
+        "build dir must be cleaned up after rollback"
+    );
+    assert!(
+        !mgr.index_path().join("search-index-prev").exists(),
+        "prev dir must be absent after rollback completes"
+    );
+    assert!(!logs_contain("step 1 failed"));
+    assert!(!logs_contain("step 2 failed"));
+}

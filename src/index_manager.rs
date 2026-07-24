@@ -111,6 +111,10 @@ pub struct SpaceIndexManager {
     wiki_name: String,
     index_path: PathBuf,
     inner: RwLock<IndexInner>,
+    /// When `true`, the next `reload_reader()` call returns `Err` and clears the flag.
+    /// Never set in production code — only meaningful in tests.
+    #[doc(hidden)]
+    pub fail_next_reload: std::sync::atomic::AtomicBool,
 }
 
 impl SpaceIndexManager {
@@ -124,6 +128,7 @@ impl SpaceIndexManager {
                 index_reader: None,
                 generation: AtomicU64::new(0),
             }),
+            fail_next_reload: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -211,6 +216,12 @@ impl SpaceIndexManager {
     /// Reload the held IndexReader so searchers see the latest commit.
     /// No-op if the reader is not yet open. Safe to call after every write.
     fn reload_reader(&self) -> Result<()> {
+        if self
+            .fail_next_reload
+            .swap(false, std::sync::atomic::Ordering::AcqRel)
+        {
+            return Err(anyhow::anyhow!("injected reload_reader failure"));
+        }
         let inner = self
             .inner
             .read()
@@ -337,12 +348,15 @@ impl SpaceIndexManager {
                 "reload_reader failed after index swap — rolling back"
             );
             let r1 = std::fs::rename(&live_dir, &build_dir);
-            let r2 = std::fs::rename(&backup_dir, &live_dir);
             if let Err(e2) = &r1 {
                 tracing::error!(error = %e2, "rollback step 1 failed — index unavailable, manual intervention required");
             }
-            if let Err(e2) = &r2 {
-                tracing::error!(error = %e2, "rollback step 2 failed — index unavailable, manual intervention required");
+            // backup_dir only exists when there was a prior live_dir (not first build)
+            if backup_dir.exists() {
+                let r2 = std::fs::rename(&backup_dir, &live_dir);
+                if let Err(e2) = &r2 {
+                    tracing::error!(error = %e2, "rollback step 2 failed — index unavailable, manual intervention required");
+                }
             }
             let _ = std::fs::remove_dir_all(&build_dir);
             return Err(e)
