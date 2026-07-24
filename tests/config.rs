@@ -754,7 +754,10 @@ fn config_invalid_tokenizer_name_no_panic() {
     let mgr = SpaceIndexManager::new("test", &index_path);
     // Empty wiki — no documents to tokenize, so rebuild succeeds
     let result = mgr.rebuild(&wiki_root, dir.path(), &schema, &registry);
-    assert!(result.is_ok(), "rebuild with unknown tokenizer on empty wiki should not fail: {result:?}");
+    assert!(
+        result.is_ok(),
+        "rebuild with unknown tokenizer on empty wiki should not fail: {result:?}"
+    );
     // TODO: test that querying/indexing with an unknown tokenizer returns Err, not panic
 }
 
@@ -784,9 +787,12 @@ fn config_per_wiki_search_status_override_merged() {
 
     let mut wiki_cfg = WikiConfig::default();
     wiki_cfg.search = Some(SearchConfig {
-        status: [("archived".into(), 0.1_f32), ("superseded".into(), 0.05_f32)]
-            .into_iter()
-            .collect(),
+        status: [
+            ("archived".into(), 0.1_f32),
+            ("superseded".into(), 0.05_f32),
+        ]
+        .into_iter()
+        .collect(),
     });
 
     let resolved = resolve(&global, &wiki_cfg);

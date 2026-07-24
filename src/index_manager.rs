@@ -262,16 +262,15 @@ impl SpaceIndexManager {
     ) -> Result<IndexReport> {
         let start = std::time::Instant::now();
 
-        let live_dir   = self.index_path.join("search-index");
-        let build_dir  = self.index_path.join("search-index-building");
+        let live_dir = self.index_path.join("search-index");
+        let build_dir = self.index_path.join("search-index-building");
         let backup_dir = self.index_path.join("search-index-prev");
 
         // Unconditional entry cleanup — a crashed previous rebuild may have left a
         // lock file inside build_dir; opening a writer before wiping would reuse a
         // corrupt partial state.
         if build_dir.exists() {
-            std::fs::remove_dir_all(&build_dir)
-                .context("failed to remove stale build dir")?;
+            std::fs::remove_dir_all(&build_dir).context("failed to remove stale build dir")?;
         }
         std::fs::create_dir_all(&build_dir)?;
 
@@ -323,15 +322,12 @@ impl SpaceIndexManager {
         // Atomic swap: live → prev, building → live.
         // Both dirs are under self.index_path — same filesystem, rename is atomic.
         if backup_dir.exists() {
-            std::fs::remove_dir_all(&backup_dir)
-                .context("failed to remove stale backup dir")?;
+            std::fs::remove_dir_all(&backup_dir).context("failed to remove stale backup dir")?;
         }
         if live_dir.exists() {
-            std::fs::rename(&live_dir, &backup_dir)
-                .context("failed to move live dir to backup")?;
+            std::fs::rename(&live_dir, &backup_dir).context("failed to move live dir to backup")?;
         }
-        std::fs::rename(&build_dir, &live_dir)
-            .context("failed to promote build dir to live")?;
+        std::fs::rename(&build_dir, &live_dir).context("failed to promote build dir to live")?;
 
         // Activate new reader. On failure: roll back all renames and return error.
         if let Err(e) = self.reload_reader() {
@@ -349,7 +345,8 @@ impl SpaceIndexManager {
                 tracing::error!(error = %e2, "rollback step 2 failed — index unavailable, manual intervention required");
             }
             let _ = std::fs::remove_dir_all(&build_dir);
-            return Err(e).context("reload_reader failed after index rebuild; index may be unavailable");
+            return Err(e)
+                .context("reload_reader failed after index rebuild; index may be unavailable");
         }
 
         let _ = std::fs::remove_dir_all(&backup_dir);
@@ -393,12 +390,13 @@ impl SpaceIndexManager {
         let mut writer = self.writer()?;
 
         let f_slug = is.field("slug");
-        let wiki_prefix = wiki_root
-            .strip_prefix(repo_root)
-            .with_context(|| format!(
+        let wiki_prefix = wiki_root.strip_prefix(repo_root).with_context(|| {
+            format!(
                 "wiki_root {} is not under repo_root {}; check space configuration",
-                wiki_root.display(), repo_root.display()
-            ))?;
+                wiki_root.display(),
+                repo_root.display()
+            )
+        })?;
         let mut updated = 0;
         let mut deleted = 0;
 

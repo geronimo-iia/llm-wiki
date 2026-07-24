@@ -836,7 +836,10 @@ fn rebuild_leaves_no_build_dir() {
     let mgr = build_index(dir.path(), &wiki_root);
 
     let build_dir = mgr.index_path().join("search-index-building");
-    assert!(!build_dir.exists(), "search-index-building must be absent after successful rebuild");
+    assert!(
+        !build_dir.exists(),
+        "search-index-building must be absent after successful rebuild"
+    );
 }
 
 #[test]
@@ -848,7 +851,10 @@ fn rebuild_leaves_no_backup_dir() {
     let mgr = build_index(dir.path(), &wiki_root);
 
     let backup_dir = mgr.index_path().join("search-index-prev");
-    assert!(!backup_dir.exists(), "search-index-prev must be absent after successful rebuild");
+    assert!(
+        !backup_dir.exists(),
+        "search-index-prev must be absent after successful rebuild"
+    );
 }
 
 #[test]
@@ -866,8 +872,14 @@ fn rebuild_stale_build_dir_wiped_at_entry() {
     fs::write(build_dir.join("stale_artifact.txt"), b"crash leftovers").unwrap();
 
     let result = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry());
-    assert!(result.is_ok(), "rebuild must succeed despite stale build dir");
-    assert!(!build_dir.exists(), "stale build dir must be gone after rebuild");
+    assert!(
+        result.is_ok(),
+        "rebuild must succeed despite stale build dir"
+    );
+    assert!(
+        !build_dir.exists(),
+        "stale build dir must be gone after rebuild"
+    );
 }
 
 #[test]
@@ -879,7 +891,9 @@ fn rebuild_empty_wiki() {
     let mgr = make_manager(dir.path());
     git::commit(dir.path(), "empty").unwrap();
 
-    let report = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry()).unwrap();
+    let report = mgr
+        .rebuild(&wiki_root, dir.path(), &schema(), &registry())
+        .unwrap();
     assert_eq!(report.pages_indexed, 0);
     assert_eq!(report.skipped, 0);
 }
@@ -888,14 +902,22 @@ fn rebuild_empty_wiki() {
 fn rebuild_then_query() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
-    write_page(&wiki_root, "concepts/alpha.md", &concept_page("AlphaPage", "unique body content"));
+    write_page(
+        &wiki_root,
+        "concepts/alpha.md",
+        &concept_page("AlphaPage", "unique body content"),
+    );
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let reg = registry();
 
     // Second rebuild with an extra page
-    write_page(&wiki_root, "concepts/beta.md", &concept_page("BetaPage", "second page content"));
+    write_page(
+        &wiki_root,
+        "concepts/beta.md",
+        &concept_page("BetaPage", "second page content"),
+    );
     git::commit(dir.path(), "add beta").unwrap();
     mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
 
@@ -1017,8 +1039,7 @@ fn update_default_wiki_root_slug_correct() {
         &concept_page("FooDefault", "body"),
     );
 
-    mgr.update(&wiki_root, dir.path(), None, &is, &reg)
-        .unwrap();
+    mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
 
     let searcher = open_searcher(&mgr, &is);
     let results = search::search(
@@ -1034,7 +1055,10 @@ fn update_default_wiki_root_slug_correct() {
         .iter()
         .find(|r| r.title == "FooDefault")
         .expect("page not found");
-    assert_eq!(hit.slug, "concepts/foo", "slug must not include wiki/ prefix");
+    assert_eq!(
+        hit.slug, "concepts/foo",
+        "slug must not include wiki/ prefix"
+    );
 }
 
 #[test]
@@ -1059,8 +1083,7 @@ fn update_custom_wiki_root_slug_correct() {
         &concept_page("FooCustom", "body"),
     );
 
-    mgr.update(&wiki_root, dir.path(), None, &is, &reg)
-        .unwrap();
+    mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
 
     let searcher = open_searcher(&mgr, &is);
     let results = search::search(

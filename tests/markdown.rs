@@ -302,7 +302,10 @@ fn promote_to_bundle_ok() {
     promote_to_bundle(&slug("topics/guide"), &wiki).unwrap();
 
     assert!(!wiki.join("topics/guide.md").exists(), "flat removed");
-    assert!(wiki.join("topics/guide/index.md").is_file(), "bundle created");
+    assert!(
+        wiki.join("topics/guide/index.md").is_file(),
+        "bundle created"
+    );
 }
 
 #[test]

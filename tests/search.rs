@@ -303,7 +303,13 @@ fn list_tags_single_word() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let result = list(&ListOptions::default(), &mgr.searcher().unwrap(), "test", &is).unwrap();
+    let result = list(
+        &ListOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
 
     assert_eq!(result.pages.len(), 1);
     assert_eq!(result.pages[0].tags, vec!["rust"]);
@@ -321,7 +327,13 @@ fn list_tags_multi_word() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let result = list(&ListOptions::default(), &mgr.searcher().unwrap(), "test", &is).unwrap();
+    let result = list(
+        &ListOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
 
     assert_eq!(result.pages.len(), 1);
     assert_eq!(
@@ -343,7 +355,13 @@ fn list_tags_multiple() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let result = list(&ListOptions::default(), &mgr.searcher().unwrap(), "test", &is).unwrap();
+    let result = list(
+        &ListOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
 
     assert_eq!(result.pages.len(), 1);
     let mut tags = result.pages[0].tags.clone();
@@ -363,7 +381,13 @@ fn list_tags_empty() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let result = list(&ListOptions::default(), &mgr.searcher().unwrap(), "test", &is).unwrap();
+    let result = list(
+        &ListOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
 
     assert_eq!(result.pages.len(), 1);
     assert!(result.pages[0].tags.is_empty());
