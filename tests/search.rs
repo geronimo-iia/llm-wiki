@@ -807,7 +807,11 @@ fn list_page_size_zero_returns_error() {
 fn list_page_size_one_exact() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
-    write_page(&wiki_root, "concepts/solo.md", &concept_page("Solo", "body"));
+    write_page(
+        &wiki_root,
+        "concepts/solo.md",
+        &concept_page("Solo", "body"),
+    );
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();

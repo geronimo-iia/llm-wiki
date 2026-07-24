@@ -280,7 +280,11 @@ fn parse_empty_body_crlf() {
 fn parse_title_null() {
     let content = "---\ntitle: null\n---\nbody";
     let page = parse(content, None);
-    assert_eq!(page.title(), None, "null title must return None, not Some(\"null\")");
+    assert_eq!(
+        page.title(),
+        None,
+        "null title must return None, not Some(\"null\")"
+    );
 }
 
 #[test]

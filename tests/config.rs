@@ -785,15 +785,17 @@ fn config_per_wiki_search_status_override_merged() {
     global.search.status.insert("active".into(), 1.0);
     global.search.status.insert("archived".into(), 0.3);
 
-    let mut wiki_cfg = WikiConfig::default();
-    wiki_cfg.search = Some(SearchConfig {
-        status: [
-            ("archived".into(), 0.1_f32),
-            ("superseded".into(), 0.05_f32),
-        ]
-        .into_iter()
-        .collect(),
-    });
+    let wiki_cfg = WikiConfig {
+        search: Some(SearchConfig {
+            status: [
+                ("archived".into(), 0.1_f32),
+                ("superseded".into(), 0.05_f32),
+            ]
+            .into_iter()
+            .collect(),
+        }),
+        ..Default::default()
+    };
 
     let resolved = resolve(&global, &wiki_cfg);
     // Per-wiki overrides global for "archived"

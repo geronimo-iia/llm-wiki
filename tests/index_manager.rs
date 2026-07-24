@@ -1149,10 +1149,16 @@ fn rebuild_no_commits() {
     let mgr = make_manager(dir.path());
     // Must not panic; commit field will be empty string
     let result = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry());
-    assert!(result.is_ok(), "rebuild on unborn HEAD must not panic: {result:?}");
+    assert!(
+        result.is_ok(),
+        "rebuild on unborn HEAD must not panic: {result:?}"
+    );
 
     let state_path = dir.path().join("index-store").join("state.toml");
-    assert!(state_path.exists(), "state.toml written even with no commits");
+    assert!(
+        state_path.exists(),
+        "state.toml written even with no commits"
+    );
     let state: toml::Value =
         toml::from_str(&std::fs::read_to_string(&state_path).unwrap()).unwrap();
     // commit field present; may be empty string or absent — either is valid

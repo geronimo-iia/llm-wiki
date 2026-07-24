@@ -331,7 +331,7 @@ fn export_skips_stale_index_entry() {
     if let Some(stale) = arr.iter().find(|p| p["slug"] == "concepts/stale-page") {
         // Body absent or null — stale page should not have body text
         assert!(
-            stale["body"].is_null() || stale["body"].as_str().map_or(true, |s| s.is_empty()),
+            stale["body"].is_null() || stale["body"].as_str().is_none_or(|s| s.is_empty()),
             "stale page should have empty/null body"
         );
     }
@@ -456,7 +456,10 @@ fn export_json_empty_wiki() {
 
     let content = fs::read_to_string(&report.path).unwrap();
     let pages: serde_json::Value = serde_json::from_str(&content).unwrap();
-    assert!(pages.as_array().unwrap().is_empty(), "empty wiki must export []");
+    assert!(
+        pages.as_array().unwrap().is_empty(),
+        "empty wiki must export []"
+    );
 }
 
 #[test]

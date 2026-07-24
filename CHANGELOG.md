@@ -7,14 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- **`frontmatter::confidence` NaN** — `confidence: .nan` returned `Some(NaN)` due to missing `is_finite()` guard before clamp; now returns `None`
-- **`frontmatter::parse` empty frontmatter block** — `"---\n---\n"` and `"---\r\n---\r\n"` failed to find the closing delimiter and returned the raw content as body; parser now handles zero-length YAML sections
-- **`search::list` page_size=0 panic** — `page_size: 0` reached `TopDocs::with_limit(0)` in tantivy; now returns `Err("page_size must be at least 1")`
-- **`slug` path traversal — bare `..`** — `Slug::try_from("..")` and `"concepts/.."` were not rejected; replaced `contains("../")` check with `Component::ParentDir` traversal via `std::path::Path::components()`
-- **`slug` dotfile components** — slugs with hidden path segments (`.env`, `concepts/.hidden`) were accepted; a new guard rejects any segment starting with `.`
-- **`lint` stale rule false positive on drafts** — `rule_stale` applied to all pages regardless of `status`; now skips pages where `status` is not `"active"`, preventing draft and archived pages from being flagged
+## [0.5.1] — 2026-07-24
 
 ### Added (tests)
 
@@ -26,8 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`graph`** — `build_graph_self_referential_page`, `build_graph_disconnected_components`, `compute_metrics_empty_graph`, `render_mermaid_empty_graph_no_panic`, `render_dot_empty_graph_no_panic`, `render_llms_empty_graph_no_panic`
 - **`lint`** — `lint_stale_rule_no_false_positive_on_draft`, `lint_broken_link_cross_section_page_not_flagged`
 - **`markdown`** — `read_asset_binary_file_not_utf8_error`
-
-## [0.5.1] — 2026-07-24
 
 ### Fixed
 
@@ -42,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`export` stale index entry warning** — when an index entry references a page that no longer exists on disk, `load_bodies` previously silently left the body `None`; it now emits `tracing::warn` with the slug so operators can detect index/disk drift
 - **`export` 100k page limit silent truncation** — `collect_pages` searches with `TopDocs::with_limit(100_000)` and returned results without signalling overflow; a `tracing::warn` is now emitted when the result set hits the limit so large wikis are not silently truncated
 - **`markdown::promote_to_bundle` missing pre-checks** — the function panicked or produced corrupt state when called on a non-existent flat page or when a bundle destination already existed; explicit pre-checks now return descriptive errors (`"flat page not found"`, `"bundle already exists"`) before any filesystem mutation
+- **`frontmatter::confidence` NaN** — `confidence: .nan` returned `Some(NaN)` due to missing `is_finite()` guard before clamp; now returns `None`
+- **`frontmatter::parse` empty frontmatter block** — `"---\n---\n"` and `"---\r\n---\r\n"` failed to find the closing delimiter and returned the raw content as body; parser now handles zero-length YAML sections
+- **`search::list` page_size=0 panic** — `page_size: 0` reached `TopDocs::with_limit(0)` in tantivy; now returns `Err("page_size must be at least 1")`
+- **`slug` path traversal — bare `..`** — `Slug::try_from("..")` and `"concepts/.."` were not rejected; replaced `contains("../")` check with `Component::ParentDir` traversal via `std::path::Path::components()`
+- **`slug` dotfile components** — slugs with hidden path segments (`.env`, `concepts/.hidden`) were accepted; a new guard rejects any segment starting with `.`
+- **`lint` stale rule false positive on drafts** — `rule_stale` applied to all pages regardless of `status`; now skips pages where `status` is not `"active"`, preventing draft and archived pages from being flagged
 
 ### Semver note
 

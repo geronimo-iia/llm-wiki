@@ -7,7 +7,7 @@ use llm_wiki::index_manager::SpaceIndexManager;
 use llm_wiki::index_schema::IndexSchema;
 use llm_wiki::space_builder;
 use llm_wiki::type_registry::SpaceTypeRegistry;
-use petgraph_live;
+use petgraph_live as _;
 
 fn schema_and_registry() -> (IndexSchema, SpaceTypeRegistry) {
     let (registry, schema) = space_builder::build_space_from_embedded("en_stem");
@@ -973,11 +973,27 @@ fn build_graph_disconnected_components() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
     // Cluster A
-    write_page(&wiki_root, "cluster-a/alpha.md", &page_with_body_links("Alpha", "See [[cluster-a/beta]]."));
-    write_page(&wiki_root, "cluster-a/beta.md", &simple_page("Beta", "concept"));
+    write_page(
+        &wiki_root,
+        "cluster-a/alpha.md",
+        &page_with_body_links("Alpha", "See [[cluster-a/beta]]."),
+    );
+    write_page(
+        &wiki_root,
+        "cluster-a/beta.md",
+        &simple_page("Beta", "concept"),
+    );
     // Cluster B (no link to/from cluster A)
-    write_page(&wiki_root, "cluster-b/gamma.md", &page_with_body_links("Gamma", "See [[cluster-b/delta]]."));
-    write_page(&wiki_root, "cluster-b/delta.md", &simple_page("Delta", "concept"));
+    write_page(
+        &wiki_root,
+        "cluster-b/gamma.md",
+        &page_with_body_links("Gamma", "See [[cluster-b/delta]]."),
+    );
+    write_page(
+        &wiki_root,
+        "cluster-b/delta.md",
+        &simple_page("Delta", "concept"),
+    );
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
