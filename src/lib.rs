@@ -32,6 +32,8 @@ pub mod markdown;
 pub mod mcp;
 /// High-level operations called by CLI and server handlers.
 pub mod ops;
+/// Filesystem path helpers shared across the engine.
+pub mod pathutil;
 /// Full-text BM25 search and paginated list operations.
 pub mod search;
 /// HTTP and stdio server entry points.

@@ -7,6 +7,7 @@ use toml;
 use crate::config::{GlobalConfig, WikiEntry, load_global, save_global};
 use crate::default_schemas::default_schemas;
 use crate::git;
+use crate::pathutil::strip_verbatim_prefix;
 
 // ── CreateReport ──────────────────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ pub fn create(
         std::fs::create_dir_all(path)?;
         created = true;
     }
-    let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let path = strip_verbatim_prefix(path.canonicalize().unwrap_or_else(|_| path.to_path_buf()));
     let wiki_root = wiki_root.unwrap_or("wiki");
     let mut committed = false;
 
@@ -145,7 +146,7 @@ pub fn register_existing(
     if !path.exists() {
         bail!("path \"{}\" does not exist", path.display());
     }
-    let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let path = strip_verbatim_prefix(path.canonicalize().unwrap_or_else(|_| path.to_path_buf()));
 
     // Read existing wiki.toml wiki_root if present
     let existing_toml_root: Option<String> = {

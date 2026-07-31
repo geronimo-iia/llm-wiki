@@ -274,7 +274,7 @@ impl WikiEngine {
 // ── mount_wiki ────────────────────────────────────────────────────────────────
 
 fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Result<SpaceContext> {
-    let repo_root = PathBuf::from(&entry.path);
+    let repo_root = crate::pathutil::strip_verbatim_prefix(PathBuf::from(&entry.path));
     let wiki_cfg = config::load_wiki(&repo_root).unwrap_or_default();
     let wiki_root = repo_root.join(&wiki_cfg.wiki_root);
     let index_path = state_dir.join("indexes").join(&entry.name);
