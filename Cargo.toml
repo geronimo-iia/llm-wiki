@@ -1,6 +1,6 @@
 [package]
 name = "llm-wiki-engine"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2024"
 rust-version = "1.95"
 description = "Git-backed wiki engine with MCP/ACP server — bring your own LLM"
@@ -74,7 +74,7 @@ rmcp       = { version = "2.2", features = ["server", "transport-io", "transport
 axum       = "0.8"
 
 # ACP server
-agent-client-protocol = "1.3"
+agent-client-protocol = "2.0"
 tokio-util = { version = "0.7", features = ["compat"] }
 notify = "8"
 

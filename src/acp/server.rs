@@ -294,11 +294,19 @@ pub async fn serve_acp(
         )
         // ── Catch-all ────────────────────────────────────────────────
         .on_receive_dispatch(
-            async move |msg: Dispatch, cx: ConnectionTo<Client>| {
-                msg.respond_with_error(
-                    agent_client_protocol::util::internal_error("not supported"),
-                    cx,
-                )
+            async move |msg: Dispatch, _cx: ConnectionTo<Client>| {
+                match msg {
+                    Dispatch::Request(_, responder) => responder.respond_with_error(
+                        agent_client_protocol::schema::v1::Error::new(
+                            i32::from(
+                                agent_client_protocol::schema::v1::ErrorCode::MethodNotFound,
+                            ),
+                            "not supported".to_string(),
+                        ),
+                    ),
+                    Dispatch::Notification(_) => Ok(()),
+                    Dispatch::Response(result, router) => router.route_with_result(result),
+                }
             },
             on_receive_dispatch!(),
         )
