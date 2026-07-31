@@ -7,7 +7,7 @@ A headless wiki engine for agents. 23 MCP tools. One Rust binary. No LLM inside.
 A git-backed Markdown wiki — searchable, typed, graph-linked. Accessible from
 the command line, from any MCP-compatible agent, or from any IDE via ACP.
 
----
+![llm-wiki](docs/llm_wiki.png)
 
 ## The problem with RAG
 
