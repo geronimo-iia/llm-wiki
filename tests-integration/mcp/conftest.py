@@ -24,7 +24,7 @@ class McpEnv:
         result = await self._session.call_tool(tool, args or {})
         if not result.content:
             raise AssertionError(f"call_tool({tool!r}) returned empty content")
-        if getattr(result, "isError", False):
+        if getattr(result, "is_error", False):
             raise AssertionError(f"call_tool({tool!r}) returned error: {result.content[0].text}")
         return result.content[0].text
 
@@ -38,7 +38,7 @@ class McpEnv:
     async def call_raw(self, tool: str, args: dict | None = None) -> tuple[bool, str]:
         """Returns (is_error, text) without raising on tool errors."""
         result = await self._session.call_tool(tool, args or {})
-        is_error = getattr(result, "isError", False)
+        is_error = getattr(result, "is_error", False)
         text = result.content[0].text if result.content else ""
         return is_error, text
 
