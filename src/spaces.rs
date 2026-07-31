@@ -282,7 +282,8 @@ pub fn validate_wiki_root(repo_path: &Path, wiki_root: &str) -> Result<()> {
     if wiki_root.is_empty() || wiki_root == "." {
         bail!("wiki_root must not be empty or \".\"");
     }
-    if std::path::Path::new(wiki_root).is_absolute() {
+    // starts_with('/') catches Unix-style absolute paths on Windows where is_absolute() returns false for paths without a drive letter
+    if std::path::Path::new(wiki_root).is_absolute() || wiki_root.starts_with('/') {
         bail!("wiki_root must be a relative path (no leading \"/\")");
     }
     use std::path::Component;
