@@ -28,10 +28,11 @@ feat/yyy  ─┼─▶  release/vX.Y.Z  ─▶  main  (tag vX.Y.Z)
 feat/zzz  ─┘
 ```
 
-1. Open `release/vX.Y.Z` from `main` at the start of the milestone.
-2. Each `feat/...` PR targets `release/vX.Y.Z`, not `main`.
-3. Run the pre-release checklist as commits on `release/vX.Y.Z`.
-4. One final PR merges `release/vX.Y.Z` → `main`; tag on the merge commit.
+1. Complete the [Pre-Release Checklist](#pre-release-checklist) on `main` before branching.
+2. Open `release/vX.Y.Z` from `main` at the start of the milestone.
+3. Each `feat/...` PR targets `release/vX.Y.Z`, not `main`.
+4. Run the pre-release checklist as commits on `release/vX.Y.Z`.
+5. One final PR merges `release/vX.Y.Z` → `main`; tag on the merge commit.
 
 Hotfixes branch from the relevant tag and merge back to both `main` and the
 active `release/` branch if one is open.
