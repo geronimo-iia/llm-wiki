@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`agent-client-protocol` 2.0** — bumped from 1.3; migrated ACP catch-all dispatch handler to 2.0 variant-match API (`Dispatch::respond_with_error` removed upstream)
+
 ## [0.5.2] — 2026-07-31
 
 ### Fixed
