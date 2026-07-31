@@ -51,11 +51,4 @@ details, error handling conventions, testing patterns, and code quality rules.
 
 ## Release Process
 
-1. Bump `version` in `Cargo.toml`.
-2. Update `CHANGELOG.md`.
-3. Commit: `chore: bump version to x.y.z`.
-4. Tag: `git tag vx.y.z && git push origin vx.y.z`.
-
-Tagging triggers the release workflow — builds binaries for Linux x86_64,
-macOS Intel, and macOS Apple Silicon, creates a GitHub release, and publishes
-to crates.io.
+See [docs/guides/release.md](docs/guides/release.md) for the full checklist, branch strategy, and tagging instructions.
