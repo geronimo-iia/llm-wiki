@@ -387,8 +387,19 @@ fn validate_wiki_root_accepts_multi_component() {
 }
 
 #[test]
+#[cfg(not(windows))]
 fn validate_wiki_root_rejects_absolute() {
     let dir = tempfile::tempdir().unwrap();
+    let err = llm_wiki::spaces::validate_wiki_root(dir.path(), "/absolute").unwrap_err();
+    assert!(err.to_string().contains("must be a relative path"));
+}
+
+#[test]
+#[cfg(windows)]
+fn validate_wiki_root_rejects_absolute_windows() {
+    let dir = tempfile::tempdir().unwrap();
+    // On Windows, /absolute has no drive letter so is_absolute() is false.
+    // The check must still reject it via starts_with('/').
     let err = llm_wiki::spaces::validate_wiki_root(dir.path(), "/absolute").unwrap_err();
     assert!(err.to_string().contains("must be a relative path"));
 }

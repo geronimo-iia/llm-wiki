@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Windows verbatim path prefix** — `std::fs::canonicalize` returns `\\?\`-prefixed paths on Windows; stripped before use so `file://` URLs are valid; UNC paths (`\\?\UNC\srv\share`) correctly normalised to `\\srv\share`
+- **`validate_wiki_root` absolute path on Windows** — `/absolute` paths without a drive letter were not rejected by `is_absolute()`; added explicit `starts_with('/')` guard
+
 ## [0.5.1] — 2026-07-25
 
 ### Fixed
