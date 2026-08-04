@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`graph` stale snapshot on fresh process** — `llm-wiki graph` returned an empty graph after index rebuild because the snapshot key was the in-memory `generation` counter (always `0` on startup); replaced with `last_commit()` (git HEAD SHA from `state.toml`), which is stable across restarts and changes on every index rebuild (issue #112)
 - **`index rebuild` graph cache not refreshed** — CLI `index rebuild` did not refresh the graph snapshot after rebuilding the tantivy index; now matches MCP handler behaviour by calling `graph_cache.rebuild()` after each index rebuild
 
+### Changed
+
+- **`ops::index_rebuild` owns graph cache refresh** — graph snapshot refresh moved from `handle_index_rebuild` (MCP handler) into `ops::index_rebuild`; CLI and MCP now share identical post-rebuild behaviour with no duplication
+
 ## [0.5.3] — 2026-07-31
 
 ### Changed
