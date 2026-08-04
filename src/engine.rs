@@ -384,7 +384,11 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
             &entry.name,
             state_dir,
             &resolved_cfg.graph,
-            move || Ok(im_key.generation().to_string()),
+            move || {
+                Ok(im_key
+                    .last_commit()
+                    .unwrap_or_else(|| "no-commit".to_string()))
+            },
             move || {
                 let searcher = im_build.searcher().map_err(|e| {
                     petgraph_live::snapshot::SnapshotError::Io(std::io::Error::other(e.to_string()))
