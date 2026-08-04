@@ -57,8 +57,7 @@ fn graph_not_empty_after_index_rebuild_simulating_fresh_process() {
 
     // ── Process 1: create empty wiki, trigger first mount ──────────────────
     // This saves wiki-graph-0.snap.lz4 (empty) because generation=0 and wiki has 0 pages.
-    llm_wiki::spaces::create(&wiki_path, "mywiki", None, false, true, &config_path, None)
-        .unwrap();
+    llm_wiki::spaces::create(&wiki_path, "mywiki", None, false, true, &config_path, None).unwrap();
     let engine1 = llm_wiki::engine::WikiEngine::build(&config_path).unwrap();
     drop(engine1); // process exits
 
