@@ -2,6 +2,10 @@
 title: "Graph Cache v0.3.0"
 summary: "Design decisions for in-memory WikiGraph cache: keying strategy, invalidation, community map co-location, filtered bypass."
 date: "2026-05-01"
+superseded_by:
+  - section: "Generation counter as cache key (WithSnapshot variant)"
+    by: "docs/decisions/0.6.0/graph-snapshot-stale-key.md"
+    reason: "generation() resets to 0 on every process start — stale snapshots on CLI. Replaced by last_commit() for WithSnapshot; generation() still used in NoSnapshot."
 ---
 
 # Graph Cache v0.3.0
@@ -17,6 +21,11 @@ Cache the full unfiltered `WikiGraph` per wiki space in `SpaceContext.graph_cach
 ## Decisions and Rationale
 
 ### Generation counter as cache key
+
+> **Partially superseded (v0.6.0):** for `WikiGraphCache::WithSnapshot`, the key is now
+> `last_commit()` (git HEAD SHA from `state.toml`), not `generation()`. The `generation()`
+> counter is still used in `WikiGraphCache::NoSnapshot`. See
+> [0.6.0/graph-snapshot-stale-key.md](../0.6.0/graph-snapshot-stale-key.md).
 
 **Decision:** `CachedGraph.generation: u64` stores the `SpaceIndexManager.generation()` value at build time. On each cache read, the current generation is compared; mismatch → evict and rebuild.
 

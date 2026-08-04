@@ -4,6 +4,28 @@ Architectural decisions and their rationale, grouped by release.
 
 ---
 
+## v0.6.0 — 2026-08-04
+
+### Bug fixes
+
+| Decision | Summary |
+| -------- | ------- |
+| [graph-snapshot-stale-key](0.6.0/graph-snapshot-stale-key.md) | Fix stale graph snapshot: `key_fn` switched from `generation()` (resets to 0 on process start) to `last_commit()` (git HEAD SHA, stable across restarts). Supersedes keying section of [0.3.0/graph-cache](0.3.0/graph-cache.md) for `WithSnapshot` variant. |
+| [reject-page-id](0.6.0/reject-page-id.md) | Permanent page identity via ULID was evaluated and rejected — the lint loop already covers reorganization |
+
+---
+
+## v0.5.0 — 2026-07-23
+
+### Search & Export
+
+| Decision | Summary |
+| -------- | ------- |
+| [config-search-status](0.5.0/config-search-status.md) | `search.status.<key>` is now a valid dot-notation path in `config set/get`, enabling CLI access to search ranking multipliers |
+| [export-custom-frontmatter](0.5.0/export-custom-frontmatter.md) | JSON export now includes a `frontmatter` object per page with fields not already surfaced at the top level |
+
+---
+
 ## v0.4.1 — 2026-05-04
 
 ### Testing
