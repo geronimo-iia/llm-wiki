@@ -38,7 +38,7 @@ jobs:
       - name: Test
         run: cargo test --locked
 
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@v2.85.6
         if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
         with:
           tool: cargo-audit
