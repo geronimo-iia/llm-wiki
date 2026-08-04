@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4] — 2026-08-04
+
 ### Fixed
 
 - **`graph` stale snapshot on fresh process** — `llm-wiki graph` returned an empty graph after index rebuild because the snapshot key was the in-memory `generation` counter (always `0` on startup); replaced with `last_commit()` (git HEAD SHA from `state.toml`), which is stable across restarts and changes on every index rebuild (issue #112)
