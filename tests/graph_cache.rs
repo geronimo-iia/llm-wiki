@@ -426,20 +426,8 @@ fn graph_cache_invalidated_after_rebuild() {
         .unwrap()
     }; // drop engine read lock
 
-    // Trigger rebuild — bumps generation
-    {
-        let engine = manager.state.read().unwrap();
-        let space = engine.spaces.get("test").unwrap();
-        space
-            .index_manager
-            .rebuild(
-                &space.wiki_root,
-                &space.repo_root,
-                &space.index_schema,
-                &space.type_registry,
-            )
-            .unwrap();
-    }
+    // Trigger rebuild — refreshes graph cache (ops::index_rebuild calls graph_cache.rebuild)
+    llm_wiki::ops::index_rebuild(&manager, "test").unwrap();
 
     let arc2 = {
         let engine = manager.state.read().unwrap();

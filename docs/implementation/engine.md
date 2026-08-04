@@ -2,7 +2,7 @@
 title: "Engine Implementation"
 summary: "Top-level engine structs, space mounting, and how registries and indexes compose at runtime."
 status: ready
-last_updated: "2026-05-03"
+last_updated: "2026-08-04"
 ---
 
 # Engine Implementation
@@ -56,7 +56,9 @@ inside `WikiGraphCache::WithSnapshot`. Arc clone at construction; deref is trans
 
 `graph_cache` is a `WikiGraphCache` enum: `NoSnapshot(GenerationCache<WikiGraph>)`
 or `WithSnapshot(GraphState<WikiGraph>)`. Controlled by `graph.snapshot` config.
-Both invalidate automatically when `index_manager.generation()` changes.
+`NoSnapshot` invalidates when `index_manager.generation()` changes. `WithSnapshot`
+uses `index_manager.last_commit()` (git HEAD SHA from `state.toml`) as the snapshot
+key — stable across process restarts, changes on every `index rebuild`.
 See [graph-cache.md](graph-cache.md) and [petgraph-live.md](petgraph-live.md).
 
 `community_cache` is plain `GenerationCache<CommunityData>` — not snapshotted.
