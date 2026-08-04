@@ -137,3 +137,88 @@ fn graph_not_empty_after_index_rebuild_cli() {
         "graph output must not be empty header only: got:\n{stdout}"
     );
 }
+
+#[test]
+fn cli_search_returns_results() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki_for_cli(dir.path());
+
+    let out = binary()
+        .args([
+            "--config",
+            config_path.to_str().unwrap(),
+            "--wiki",
+            "test",
+            "search",
+            "alpha",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "search failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("slug"),
+        "search must return at least one result: got:\n{stdout}"
+    );
+}
+
+#[test]
+fn cli_list_returns_pages() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki_for_cli(dir.path());
+
+    let out = binary()
+        .args([
+            "--config",
+            config_path.to_str().unwrap(),
+            "--wiki",
+            "test",
+            "list",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "list failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("concepts/alpha") || stdout.contains("concepts/beta"),
+        "list must return pages: got:\n{stdout}"
+    );
+}
+
+#[test]
+fn cli_index_status_reports_openable() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki_for_cli(dir.path());
+
+    let out = binary()
+        .args([
+            "--config",
+            config_path.to_str().unwrap(),
+            "--wiki",
+            "test",
+            "index",
+            "status",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "index status failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("openable:  yes")
+            || stdout.contains("openable:  true")
+            || stdout.contains("\"openable\": true"),
+        "index must be openable after initial build: got:\n{stdout}"
+    );
+}
