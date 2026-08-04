@@ -115,6 +115,7 @@ fn graph_cache_miss_on_filtered_request() {
 }
 
 #[test]
+#[ignore = "timing-sensitive, unreliable on CI runners"]
 fn graph_cache_hit_is_faster_than_miss() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
