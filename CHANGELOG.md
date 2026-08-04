@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- Added `AGENTS.md` at repo root — codebase map, key types, CLI vs MCP lifetime, ops layer rule, test patterns, CI table
+- Added `docs/invariants.md` — architectural constraints not enforced by the compiler (snapshot key stability, ops layer ownership, lock ordering, schema-driven types, cross-wiki resolution, no stable page id, filtered graph bypass)
+- Added `docs/decisions/0.6.0/graph-snapshot-stale-key.md` — records root cause, fix, alternatives, and test coverage for issue #112
+- Updated `docs/decisions/README.md` with v0.5.0 and v0.6.0 sections; annotated `0.3.0/graph-cache.md` generation-key section as partially superseded
+
 ## [0.5.4] — 2026-08-04
 
 ### Fixed
