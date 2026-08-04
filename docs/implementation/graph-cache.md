@@ -2,7 +2,7 @@
 title: "Graph Cache Implementation"
 summary: "In-memory graph cache keyed on index generation — eliminates redundant build_graph and Louvain calls in serve mode."
 status: ready
-last_updated: "2026-05-03"
+last_updated: "2026-08-04"
 depends_on:
   - engine.md
   - index-manager.md
@@ -198,11 +198,13 @@ pub enum WikiGraphCache {
 ```
 
 `WithSnapshot` is constructed when `graph.snapshot = true` (default). On process restart:
-- `GraphState::init()` compares the current generation key (from `index_manager.generation().to_string()`) against the snapshot filename.
+- `GraphState::init()` compares the current snapshot key (from `index_manager.last_commit()`, the git HEAD SHA recorded in `state.toml`) against the snapshot filename.
 - Match → load from disk, skip cold build.
 - Miss → cold build, save snapshot, return graph.
 
-After `wiki_index_rebuild`, `WikiGraphCache::rebuild()` forces a new snapshot for the updated generation key.
+Using `last_commit()` as the key makes it stable across process restarts: the same index content always maps to the same snapshot. The key changes only when `index rebuild` runs and writes a new commit SHA to `state.toml`. Old key-`"0"` snapshots saved by earlier versions become orphaned and are pruned by `keep_n` rotation.
+
+After `index rebuild` (both CLI via `ops::index_rebuild` and MCP via `handle_index_rebuild`), `WikiGraphCache::rebuild()` forces a new snapshot for the updated key.
 
 `graph.snapshot = false` constructs `NoSnapshot` — identical to Phase 1 behaviour. Use in CI and integration tests to avoid snapshot files in tempdir.
 
