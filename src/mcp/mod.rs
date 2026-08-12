@@ -11,9 +11,9 @@ use std::sync::Arc;
 use rmcp::ErrorData as McpError;
 use rmcp::ServerHandler;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Implementation, ListResourcesResult, ListToolsResult,
-    PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, Resource,
-    ResourceContents, ServerCapabilities, ServerInfo,
+    CallToolRequestParams, CallToolResponse, CallToolResult, Implementation, ListResourcesResult,
+    ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse,
+    ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
 };
 use rmcp::service::{RequestContext, RoleServer};
 
@@ -87,8 +87,7 @@ impl ServerHandler for McpServer {
     ) -> impl Future<Output = Result<ListToolsResult, McpError>> + Send + '_ {
         std::future::ready(Ok(ListToolsResult {
             tools: tools::tool_list(),
-            next_cursor: None,
-            meta: None,
+            ..Default::default()
         }))
     }
 
@@ -96,7 +95,7 @@ impl ServerHandler for McpServer {
         &self,
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<CallToolResult, McpError>> + Send + '_ {
+    ) -> impl Future<Output = Result<CallToolResponse, McpError>> + Send + '_ {
         let args = request.arguments.unwrap_or_default();
         let result = tools::call(self, &request.name, &args);
 
@@ -134,7 +133,7 @@ impl ServerHandler for McpServer {
             CallToolResult::success(result.content)
         };
 
-        std::future::ready(Ok(tool_result))
+        std::future::ready(Ok(tool_result.into()))
     }
 
     fn list_resources(
@@ -145,8 +144,7 @@ impl ServerHandler for McpServer {
         let resources = self.list_wiki_resources();
         std::future::ready(Ok(ListResourcesResult {
             resources,
-            next_cursor: None,
-            meta: None,
+            ..Default::default()
         }))
     }
 
@@ -154,7 +152,7 @@ impl ServerHandler for McpServer {
         &self,
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<ReadResourceResult, McpError>> + Send + '_ {
+    ) -> impl Future<Output = Result<ReadResourceResponse, McpError>> + Send + '_ {
         let uri = &request.uri;
         let result = if uri.starts_with("wiki://") {
             let engine = match self.manager.state.read() {
@@ -191,6 +189,6 @@ impl ServerHandler for McpServer {
                 None,
             ))
         };
-        std::future::ready(result)
+        std::future::ready(result.map(Into::into))
     }
 }
