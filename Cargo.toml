@@ -1,6 +1,6 @@
 [package]
 name = "llm-wiki-engine"
-version = "0.5.4"
+version = "0.5.5"
 edition = "2024"
 rust-version = "1.95"
 description = "Git-backed wiki engine with MCP/ACP server — bring your own LLM"
@@ -70,7 +70,7 @@ chrono     = { version = "0.4", default-features = false, features = ["clock", "
 git2       = { version = "0.21", default-features = false, features = ["vendored-libgit2"] }
 
 # MCP server
-rmcp       = { version = "2.2", features = ["server", "transport-io", "transport-streamable-http-server"] }
+rmcp       = { version = "3.1", features = ["server", "transport-io", "transport-streamable-http-server"] }
 axum       = "0.8"
 
 # ACP server
