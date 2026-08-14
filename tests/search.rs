@@ -200,7 +200,10 @@ fn search_query_with_colon_does_not_error() {
         &is,
     );
 
-    assert!(results.is_ok(), "query with colon should not error: {results:?}");
+    assert!(
+        results.is_ok(),
+        "query with colon should not error: {results:?}"
+    );
     assert!(!results.unwrap().results.is_empty());
 }
 
