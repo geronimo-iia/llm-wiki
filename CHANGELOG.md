@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.6] — 2026-08-14
+
+### Fixed
+
+- **search query with `:` caused parse error** — tantivy treats `:` as field separator, so free-text queries like `"Layer 1: ..."` failed with `Field does not exist`; `search()` now falls back to `parse_query_lenient` when strict parsing fails (issue #120)
+
 ## [0.5.5] — 2026-08-12
 
 ### Changed

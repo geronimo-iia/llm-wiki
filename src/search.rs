@@ -1,7 +1,7 @@
 use std::cmp::Reverse;
 use std::collections::HashMap;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use tantivy::{
     DocId, Order, Score, Searcher, Term,
@@ -189,7 +189,7 @@ pub fn search(
     let query_parser = QueryParser::for_index(index, query_fields);
     let parsed = query_parser
         .parse_query(query_str)
-        .with_context(|| format!("failed to parse query: {query_str}"))?;
+        .unwrap_or_else(|_| query_parser.parse_query_lenient(query_str).0);
 
     // Build the filtered query (with type filter)
     let final_query: Box<dyn tantivy::query::Query> = {
@@ -311,7 +311,7 @@ pub fn search(
     let unfiltered_query: Box<dyn tantivy::query::Query> = {
         let parsed2 = query_parser
             .parse_query(query_str)
-            .with_context(|| format!("failed to parse query: {query_str}"))?;
+            .unwrap_or_else(|_| query_parser.parse_query_lenient(query_str).0);
         let mut clauses: Vec<(Occur, Box<dyn tantivy::query::Query>)> = Vec::new();
         clauses.push((Occur::Must, parsed2));
         if !options.include_sections {

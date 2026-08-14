@@ -180,6 +180,33 @@ fn search_no_excerpt() {
     assert!(results.results[0].excerpt.is_none());
 }
 
+#[test]
+fn search_query_with_colon_does_not_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/layer.md",
+        &concept_page("Layer 1", "Layer 1: base protocol for blockchain"),
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let results = search(
+        "Layer 1: base protocol",
+        &SearchOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    );
+
+    assert!(
+        results.is_ok(),
+        "query with colon should not error: {results:?}"
+    );
+    assert!(!results.unwrap().results.is_empty());
+}
+
 // ── list ──────────────────────────────────────────────────────────────────────
 
 #[test]
