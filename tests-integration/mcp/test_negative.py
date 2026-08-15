@@ -19,6 +19,7 @@ async def test_search_empty_query_returns_valid_response(mcp_env):
         assert len(text) > 0
     else:
         import json
+
         data = json.loads(text)
         assert isinstance(data, dict)
         assert "results" in data
@@ -27,9 +28,7 @@ async def test_search_empty_query_returns_valid_response(mcp_env):
 
 async def test_lint_missing_page_does_not_crash(mcp_env):
     await mcp_env.rebuild()
-    is_error, text = await mcp_env.call_raw(
-        "wiki_lint", {"uri": SLUG_MISSING, "wiki": SPACE_NAME}
-    )
+    is_error, text = await mcp_env.call_raw("wiki_lint", {"uri": SLUG_MISSING, "wiki": SPACE_NAME})
     assert len(text) > 0
 
 

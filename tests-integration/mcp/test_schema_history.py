@@ -12,7 +12,9 @@ async def test_schema_list_contains_concept(mcp_env):
 
 
 async def test_schema_show_concept(mcp_env):
-    text = await mcp_env.call("wiki_schema", {"action": "show", "type": "concept", "wiki": SPACE_NAME})
+    text = await mcp_env.call(
+        "wiki_schema", {"action": "show", "type": "concept", "wiki": SPACE_NAME}
+    )
     lower = text.lower()
     assert "title" in lower or "summary" in lower or "confidence" in lower
 

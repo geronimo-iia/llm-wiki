@@ -32,8 +32,10 @@ def test_graph_root_depth(wiki_env):
     _rebuild_both(wiki_env)
     result = wiki_env.run(
         "graph",
-        "--root", "concepts/mixture-of-experts",
-        "--depth", "2",
+        "--root",
+        "concepts/mixture-of-experts",
+        "--depth",
+        "2",
     )
     assert result.returncode == 0
 

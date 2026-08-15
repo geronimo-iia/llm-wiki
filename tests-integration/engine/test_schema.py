@@ -1,13 +1,13 @@
 import json
 
-CUSTOM_SCHEMA = json.dumps({
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "test-custom",
-    "type": "object",
-    "x-wiki-types": {
-        "test-custom": {"label": "Test Custom", "fields": []}
-    },
-})
+CUSTOM_SCHEMA = json.dumps(
+    {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "test-custom",
+        "type": "object",
+        "x-wiki-types": {"test-custom": {"label": "Test Custom", "fields": []}},
+    }
+)
 
 
 def test_schema_list(wiki_env):

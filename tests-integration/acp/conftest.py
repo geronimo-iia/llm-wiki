@@ -14,13 +14,21 @@ class AcpEnv:
         return self._req_id
 
     def _request(self, method: str, params: dict) -> str:
-        return json.dumps({"jsonrpc": "2.0", "id": self._next_id(), "method": method, "params": params})
+        return json.dumps(
+            {"jsonrpc": "2.0", "id": self._next_id(), "method": method, "params": params}
+        )
 
     async def exchange(self, messages: list[str], timeout: float = 15.0) -> list[dict]:
         """Send NDJSON messages, return parsed response lines."""
         payload = "\n".join(messages) + "\n"
         proc = await asyncio.create_subprocess_exec(
-            self.binary, "--config", str(self.config), "serve", "--acp", "--http", ":0",
+            self.binary,
+            "--config",
+            str(self.config),
+            "serve",
+            "--acp",
+            "--http",
+            ":0",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
@@ -41,8 +49,7 @@ class AcpEnv:
                     if remaining <= 0:
                         break
                     line = await asyncio.wait_for(
-                        proc.stdout.readline(),
-                        timeout=min(0.5, remaining)
+                        proc.stdout.readline(), timeout=min(0.5, remaining)
                     )
                     if not line:
                         # EOF reached
@@ -76,10 +83,15 @@ class AcpEnv:
     async def initialize(self) -> dict:
         """Send initialize, return its result dict."""
         self._req_id = 0
-        msgs = [self._request("initialize", {
-            "protocolVersion": 1,
-            "clientInfo": {"name": "acp-test", "version": "0.1.0"},
-        })]
+        msgs = [
+            self._request(
+                "initialize",
+                {
+                    "protocolVersion": 1,
+                    "clientInfo": {"name": "acp-test", "version": "0.1.0"},
+                },
+            )
+        ]
         responses = await self.exchange(msgs)
         return _find_result(responses, req_id=1)
 
@@ -91,10 +103,13 @@ class AcpEnv:
         if meta:
             params["_meta"] = meta
         msgs = [
-            self._request("initialize", {
-                "protocolVersion": 1,
-                "clientInfo": {"name": "acp-test", "version": "0.1.0"},
-            }),
+            self._request(
+                "initialize",
+                {
+                    "protocolVersion": 1,
+                    "clientInfo": {"name": "acp-test", "version": "0.1.0"},
+                },
+            ),
             self._request("session/new", params),
         ]
         responses = await self.exchange(msgs)
@@ -118,10 +133,13 @@ class AcpEnv:
 
         # Phase 1: init + new_session
         init_msgs = [
-            self._request("initialize", {
-                "protocolVersion": 1,
-                "clientInfo": {"name": "acp-test", "version": "0.1.0"},
-            }),
+            self._request(
+                "initialize",
+                {
+                    "protocolVersion": 1,
+                    "clientInfo": {"name": "acp-test", "version": "0.1.0"},
+                },
+            ),
             self._request("session/new", new_params),
         ]
         init_responses = await self.exchange(init_msgs)
@@ -133,10 +151,13 @@ class AcpEnv:
         # Phase 2: prompt
         self._req_id = 0
         prompt_msgs = [
-            self._request("session/prompt", {
-                "sessionId": sid,
-                "prompt": [{"type": "text", "text": text}],
-            })
+            self._request(
+                "session/prompt",
+                {
+                    "sessionId": sid,
+                    "prompt": [{"type": "text", "text": text}],
+                },
+            )
         ]
         prompt_responses = await self.exchange(prompt_msgs)
         prompt_result = _find_result(prompt_responses, req_id=1)
@@ -146,10 +167,13 @@ class AcpEnv:
         """init + session/new + session/list; returns sessions array."""
         self._req_id = 0
         msgs = [
-            self._request("initialize", {
-                "protocolVersion": 1,
-                "clientInfo": {"name": "acp-test", "version": "0.1.0"},
-            }),
+            self._request(
+                "initialize",
+                {
+                    "protocolVersion": 1,
+                    "clientInfo": {"name": "acp-test", "version": "0.1.0"},
+                },
+            ),
             self._request("session/new", {"cwd": cwd, "mcpServers": []}),
             self._request("session/list", {}),
         ]
@@ -161,15 +185,21 @@ class AcpEnv:
         """init + session/load(session_id); returns the raw response dict (may contain 'result' or 'error')."""
         self._req_id = 0
         msgs = [
-            self._request("initialize", {
-                "protocolVersion": 1,
-                "clientInfo": {"name": "acp-test", "version": "0.1.0"},
-            }),
-            self._request("session/load", {
-                "sessionId": session_id,
-                "cwd": cwd,
-                "mcpServers": [],
-            }),
+            self._request(
+                "initialize",
+                {
+                    "protocolVersion": 1,
+                    "clientInfo": {"name": "acp-test", "version": "0.1.0"},
+                },
+            ),
+            self._request(
+                "session/load",
+                {
+                    "sessionId": session_id,
+                    "cwd": cwd,
+                    "mcpServers": [],
+                },
+            ),
         ]
         responses = await self.exchange(msgs)
         for r in responses:

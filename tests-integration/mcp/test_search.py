@@ -28,7 +28,9 @@ async def test_search_json_results_not_empty(mcp_env):
 
 async def test_search_type_filter(mcp_env):
     await mcp_env.rebuild()
-    data = await mcp_env.json("wiki_search", {"query": "attention", "type": "concept", "format": "json"})
+    data = await mcp_env.json(
+        "wiki_search", {"query": "attention", "type": "concept", "format": "json"}
+    )
     assert isinstance(data, dict)
     assert isinstance(data["results"], list)
     assert len(data["results"]) > 0

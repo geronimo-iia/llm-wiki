@@ -19,25 +19,19 @@ async def test_content_read_includes_frontmatter(mcp_env):
 
 
 async def test_content_read_with_backlinks(mcp_env):
-    text = await mcp_env.call(
-        "wiki_content_read", {"uri": SLUG_MoE, "backlinks": True}
-    )
+    text = await mcp_env.call("wiki_content_read", {"uri": SLUG_MoE, "backlinks": True})
     assert isinstance(text, str)
     assert "---" in text
     assert "backlinks" in text
 
 
 async def test_content_read_backlinks_include_scaling_laws(mcp_env):
-    text = await mcp_env.call(
-        "wiki_content_read", {"uri": SLUG_SCALING_LAWS, "backlinks": True}
-    )
+    text = await mcp_env.call("wiki_content_read", {"uri": SLUG_SCALING_LAWS, "backlinks": True})
     assert "mixture-of-experts" in text
 
 
 async def test_content_read_via_wiki_uri(mcp_env):
-    text = await mcp_env.call(
-        "wiki_content_read", {"uri": f"wiki://{SPACE_NAME}/{SLUG_MoE}"}
-    )
+    text = await mcp_env.call("wiki_content_read", {"uri": f"wiki://{SPACE_NAME}/{SLUG_MoE}"})
     assert "Mixture of Experts" in text
 
 
