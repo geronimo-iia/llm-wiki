@@ -17,6 +17,12 @@ Architectural decisions and their rationale, grouped by release.
 
 ## v0.5.7 — Unreleased
 
+### New tools
+
+| Decision | Summary |
+| -------- | ------- |
+| [wiki-info-tool](0.5.7/wiki-info-tool.md) | Add `wiki_info` MCP tool for server identity and health |
+
 ### Bug fixes
 
 | Decision | Summary |
