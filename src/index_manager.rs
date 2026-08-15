@@ -320,7 +320,13 @@ impl SpaceIndexManager {
             let uri = format!("wiki://{}/{slug}", self.wiki_name);
             let page = frontmatter::parse(&content, Some(path));
 
-            writer.add_document(index_page(is, registry, slug.as_str(), &uri, &page))?;
+            let is_bundle = path.file_name() == Some(std::ffi::OsStr::new("index.md"));
+            let source_dir_str = if is_bundle {
+                slug.as_str().to_string()
+            } else {
+                slug.as_str().rsplit_once('/').map(|(p, _)| p.to_string()).unwrap_or_default()
+            };
+            writer.add_document(index_page(is, registry, slug.as_str(), &uri, &page, Some(source_dir_str.as_str())))?;
 
             if page.page_type() == Some("section") {
                 sections += 1;
@@ -432,7 +438,13 @@ impl SpaceIndexManager {
                 if let Ok(content) = std::fs::read_to_string(&full_path) {
                     let page = frontmatter::parse(&content, Some(&full_path));
                     let uri = format!("wiki://{}/{slug}", self.wiki_name);
-                    writer.add_document(index_page(is, registry, slug.as_str(), &uri, &page))?;
+                    let is_bundle = full_path.file_name() == Some(std::ffi::OsStr::new("index.md"));
+                    let source_dir_str = if is_bundle {
+                        slug.as_str().to_string()
+                    } else {
+                        slug.as_str().rsplit_once('/').map(|(p, _)| p.to_string()).unwrap_or_default()
+                    };
+                    writer.add_document(index_page(is, registry, slug.as_str(), &uri, &page, Some(source_dir_str.as_str())))?;
                     updated += 1;
                 }
             }
@@ -609,7 +621,13 @@ impl SpaceIndexManager {
                 }
             };
             let uri = format!("wiki://{}/{slug}", self.wiki_name);
-            writer.add_document(index_page(is, registry, slug.as_str(), &uri, &page))?;
+            let is_bundle = path.file_name() == Some(std::ffi::OsStr::new("index.md"));
+            let source_dir_str = if is_bundle {
+                slug.as_str().to_string()
+            } else {
+                slug.as_str().rsplit_once('/').map(|(p, _)| p.to_string()).unwrap_or_default()
+            };
+            writer.add_document(index_page(is, registry, slug.as_str(), &uri, &page, Some(source_dir_str.as_str())))?;
             pages += 1;
         }
 
@@ -648,6 +666,7 @@ fn index_page(
     slug: &str,
     uri: &str,
     page: &frontmatter::ParsedPage,
+    source_dir: Option<&str>,
 ) -> tantivy::TantivyDocument {
     let mut doc = tantivy::TantivyDocument::default();
 
@@ -683,7 +702,7 @@ fn index_page(
         );
     }
 
-    for link in links::extract_body_wikilinks(&page.body) {
+    for link in links::extract_body_wikilinks(&page.body, source_dir) {
         doc.add_text(is.field("body_links"), &link);
     }
 

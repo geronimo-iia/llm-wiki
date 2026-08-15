@@ -64,25 +64,25 @@ fn extract_links_no_frontmatter() {
 
 #[test]
 fn extract_body_wikilinks_standalone() {
-    let links = extract_body_wikilinks("See [[concepts/moe]] and [[sources/paper]].");
+    let links = extract_body_wikilinks("See [[concepts/moe]] and [[sources/paper]].", None);
     assert_eq!(links, vec!["concepts/moe", "sources/paper"]);
 }
 
 #[test]
 fn extract_body_wikilinks_trims_whitespace() {
-    let links = extract_body_wikilinks("See [[ concepts/moe ]].");
+    let links = extract_body_wikilinks("See [[ concepts/moe ]].", None);
     assert_eq!(links, vec!["concepts/moe"]);
 }
 
 #[test]
 fn extract_body_wikilinks_ignores_empty() {
-    let links = extract_body_wikilinks("See [[]] and [[ ]].");
+    let links = extract_body_wikilinks("See [[]] and [[ ]].", None);
     assert!(links.is_empty());
 }
 
 #[test]
 fn extract_body_wikilinks_unclosed_bracket() {
-    let links = extract_body_wikilinks("See [[concepts/moe and nothing else.");
+    let links = extract_body_wikilinks("See [[concepts/moe and nothing else.", None);
     assert!(links.is_empty());
 }
 
@@ -138,7 +138,7 @@ fn extract_parsed_links_returns_cross_wiki_variant() {
 
 #[test]
 fn commonmark_basic_local_link() {
-    let links = extract_body_wikilinks("[Foo](concepts/foo)");
+    let links = extract_body_wikilinks("[Foo](concepts/foo)", None);
     assert_eq!(links, vec!["concepts/foo"]);
 }
 
@@ -157,30 +157,30 @@ fn commonmark_cross_wiki_link_in_body() {
 
 #[test]
 fn commonmark_external_url_filtered() {
-    let links = extract_body_wikilinks("[Google](https://google.com)");
+    let links = extract_body_wikilinks("[Google](https://google.com)", None);
     assert!(links.is_empty());
 }
 
 #[test]
 fn commonmark_anchor_filtered() {
-    let links = extract_body_wikilinks("[Top](#top)");
+    let links = extract_body_wikilinks("[Top](#top)", None);
     assert!(links.is_empty());
 }
 
 #[test]
 fn commonmark_mixed_wikilink_and_commonmark() {
-    let links = extract_body_wikilinks("See [[concepts/foo]] and [bar](concepts/bar).");
+    let links = extract_body_wikilinks("See [[concepts/foo]] and [bar](concepts/bar).", None);
     assert_eq!(links, vec!["concepts/foo", "concepts/bar"]);
 }
 
 #[test]
 fn commonmark_deduplication_across_syntaxes() {
-    let links = extract_body_wikilinks("[[concepts/foo]] and [also](concepts/foo)");
+    let links = extract_body_wikilinks("[[concepts/foo]] and [also](concepts/foo)", None);
     assert_eq!(links, vec!["concepts/foo"]);
 }
 
 #[test]
 fn commonmark_image_link_filtered() {
-    let links = extract_body_wikilinks("![alt](image.png)");
+    let links = extract_body_wikilinks("![alt](image.png)", None);
     assert!(links.is_empty());
 }
