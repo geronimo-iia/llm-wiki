@@ -57,6 +57,24 @@ async def test_lint_with_wiki_param(mcp_env):
     assert "error" in combined or "warning" in combined
 
 
+async def test_lint_broken_link_detects_relative_commonmark(mcp_env):
+    await mcp_env.rebuild()
+    data = await mcp_env.json("wiki_lint", {"rules": ["broken-link"], "format": "json"})
+    msgs = [f["message"] for f in data["findings"] if f["rule"] == "broken-link"]
+    assert any("relative-nonexistent" in m for m in msgs), (
+        "relative ./relative-nonexistent.md should be flagged as broken after normalization"
+    )
+
+
+async def test_lint_broken_link_ignores_valid_relative_link(mcp_env):
+    await mcp_env.rebuild()
+    data = await mcp_env.json("wiki_lint", {"rules": ["broken-link"], "format": "json"})
+    msgs = [f["message"] for f in data["findings"] if f["rule"] == "broken-link"]
+    assert not any("sparse-routing" in m for m in msgs), (
+        "relative ./sparse-routing.md resolves to an existing page and must not be flagged"
+    )
+
+
 async def test_lint_findings_have_md_path(mcp_env):
     await mcp_env.rebuild()
     data = await mcp_env.json("wiki_lint", {"rules": ["broken-link"], "format": "json"})
