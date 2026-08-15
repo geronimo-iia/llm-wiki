@@ -21,7 +21,9 @@ async def test_session_new_with_wiki_meta_returns_session_id(wiki_env):
     assert isinstance(sid, str) and len(sid) > 0
 
 
-@pytest.mark.skip(reason="session/load requires persistent server; each exchange() is a fresh subprocess")
+@pytest.mark.skip(
+    reason="session/load requires persistent server; each exchange() is a fresh subprocess"
+)
 async def test_session_load_existing_succeeds(wiki_env):
     acp = make_acp_env(wiki_env)
     sid = await acp.new_session(cwd=str(wiki_env.tmp), wiki="research")

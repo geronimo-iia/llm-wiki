@@ -63,6 +63,26 @@ def test_lint_orphan_finds_orphan_concept(wiki_env):
     assert "concepts/orphan-concept" in slugs
 
 
+def test_lint_broken_link_detects_relative_commonmark(wiki_env):
+    _rebuild(wiki_env)
+    result = wiki_env.run("lint", "--rules", "broken-link", "--format", "json", check=False)
+    data = json.loads(result.stdout)
+    msgs = [f["message"] for f in data["findings"] if f["rule"] == "broken-link"]
+    assert any("relative-nonexistent" in m for m in msgs), (
+        "relative ./relative-nonexistent.md should be flagged as broken after normalization"
+    )
+
+
+def test_lint_broken_link_ignores_valid_relative_link(wiki_env):
+    _rebuild(wiki_env)
+    result = wiki_env.run("lint", "--rules", "broken-link", "--format", "json", check=False)
+    data = json.loads(result.stdout)
+    msgs = [f["message"] for f in data["findings"] if f["rule"] == "broken-link"]
+    assert not any("sparse-routing" in m for m in msgs), (
+        "relative ./sparse-routing.md resolves to an existing page and must not be flagged"
+    )
+
+
 def test_lint_structural_rules_run(wiki_env):
     _rebuild(wiki_env)
     for rule in ("articulation-point", "bridge", "periphery"):

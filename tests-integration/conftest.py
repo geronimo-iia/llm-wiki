@@ -24,9 +24,16 @@ def _init_wiki(src: Path, dest: Path) -> None:
     subprocess.run(["git", "-C", str(dest), "add", "."], check=True)
     subprocess.run(
         [
-            "git", "-C", str(dest),
-            "-c", "user.name=test", "-c", "user.email=test@test.com",
-            "commit", "-qm", "init",
+            "git",
+            "-C",
+            str(dest),
+            "-c",
+            "user.name=test",
+            "-c",
+            "user.email=test@test.com",
+            "commit",
+            "-qm",
+            "init",
         ],
         check=True,
     )
@@ -36,10 +43,10 @@ class WikiEnv:
     def __init__(self, binary: str, config: Path, research: Path, notes: Path, tmp: Path):
         self.binary = binary
         self.config = config
-        self.research = research        # repo root of research wiki
-        self.notes = notes              # repo root of notes wiki
+        self.research = research  # repo root of research wiki
+        self.notes = notes  # repo root of notes wiki
         self.tmp = tmp
-        self.research_wiki = research / "wiki"   # page content root
+        self.research_wiki = research / "wiki"  # page content root
         self.notes_wiki = notes / "wiki"
         self.inbox = research / "wiki" / "inbox"
 
@@ -51,9 +58,7 @@ class WikiEnv:
         )
         if check:
             assert result.returncode == 0, (
-                f"command failed: {list(args)}\n"
-                f"stdout: {result.stdout}\n"
-                f"stderr: {result.stderr}"
+                f"command failed: {list(args)}\nstdout: {result.stdout}\nstderr: {result.stderr}"
             )
         return result
 
@@ -79,9 +84,17 @@ def wiki_env(binary: str, tmp_path: Path) -> WikiEnv:
     subprocess.run(["git", "-C", str(research), "add", "."], check=True)
     subprocess.run(
         [
-            "git", "-C", str(research),
-            "-c", "user.name=test", "-c", "user.email=test@test.com",
-            "commit", "-qm", "add inbox", "--allow-empty",
+            "git",
+            "-C",
+            str(research),
+            "-c",
+            "user.name=test",
+            "-c",
+            "user.email=test@test.com",
+            "commit",
+            "-qm",
+            "add inbox",
+            "--allow-empty",
         ],
         check=True,
     )

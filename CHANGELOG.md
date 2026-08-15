@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.7] — Unreleased
+
+### Fixed
+
+- **CommonMark relative links stored raw in body_links** — `[text](./page.md)` and `[text](../path.md)` destinations were written verbatim into the Tantivy `body_links` field; the lint checker, orphan rule, and graph builder all compare against slugs (no `.md`, no relative prefix), so nothing matched. Destinations are now normalized at index time: `.md` is stripped, `./` and `../` are resolved against the source page's containing directory, computed correctly for both flat pages (`parent/slug.md` → dir is `parent/`) and bundle pages (`parent/slug/index.md` → dir is `parent/slug/`) (issue #124).
+
 ## [0.5.6] — 2026-08-14
 
 ### Fixed

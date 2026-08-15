@@ -34,9 +34,7 @@ async def test_graph_type_filter(mcp_env):
 async def test_graph_root_depth(mcp_env):
     await mcp_env.rebuild(SPACE_NAME)
     await mcp_env.rebuild(SPACE_NOTES)
-    result = await mcp_env.call(
-        "wiki_graph", {"root": SLUG_MoE, "depth": 2}
-    )
+    result = await mcp_env.call("wiki_graph", {"root": SLUG_MoE, "depth": 2})
     assert result is not None
 
 
