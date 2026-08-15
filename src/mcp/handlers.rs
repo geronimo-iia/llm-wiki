@@ -583,3 +583,28 @@ pub fn handle_export(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
     let s = serde_json::to_string_pretty(&report).map_err(|e| format!("{e}"))?;
     ok_text(s)
 }
+
+// ── Info ──────────────────────────────────────────────────────────────────────
+
+/// Handle `wiki_info` — return server version, config path, registered spaces, and index health.
+pub fn handle_info(server: &McpServer, _args: &Map<String, Value>) -> ToolHandlerResult {
+    let engine = server.engine();
+    let version = env!("CARGO_PKG_VERSION");
+    let config_path = engine.config_path.display().to_string();
+    let spaces: Vec<String> = engine.config.wikis.iter().map(|w| w.name.clone()).collect();
+    let default_wiki = engine.config.global.default_wiki.clone();
+    let index_ok = engine.spaces.keys().all(|wiki_name| {
+        ops::index_status(&engine, wiki_name)
+            .map(|s| s.openable && s.queryable && !s.stale)
+            .unwrap_or(false)
+    });
+    let index_status = if index_ok { "ok" } else { "degraded" };
+    let info = serde_json::json!({
+        "version": version,
+        "config_path": config_path,
+        "spaces": spaces,
+        "default_wiki": default_wiki,
+        "index_status": index_status,
+    });
+    ok_text(serde_json::to_string_pretty(&info).map_err(|e| format!("{e}"))?)
+}
