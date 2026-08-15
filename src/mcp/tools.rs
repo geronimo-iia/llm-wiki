@@ -339,6 +339,11 @@ pub fn tool_list() -> Vec<Tool> {
                 &["action"],
             ),
         ),
+        Tool::new(
+            "wiki_info",
+            "Return server version, config path, registered spaces, and index health",
+            schema(json!({}), &[]),
+        ),
     ]
 }
 
@@ -371,6 +376,7 @@ pub fn call(server: &McpServer, name: &str, args: &Map<String, Value>) -> ToolRe
         "wiki_suggest" => handlers::handle_suggest(server, args),
         "wiki_schema" => handlers::handle_schema(server, args),
         "wiki_export" => handlers::handle_export(server, args),
+        "wiki_info" => handlers::handle_info(server, args),
         _ => Err(format!("unknown tool: {name}")),
     }));
     match result {
