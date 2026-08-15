@@ -15,6 +15,16 @@ Architectural decisions and their rationale, grouped by release.
 
 ---
 
+## v0.5.7 — Unreleased
+
+### Bug fixes
+
+| Decision | Summary |
+| -------- | ------- |
+| [commonmark-link-normalization](0.5.7/commonmark-link-normalization.md) | Normalize CommonMark relative link destinations (`./page.md`, `../dir/page.md`) before storing in `body_links`; `source_dir` threaded as `Option<&str>` through `index_page` → `extract_body_wikilinks` → `extract_commonmark_links`. Supersedes "No callers change" in [0.2.0/commonmark-body-links](0.2.0/commonmark-body-links.md). |
+
+---
+
 ## v0.5.0 — 2026-07-23
 
 ### Search & Export
