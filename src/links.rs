@@ -97,6 +97,7 @@ fn extract_parsed_wikilinks(text: &str, seen: &mut HashSet<String>, result: &mut
 /// Normalizations applied:
 /// 1. Strip `.md` suffix
 /// 2. Resolve `./` and `../` prefixes against `source_dir`
+///
 /// Absolute destinations (no `./` or `../`) are returned unchanged (minus `.md`).
 fn normalize_commonmark_dest(dest: &str, source_dir: &str) -> String {
     let dest = dest.strip_suffix(".md").unwrap_or(dest);
@@ -137,7 +138,12 @@ fn normalize_commonmark_dest(dest: &str, source_dir: &str) -> String {
 
 /// Extract CommonMark inline link destinations `[text](destination)` from body text.
 /// Filters out external URLs, anchors, and image links. Strips `#anchor` suffixes.
-fn extract_commonmark_links(text: &str, seen: &mut HashSet<String>, result: &mut Vec<ParsedLink>, source_dir: Option<&str>) {
+fn extract_commonmark_links(
+    text: &str,
+    seen: &mut HashSet<String>,
+    result: &mut Vec<ParsedLink>,
+    source_dir: Option<&str>,
+) {
     let mut rest = text;
     while let Some(bracket) = rest.find("](") {
         let before = &rest[..bracket];
@@ -197,7 +203,12 @@ pub fn extract_links(page: &ParsedPage) -> Vec<String> {
 }
 
 /// Extract `[[slug]]` patterns and CommonMark `[text](destination)` links from body text.
-pub fn extract_wikilinks(text: &str, seen: &mut HashSet<String>, result: &mut Vec<String>, source_dir: Option<&str>) {
+pub fn extract_wikilinks(
+    text: &str,
+    seen: &mut HashSet<String>,
+    result: &mut Vec<String>,
+    source_dir: Option<&str>,
+) {
     let mut rest = text;
     while let Some(start) = rest.find("[[") {
         let after = &rest[start + 2..];
@@ -237,10 +248,12 @@ mod tests {
     fn bundle_dotslash_resolves_into_slug_dir() {
         // technology/concurrency/index.md → source_dir = "technology/concurrency"
         // [glossary](./glossary.md) → technology/concurrency/glossary
-        let links = extract_body_wikilinks("[glossary](./glossary.md)", Some("technology/concurrency"));
+        let links =
+            extract_body_wikilinks("[glossary](./glossary.md)", Some("technology/concurrency"));
         assert!(
             links.iter().any(|l| l == "technology/concurrency/glossary"),
-            "got: {:?}", links
+            "got: {:?}",
+            links
         );
     }
 
@@ -248,10 +261,14 @@ mod tests {
     fn bundle_dotdot_resolves_to_sibling_dir() {
         // technology/concurrency/index.md → source_dir = "technology/concurrency"
         // [patterns](../concurrency/patterns.md) → technology/concurrency/patterns
-        let links = extract_body_wikilinks("[patterns](../concurrency/patterns.md)", Some("technology/concurrency"));
+        let links = extract_body_wikilinks(
+            "[patterns](../concurrency/patterns.md)",
+            Some("technology/concurrency"),
+        );
         assert!(
             links.iter().any(|l| l == "technology/concurrency/patterns"),
-            "got: {:?}", links
+            "got: {:?}",
+            links
         );
     }
 
@@ -262,7 +279,8 @@ mod tests {
         let links = extract_body_wikilinks("[ractor](../ractor)", Some("technology/concurrency"));
         assert!(
             links.iter().any(|l| l == "technology/ractor"),
-            "got: {:?}", links
+            "got: {:?}",
+            links
         );
     }
 
@@ -275,7 +293,8 @@ mod tests {
         let links = extract_body_wikilinks("[glossary](./glossary.md)", Some("technology"));
         assert!(
             links.iter().any(|l| l == "technology/glossary"),
-            "got: {:?}", links
+            "got: {:?}",
+            links
         );
     }
 
@@ -284,10 +303,7 @@ mod tests {
         // technology/concurrency.md → source_dir = "technology"
         // [ractor](../ractor) → ractor  (one level up from "technology" is root)
         let links = extract_body_wikilinks("[ractor](../ractor)", Some("technology"));
-        assert!(
-            links.iter().any(|l| l == "ractor"),
-            "got: {:?}", links
-        );
+        assert!(links.iter().any(|l| l == "ractor"), "got: {:?}", links);
     }
 
     // ── layout-independent cases ──────────────────────────────────────────────
@@ -297,16 +313,19 @@ mod tests {
         let links = extract_body_wikilinks("[[technology/ractor]]", Some("technology/concurrency"));
         assert!(
             links.iter().any(|l| l == "technology/ractor"),
-            "got: {:?}", links
+            "got: {:?}",
+            links
         );
     }
 
     #[test]
     fn external_https_link_excluded() {
-        let links = extract_body_wikilinks("[ext](https://example.com)", Some("technology/concurrency"));
+        let links =
+            extract_body_wikilinks("[ext](https://example.com)", Some("technology/concurrency"));
         assert!(
             !links.iter().any(|l| l.contains("example.com")),
-            "external link should be filtered out, got: {:?}", links
+            "external link should be filtered out, got: {:?}",
+            links
         );
     }
 
@@ -315,10 +334,7 @@ mod tests {
         // top-level flat page: slug = "glossary", source_dir = "" (rsplit_once returns None → unwrap_or_default)
         // [other](./other.md) → "other" (not "/other", not "other.md")
         let links = extract_body_wikilinks("[other](./other.md)", Some(""));
-        assert!(
-            links.iter().any(|l| l == "other"),
-            "got: {:?}", links
-        );
+        assert!(links.iter().any(|l| l == "other"), "got: {:?}", links);
     }
 
     #[test]
@@ -327,7 +343,8 @@ mod tests {
         let links = extract_body_wikilinks("[glossary](./glossary.md)", None);
         assert!(
             links.iter().any(|l| l == "./glossary.md"),
-            "without source_dir, raw dest should be preserved, got: {:?}", links
+            "without source_dir, raw dest should be preserved, got: {:?}",
+            links
         );
     }
 }
