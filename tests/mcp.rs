@@ -1,9 +1,9 @@
 use llm_wiki::mcp::tools;
 
 #[test]
-fn tool_list_returns_23_tools() {
+fn tool_list_returns_24_tools() {
     let tools = tools::tool_list();
-    assert_eq!(tools.len(), 23);
+    assert_eq!(tools.len(), 24);
 }
 
 #[test]
@@ -33,6 +33,7 @@ fn tool_list_contains_expected_names() {
         "wiki_resolve",
         "wiki_suggest",
         "wiki_export",
+        "wiki_info",
     ];
     for name in &expected {
         assert!(names.contains(name), "missing tool: {name}");
