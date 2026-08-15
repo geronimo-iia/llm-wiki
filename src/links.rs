@@ -176,3 +176,20 @@ pub fn extract_body_wikilinks(text: &str) -> Vec<String> {
     extract_wikilinks(text, &mut seen, &mut result);
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn commonmark_relative_link_stored_raw_is_the_bug() {
+        // Before fix: returns "./glossary.md" verbatim — never matches any slug in the index.
+        // This assertion documents the broken state. It MUST FAIL after the fix is applied.
+        // When it fails: delete this test, the phase 2 tests are the source of truth.
+        let links = extract_body_wikilinks("[glossary](./glossary.md)");
+        assert!(
+            links.iter().any(|l| l == "./glossary.md"),
+            "bug no longer present — delete this test and keep phase 2 tests"
+        );
+    }
+}
