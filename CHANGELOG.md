@@ -44,6 +44,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `wiki_lint`: cross-wiki body links `[text](wiki://name/slug)` no longer produce
+  false `broken-link` errors when the target wiki is mounted. Previously the
+  `wiki://` prefix was stripped before indexing, losing the routing information.
+  As a side effect, `wiki_graph` now produces correct edges for cross-wiki body
+  links (`graph.rs:resolve_or_external` already handled `wiki://` prefixes).
+  **Action required:** run `llm-wiki index rebuild` on any wiki that uses
+  `wiki://` body links to pick up the corrected `body_links` index entries.
+
 ### Documentation
 
 - Added `AGENTS.md` at repo root — codebase map, key types, CLI vs MCP lifetime, ops layer rule, test patterns, CI table

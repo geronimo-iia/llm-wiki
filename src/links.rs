@@ -232,7 +232,12 @@ pub fn extract_wikilinks(
     let mut commonmark: Vec<ParsedLink> = Vec::new();
     extract_links_from_body(text, seen, result, &mut commonmark, source_dir);
     for link in commonmark {
-        result.push(link.as_raw().to_string());
+        match link {
+            ParsedLink::CrossWiki { wiki, slug } => {
+                result.push(format!("wiki://{wiki}/{slug}"));
+            }
+            ParsedLink::Local(_) => result.push(link.as_raw().to_string()),
+        }
     }
 }
 
