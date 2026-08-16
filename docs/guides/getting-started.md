@@ -206,11 +206,11 @@ llm-wiki graph
 
 ```mermaid
 graph LR
-  concepts_mixture_of_experts["Mixture of Experts"]:::concept
-  sources_switch_transformer["Switch Transformer"]:::paper
+  N0["Mixture of Experts"]:::concept
+  N1["Switch Transformer"]:::paper
 
-  concepts_mixture_of_experts -->|fed-by| sources_switch_transformer
-  sources_switch_transformer -->|informs| concepts_mixture_of_experts
+  N0 -->|fed-by| N1
+  N1 -->|informs| N0
 
   classDef concept fill:#cce5ff
   classDef paper fill:#d4edda

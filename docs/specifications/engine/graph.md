@@ -126,16 +126,16 @@ Filters compose: `--type concept --relation depends-on --root concepts/moe --dep
 
 ```
 graph LR
-  concepts/moe["MoE"]:::concept
-  sources/switch["Switch Transformer"]:::paper
+  N0["MoE"]:::concept
+  N1["Switch Transformer"]:::paper
 
-  sources/switch -->|informs| concepts/moe
+  N1 -->|informs| N0
 
   classDef concept fill:#cce5ff
   classDef paper fill:#d4edda
 ```
 
-Relation labels appear on edges. Node types map to CSS classes.
+Node IDs are petgraph `NodeIndex` ordinals (`N0`, `N1`, …) — collision-free for any title. Labels (`["..."]`) contain the original page title. Relation labels appear on edges. Node types map to CSS classes.
 
 ### DOT
 
