@@ -505,6 +505,82 @@ fn broken_cross_wiki_link_to_mounted_wiki_no_finding() {
     );
 }
 
+#[test]
+fn broken_link_body_cross_wiki_to_mounted_wiki_no_finding() {
+    // Regression for issue #132: [text](wiki://name/slug) in the body was
+    // stripped to "slug" before indexing. Lint then checked the bare slug
+    // against the current wiki and reported a false "broken-link" error.
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "design/overview.md",
+        "---\ntitle: \"Overview\"\ntype: concept\nread_when: [\"x\"]\n---\n\nSee [SAA Design](wiki://mywiki/cognition/design/target).\n",
+    );
+
+    // Engine named "mywiki" — the wiki:// body link targets "mywiki" which IS mounted.
+    // After the fix, "wiki://mywiki/cognition/design/target" is stored in body_links
+    // and the lint rule routes it to the mounted-wiki check, not the local slug check.
+    let engine = build_engine_with_name(dir.path(), &wiki_root, "mywiki");
+    let report = run_lint(&engine, "mywiki", Some("broken-link"), None).unwrap();
+
+    let broken_findings: Vec<_> = report
+        .findings
+        .iter()
+        .filter(|f| f.rule == "broken-link")
+        .collect();
+    assert!(
+        broken_findings.is_empty(),
+        "wiki:// body link to mounted wiki must not produce broken-link finding, got: {:?}",
+        broken_findings
+    );
+}
+
+#[test]
+fn broken_link_body_cross_wiki_to_unmounted_wiki_is_warning() {
+    // [text](wiki://unmounted/slug) in body must produce a broken-cross-wiki-link
+    // warning, not a broken-link error.
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "design/overview.md",
+        "---\ntitle: \"Overview\"\ntype: concept\nread_when: [\"x\"]\n---\n\nSee [ext](wiki://other-unmounted/some/slug).\n",
+    );
+
+    let engine = build_engine_with_name(dir.path(), &wiki_root, "mywiki");
+    // Run both rules so we can assert the right one fires
+    let report = run_lint(
+        &engine,
+        "mywiki",
+        Some("broken-link,broken-cross-wiki-link"),
+        None,
+    )
+    .unwrap();
+
+    let broken: Vec<_> = report
+        .findings
+        .iter()
+        .filter(|f| f.rule == "broken-link")
+        .collect();
+    assert!(
+        broken.is_empty(),
+        "wiki:// body link must not produce broken-link error, got: {:?}",
+        broken
+    );
+
+    let cross: Vec<_> = report
+        .findings
+        .iter()
+        .filter(|f| f.rule == "broken-cross-wiki-link")
+        .collect();
+    assert!(
+        !cross.is_empty(),
+        "unmounted wiki:// body link must produce broken-cross-wiki-link warning"
+    );
+    assert_eq!(cross[0].severity, Severity::Warning);
+}
+
 // ── structural rules ─────────────────────────────────────────────────────────
 
 #[test]

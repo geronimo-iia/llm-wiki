@@ -232,7 +232,12 @@ pub fn extract_wikilinks(
     let mut commonmark: Vec<ParsedLink> = Vec::new();
     extract_links_from_body(text, seen, result, &mut commonmark, source_dir);
     for link in commonmark {
-        result.push(link.as_raw().to_string());
+        match link {
+            ParsedLink::CrossWiki { wiki, slug } => {
+                result.push(format!("wiki://{wiki}/{slug}"));
+            }
+            ParsedLink::Local(_) => result.push(link.as_raw().to_string()),
+        }
     }
 }
 
@@ -350,6 +355,23 @@ mod tests {
         assert!(
             links.iter().any(|l| l == "./glossary.md"),
             "without source_dir, raw dest should be preserved, got: {:?}",
+            links
+        );
+    }
+
+    #[test]
+    fn cross_wiki_body_link_preserves_full_uri() {
+        // [text](wiki://other-wiki/concepts/foo) must be stored as the full URI,
+        // not stripped to "concepts/foo". The lint rule detects wiki:// prefixes
+        // to route cross-wiki resolution; stripping loses that information.
+        let links = extract_body_wikilinks(
+            "[SAA Design](wiki://ai-research-kb/cognition/design/overview)",
+            None,
+        );
+        assert_eq!(
+            links,
+            vec!["wiki://ai-research-kb/cognition/design/overview"],
+            "full wiki:// URI must be preserved in body_links, got: {:?}",
             links
         );
     }
