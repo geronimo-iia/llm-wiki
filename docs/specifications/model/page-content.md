@@ -81,7 +81,7 @@ disk.
 
 ## Body Conventions
 
-CommonMark + GFM (GitHub Flavored Markdown). Parsed by comrak.
+CommonMark + GFM (GitHub Flavored Markdown). Link extraction uses `pulldown-cmark`.
 
 ### Wiki Links
 
@@ -111,6 +111,9 @@ Wiki links create graph edges (generic `links-to` relation). See
 - Deduplicated per page — each slug appears once in the link list
 - Extracted from body text only (frontmatter slug-list fields like
   `sources` and `concepts` are handled separately)
+- Links inside fenced code blocks (` ``` `) and inline code spans (`` ` ``)
+  are excluded — TOML `[[section]]` headers and code examples are never
+  treated as wiki links
 - `wiki://` URIs are stored as-is in the index; cross-wiki targets
   appear as external nodes in `wiki_graph` (see [graph.md](../engine/graph.md))
 
