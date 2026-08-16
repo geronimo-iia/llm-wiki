@@ -233,7 +233,10 @@ fn spaces_create_mount_failure_rolls_back_config() {
         Some(&manager),
         None,
     );
-    assert!(result.is_err(), "spaces_create must return Err when mount_wiki fails");
+    assert!(
+        result.is_err(),
+        "spaces_create must return Err when mount_wiki fails"
+    );
 
     // Invariant: config must not contain beta after a failed spaces_create.
     let global = llm_wiki::config::load_global(&config_path).unwrap();
@@ -264,15 +267,11 @@ fn spaces_register_mount_failure_rolls_back_config() {
     std::fs::write(schemas.join("bad.json"), "{ this is not valid json").unwrap();
 
     // spaces_register with a live engine — must fail and roll back.
-    let result = ops::spaces_register(
-        &beta_path,
-        "beta",
-        None,
-        None,
-        &config_path,
-        Some(&manager),
+    let result = ops::spaces_register(&beta_path, "beta", None, None, &config_path, Some(&manager));
+    assert!(
+        result.is_err(),
+        "spaces_register must return Err when mount_wiki fails"
     );
-    assert!(result.is_err(), "spaces_register must return Err when mount_wiki fails");
 
     let global = llm_wiki::config::load_global(&config_path).unwrap();
     assert!(
