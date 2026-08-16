@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `wiki_graph` mermaid output: node IDs now derived from petgraph `NodeIndex` (`N0`, `N1`, …) — eliminates parse errors from spaces and special characters in page titles; labels unchanged ([#128](https://github.com/geronimo-iia/llm-wiki/issues/128))
+- `[[wikilinks]]` and `[text](dest)` links inside fenced code blocks and
+  inline code spans are no longer extracted — TOML `[[section]]` headers
+  and code examples no longer produce false broken-link findings
+  ([#127](https://github.com/geronimo-iia/llm-wiki/issues/127))
+
+### Changed
+
+- Body link extraction now uses `pulldown-cmark` instead of a manual text
+  walker — all public APIs unchanged
 
 ## [0.5.7] — 2026-08-15
 

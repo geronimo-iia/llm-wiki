@@ -184,3 +184,42 @@ fn commonmark_image_link_filtered() {
     let links = extract_body_wikilinks("![alt](image.png)", None);
     assert!(links.is_empty());
 }
+
+// ── Code block / inline code exclusion (issue #127) ──────────────────────────
+
+#[test]
+fn wikilinks_not_extracted_from_fenced_code_block() {
+    // TOML [[section]] headers inside fenced blocks must not become wikilinks
+    let body = "See [[real-link]].\n\n```toml\n[[bench]]\nname = \"my_bench\"\n\n[[pre-release-hooks]]\ncommand = \"cargo\"\n```\n\nAlso [[another-link]].\n";
+    let links = extract_body_wikilinks(body, None);
+    assert!(
+        links.contains(&"real-link".to_string()),
+        "real-link missing: {links:?}"
+    );
+    assert!(
+        links.contains(&"another-link".to_string()),
+        "another-link missing: {links:?}"
+    );
+    assert!(
+        !links.contains(&"bench".to_string()),
+        "bench must NOT be extracted: {links:?}"
+    );
+    assert!(
+        !links.contains(&"pre-release-hooks".to_string()),
+        "pre-release-hooks must NOT be extracted: {links:?}"
+    );
+}
+
+#[test]
+fn wikilinks_not_extracted_from_inline_code() {
+    let body = "Use `[[not-a-link]]` to configure, but see [[real-link]] for details.";
+    let links = extract_body_wikilinks(body, None);
+    assert!(
+        links.contains(&"real-link".to_string()),
+        "real-link missing: {links:?}"
+    );
+    assert!(
+        !links.contains(&"not-a-link".to_string()),
+        "not-a-link must NOT be extracted: {links:?}"
+    );
+}

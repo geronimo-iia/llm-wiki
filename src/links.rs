@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+
 use crate::frontmatter::ParsedPage;
 
 // ── ParsedLink ────────────────────────────────────────────────────────────────
@@ -72,20 +74,11 @@ pub fn extract_parsed_links(page: &ParsedPage) -> Vec<ParsedLink> {
 }
 
 fn extract_parsed_wikilinks(text: &str, seen: &mut HashSet<String>, result: &mut Vec<ParsedLink>) {
-    let mut rest = text;
-    while let Some(start) = rest.find("[[") {
-        let after = &rest[start + 2..];
-        if let Some(end) = after.find("]]") {
-            let raw = after[..end].trim().to_string();
-            if !raw.is_empty() && seen.insert(raw.clone()) {
-                result.push(ParsedLink::parse(&raw));
-            }
-            rest = &after[end + 2..];
-        } else {
-            break;
-        }
+    let mut wikilink_strings: Vec<String> = Vec::new();
+    extract_links_from_body(text, seen, &mut wikilink_strings, result, None);
+    for slug in wikilink_strings {
+        result.push(ParsedLink::parse(&slug));
     }
-    extract_commonmark_links(text, seen, result, None);
 }
 
 /// Normalize a CommonMark link destination against the source page's directory.
@@ -136,30 +129,44 @@ fn normalize_commonmark_dest(dest: &str, source_dir: &str) -> String {
     }
 }
 
-/// Extract CommonMark inline link destinations `[text](destination)` from body text.
-/// Filters out external URLs, anchors, and image links. Strips `#anchor` suffixes.
-fn extract_commonmark_links(
+/// Walk a markdown body with pulldown-cmark, collecting wikilinks (`[[slug]]`)
+/// and CommonMark inline links (`[text](dest)`), skipping any content inside
+/// fenced code blocks or inline code spans.
+///
+/// pulldown-cmark splits `[[slug]]` across multiple `Event::Text` nodes
+/// (outer `[`, inner `[slug]`, outer `]`), so text outside code blocks is
+/// accumulated into a buffer first, then scanned for `[[...]]` patterns.
+fn extract_links_from_body(
     text: &str,
     seen: &mut HashSet<String>,
-    result: &mut Vec<ParsedLink>,
+    wikilink_result: &mut Vec<String>,
+    commonmark_result: &mut Vec<ParsedLink>,
     source_dir: Option<&str>,
 ) {
-    let mut rest = text;
-    while let Some(bracket) = rest.find("](") {
-        let before = &rest[..bracket];
-        if let Some(open) = before.rfind('[') {
-            // Skip image links — `![alt](`
-            let is_image = open > 0 && before.as_bytes()[open - 1] == b'!';
-            let after_paren = &rest[bracket + 2..];
-            if let Some(close) = after_paren.find(')') {
-                let dest_raw = after_paren[..close].trim();
-                // Strip #anchor suffix
+    let mut in_code: u32 = 0;
+    let mut text_buf = String::new();
+    let parser = Parser::new_ext(text, Options::empty());
+
+    for event in parser {
+        match event {
+            Event::Start(Tag::CodeBlock(_)) => {
+                in_code += 1;
+            }
+            Event::End(TagEnd::CodeBlock) => {
+                in_code = in_code.saturating_sub(1);
+            }
+            // Accumulate non-code text for wikilink scanning below.
+            // Event::Code(_) is inline code — leaf event, never appended here.
+            Event::Text(s) if in_code == 0 => {
+                text_buf.push_str(s.as_ref());
+            }
+            Event::Start(Tag::Link { dest_url, .. }) if in_code == 0 => {
+                let dest_raw = dest_url.as_ref();
                 let dest = dest_raw
                     .find('#')
                     .map(|i| dest_raw[..i].trim())
                     .unwrap_or(dest_raw);
-                if !is_image
-                    && !dest.is_empty()
+                if !dest.is_empty()
                     && !dest.starts_with("http://")
                     && !dest.starts_with("https://")
                     && !dest.starts_with("mailto:")
@@ -170,14 +177,27 @@ fn extract_commonmark_links(
                         None => dest.to_string(),
                     };
                     if seen.insert(raw.clone()) {
-                        result.push(ParsedLink::parse(&raw));
+                        commonmark_result.push(ParsedLink::parse(&raw));
                     }
                 }
-                rest = &after_paren[close + 1..];
-                continue;
             }
+            _ => {}
         }
-        rest = &rest[bracket + 2..];
+    }
+
+    // Scan accumulated non-code text for [[wikilinks]]
+    let mut rest = text_buf.as_str();
+    while let Some(start) = rest.find("[[") {
+        let after = &rest[start + 2..];
+        if let Some(end) = after.find("]]") {
+            let slug = after[..end].trim();
+            if !slug.is_empty() && seen.insert(slug.to_string()) {
+                wikilink_result.push(slug.to_string());
+            }
+            rest = &after[end + 2..];
+        } else {
+            break;
+        }
     }
 }
 
@@ -209,23 +229,9 @@ pub fn extract_wikilinks(
     result: &mut Vec<String>,
     source_dir: Option<&str>,
 ) {
-    let mut rest = text;
-    while let Some(start) = rest.find("[[") {
-        let after = &rest[start + 2..];
-        if let Some(end) = after.find("]]") {
-            let slug = after[..end].trim();
-            if !slug.is_empty() && seen.insert(slug.to_string()) {
-                result.push(slug.to_string());
-            }
-            rest = &after[end + 2..];
-        } else {
-            break;
-        }
-    }
-    // Also extract CommonMark inline links, reusing ParsedLink for filtering.
-    let mut parsed: Vec<ParsedLink> = Vec::new();
-    extract_commonmark_links(text, seen, &mut parsed, source_dir);
-    for link in parsed {
+    let mut commonmark: Vec<ParsedLink> = Vec::new();
+    extract_links_from_body(text, seen, result, &mut commonmark, source_dir);
+    for link in commonmark {
         result.push(link.as_raw().to_string());
     }
 }

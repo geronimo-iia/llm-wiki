@@ -52,6 +52,7 @@ regex      = "1"
 
 # Markdown
 # (frontmatter crate removed — unused, pulled in unmaintained yaml-rust)
+pulldown-cmark = { version = "0.13", default-features = false }
 
 # Full-text search
 tantivy    = "0.26"
