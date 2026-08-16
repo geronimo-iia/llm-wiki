@@ -42,12 +42,12 @@ Mermaid (default):
 
 ```
 graph LR
-  concepts/moe["MoE"]:::concept
-  sources/switch["Switch Transformer"]:::paper
-  concepts/scaling["Scaling Laws"]:::concept
+  N0["MoE"]:::concept
+  N1["Switch Transformer"]:::paper
+  N2["Scaling Laws"]:::concept
 
-  sources/switch -->|informs| concepts/moe
-  concepts/moe -->|depends-on| concepts/scaling
+  N1 -->|informs| N0
+  N0 -->|depends-on| N2
 
   classDef concept fill:#cce5ff
   classDef paper fill:#d4edda
@@ -108,9 +108,9 @@ Without `--cross-wiki`, pages that link to other wikis via `wiki://` URIs produc
 
 ```
 graph LR
-  concepts/moe["MoE"]:::concept
-  wiki__notes__concepts__attention["notes/concepts/attention"]:::external
-  concepts/moe -->|links-to| wiki__notes__concepts__attention
+  N0["MoE"]:::concept
+  N1["notes/concepts/attention"]:::external
+  N0 -->|links-to| N1
 
   classDef concept fill:#cce5ff
   classDef external fill:#eee,stroke:#999,stroke-dasharray:5 5
