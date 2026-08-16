@@ -15,6 +15,17 @@ Architectural decisions and their rationale, grouped by release.
 
 ---
 
+## v0.5.8 — Unreleased
+
+### Bug fixes
+
+| Decision | Summary |
+| -------- | ------- |
+| [mermaid-node-id-from-petgraph-index](0.5.8/mermaid-node-id-from-petgraph-index.md) | Use `N{idx.index()}` as mermaid node ID — eliminates sanitization logic and collision risk; `mermaid_id` deleted entirely; labels unchanged ([#128](https://github.com/geronimo-iia/llm-wiki/issues/128)) |
+| [markdown-parser-for-link-extraction](0.5.8/markdown-parser-for-link-extraction.md) | Adopt `pulldown-cmark` for body link extraction — replaces manual walker; TOML `[[section]]` headers and inline code no longer extracted as wikilinks. Supersedes "manual walker, not a Markdown parser" in [0.2.0/commonmark-body-links](0.2.0/commonmark-body-links.md). |
+
+---
+
 ## v0.5.7 — Unreleased
 
 ### New tools
