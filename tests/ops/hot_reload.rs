@@ -180,3 +180,105 @@ fn hot_reload_cross_wiki_search_reflects_new_wiki() {
         results
     );
 }
+
+#[test]
+fn spaces_create_set_default_updates_engine() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "alpha");
+    let manager = WikiEngine::build(&config_path).unwrap();
+
+    let beta_path = dir.path().join("beta");
+    ops::spaces_create(
+        &beta_path,
+        "beta",
+        None,
+        false,
+        true, // set_default
+        &config_path,
+        Some(&manager),
+        None,
+    )
+    .unwrap();
+
+    // Engine default must update in-process without restart.
+    let engine = manager.state.read().unwrap();
+    assert_eq!(engine.default_wiki_name(), "beta");
+}
+
+#[test]
+fn spaces_create_mount_failure_rolls_back_config() {
+    // build_space reads only .json files from schemas/. Pre-creating bad.json
+    // with invalid JSON causes mount_wiki to fail. ensure_structure skips
+    // existing files, so bad.json survives into the mount attempt.
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "alpha");
+    let manager = WikiEngine::build(&config_path).unwrap();
+
+    // Pre-create beta with a corrupt .json schema. spaces_create will call
+    // ensure_structure (which won't overwrite existing files) then register
+    // then attempt to mount — which must fail.
+    let beta_path = dir.path().join("beta");
+    std::fs::create_dir_all(beta_path.join("wiki")).unwrap();
+    let schemas = beta_path.join("schemas");
+    std::fs::create_dir_all(&schemas).unwrap();
+    std::fs::write(schemas.join("bad.json"), "{ this is not valid json").unwrap();
+
+    let result = ops::spaces_create(
+        &beta_path,
+        "beta",
+        None,
+        false,
+        false,
+        &config_path,
+        Some(&manager),
+        None,
+    );
+    assert!(
+        result.is_err(),
+        "spaces_create must return Err when mount_wiki fails"
+    );
+
+    // Invariant: config must not contain beta after a failed spaces_create.
+    let global = llm_wiki::config::load_global(&config_path).unwrap();
+    assert!(
+        !global.wikis.iter().any(|w| w.name == "beta"),
+        "beta must be absent from config after rollback"
+    );
+
+    // Engine must not have beta mounted.
+    let engine = manager.state.read().unwrap();
+    assert!(engine.space("beta").is_err(), "beta must not be mounted");
+}
+
+#[test]
+fn spaces_register_mount_failure_rolls_back_config() {
+    // Same trigger as spaces_create test: pre-create bad.json with invalid
+    // JSON so build_space fails inside mount_wiki.
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "alpha");
+    let manager = WikiEngine::build(&config_path).unwrap();
+
+    // Create a wiki dir with git, wiki/ root, and a corrupt .json schema.
+    let beta_path = dir.path().join("beta");
+    std::fs::create_dir_all(beta_path.join("wiki")).unwrap();
+    llm_wiki::git::init_repo(&beta_path).unwrap();
+    let schemas = beta_path.join("schemas");
+    std::fs::create_dir_all(&schemas).unwrap();
+    std::fs::write(schemas.join("bad.json"), "{ this is not valid json").unwrap();
+
+    // spaces_register with a live engine — must fail and roll back.
+    let result = ops::spaces_register(&beta_path, "beta", None, None, &config_path, Some(&manager));
+    assert!(
+        result.is_err(),
+        "spaces_register must return Err when mount_wiki fails"
+    );
+
+    let global = llm_wiki::config::load_global(&config_path).unwrap();
+    assert!(
+        !global.wikis.iter().any(|w| w.name == "beta"),
+        "beta must be absent from config after rollback"
+    );
+
+    let engine = manager.state.read().unwrap();
+    assert!(engine.space("beta").is_err(), "beta must not be mounted");
+}

@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `wiki_spaces_create`: `set_default=true` now updates the in-memory engine default without requiring a restart ([#131](https://github.com/geronimo-iia/llm-wiki/issues/131))
+- `wiki_spaces_create` / `wiki_spaces_register`: config entry is rolled back when `mount_wiki` fails, preventing a registered-but-unmountable wiki from stranding the server ([#131](https://github.com/geronimo-iia/llm-wiki/issues/131))
+
 ## [0.5.8] — 2026-08-16
 
 ### Fixed

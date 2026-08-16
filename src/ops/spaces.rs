@@ -28,7 +28,6 @@ pub fn spaces_create(
         wiki_root,
     )?;
 
-    // Hot reload: mount the new wiki in the running engine
     if report.registered
         && let Some(engine) = engine
     {
@@ -38,7 +37,15 @@ pub fn spaces_create(
             description: description.map(|s| s.to_string()),
             remote: None,
         };
-        engine.mount_wiki(&entry)?;
+        // Roll back config entry if mount fails so caller is never left with a
+        // registered-but-unmountable wiki.
+        if let Err(e) = engine.mount_wiki(&entry) {
+            let _ = spaces::remove(name, false, config_path);
+            return Err(e);
+        }
+        if set_default {
+            engine.set_default(name)?;
+        }
     }
 
     Ok(report)
@@ -64,7 +71,10 @@ pub fn spaces_register(
             description: description.map(|s| s.to_string()),
             remote: None,
         };
-        engine.mount_wiki(&entry)?;
+        if let Err(e) = engine.mount_wiki(&entry) {
+            let _ = spaces::remove(name, false, config_path);
+            return Err(e);
+        }
     }
 
     Ok(report)
