@@ -820,7 +820,7 @@ pub fn render_mermaid(graph: &WikiGraph) -> String {
     // Declare nodes with titles and type classes
     for idx in graph.node_indices() {
         let node = &graph[idx];
-        let safe_id = mermaid_id(&node.title);
+        let safe_id = format!("N{}", idx.index());
         if node.external {
             out.push_str(&format!("  {safe_id}[\"{}\"]:::external\n", node.title));
             has_external = true;
@@ -838,8 +838,8 @@ pub fn render_mermaid(graph: &WikiGraph) -> String {
     // Edges with relation labels
     for edge in graph.edge_indices() {
         let (from, to) = graph.edge_endpoints(edge).unwrap();
-        let from_id = mermaid_id(&graph[from].title);
-        let to_id = mermaid_id(&graph[to].title);
+        let from_id = format!("N{}", from.index());
+        let to_id = format!("N{}", to.index());
         let relation = &graph[edge].relation;
         out.push_str(&format!("  {from_id} -->|{relation}| {to_id}\n"));
     }
@@ -866,10 +866,6 @@ pub fn render_mermaid(graph: &WikiGraph) -> String {
     }
 
     out
-}
-
-fn mermaid_id(slug: &str) -> String {
-    slug.replace("://", "__").replace(['/', '-', ':'], "_")
 }
 
 // ── render_dot ────────────────────────────────────────────────────────────────
@@ -1227,5 +1223,112 @@ mod tests {
         assert_eq!(data.local_count, 3);
         assert_eq!(data.map.get("slug-a"), Some(&0));
         assert_eq!(data.stats.count, 1);
+    }
+
+    fn make_node(slug: &str, title: &str, r#type: &str, external: bool) -> PageNode {
+        PageNode {
+            slug: slug.to_string(),
+            title: title.to_string(),
+            r#type: r#type.to_string(),
+            external,
+        }
+    }
+
+    #[test]
+    fn render_mermaid_node_ids_are_valid_and_unique() {
+        let mut g: WikiGraph = DiGraph::new();
+        // Titles with spaces, special chars, angle brackets — all would break old mermaid_id
+        let a = g.add_node(make_node(
+            "concepts/arc-str",
+            "Arc<str> for Shared Immutable Strings",
+            "concept",
+            false,
+        ));
+        let b = g.add_node(make_node(
+            "concepts/send-sync",
+            "Send and Sync: Thread Safety in Rust",
+            "concept",
+            false,
+        ));
+        let c = g.add_node(make_node(
+            "concepts/try-join",
+            "try_join! macro",
+            "concept",
+            false,
+        ));
+        g.add_edge(
+            a,
+            b,
+            LabeledEdge {
+                relation: "links-to".to_string(),
+            },
+        );
+        g.add_edge(
+            b,
+            c,
+            LabeledEdge {
+                relation: "links-to".to_string(),
+            },
+        );
+
+        let output = render_mermaid(&g);
+
+        // Every node declaration must use N{digit} as ID
+        assert!(
+            output.contains(&format!("N{}[", a.index())),
+            "node a ID missing: {output}"
+        );
+        assert!(
+            output.contains(&format!("N{}[", b.index())),
+            "node b ID missing: {output}"
+        );
+        assert!(
+            output.contains(&format!("N{}[", c.index())),
+            "node c ID missing: {output}"
+        );
+
+        // Labels must preserve the original title
+        assert!(
+            output.contains("Arc<str> for Shared Immutable Strings"),
+            "label a missing"
+        );
+        assert!(
+            output.contains("Send and Sync: Thread Safety in Rust"),
+            "label b missing"
+        );
+        assert!(output.contains("try_join! macro"), "label c missing");
+
+        // Edges must reference the correct node IDs
+        assert!(
+            output.contains(&format!("N{} -->|links-to| N{}", a.index(), b.index())),
+            "edge a→b missing: {output}"
+        );
+    }
+
+    #[test]
+    fn render_mermaid_external_node_id_valid() {
+        let mut g: WikiGraph = DiGraph::new();
+        let local = g.add_node(make_node("concepts/foo", "Foo Concept", "concept", false));
+        let ext = g.add_node(make_node("bar", "wiki://otherwiki/bar", "external", true));
+        g.add_edge(
+            local,
+            ext,
+            LabeledEdge {
+                relation: "links-to".to_string(),
+            },
+        );
+
+        let output = render_mermaid(&g);
+
+        // External node must also get a valid N{n} ID, not the raw wiki:// URI
+        assert!(
+            output.contains(&format!("N{}[", ext.index())),
+            "external node ID must be N{{n}}, got: {output}"
+        );
+        // The wiki:// URI must appear only in the label, not as a bare ID
+        assert!(
+            !output.contains("wiki__"),
+            "wiki:// must not appear as sanitized ID fragment: {output}"
+        );
     }
 }
