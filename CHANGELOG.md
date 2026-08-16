@@ -5,12 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.9] — 2026-08-17
 
 ### Fixed
 
 - `wiki_spaces_create`: `set_default=true` now updates the in-memory engine default without requiring a restart ([#131](https://github.com/geronimo-iia/llm-wiki/issues/131))
 - `wiki_spaces_create` / `wiki_spaces_register`: config entry is rolled back when `mount_wiki` fails, preventing a registered-but-unmountable wiki from stranding the server ([#131](https://github.com/geronimo-iia/llm-wiki/issues/131))
+- `wiki_lint`: cross-wiki body links `[text](wiki://name/slug)` no longer produce
+  false `broken-link` errors when the target wiki is mounted. Previously the
+  `wiki://` prefix was stripped before indexing, losing the routing information.
+  As a side effect, `wiki_graph` now produces correct edges for cross-wiki body
+  links (`graph.rs:resolve_or_external` already handled `wiki://` prefixes).
+  **Action required:** run `llm-wiki index rebuild` on any wiki that uses
+  `wiki://` body links to pick up the corrected `body_links` index entries. ([#132](https://github.com/geronimo-iia/llm-wiki/issues/132))
 
 ## [0.5.8] — 2026-08-16
 
@@ -48,25 +55,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **rmcp 2.x → 3.x** — updated `ServerHandler` impl (`src/mcp/mod.rs`) to use `CallToolResponse`, `ReadResourceResponse` return types and `..Default::default()` for `ListToolsResult`/`ListResourcesResult` struct literals, required by the new response-envelope model introduced in rmcp 3.0
-
-## [Unreleased]
-
-### Fixed
-
-- `wiki_lint`: cross-wiki body links `[text](wiki://name/slug)` no longer produce
-  false `broken-link` errors when the target wiki is mounted. Previously the
-  `wiki://` prefix was stripped before indexing, losing the routing information.
-  As a side effect, `wiki_graph` now produces correct edges for cross-wiki body
-  links (`graph.rs:resolve_or_external` already handled `wiki://` prefixes).
-  **Action required:** run `llm-wiki index rebuild` on any wiki that uses
-  `wiki://` body links to pick up the corrected `body_links` index entries.
-
-### Documentation
-
-- Added `AGENTS.md` at repo root — codebase map, key types, CLI vs MCP lifetime, ops layer rule, test patterns, CI table
-- Added `docs/invariants.md` — architectural constraints not enforced by the compiler (snapshot key stability, ops layer ownership, lock ordering, schema-driven types, cross-wiki resolution, no stable page id, filtered graph bypass)
-- Added `docs/decisions/0.6.0/graph-snapshot-stale-key.md` — records root cause, fix, alternatives, and test coverage for issue #112
-- Updated `docs/decisions/README.md` with v0.5.0 and v0.6.0 sections; annotated `0.3.0/graph-cache.md` generation-key section as partially superseded
 
 ## [0.5.4] — 2026-08-04
 
