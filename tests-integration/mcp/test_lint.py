@@ -80,3 +80,20 @@ async def test_lint_findings_have_md_path(mcp_env):
     data = await mcp_env.json("wiki_lint", {"rules": ["broken-link"], "format": "json"})
     for f in data["findings"]:
         assert f.get("path", "").endswith(".md"), f"finding path not .md: {f.get('path')}"
+
+
+async def test_lint_no_false_broken_links_from_toml_code_block(mcp_env):
+    # TOML [[bench]] and [[pre-release-hooks]] inside a fenced code block in
+    # concepts/code-block-links.md must not appear as broken-link findings (#127)
+    await mcp_env.rebuild()
+    data = await mcp_env.json("wiki_lint", {"rules": ["broken-link"], "format": "json"})
+    msgs = [f["message"] for f in data["findings"] if f["rule"] == "broken-link"]
+    assert not any("bench" in m for m in msgs), (
+        "[[bench]] inside fenced code block must not produce a broken-link finding"
+    )
+    assert not any("pre-release-hooks" in m for m in msgs), (
+        "[[pre-release-hooks]] inside fenced code block must not produce a broken-link finding"
+    )
+    assert not any("not-a-link" in m for m in msgs), (
+        "[[not-a-link]] inside inline code must not produce a broken-link finding"
+    )
