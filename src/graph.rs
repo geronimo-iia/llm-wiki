@@ -251,6 +251,16 @@ fn louvain_phase1(
         }
         pass += 1;
         let mut any_move = false;
+
+        // Precompute sigma_tot once per pass — O(N) instead of O(N) per node.
+        // sigma_tot[c] = sum of degrees of all nodes currently in community c.
+        // Incremental updates keep it accurate after each move within the pass.
+        let mut sigma_tot: HashMap<usize, f64> = HashMap::new();
+        for (&n2, &c2) in community.iter() {
+            let d = *degrees.get(&n2).unwrap_or(&0) as f64;
+            *sigma_tot.entry(c2).or_default() += d;
+        }
+
         for &node in &sorted_nodes {
             let current_c = *community.get(&node).expect("node must be in community map");
             let k_i = *degrees.get(&node).unwrap_or(&0) as f64;
@@ -264,15 +274,14 @@ fn louvain_phase1(
                 *neighbor_c_edges.entry(nb_c).or_default() += 1;
             }
 
-            // sigma_tot per community (sum of degrees)
-            let mut sigma_tot: HashMap<usize, f64> = HashMap::new();
-            for (&n2, &c2) in community.iter() {
-                if n2 == node {
-                    continue;
-                }
-                let d = *degrees.get(&n2).unwrap_or(&0) as f64;
-                *sigma_tot.entry(c2).or_default() += d;
-            }
+            // Full ΔQ: gain of joining c minus cost of leaving current_c.
+            // Using the full formula guarantees modularity strictly increases on
+            // every accepted move, preventing oscillation and ensuring convergence.
+            let k_i_in_current = *neighbor_c_edges.get(&current_c).unwrap_or(&0) as f64;
+            // sigma_tot[current_c] includes node itself; remove it for leave cost.
+            let sigma_s_minus_i = sigma_tot.get(&current_c).unwrap_or(&0.0) - k_i;
+            let leave_gain =
+                k_i_in_current / m_f - sigma_s_minus_i * k_i / (2.0 * m_f * m_f);
 
             // Find best community
             let mut best_c = current_c;
@@ -283,7 +292,8 @@ fn louvain_phase1(
                     continue;
                 }
                 let st = *sigma_tot.get(&c).unwrap_or(&0.0);
-                let gain = (k_i_in as f64) / m_f - st * k_i / (2.0 * m_f * m_f);
+                let join_gain = (k_i_in as f64) / m_f - st * k_i / (2.0 * m_f * m_f);
+                let gain = join_gain - leave_gain;
                 if gain > best_gain {
                     best_gain = gain;
                     best_c = c;
@@ -294,6 +304,9 @@ fn louvain_phase1(
                 community.insert(node, best_c);
                 any_move = true;
                 moved = true;
+                // Incremental update: node leaves current_c, joins best_c.
+                *sigma_tot.entry(current_c).or_default() -= k_i;
+                *sigma_tot.entry(best_c).or_default() += k_i;
             }
         }
         if !any_move {
@@ -1339,6 +1352,85 @@ mod tests {
         assert!(
             !output.contains("wiki__"),
             "wiki:// must not appear as sanitized ID fragment: {output}"
+        );
+    }
+
+    // Helper — free function avoids borrow-checker conflict with closure + loop reborrow.
+    fn connect(
+        adj: &mut HashMap<NodeIndex, HashSet<NodeIndex>>,
+        degrees: &mut HashMap<NodeIndex, usize>,
+        a: NodeIndex,
+        b: NodeIndex,
+    ) {
+        adj.entry(a).or_default().insert(b);
+        adj.entry(b).or_default().insert(a);
+        *degrees.entry(a).or_default() += 1;
+        *degrees.entry(b).or_default() += 1;
+    }
+
+    /// Two clear clusters of 4 nodes each, with one bridge edge.
+    /// Louvain should assign all nodes in cluster A the same community id,
+    /// and all nodes in cluster B the same community id (different from A).
+    #[test]
+    fn test_louvain_two_clusters() {
+        // Cluster A: nodes 0,1,2,3 — fully connected (6 edges)
+        // Cluster B: nodes 4,5,6,7 — fully connected (6 edges)
+        // Bridge: 3 -- 4 (1 edge)
+        // Total edges m = 13
+
+        use petgraph::graph::NodeIndex;
+        use std::collections::{HashMap, HashSet};
+
+        let make = |i: usize| NodeIndex::new(i);
+
+        let cluster_a: Vec<NodeIndex> = (0..4).map(make).collect();
+        let cluster_b: Vec<NodeIndex> = (4..8).map(make).collect();
+
+        let mut adj: HashMap<NodeIndex, HashSet<NodeIndex>> = HashMap::new();
+        let mut degrees: HashMap<NodeIndex, usize> = HashMap::new();
+
+        // Fully connect cluster A
+        for i in 0..4usize {
+            for j in (i + 1)..4 {
+                connect(&mut adj, &mut degrees, make(i), make(j));
+            }
+        }
+        // Fully connect cluster B
+        for i in 4..8usize {
+            for j in (i + 1)..8 {
+                connect(&mut adj, &mut degrees, make(i), make(j));
+            }
+        }
+        // Bridge edge
+        connect(&mut adj, &mut degrees, make(3), make(4));
+
+        // Ensure every node has an adjacency entry (even if empty)
+        for i in 0..8usize {
+            adj.entry(make(i)).or_default();
+            degrees.entry(make(i)).or_insert(0);
+        }
+
+        let m: usize = degrees.values().sum::<usize>() / 2;
+
+        // Each node starts in its own community
+        let mut community: HashMap<NodeIndex, usize> =
+            (0..8usize).map(|i| (make(i), i)).collect();
+
+        louvain_phase1(&adj, &mut community, &degrees, m);
+
+        // All cluster A nodes must share one community id
+        let ca: HashSet<usize> = cluster_a.iter().map(|n| community[n]).collect();
+        assert_eq!(ca.len(), 1, "cluster A nodes must all share one community, got {:?}", ca);
+
+        // All cluster B nodes must share one community id
+        let cb: HashSet<usize> = cluster_b.iter().map(|n| community[n]).collect();
+        assert_eq!(cb.len(), 1, "cluster B nodes must all share one community, got {:?}", cb);
+
+        // The two clusters must be in different communities
+        assert_ne!(
+            ca.iter().next(),
+            cb.iter().next(),
+            "cluster A and cluster B must be in different communities"
         );
     }
 }
