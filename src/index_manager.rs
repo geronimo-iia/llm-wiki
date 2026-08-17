@@ -663,13 +663,16 @@ impl SpaceIndexManager {
 
         writer.commit()?;
         self.reload_reader()?;
+        let total_pages = self.searcher()?.num_docs() as usize;
 
         // Update state.toml
         let commit = git::current_head(repo_root).unwrap_or_default();
         let state = IndexState {
             schema_hash: registry.schema_hash().to_string(),
             built: Utc::now().to_rfc3339(),
-            pages: 0, // not accurate for partial, but state.toml is refreshed
+            pages: total_pages,
+            // rebuild() counts sections via page_type filter; update() does not —
+            // a type-filtered tantivy query would be needed, out of P3.4 scope.
             sections: 0,
             commit,
             types: registry.type_hashes().clone(),
