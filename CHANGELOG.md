@@ -69,6 +69,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `id_remap.get()` in `louvain_phase1` and `build_community_data` replaced with
   `.expect("...")` carrying an invariant message. A `debug_assert!` at
   `louvain_phase1` entry verifies the community map covers all adjacency nodes.
+- **Rollback errors logged** — `spaces_create` and `spaces_register` previously called
+  `let _ = spaces::remove(...)` on mount failure, silently discarding any error from
+  the rollback itself. The error is now logged via `tracing::error!` so a stranded
+  config entry is visible in logs.
+
+### Documentation
+
+- **`generation()` cache-key contract documented** — added code comments in
+  `get_or_build_graph`, `get_cached_community_map`, and `get_cached_community_stats`
+  explaining why `generation()` is used as the cache invalidation key instead of
+  `last_commit()`: same-commit schema-triggered rebuilds produce a new index without
+  changing the commit hash and must still invalidate downstream graph caches.
+  Extended the `generation()` doc comment in `index_manager.rs` with the same
+  rationale.
+
+### Tests
+
+- **Colon-query regression test** — Python integration test for `parse_query_lenient`
+  fallback path (fixed 0.5.6): `search "Layer 1: Attention"` must exit 0 even though
+  the colon would fail Tantivy's strict query parser.
+- **Cross-wiki body link lint regression test** — Python integration test for the
+  false-positive fix (fixed 0.5.9): `[text](wiki://other/slug)` in a body link must
+  not trigger `broken-link` when the target wiki is mounted.
+- **`spaces set-default` config state assertion** — `test_spaces_set_default` now also
+  asserts `config get global.default_wiki` matches the newly-set wiki, verifying
+  the engine persists the change and not just the display layer.
 
 
 ## [0.5.9] — 2026-08-17
