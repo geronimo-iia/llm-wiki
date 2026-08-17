@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
 use anyhow::{Context, Result};
@@ -35,6 +36,11 @@ pub struct SpaceContext {
     pub graph_cache: WikiGraphCache,
     /// Generation-keyed community cache. Shares the same generation key as graph_cache.
     pub community_cache: GenerationCache<CommunityData>,
+    /// Guard preventing redundant concurrent rebuilds. Set to `true` while a
+    /// rebuild is in progress; watch.rs checks before dispatching a new one.
+    /// If run_watcher is cancelled between setting and clearing this flag,
+    /// the engine is shutting down and SpaceContext will be dropped anyway.
+    pub rebuilding: Arc<AtomicBool>,
 }
 
 impl SpaceContext {
@@ -178,11 +184,14 @@ impl WikiEngine {
     /// Smart schema rebuild: checks staleness and does partial rebuild
     /// when possible, full rebuild only when necessary.
     pub fn schema_rebuild(&self, wiki_name: &str) -> Result<()> {
-        let engine = self
-            .state
-            .read()
-            .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-        let space = engine.space(wiki_name)?;
+        // Hold the read lock only long enough to clone the Arc — drops before I/O.
+        let space: Arc<SpaceContext> = {
+            let engine = self
+                .state
+                .read()
+                .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+            Arc::clone(engine.space(wiki_name)?)
+        };
         match space.index_manager.staleness_kind(&space.repo_root) {
             Ok(StalenessKind::Current) => {}
             Ok(StalenessKind::CommitChanged) => {
@@ -415,6 +424,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
         index_manager,
         graph_cache,
         community_cache: GenerationCache::new(),
+        rebuilding: Arc::new(AtomicBool::new(false)),
     })
 }
 

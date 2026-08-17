@@ -59,6 +59,7 @@ fn build_engine(dir: &Path, wiki_root: &Path) -> EngineState {
             petgraph_live::cache::GenerationCache::new(),
         ),
         community_cache: petgraph_live::cache::GenerationCache::new(),
+        rebuilding: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
     });
 
     let mut spaces = HashMap::new();
@@ -438,6 +439,7 @@ fn build_engine_with_name(dir: &Path, wiki_root: &Path, name: &str) -> EngineSta
             petgraph_live::cache::GenerationCache::new(),
         ),
         community_cache: petgraph_live::cache::GenerationCache::new(),
+        rebuilding: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
     });
 
     let mut spaces = HashMap::new();
