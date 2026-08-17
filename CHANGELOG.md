@@ -41,6 +41,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `serve.mcp_max_param_len` added to `ServeConfig` (default: 8192 bytes). Accessible
   via `wiki_config get/set serve.mcp_max_param_len` (global-only key).
 
+### Concurrency
+
+- **Blocking I/O moved off Tokio thread** — `schema_rebuild` is now dispatched via
+  `tokio::task::spawn_blocking` in the watcher loop; file I/O, `git log`, and Tantivy
+  fsync no longer block MCP request handling or ACP sessions during schema changes.
+- **Read lock scope narrowed in `schema_rebuild`** — `state.read()` is held only long
+  enough to clone `Arc<SpaceContext>`, then dropped before any I/O. `mount_wiki` and
+  `unmount_wiki` (which need `state.write()`) are no longer blocked for the full
+  rebuild duration.
+- **Redundant concurrent rebuilds eliminated** — `SpaceContext` carries a per-wiki
+  `Arc<AtomicBool>` rebuild guard; a second watcher event arriving while a rebuild is
+  in progress is skipped with a `debug` log instead of queuing a redundant rebuild.
+  See `docs/decisions/1.0.0/watcher-rebuild-guard-atomic-bool.md`.
+- **ACP session mutex hardened** — `Sessions` now uses `parking_lot::Mutex` instead of
+  `std::sync::Mutex`. A panic in a critical section no longer poisons the mutex and
+  permanently crashes the ACP server task. Helper functions remain sync.
+  See `docs/decisions/1.0.0/acp-sessions-parking-lot-mutex.md`.
+
+### Correctness
+
+- **`is_wiki_md` deleted** — the watcher previously silently dropped all `.md` events
+  when `wiki_root` was not named `"wiki"`. The hardcoded `/wiki/` path check is
+  replaced by `path.extension() == Some("md")`; the existing `starts_with(wiki_root)`
+  guard already scopes events correctly.
+- **Louvain HashMap lookups hardened** — bare `.unwrap()` on `community.get()` and
+  `id_remap.get()` in `louvain_phase1` and `build_community_data` replaced with
+  `.expect("...")` carrying an invariant message. A `debug_assert!` at
+  `louvain_phase1` entry verifies the community map covers all adjacency nodes.
+
 
 ## [0.5.9] — 2026-08-17
 
