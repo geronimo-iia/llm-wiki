@@ -13,6 +13,13 @@ Architectural decisions and their rationale, grouped by release.
 | [acp-sessions-parking-lot-mutex](1.0.0/acp-sessions-parking-lot-mutex.md) | `parking_lot::Mutex` for ACP `Sessions` — `tokio::sync::Mutex` rejected because helper functions are sync; `std::sync::Mutex` rejected due to poison crash vector; `parking_lot` already in transitive tree, zero new packages |
 | [watcher-rebuild-guard-atomic-bool](1.0.0/watcher-rebuild-guard-atomic-bool.md) | `Arc<AtomicBool>` per `SpaceContext` to skip redundant concurrent rebuilds — `JoinHandle` abort rejected (Tantivy non-cancellable); per-wiki watch channel rejected (disproportionate); flag resets on re-mount; stuck-flag edge case on shutdown is benign |
 
+### Stable API
+
+| Decision | Summary |
+| -------- | ------- |
+| [normalized-slug-newtype](1.0.0/normalized-slug-newtype.md) | `NormalizedSlug(String)` newtype — slug normalisation was convention-only; `Slug::normalize()` is the only public constructor; `from_normalized` bypass for internal index reads; `PartialEq<str>` impls keep test assertions unchanged; serializes as plain string |
+| [pub-crate-partial-migration](1.0.0/pub-crate-partial-migration.md) | Only 4 of 22 modules converted to `pub(crate)` (`cli`, `server`, `watch`, `pathutil`) — 18 remain `pub mod` because `tests/*.rs` imports them directly; `#[allow(unreachable_pub)]` per module suppresses noise; full migration deferred to Post-1.0 test-layer refactor |
+
 ### Performance
 
 | Decision | Summary |
