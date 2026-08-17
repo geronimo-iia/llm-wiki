@@ -10,16 +10,14 @@ use super::helpers::{ToolResult, check_param_lengths, err_text};
 // ── Schema helpers ────────────────────────────────────────────────────────────
 
 fn schema(props: Value, required: &[&str]) -> Arc<Map<String, Value>> {
-    let req: Vec<Value> = required
-        .iter()
-        .map(|s| Value::String(s.to_string()))
-        .collect();
-    let obj = json!({
-        "type": "object",
-        "properties": props,
-        "required": req,
-    });
-    Arc::new(obj.as_object().unwrap().clone())
+    let mut map = Map::new();
+    map.insert("type".to_string(), Value::String("object".to_string()));
+    map.insert("properties".to_string(), props);
+    map.insert(
+        "required".to_string(),
+        Value::Array(required.iter().map(|s| Value::String(s.to_string())).collect()),
+    );
+    Arc::new(map)
 }
 
 fn str_prop(desc: &str) -> Value {
