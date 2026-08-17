@@ -204,6 +204,7 @@ fn build_adjacency(graph: &WikiGraph) -> HashMap<NodeIndex, HashSet<NodeIndex>> 
         }
     }
     for edge in graph.edge_indices() {
+        // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
         let (a, b) = graph.edge_endpoints(edge).unwrap();
         if graph[a].external || graph[b].external {
             continue;
@@ -555,6 +556,7 @@ pub fn build_graph_cross_wiki(
     for (wiki_name, searcher, is, registry) in wikis {
         let g = build_graph(searcher, is, filter, registry)?;
         for edge_idx in g.edge_indices() {
+            // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
             let (from, to) = g.edge_endpoints(edge_idx).unwrap();
             let from_node = &g[from];
             let to_node = &g[to];
@@ -656,6 +658,7 @@ pub fn merge_cached_graphs(
     // Second pass: add edges, re-resolving cross-wiki external nodes
     for (wiki_name, graph) in wikis {
         for edge_idx in graph.edge_indices() {
+            // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
             let (from, to) = graph.edge_endpoints(edge_idx).unwrap();
             let from_node = &graph[from];
             let to_node = &graph[to];
@@ -863,6 +866,7 @@ pub fn render_mermaid(graph: &WikiGraph) -> String {
 
     // Edges with relation labels
     for edge in graph.edge_indices() {
+        // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
         let (from, to) = graph.edge_endpoints(edge).unwrap();
         let from_id = format!("N{}", from.index());
         let to_id = format!("N{}", to.index());
@@ -916,6 +920,7 @@ pub fn render_dot(graph: &WikiGraph) -> String {
     }
 
     for edge in graph.edge_indices() {
+        // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
         let (from, to) = graph.edge_endpoints(edge).unwrap();
         let relation = &graph[edge].relation;
         let from_id = if graph[from].external {
@@ -1008,6 +1013,7 @@ pub fn subgraph(graph: &WikiGraph, root_slug: &str, depth: usize) -> WikiGraph {
     }
 
     for edge in graph.edge_indices() {
+        // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
         let (from, to) = graph.edge_endpoints(edge).unwrap();
         if let (Some(&new_from), Some(&new_to)) = (old_to_new.get(&from), old_to_new.get(&to)) {
             new_graph.add_edge(new_from, new_to, graph[edge].clone());
