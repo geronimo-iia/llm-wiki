@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — 1.0.0
+
+### Security
+
+- **Path traversal in `type_registry.rs` closed** — `SpaceTypeRegistry::build` and
+  `compute_disk_hashes` now validate every `schema` path from `wiki.toml` via
+  `validate_schema_path`: absolute paths and `..` components are rejected, and the
+  resolved path must be inside `repo_root`. Previously an adversarial
+  `schema = "../../etc/passwd"` entry would read arbitrary files from the filesystem.
+- **MCP parameter length limit** — all MCP tool calls are now rejected before dispatch
+  if any string argument exceeds `serve.mcp_max_param_len` bytes (default: 8192).
+  Configurable via `llm-wiki config set serve.mcp_max_param_len <n> --global`.
+- **MCP slug validation** — `slug` arguments in `wiki_history` and `wiki_suggest` are
+  now validated through `Slug::try_from` before reaching the ops layer, rejecting
+  `..` components, hidden path segments, and invalid characters.
+
+### Dependencies
+
+- `memmap2` updated — resolves RUSTSEC-2026-0186 (unchecked pointer offset).
+- `event-listener` updated — resolves RUSTSEC-2026-0221 (`!Send` tags crossing thread
+  boundaries via `StackSlot`).
+- `lru` RUSTSEC-2026-0253 (use-after-free in `LruCache::pop()`) — suppressed as an
+  allowed warning. Upstream-blocked: `tantivy 0.26.1` pins `lru ^0.16.3` and no fixed
+  version exists in that range. Will be resolved when `tantivy` bumps to `lru ^0.17`.
+  See `docs/decisions/1.0.0/suppress-lru-rustsec-2026-0253.md`.
+- `atomic-polyfill` RUSTSEC-2023-0089 (unmaintained) — suppressed as an allowed
+  warning. Upstream-blocked via `postcard → heapless ^0.7.0` chain; crate is not
+  compiled into the binary on any supported target. Will be resolved when `postcard`
+  relaxes its `heapless` constraint to `^0.8` or later.
+  See `docs/decisions/1.0.0/suppress-atomic-polyfill-rustsec-2023-0089.md`.
+
+### Changed
+
+- `serve.mcp_max_param_len` added to `ServeConfig` (default: 8192 bytes). Accessible
+  via `wiki_config get/set serve.mcp_max_param_len` (global-only key).
+
+
 ## [0.5.9] — 2026-08-17
 
 ### Fixed

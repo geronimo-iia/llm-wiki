@@ -4,6 +4,17 @@ Architectural decisions and their rationale, grouped by release.
 
 ---
 
+## v1.0.0 — Unreleased
+
+### Dependency hygiene
+
+| Decision | Summary |
+| -------- | ------- |
+| [suppress-lru-rustsec-2026-0253](1.0.0/suppress-lru-rustsec-2026-0253.md) | Suppress `lru` use-after-free advisory — upstream-blocked via `tantivy ^0.16.3` pin; no fixed version in range; risk low (trigger requires panic inside tantivy LRU internals); re-evaluate on each `tantivy` release |
+| [suppress-atomic-polyfill-rustsec-2023-0089](1.0.0/suppress-atomic-polyfill-rustsec-2023-0089.md) | Suppress `atomic-polyfill` unmaintained advisory — upstream-blocked via `postcard → heapless ^0.7.0` chain; crate not compiled into binary on any supported target; risk negligible; re-evaluate on each `postcard` release |
+
+---
+
 ## v0.6.0 — 2026-08-04
 
 ### Bug fixes
