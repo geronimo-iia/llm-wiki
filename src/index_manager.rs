@@ -154,9 +154,8 @@ impl SpaceIndexManager {
     pub fn generation(&self) -> u64 {
         self.inner
             .read()
-            .unwrap()
-            .generation
-            .load(Ordering::Acquire)
+            .map(|g| g.generation.load(Ordering::Acquire))
+            .unwrap_or(0)
     }
 
     /// Open the index from disk and hold the reader.

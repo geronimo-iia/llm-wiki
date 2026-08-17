@@ -60,7 +60,7 @@ fn parse_from_dir(schemas_dir: &Path, repo_root: &Path) -> Result<Vec<ParsedSche
 
     for entry in entries {
         let path = entry.path();
-        let filename = path.file_name().unwrap().to_string_lossy().to_string();
+        let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
         seen_files.insert(filename.clone());
         let content = std::fs::read_to_string(&path)?;
         let schema_rel = format!("schemas/{filename}");
@@ -76,7 +76,7 @@ fn parse_from_dir(schemas_dir: &Path, repo_root: &Path) -> Result<Vec<ParsedSche
         let schema_path = repo_root.join(&type_entry.schema);
         let filename = schema_path
             .file_name()
-            .unwrap()
+            .unwrap_or_default()
             .to_string_lossy()
             .to_string();
         if !seen_files.contains(&filename) {
