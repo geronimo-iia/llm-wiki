@@ -346,6 +346,13 @@ pub fn build_graph(
 
     let top_docs = searcher.search(&AllQuery, &TopDocs::with_limit(100_000).order_by_score())?;
 
+    if top_docs.len() >= 100_000 {
+        tracing::warn!(
+            count = top_docs.len(),
+            "graph: TopDocs limit reached — index has ≥100 000 pages; graph may be silently truncated"
+        );
+    }
+
     let mut graph = WikiGraph::new();
     let mut slug_to_idx: HashMap<String, NodeIndex> = HashMap::new();
 
