@@ -104,14 +104,22 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_config",
-            "Get or set configuration values",
+            concat!(
+                "Get, set, or list configuration values. ",
+                "action=\"get\" returns the current value of a key; ",
+                "action=\"set\" writes a new value; ",
+                "action=\"list\" shows all key/value pairs. ",
+                "Example keys: \"global.default_wiki\", \"defaults.search_top_k\", ",
+                "\"index.auto_rebuild\", \"graph.format\". ",
+                "Omit --wiki to target the global config; pass --wiki <name> for per-wiki overrides."
+            ),
             schema(
                 json!({
-                    "action": str_prop("Action: get, set, or list"),
-                    "key": opt_str("Config key (for get/set)"),
-                    "value": opt_str("Config value (for set)"),
-                    "global": opt_bool("Write to global config"),
-                    "wiki": opt_str("Target wiki name"),
+                    "action": str_prop("Action: \"get\" (read a key), \"set\" (write a key), or \"list\" (show all keys)"),
+                    "key": opt_str("Dot-notation config key, e.g. \"global.default_wiki\", \"defaults.search_top_k\", \"index.auto_rebuild\""),
+                    "value": opt_str("New value for the key (required for action=\"set\")"),
+                    "global": opt_bool("Write to global config instead of per-wiki wiki.toml"),
+                    "wiki": opt_str("Target wiki name (omit to use default wiki)"),
                 }),
                 &["action"],
             ),
