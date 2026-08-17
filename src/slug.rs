@@ -65,6 +65,12 @@ impl Slug {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// Normalize this slug: lowercase all path segments.
+    /// Returns a [`NormalizedSlug`] that can be safely compared to other normalized slugs.
+    pub fn normalize(&self) -> NormalizedSlug {
+        NormalizedSlug(self.0.to_lowercase())
+    }
 }
 
 impl TryFrom<&str> for Slug {
@@ -109,6 +115,57 @@ impl fmt::Display for Slug {
 impl AsRef<str> for Slug {
     fn as_ref(&self) -> &str {
         &self.0
+    }
+}
+
+/// A slug that has been lowercased and validated.
+///
+/// Constructable only via [`Slug::normalize`] (for external callers) or
+/// [`NormalizedSlug::from_normalized`] (for internal index reads where the
+/// stored value is already known to be normalized).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct NormalizedSlug(String);
+
+impl NormalizedSlug {
+    /// Wrap a string that is already known to be normalized.
+    /// For internal crate use only — bypasses the normalization step.
+    pub(crate) fn from_normalized(s: String) -> Self {
+        NormalizedSlug(s)
+    }
+
+    /// Return the normalized slug as a string slice.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for NormalizedSlug {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl AsRef<str> for NormalizedSlug {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl PartialEq<str> for NormalizedSlug {
+    fn eq(&self, other: &str) -> bool {
+        self.0 == other
+    }
+}
+
+impl PartialEq<&str> for NormalizedSlug {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+impl PartialEq<String> for NormalizedSlug {
+    fn eq(&self, other: &String) -> bool {
+        self.0 == *other
     }
 }
 

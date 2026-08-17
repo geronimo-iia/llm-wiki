@@ -20,8 +20,8 @@ use crate::index_schema::IndexSchema;
 /// A single search result with BM25 score and optional highlighted excerpt.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageRef {
-    /// Page slug (repository-relative path without extension).
-    pub slug: String,
+    /// Page slug, normalized (lowercased).
+    pub slug: crate::slug::NormalizedSlug,
     /// Fully-qualified `wiki://` URI for the page.
     pub uri: String,
     /// Page title from frontmatter.
@@ -41,8 +41,8 @@ pub struct PageRef {
 /// Lightweight page metadata returned by listing operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageSummary {
-    /// Page slug.
-    pub slug: String,
+    /// Page slug, normalized (lowercased).
+    pub slug: crate::slug::NormalizedSlug,
     /// Fully-qualified `wiki://` URI.
     pub uri: String,
     /// Page title from frontmatter.
@@ -268,11 +268,12 @@ pub fn search(
     for (score, doc_addr) in top_docs {
         let doc: tantivy::TantivyDocument = searcher.doc(doc_addr)?;
 
-        let slug = doc
-            .get_first(f_slug)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+        let slug = crate::slug::NormalizedSlug::from_normalized(
+            doc.get_first(f_slug)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+        );
         let title = doc
             .get_first(f_title)
             .and_then(|v| v.as_str())
@@ -436,11 +437,12 @@ pub fn list(
     for (_slug_val, doc_addr) in window {
         let doc: tantivy::TantivyDocument = searcher.doc(*doc_addr)?;
 
-        let slug = doc
-            .get_first(f_slug)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+        let slug = crate::slug::NormalizedSlug::from_normalized(
+            doc.get_first(f_slug)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+        );
         let title = doc
             .get_first(f_title)
             .and_then(|v| v.as_str())

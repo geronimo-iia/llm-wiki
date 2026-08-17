@@ -1,4 +1,5 @@
 //! Filesystem path helpers shared across the engine.
+#![allow(unreachable_pub)]
 
 use std::path::PathBuf;
 

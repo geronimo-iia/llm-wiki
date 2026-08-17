@@ -183,7 +183,7 @@ pub fn run_research(
             manager,
             session_id,
             "research",
-            &results[0].slug,
+            results[0].slug.as_str(),
             wiki_name,
             false,
         )?;

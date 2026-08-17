@@ -74,10 +74,10 @@ pub fn suggest(
             is,
         )?;
         for r in &results.results {
-            if r.slug == slug.as_str() || existing_links.contains(&r.slug) {
+            if r.slug == slug.as_str() || existing_links.contains(r.slug.as_str()) {
                 continue;
             }
-            let doc = find_doc_by_slug(&searcher, is, &r.slug)?;
+            let doc = find_doc_by_slug(&searcher, is, r.slug.as_str())?;
             let shared: usize = doc.tags.iter().filter(|t| input_tags.contains(*t)).count();
             if shared == 0 {
                 continue;
@@ -92,7 +92,7 @@ pub fn suggest(
                 .collect();
             let reason = format!("shares tags: {}", shared_tags.join(", "));
             candidates
-                .entry(r.slug.clone())
+                .entry(r.slug.to_string())
                 .and_modify(|c| {
                     if score > c.score {
                         c.score = score;
@@ -100,7 +100,7 @@ pub fn suggest(
                     }
                 })
                 .or_insert(CandidateScore {
-                    slug: r.slug.clone(),
+                    slug: r.slug.to_string(),
                     title: r.title.clone(),
                     page_type: doc.page_type.clone(),
                     score,
@@ -181,13 +181,13 @@ pub fn suggest(
             .unwrap_or(1.0)
             .max(0.001);
         for r in &results.results {
-            if r.slug == slug.as_str() || existing_links.contains(&r.slug) {
+            if r.slug == slug.as_str() || existing_links.contains(r.slug.as_str()) {
                 continue;
             }
             let score = r.score / max_score * 0.7; // normalize and weight
             let reason = "similar content".to_string();
             candidates
-                .entry(r.slug.clone())
+                .entry(r.slug.to_string())
                 .and_modify(|c| {
                     if score > c.score {
                         c.score = score;
@@ -195,9 +195,9 @@ pub fn suggest(
                     }
                 })
                 .or_insert_with(|| {
-                    let doc = find_doc_by_slug(&searcher, is, &r.slug).unwrap_or_default();
+                    let doc = find_doc_by_slug(&searcher, is, r.slug.as_str()).unwrap_or_default();
                     CandidateScore {
-                        slug: r.slug.clone(),
+                        slug: r.slug.to_string(),
                         title: r.title.clone(),
                         page_type: doc.page_type,
                         score,
