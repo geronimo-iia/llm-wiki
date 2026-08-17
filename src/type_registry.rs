@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use jsonschema::Validator;
 use serde_yaml::Value;
 use sha2::{Digest, Sha256};
@@ -66,7 +66,7 @@ impl SpaceTypeRegistry {
         // Apply wiki.toml overrides
         let wiki_cfg = config::load_wiki(repo_root)?;
         for (type_name, entry) in &wiki_cfg.types {
-            let schema_path = repo_root.join(&entry.schema);
+            let schema_path = validate_schema_path(repo_root, &entry.schema)?;
             let content = std::fs::read_to_string(&schema_path)?;
             let registered = compile_schema(&entry.schema, &entry.description, &content)?;
             types.insert(type_name.clone(), registered);
@@ -533,7 +533,7 @@ pub fn compute_disk_hashes(repo_root: &Path) -> Result<(String, HashMap<String, 
     // Apply wiki.toml overrides
     let wiki_cfg = config::load_wiki(repo_root)?;
     for (type_name, entry) in &wiki_cfg.types {
-        let schema_path = repo_root.join(&entry.schema);
+        let schema_path = validate_schema_path(repo_root, &entry.schema)?;
         let content = std::fs::read_to_string(&schema_path)?;
         let content_hash = sha256_hex(content.as_bytes());
         let schema_value: serde_json::Value = serde_json::from_str(&content)?;
@@ -568,4 +568,72 @@ fn yaml_fm_to_json(fm: &BTreeMap<String, Value>) -> Result<serde_json::Value> {
     let yaml_str = serde_yaml::to_string(fm)?;
     let json: serde_json::Value = serde_yaml::from_str(&yaml_str)?;
     Ok(json)
+}
+
+/// Validate a schema path from `wiki.toml` is safe to read.
+///
+/// Rejects absolute paths and `..` components, then confirms the resolved
+/// path is inside `repo_root`. Returns the canonicalized `PathBuf`.
+fn validate_schema_path(repo_root: &Path, schema: &str) -> Result<std::path::PathBuf> {
+    use std::path::Component;
+    if std::path::Path::new(schema).is_absolute() || schema.starts_with('/') {
+        bail!("schema path must be relative: {schema}");
+    }
+    for component in std::path::Path::new(schema).components() {
+        if matches!(component, Component::ParentDir) {
+            bail!("schema path must not contain '..' components: {schema}");
+        }
+    }
+    let candidate = repo_root.join(schema);
+    let repo_abs = std::fs::canonicalize(repo_root)
+        .with_context(|| format!("cannot canonicalize repo root {}", repo_root.display()))?;
+    let schema_abs = std::fs::canonicalize(&candidate)
+        .with_context(|| format!("schema file not found or cannot be resolved: {}", candidate.display()))?;
+    if !schema_abs.starts_with(&repo_abs) {
+        bail!(
+            "schema path must be inside repository (resolved to {}, repo is {})",
+            schema_abs.display(),
+            repo_abs.display()
+        );
+    }
+    Ok(schema_abs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_validate_schema_path_rejects_traversal() {
+        let dir = TempDir::new().unwrap();
+        let repo = dir.path();
+        let outside = dir.path().parent().unwrap().join("outside.json");
+        std::fs::write(&outside, "{}").unwrap();
+
+        let result = validate_schema_path(repo, "../../outside.json");
+        assert!(result.is_err(), "expected error for path traversal, got Ok");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("..") || msg.contains("outside") || msg.contains("repository"),
+            "unexpected error message: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_validate_schema_path_rejects_absolute() {
+        let dir = TempDir::new().unwrap();
+        let result = validate_schema_path(dir.path(), "/etc/passwd");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_schema_path_accepts_relative_inside_repo() {
+        let dir = TempDir::new().unwrap();
+        let schemas_dir = dir.path().join("schemas");
+        std::fs::create_dir(&schemas_dir).unwrap();
+        std::fs::write(schemas_dir.join("my.json"), "{}").unwrap();
+        let result = validate_schema_path(dir.path(), "schemas/my.json");
+        assert!(result.is_ok(), "expected Ok, got {:?}", result);
+    }
 }
