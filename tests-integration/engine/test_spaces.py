@@ -19,9 +19,14 @@ def test_spaces_set_default(wiki_env):
     wiki_env.run("spaces", "set-default", "notes")
     result = wiki_env.run("spaces", "list")
     assert "* notes" in result.stdout
+    config_result = wiki_env.run("config", "get", "global.default_wiki")
+    assert "notes" in config_result.stdout
+
     wiki_env.run("spaces", "set-default", "research")
     result = wiki_env.run("spaces", "list")
     assert "* research" in result.stdout
+    config_result = wiki_env.run("config", "get", "global.default_wiki")
+    assert "research" in config_result.stdout
 
 
 def test_spaces_register_creates_entry(wiki_env):
