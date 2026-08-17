@@ -74,6 +74,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the rollback itself. The error is now logged via `tracing::error!` so a stranded
   config entry is visible in logs.
 
+### Performance
+
+- **Louvain community detection correctness + O(N³) fix** — `louvain_phase1` previously
+  used an incomplete gain formula (join-only, missing the leave cost), allowing
+  modularity-decreasing moves and causing oscillation that hit the pass cap without
+  converging. The full Louvain ΔQ formula is now implemented: `net_gain = join_gain −
+  leave_gain`. Additionally, `sigma_tot` is precomputed once per pass (O(N)) and
+  updated incrementally on each move instead of being rebuilt per node (O(N²) per
+  pass). Combined fix: correctness restored, complexity reduced from O(N³) to O(M)
+  per pass. Regression test `test_louvain_two_clusters` added.
+  See `docs/decisions/1.0.0/louvain-sigma-tot-precompute.md`.
+- **Graph truncation warning** — `build_graph` now emits `tracing::warn!` when
+  `TopDocs::with_limit(100_000)` is reached, making silent graph truncation visible
+  to operators on wikis with >100 000 pages.
+- **Accurate page count after incremental index update** — `update()` previously wrote
+  `pages: 0` to `state.toml` after every watcher-triggered incremental update;
+  `wiki_index_status` always showed 0 pages. Now reads the actual total via
+  `searcher.num_docs()` after `reload_reader()`.
+
 ### Documentation
 
 - **`generation()` cache-key contract documented** — added code comments in
