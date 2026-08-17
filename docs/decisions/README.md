@@ -13,6 +13,12 @@ Architectural decisions and their rationale, grouped by release.
 | [acp-sessions-parking-lot-mutex](1.0.0/acp-sessions-parking-lot-mutex.md) | `parking_lot::Mutex` for ACP `Sessions` — `tokio::sync::Mutex` rejected because helper functions are sync; `std::sync::Mutex` rejected due to poison crash vector; `parking_lot` already in transitive tree, zero new packages |
 | [watcher-rebuild-guard-atomic-bool](1.0.0/watcher-rebuild-guard-atomic-bool.md) | `Arc<AtomicBool>` per `SpaceContext` to skip redundant concurrent rebuilds — `JoinHandle` abort rejected (Tantivy non-cancellable); per-wiki watch channel rejected (disproportionate); flag resets on re-mount; stuck-flag edge case on shutdown is benign |
 
+### Performance
+
+| Decision | Summary |
+| -------- | ------- |
+| [louvain-sigma-tot-precompute](1.0.0/louvain-sigma-tot-precompute.md) | Precompute `sigma_tot` once per Louvain pass, update incrementally on move — reduces O(N³) to O(M) per pass; correctness argument: candidates exclude `current_c` (skipped in gain loop); incremental update is more accurate for subsequent same-community nodes; v0.2.0 pass cap retained |
+
 ### Dependency hygiene
 
 | Decision | Summary |
