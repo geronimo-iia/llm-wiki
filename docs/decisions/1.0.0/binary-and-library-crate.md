@@ -72,7 +72,4 @@ further as the test layer is refactored.
 - `#![warn(unreachable_pub)]` added crate-wide; suppressed per-module where
   tests block conversion (see
   `docs/decisions/1.0.0/pub-crate-partial-migration.md`).
-- **Post-1.0 tracking:** refactor `tests/*.rs` to use only the stable façade
-  plus a small set of explicitly `pub` test-support types. As each module's
-  test imports are removed, convert it to `pub(crate)`. The end state is a
-  clean library with a narrow, intentional public surface.
+
