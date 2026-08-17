@@ -17,7 +17,7 @@ Architectural decisions and their rationale, grouped by release.
 
 | Decision | Summary |
 | -------- | ------- |
-| [louvain-sigma-tot-precompute](1.0.0/louvain-sigma-tot-precompute.md) | Precompute `sigma_tot` once per Louvain pass, update incrementally on move — reduces O(N³) to O(M) per pass; correctness argument: candidates exclude `current_c` (skipped in gain loop); incremental update is more accurate for subsequent same-community nodes; v0.2.0 pass cap retained |
+| [louvain-sigma-tot-precompute](1.0.0/louvain-sigma-tot-precompute.md) | Full Louvain ΔQ formula (join gain − leave cost) + `sigma_tot` precomputed per pass — original formula was incomplete (join-only), causing oscillation and wrong partitions; `test_louvain_two_clusters` failed on original code; formula fix is correctness, sigma_tot is performance (O(N³)→O(M)); pass cap retained |
 
 ### Dependency hygiene
 

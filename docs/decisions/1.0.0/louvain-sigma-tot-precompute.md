@@ -1,12 +1,12 @@
-# Louvain `sigma_tot`: precompute per pass, update incrementally on move
+# Louvain `louvain_phase1`: full ΔQ formula + sigma_tot precomputation
 
 ## Decision
 
-Move `sigma_tot` computation out of the per-node inner loop in `louvain_phase1`.
-Precompute once per pass (O(N)), then update incrementally when a node moves
-(subtract `k_i` from the old community, add `k_i` to the new community).
-This reduces the algorithm from O(N³) to O(M) per pass, where M is the number
-of edges.
+Replace the incomplete gain formula in `louvain_phase1` with the full Louvain
+ΔQ formula (join gain minus leave cost), and move `sigma_tot` computation out
+of the per-node inner loop (precompute once per pass, update incrementally on
+move). Both changes land together — the formula fix is a correctness fix; the
+sigma_tot change is a performance fix.
 
 ## Context
 
@@ -14,78 +14,89 @@ of edges.
 `wiki_stats`, `wiki_suggest` (strategy 4: community peers), and the community
 map cached in `SpaceContext.community_cache`.
 
-The original implementation rebuilt `sigma_tot` — the sum of degrees of all
-nodes in each community — by iterating the full `community` map (O(N)) for
-every node in every pass. With N nodes and O(N) passes worst case, this is
-O(N³). At 5 000 nodes the latency becomes noticeable; at 20 000 nodes the
-algorithm is unusable.
+Phase 3 execution revealed that the original algorithm had two distinct
+problems, not one:
 
-The v0.2.0 pass cap (`n × 10` maximum passes) was introduced to prevent
-infinite oscillation when mid-pass moves alter `sigma_tot` for later nodes.
-That cap remains in place after this fix.
+1. **Correctness bug (discovered during Phase 3):** The original gain formula
+   computed only the gain of *joining* candidate community `c`, without
+   subtracting the cost of *leaving* `current_c`. This allowed moves that
+   decrease modularity, causing oscillation that hit `max_passes` without
+   converging to the correct partition. The regression test
+   `test_louvain_two_clusters` (two fully-connected clusters of 4 nodes with
+   one bridge edge) **failed on the original code** — the plan had assumed it
+   would pass.
 
-## Correctness argument
+2. **Performance bug (known before Phase 3):** `sigma_tot` was rebuilt by
+   iterating the full `community` map (O(N)) for every node in every pass —
+   O(N²) per pass × O(N) passes = O(N³) worst case. Unusable at 20 000 nodes.
 
-The gain formula for moving node `v` to candidate community `c` is:
+## The original formula (incorrect)
 
 ```
 gain = k_i_in / m  -  sigma_tot[c] * k_i / (2 * m²)
 ```
 
-where `sigma_tot[c]` is the sum of degrees of all nodes currently in `c`,
-and `k_i` is the degree of `v`.
+This is only the "join" half of the Louvain ΔQ formula. It measures the
+modularity gain of adding node `v` to community `c`, but ignores the
+modularity loss of removing `v` from `current_c`. A move is accepted whenever
+`join_gain > 0`, even if the net modularity change is negative.
 
-**Precomputed value is exact for all candidates.** `v` is not in any candidate
-community `c` (candidates are communities of `v`'s neighbours, excluding
-`current_c`). So `sigma_tot[c]` computed before the node loop does not include
-`v`, which is exactly what the formula requires.
-
-**`sigma_tot[current_c]` includes `v` itself**, but `current_c` is always
-skipped in the gain loop (`if c == current_c { continue; }`), so this value
-is never read for the gain calculation.
-
-**Incremental update after a move is more accurate, not less.** When `v` moves
-from `current_c` to `best_c`, the update is:
+## The corrected formula
 
 ```
-sigma_tot[current_c] -= k_i
-sigma_tot[best_c]    += k_i
+leave_gain = k_i_in_current / m  -  (sigma_tot[current_c] - k_i) * k_i / (2 * m²)
+join_gain  = k_i_in / m          -  sigma_tot[c] * k_i / (2 * m²)
+net_gain   = join_gain - leave_gain
 ```
 
-Subsequent nodes in the same pass that are also in `current_c` will now see a
-`sigma_tot[current_c]` that no longer includes `v`. This is strictly more
-accurate than the original per-node rebuild, which always included `v` in
-`sigma_tot[current_c]` regardless of whether `v` had already moved.
+A move is accepted only when `net_gain > 0` — i.e. modularity strictly
+increases. `sigma_tot[current_c] - k_i` removes node `v`'s own degree from
+the leave-cost calculation (node is leaving, so it should not count itself).
+
+This guarantees modularity strictly increases on every accepted move, prevents
+oscillation, and ensures convergence to the correct partition.
+
+## sigma_tot precomputation (performance fix)
+
+In addition to the formula fix, `sigma_tot` is now precomputed once per pass
+(O(N)) and updated incrementally on each move, instead of being rebuilt per
+node (O(N²) per pass):
+
+- **Precomputed value is exact for all join candidates.** Node `v` is not in
+  any candidate community `c ≠ current_c`, so `sigma_tot[c]` does not include
+  `v` — exactly what the join formula requires.
+- **`sigma_tot[current_c]` includes `v` itself**, but the leave formula
+  explicitly subtracts `k_i` (`sigma_tot[current_c] - k_i`), so the
+  precomputed value is correct here too.
+- **Incremental update after a move** (`sigma_tot[current_c] -= k_i`,
+  `sigma_tot[best_c] += k_i`) makes subsequent nodes in the same pass see a
+  more accurate `sigma_tot` — moved node no longer contributes to its old
+  community's total.
 
 ## Alternatives considered
 
-**Keep per-node rebuild, accept O(N³).** Rejected — unusable at realistic wiki
-sizes (20 000 nodes). The pass cap mitigates oscillation but does not change
-the complexity class.
+**Fix formula only, keep per-node sigma_tot rebuild.** Correct but still O(N³).
+Rejected — the performance fix is straightforward and the two changes are
+cleanest together.
 
-**Rebuild `sigma_tot` once per pass, no incremental update.** Correct and
-sufficient for O(N) per pass. Rejected in favour of the incremental update
-because the incremental version is more accurate for nodes processed later in
-the same pass (see above) and costs two map entries per move — negligible.
+**Replace Louvain with a different algorithm** (label propagation, Infomap).
+Rejected — Louvain is already implemented and the correctness fix is targeted.
+A replacement would require re-validating community quality on real wikis.
 
-**Switch to a different community detection algorithm** (e.g. label propagation,
-Infomap). Rejected — Louvain is already implemented, tested, and produces
-good results on wiki-scale graphs. The fix is a targeted optimisation of the
-existing algorithm, not a replacement.
+**Increase the pass cap** to work around oscillation. Rejected — the cap
+addresses infinite loops but does not fix incorrect modularity accounting.
+The cap is retained as a hard safety bound after the formula fix.
 
 ## Consequences
 
-- `louvain_phase1` is O(M) per pass instead of O(N²) per pass. Total complexity
-  is O(M × passes), where passes ≤ `n × 10` in the worst case.
-- Community assignments may differ slightly from the original on graphs where
-  mid-pass moves affect later nodes — this is expected and acceptable. The
-  regression test `test_louvain_two_clusters` (two fully-connected clusters of
-  4 nodes with one bridge edge) verifies that the algorithm still finds the
-  correct partition.
-- The v0.2.0 pass cap (`n × 10`) is retained. The incremental update changes
-  the oscillation dynamic (moved nodes no longer inflate `sigma_tot` for their
-  old community), which may reduce oscillation in practice, but the cap is kept
-  as a hard safety bound.
+- `louvain_phase1` now implements the correct full Louvain ΔQ formula.
+  Community assignments on graphs where the original formula caused oscillation
+  will change — this is the intended behaviour.
+- Complexity reduced from O(N³) to O(M × passes) where passes ≤ `n × 10`.
+- The v0.2.0 pass cap is retained. The formula fix reduces oscillation in
+  practice (moves only accepted when modularity strictly increases), but the
+  cap remains as a hard safety bound.
 - `test_louvain_two_clusters` added to `src/graph.rs` as a permanent regression
-  test. It must pass on both the old and new implementation — verified during
-  Phase 3 execution.
+  test. It failed on the original code and passes on the corrected code.
+- `sigma_tot` is now a pass-level variable, not a per-node variable. The
+  `community` map is no longer iterated inside the node loop.
