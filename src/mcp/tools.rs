@@ -5,7 +5,7 @@ use serde_json::{Map, Value, json};
 
 use super::McpServer;
 use super::handlers;
-use super::helpers::{ToolResult, err_text};
+use super::helpers::{ToolResult, check_param_lengths, err_text};
 
 // ── Schema helpers ────────────────────────────────────────────────────────────
 
@@ -352,6 +352,15 @@ pub fn tool_list() -> Vec<Tool> {
 /// Dispatch a tool call by name to the appropriate handler, catching panics.
 pub fn call(server: &McpServer, name: &str, args: &Map<String, Value>) -> ToolResult {
     let _span = tracing::info_span!("tool_call", tool = name).entered();
+    let max_len = server.engine().config.serve.mcp_max_param_len;
+    if let Err(e) = check_param_lengths(args, max_len) {
+        return ToolResult {
+            content: err_text(e),
+            is_error: true,
+            notify_uris: vec![],
+            notify_resources_changed: false,
+        };
+    }
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match name {
         "wiki_spaces_create" => handlers::handle_spaces_create(server, args),
         "wiki_spaces_register" => handlers::handle_spaces_register(server, args),

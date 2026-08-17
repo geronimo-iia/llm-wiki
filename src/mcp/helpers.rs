@@ -35,6 +35,28 @@ pub fn err_text(msg: String) -> Vec<Content> {
     vec![Content::text(format!("error: {msg}"))]
 }
 
+// ── Param length guard ────────────────────────────────────────────────────────
+
+/// Fallback maximum byte length for MCP string parameters (matches `ServeConfig` default).
+pub const MAX_PARAM_LEN: usize = 8192;
+
+/// Reject any call whose string arguments exceed `max_len` bytes.
+///
+/// Called once at the dispatch layer before routing to the individual handler,
+/// so all tools are covered without touching per-handler argument parsing.
+pub fn check_param_lengths(args: &Map<String, Value>, max_len: usize) -> Result<(), String> {
+    for (key, value) in args {
+        if let Some(s) = value.as_str()
+            && s.len() > max_len
+        {
+            return Err(format!(
+                "parameter '{key}' exceeds maximum length of {max_len} bytes"
+            ));
+        }
+    }
+    Ok(())
+}
+
 // ── Argument helpers ──────────────────────────────────────────────────────────
 
 /// Extract an optional string argument by key from tool call arguments.
@@ -95,4 +117,38 @@ pub fn collect_page_uris(path: &Path, wiki_root: &Path, wiki_name: &str) -> Vec<
                 .map(|slug| format!("wiki://{wiki_name}/{slug}"))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn make_args(key: &str, val: serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
+        let mut m = serde_json::Map::new();
+        m.insert(key.to_string(), val);
+        m
+    }
+
+    #[test]
+    fn test_check_param_lengths_rejects_oversized() {
+        let long = "x".repeat(MAX_PARAM_LEN + 1);
+        let args = make_args("query", json!(long));
+        let result = check_param_lengths(&args, MAX_PARAM_LEN);
+        assert!(result.is_err(), "expected Err for oversized param");
+        assert!(result.unwrap_err().contains("exceeds maximum length"));
+    }
+
+    #[test]
+    fn test_check_param_lengths_accepts_within_limit() {
+        let val = "x".repeat(MAX_PARAM_LEN);
+        let args = make_args("query", json!(val));
+        assert!(check_param_lengths(&args, MAX_PARAM_LEN).is_ok());
+    }
+
+    #[test]
+    fn test_check_param_lengths_accepts_empty() {
+        let args = serde_json::Map::new();
+        assert!(check_param_lengths(&args, MAX_PARAM_LEN).is_ok());
+    }
 }

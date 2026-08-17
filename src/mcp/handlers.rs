@@ -432,7 +432,9 @@ pub fn handle_graph(server: &McpServer, args: &Map<String, Value>) -> ToolHandle
 
 /// Handle `wiki_history` — return git commit history for a page slug.
 pub fn handle_history(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
-    let slug = arg_str_req(args, "slug")?;
+    let raw_slug = arg_str_req(args, "slug")?;
+    crate::slug::Slug::try_from(raw_slug.as_str()).map_err(|e| format!("invalid slug: {e}"))?;
+    let slug = raw_slug;
     let limit = arg_usize(args, "limit");
     let follow = args.get("follow").and_then(|v| v.as_bool());
     let wiki_flag = arg_str(args, "wiki");
@@ -467,7 +469,9 @@ pub fn handle_lint(server: &McpServer, args: &Map<String, Value>) -> ToolHandler
 
 /// Handle `wiki_suggest` — suggest related pages to link from a given slug.
 pub fn handle_suggest(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
-    let slug = arg_str_req(args, "slug")?;
+    let raw_slug = arg_str_req(args, "slug")?;
+    crate::slug::Slug::try_from(raw_slug.as_str()).map_err(|e| format!("invalid slug: {e}"))?;
+    let slug = raw_slug;
     let limit = arg_usize(args, "limit");
     let wiki_flag = arg_str(args, "wiki");
     let engine = server.engine();
