@@ -280,8 +280,7 @@ fn louvain_phase1(
             let k_i_in_current = *neighbor_c_edges.get(&current_c).unwrap_or(&0) as f64;
             // sigma_tot[current_c] includes node itself; remove it for leave cost.
             let sigma_s_minus_i = sigma_tot.get(&current_c).unwrap_or(&0.0) - k_i;
-            let leave_gain =
-                k_i_in_current / m_f - sigma_s_minus_i * k_i / (2.0 * m_f * m_f);
+            let leave_gain = k_i_in_current / m_f - sigma_s_minus_i * k_i / (2.0 * m_f * m_f);
 
             // Find best community
             let mut best_c = current_c;
@@ -1420,18 +1419,27 @@ mod tests {
         let m: usize = degrees.values().sum::<usize>() / 2;
 
         // Each node starts in its own community
-        let mut community: HashMap<NodeIndex, usize> =
-            (0..8usize).map(|i| (make(i), i)).collect();
+        let mut community: HashMap<NodeIndex, usize> = (0..8usize).map(|i| (make(i), i)).collect();
 
         louvain_phase1(&adj, &mut community, &degrees, m);
 
         // All cluster A nodes must share one community id
         let ca: HashSet<usize> = cluster_a.iter().map(|n| community[n]).collect();
-        assert_eq!(ca.len(), 1, "cluster A nodes must all share one community, got {:?}", ca);
+        assert_eq!(
+            ca.len(),
+            1,
+            "cluster A nodes must all share one community, got {:?}",
+            ca
+        );
 
         // All cluster B nodes must share one community id
         let cb: HashSet<usize> = cluster_b.iter().map(|n| community[n]).collect();
-        assert_eq!(cb.len(), 1, "cluster B nodes must all share one community, got {:?}", cb);
+        assert_eq!(
+            cb.len(),
+            1,
+            "cluster B nodes must all share one community, got {:?}",
+            cb
+        );
 
         // The two clusters must be in different communities
         assert_ne!(
