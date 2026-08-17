@@ -15,7 +15,12 @@ fn schema(props: Value, required: &[&str]) -> Arc<Map<String, Value>> {
     map.insert("properties".to_string(), props);
     map.insert(
         "required".to_string(),
-        Value::Array(required.iter().map(|s| Value::String(s.to_string())).collect()),
+        Value::Array(
+            required
+                .iter()
+                .map(|s| Value::String(s.to_string()))
+                .collect(),
+        ),
     );
     Arc::new(map)
 }

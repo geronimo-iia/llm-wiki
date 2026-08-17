@@ -179,7 +179,11 @@ fn collect_schema_sources_from_dir(
 
     for entry in entries {
         let path = entry.path();
-        let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let filename = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         seen_files.insert(filename);
         let content = std::fs::read_to_string(&path)?;
         sources.push(extract_schema_source(&content)?);

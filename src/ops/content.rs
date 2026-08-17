@@ -245,9 +245,9 @@ pub fn content_commit(
         let slug = Slug::try_from(s.as_str())?;
         let resolved = slug.resolve(&space.wiki_root)?;
         if resolved.file_name() == Some(std::ffi::OsStr::new("index.md")) {
-            let bundle_dir = resolved
-                .parent()
-                .ok_or_else(|| anyhow::anyhow!("index.md path has no parent: {}", resolved.display()))?;
+            let bundle_dir = resolved.parent().ok_or_else(|| {
+                anyhow::anyhow!("index.md path has no parent: {}", resolved.display())
+            })?;
             for entry in walkdir::WalkDir::new(bundle_dir)
                 .into_iter()
                 .filter_map(|e| e.ok())

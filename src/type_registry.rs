@@ -496,7 +496,11 @@ pub fn compute_disk_hashes(repo_root: &Path) -> Result<(String, HashMap<String, 
 
         for entry in entries {
             let path = entry.path();
-            let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+            let filename = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
             let content = std::fs::read_to_string(&path)?;
             let content_hash = sha256_hex(content.as_bytes());
             let schema_rel = format!("schemas/{filename}");

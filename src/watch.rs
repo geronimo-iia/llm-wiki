@@ -261,13 +261,19 @@ fn start_notify_watcher(
                 if path.starts_with(wiki_root)
                     && path.extension().and_then(|e| e.to_str()) == Some("md")
                 {
-                    if tx_clone.try_send((wiki_name.clone(), path.clone())).is_err() {
+                    if tx_clone
+                        .try_send((wiki_name.clone(), path.clone()))
+                        .is_err()
+                    {
                         tracing::warn!(wiki = %wiki_name, "watcher update channel full; event dropped");
                     }
                     break;
                 }
                 if path.starts_with(repo_root.join("schemas")) && is_schema_path(path) {
-                    if tx_clone.try_send((wiki_name.clone(), path.clone())).is_err() {
+                    if tx_clone
+                        .try_send((wiki_name.clone(), path.clone()))
+                        .is_err()
+                    {
                         tracing::warn!(wiki = %wiki_name, "watcher update channel full; event dropped");
                     }
                     break;
