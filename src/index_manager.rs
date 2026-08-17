@@ -63,6 +63,10 @@ pub struct IndexStatus {
     pub openable: bool,
     /// True if the index can be queried (reader opened successfully).
     pub queryable: bool,
+    /// Human-readable explanation when the index is degraded (not ok).
+    /// None when the index is fully healthy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub degraded_reason: Option<String>,
 }
 
 /// Classification of index staleness used to choose the cheapest rebuild strategy.
@@ -526,6 +530,18 @@ impl SpaceIndexManager {
             (false, false)
         };
 
+        let degraded_reason = if !openable {
+            Some("search index directory cannot be opened by Tantivy".to_string())
+        } else if !queryable {
+            Some("search index reader failed to initialize".to_string())
+        } else if stale {
+            Some(
+                "index is behind the current HEAD commit or schema — rebuild needed".to_string(),
+            )
+        } else {
+            None
+        };
+
         Ok(IndexStatus {
             wiki: self.wiki_name.clone(),
             path: search_dir.to_string_lossy().into(),
@@ -535,6 +551,7 @@ impl SpaceIndexManager {
             stale,
             openable,
             queryable,
+            degraded_reason,
         })
     }
 
