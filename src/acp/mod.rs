@@ -7,7 +7,8 @@ mod server;
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use parking_lot::Mutex;
 
 use agent_client_protocol::schema::v1::{ContentBlock, PromptRequest};
 

@@ -70,10 +70,11 @@ pub fn resolve_wiki_name(
     sessions: &Sessions,
     session_id: &SessionId,
 ) -> String {
-    let session_wiki = sessions.lock().ok().and_then(|s| {
+    let session_wiki = {
+        let s = sessions.lock();
         s.get(&session_id.to_string())
             .and_then(|sess| sess.wiki.clone())
-    });
+    };
     let engine = manager.state.read().expect("engine lock poisoned");
     engine
         .resolve_wiki_name(session_wiki.as_deref())
@@ -93,7 +94,6 @@ pub fn session_cwd(manager: &WikiEngine) -> PathBuf {
 pub fn get_cancelled(sessions: &Sessions, session_id: &str) -> Option<Arc<AtomicBool>> {
     sessions
         .lock()
-        .ok()?
         .get(session_id)?
         .cancelled
         .clone()
@@ -101,9 +101,8 @@ pub fn get_cancelled(sessions: &Sessions, session_id: &str) -> Option<Arc<Atomic
 }
 
 pub fn clear_active_run(sessions: &Sessions, session_id: &str) {
-    if let Ok(mut s) = sessions.lock()
-        && let Some(sess) = s.get_mut(session_id)
-    {
+    let mut s = sessions.lock();
+    if let Some(sess) = s.get_mut(session_id) {
         sess.active_run = None;
     }
 }
