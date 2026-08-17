@@ -258,7 +258,9 @@ fn louvain_phase1(
             // Gather neighboring communities and k_i_in for each
             let mut neighbor_c_edges: HashMap<usize, usize> = HashMap::new();
             for &nb in adj.get(&node).into_iter().flatten() {
-                let nb_c = *community.get(&nb).expect("neighbour must be in community map");
+                let nb_c = *community
+                    .get(&nb)
+                    .expect("neighbour must be in community map");
                 *neighbor_c_edges.entry(nb_c).or_default() += 1;
             }
 
@@ -1033,7 +1035,9 @@ fn build_community_data(
     let mut id_remap: HashMap<usize, usize> = HashMap::new();
     let mut next_id = 0usize;
     for &n in &local_nodes {
-        let c = *community.get(&n).expect("node must be in community map after louvain_phase1");
+        let c = *community
+            .get(&n)
+            .expect("node must be in community map after louvain_phase1");
         id_remap.entry(c).or_insert_with(|| {
             let id = next_id;
             next_id += 1;
@@ -1061,7 +1065,9 @@ fn build_community_data(
     let mut isolated: Vec<String> = local_nodes
         .iter()
         .filter(|&&n| {
-            let c = *community.get(&n).expect("node must be in community map after remap");
+            let c = *community
+                .get(&n)
+                .expect("node must be in community map after remap");
             *sizes.get(&c).unwrap_or(&0) <= 2
         })
         .map(|&n| graph[n].slug.clone())

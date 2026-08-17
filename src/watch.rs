@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -256,7 +256,9 @@ fn start_notify_watcher(
         for path in &event.paths {
             // Find which wiki this path belongs to
             for (wiki_name, wiki_root, repo_root) in &watch_dirs_clone {
-                if path.starts_with(wiki_root) && path.extension().and_then(|e| e.to_str()) == Some("md") {
+                if path.starts_with(wiki_root)
+                    && path.extension().and_then(|e| e.to_str()) == Some("md")
+                {
                     let _ = tx_clone.try_send((wiki_name.clone(), path.clone()));
                     break;
                 }

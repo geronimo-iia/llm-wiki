@@ -5,10 +5,10 @@ mod lint;
 mod research;
 mod server;
 
-use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
 use parking_lot::Mutex;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use agent_client_protocol::schema::v1::{ContentBlock, PromptRequest};
 

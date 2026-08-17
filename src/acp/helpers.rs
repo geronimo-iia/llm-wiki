@@ -92,12 +92,7 @@ pub fn session_cwd(manager: &WikiEngine) -> PathBuf {
 
 /// Load the cancellation flag for a session. Returns None if session not found.
 pub fn get_cancelled(sessions: &Sessions, session_id: &str) -> Option<Arc<AtomicBool>> {
-    sessions
-        .lock()
-        .get(session_id)?
-        .cancelled
-        .clone()
-        .into()
+    sessions.lock().get(session_id)?.cancelled.clone().into()
 }
 
 pub fn clear_active_run(sessions: &Sessions, session_id: &str) {
