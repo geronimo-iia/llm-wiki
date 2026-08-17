@@ -65,10 +65,9 @@ fn latest_log_file(log_dir: &Path) -> Result<PathBuf> {
         .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
         .collect();
 
-    if entries.is_empty() {
-        bail!("no log files in {}", log_dir.display());
-    }
-
     entries.sort_by_key(|e| e.file_name());
-    Ok(entries.last().unwrap().path())
+    let entry = entries
+        .last()
+        .ok_or_else(|| anyhow::anyhow!("no log files in {}", log_dir.display()))?;
+    Ok(entry.path())
 }
