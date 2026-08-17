@@ -38,6 +38,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Stable public API surface (Phase 5)** — `lib.rs` now re-exports the five primary
+  types (`WikiEngine`, `GlobalConfig`, `SearchResult`, `IngestReport`, `WikiGraph`) at
+  the crate root. Internal helpers are `pub(crate)`. `#![warn(unreachable_pub)]` enabled
+  crate-wide to keep the boundary stable going forward.
+- **`WikiEntry.path` and `WikiConfig.wiki_root` changed from `String` to `PathBuf`** —
+  eliminates manual `PathBuf::from(&entry.path)` conversions throughout the codebase.
+  TOML round-trips via `crate::pathutil::path_as_string` (UTF-8 string on disk,
+  `PathBuf` in memory). Callers that stored `entry.path` as `String` must use
+  `entry.path.display()` or `.to_string_lossy()`.
+- **`PageRef.slug` and `PageSummary.slug` changed from `String` to `NormalizedSlug`** —
+  `NormalizedSlug` is a newtype that carries the invariant "this slug is already
+  lowercased". Serializes as a plain JSON string (no structure change for API consumers).
+  Use `.as_str()` / `.to_string()` to extract the inner string; compare with `==`
+  against `&str`, `String`, or `NormalizedSlug` directly.
+- **`IndexStatus.degraded_reason`** — new optional field (`Option<String>`) on
+  `wiki_index_status` JSON output. Present only when `stale`, `!openable`, or
+  `!queryable`; omitted from JSON when `None`. Explains why the index is unhealthy.
+- **`wiki_config` tool description expanded** — MCP `action` values (`"get"`, `"set"`,
+  `"list"`), example key paths, and `--wiki` scoping behaviour are now documented in the
+  tool description visible to LLM clients.
+- **MCP error messages redact filesystem paths** — all tool error strings returned to
+  LLM clients are processed by `redact_error`, replacing absolute paths with `<path>` to
+  avoid leaking workspace layout.
+
 - `serve.mcp_max_param_len` added to `ServeConfig` (default: 8192 bytes). Accessible
   via `wiki_config get/set serve.mcp_max_param_len` (global-only key).
 

@@ -100,7 +100,8 @@ JSON (`--format json`):
     "stale": true,
     "openable": true,
     "queryable": true,
-    "schema_current": true
+    "schema_current": true,
+    "degraded_reason": "index is behind the current HEAD commit or schema — rebuild needed"
   }
 ]
 ```
