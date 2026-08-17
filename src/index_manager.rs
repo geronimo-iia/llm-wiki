@@ -144,6 +144,8 @@ impl SpaceIndexManager {
 
     /// Return the current generation counter value.
     /// Incremented on every successful `reload_reader()` call.
+    /// Used as a graph/community cache key: more conservative than `last_commit()` because
+    /// same-commit schema-triggered rebuilds must also invalidate downstream caches.
     pub fn generation(&self) -> u64 {
         self.inner
             .read()

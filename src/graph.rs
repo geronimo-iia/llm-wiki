@@ -1120,6 +1120,9 @@ pub fn get_or_build_graph(
         return Ok(Arc::new(g));
     }
 
+    // generation() increments on every reload_reader() call. last_commit() is NOT used
+    // because same-commit schema-triggered rebuilds produce a new index without changing
+    // the commit hash — those must also invalidate the graph cache.
     let current_gen = index_manager.generation();
     graph_cache.get_fresh(current_gen, || {
         build_graph(
@@ -1144,6 +1147,9 @@ pub fn get_cached_community_map(
     searcher: &Searcher,
     min_nodes: usize,
 ) -> Result<Option<Arc<HashMap<String, usize>>>> {
+    // generation() increments on every reload_reader() call. last_commit() is NOT used
+    // because same-commit schema-triggered rebuilds produce a new index without changing
+    // the commit hash — those must also invalidate the graph cache.
     let current_gen = index_manager.generation();
 
     let community = community_cache.get_or_build(current_gen, || -> Result<CommunityData> {
@@ -1189,6 +1195,9 @@ pub fn get_cached_community_stats(
     searcher: &Searcher,
     min_nodes: usize,
 ) -> Result<Option<CommunityStats>> {
+    // generation() increments on every reload_reader() call. last_commit() is NOT used
+    // because same-commit schema-triggered rebuilds produce a new index without changing
+    // the commit hash — those must also invalidate the graph cache.
     let current_gen = index_manager.generation();
 
     let community = community_cache.get_or_build(current_gen, || -> Result<CommunityData> {
