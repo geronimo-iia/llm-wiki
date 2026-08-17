@@ -40,8 +40,9 @@ pub fn spaces_create(
         // Roll back config entry if mount fails so caller is never left with a
         // registered-but-unmountable wiki.
         if let Err(e) = engine.mount_wiki(&entry) {
-            let _ = spaces::remove(name, false, config_path)
-                .inspect_err(|e| tracing::error!(error = %e, "rollback failed; wiki may be stranded in config"));
+            let _ = spaces::remove(name, false, config_path).inspect_err(
+                |e| tracing::error!(error = %e, "rollback failed; wiki may be stranded in config"),
+            );
             return Err(e);
         }
         if set_default {
@@ -73,8 +74,9 @@ pub fn spaces_register(
             remote: None,
         };
         if let Err(e) = engine.mount_wiki(&entry) {
-            let _ = spaces::remove(name, false, config_path)
-                .inspect_err(|e| tracing::error!(error = %e, "rollback failed; wiki may be stranded in config"));
+            let _ = spaces::remove(name, false, config_path).inspect_err(
+                |e| tracing::error!(error = %e, "rollback failed; wiki may be stranded in config"),
+            );
             return Err(e);
         }
     }
