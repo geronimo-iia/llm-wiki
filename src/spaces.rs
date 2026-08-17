@@ -65,11 +65,7 @@ pub fn create(
 
     // Check re-run conditions
     let global = load_global(config_path)?;
-    if let Some(existing) = global
-        .wikis
-        .iter()
-        .find(|w| w.path == path)
-    {
+    if let Some(existing) = global.wikis.iter().find(|w| w.path == path) {
         if existing.name == name {
             ensure_structure(&path, name, description, wiki_root)?;
             return Ok(CreateReport {

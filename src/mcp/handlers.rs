@@ -103,8 +103,7 @@ pub fn handle_spaces_remove(server: &McpServer, args: &Map<String, Value>) -> To
         let engine = server.engine();
         engine.config_path.clone()
     };
-    ops::spaces_remove(&name, delete, &config_path, Some(&server.manager))
-        .map_err(redact_error)?;
+    ops::spaces_remove(&name, delete, &config_path, Some(&server.manager)).map_err(redact_error)?;
     ok_text(format!("Removed wiki \"{name}\""))
 }
 
@@ -118,8 +117,7 @@ pub fn handle_spaces_set_default(
         let engine = server.engine();
         engine.config_path.clone()
     };
-    ops::spaces_set_default(&name, &config_path, Some(&server.manager))
-        .map_err(redact_error)?;
+    ops::spaces_set_default(&name, &config_path, Some(&server.manager)).map_err(redact_error)?;
     ok_text(format!("Default wiki set to \"{name}\""))
 }
 
@@ -179,8 +177,8 @@ pub fn handle_content_read(server: &McpServer, args: &Map<String, Value>) -> Too
                 let wiki_name = engine.resolve_wiki_name(wiki_flag.as_deref()).to_string();
                 let (_entry, slug) = WikiUri::resolve(&uri, wiki_flag.as_deref(), &engine.config)
                     .map_err(redact_error)?;
-                let backlinks = ops::backlinks_for(&engine, &wiki_name, slug.as_str())
-                    .map_err(redact_error)?;
+                let backlinks =
+                    ops::backlinks_for(&engine, &wiki_name, slug.as_str()).map_err(redact_error)?;
                 let response = serde_json::json!({
                     "content": content,
                     "backlinks": backlinks,
@@ -205,8 +203,8 @@ pub fn handle_content_write(server: &McpServer, args: &Map<String, Value>) -> To
     let engine = server.engine();
     let wiki_flag = arg_str(args, "wiki");
 
-    let result = ops::content_write(&engine, &uri, wiki_flag.as_deref(), &content)
-        .map_err(redact_error)?;
+    let result =
+        ops::content_write(&engine, &uri, wiki_flag.as_deref(), &content).map_err(redact_error)?;
     ok_text(format!(
         "Wrote {} bytes to {}",
         result.bytes_written,
@@ -451,8 +449,8 @@ pub fn handle_history(server: &McpServer, args: &Map<String, Value>) -> ToolHand
     let wiki_flag = arg_str(args, "wiki");
 
     let engine = server.engine();
-    let result = ops::history(&engine, &slug, wiki_flag.as_deref(), limit, follow)
-        .map_err(redact_error)?;
+    let result =
+        ops::history(&engine, &slug, wiki_flag.as_deref(), limit, follow).map_err(redact_error)?;
     let s = serde_json::to_string_pretty(&result).map_err(redact_error)?;
     ok_text(s)
 }
@@ -486,8 +484,7 @@ pub fn handle_suggest(server: &McpServer, args: &Map<String, Value>) -> ToolHand
     let limit = arg_usize(args, "limit");
     let wiki_flag = arg_str(args, "wiki");
     let engine = server.engine();
-    let result =
-        ops::suggest(&engine, &slug, wiki_flag.as_deref(), limit).map_err(redact_error)?;
+    let result = ops::suggest(&engine, &slug, wiki_flag.as_deref(), limit).map_err(redact_error)?;
     let s = serde_json::to_string_pretty(&result).map_err(redact_error)?;
     ok_text(s)
 }
@@ -515,8 +512,8 @@ pub fn handle_schema(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
                     .map_err(redact_error)?;
                 ok_text(tmpl)
             } else {
-                let content = ops::schema_show(&engine, &wiki_name, &type_name)
-                    .map_err(redact_error)?;
+                let content =
+                    ops::schema_show(&engine, &wiki_name, &type_name).map_err(redact_error)?;
                 ok_text(content)
             }
         }

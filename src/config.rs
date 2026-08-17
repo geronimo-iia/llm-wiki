@@ -530,7 +530,10 @@ pub struct WikiConfig {
     #[serde(default)]
     pub redact: Option<RedactConfig>,
     /// Content directory relative to repo root. Default: `"wiki"`.
-    #[serde(default = "default_wiki_root", with = "crate::pathutil::path_as_string")]
+    #[serde(
+        default = "default_wiki_root",
+        with = "crate::pathutil::path_as_string"
+    )]
     pub wiki_root: std::path::PathBuf,
 }
 

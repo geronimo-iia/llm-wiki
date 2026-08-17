@@ -535,9 +535,7 @@ impl SpaceIndexManager {
         } else if !queryable {
             Some("search index reader failed to initialize".to_string())
         } else if stale {
-            Some(
-                "index is behind the current HEAD commit or schema — rebuild needed".to_string(),
-            )
+            Some("index is behind the current HEAD commit or schema — rebuild needed".to_string())
         } else {
             None
         };
