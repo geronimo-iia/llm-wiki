@@ -14,6 +14,7 @@ use super::{Sessions, make_tool_id};
 
 // ── Reusable workflow steps ───────────────────────────────────────────────────
 
+/// Execute the search step of a research workflow: query the index and return ranked refs.
 pub fn step_search(
     cx: &ConnectionTo<Client>,
     manager: &WikiEngine,
@@ -75,6 +76,7 @@ pub fn step_search(
     }
 }
 
+/// Execute the read step: fetch full page content for a resolved slug.
 pub fn step_read(
     cx: &ConnectionTo<Client>,
     manager: &WikiEngine,
@@ -120,6 +122,7 @@ pub fn step_read(
     }
 }
 
+/// Execute the report step: format accumulated research results as a final response.
 pub fn step_report_results(
     cx: &ConnectionTo<Client>,
     session_id: &SessionId,
@@ -147,6 +150,7 @@ pub fn step_report_results(
 
 // ── Workflows ─────────────────────────────────────────────────────────────────
 
+/// Run the full research ACP workflow from params to final text response.
 pub fn run_research(
     cx: &ConnectionTo<Client>,
     manager: &WikiEngine,

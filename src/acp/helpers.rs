@@ -16,6 +16,7 @@ use super::Sessions;
 
 // ── Streaming helpers ─────────────────────────────────────────────────────────
 
+/// Send a text content block to the ACP session response stream.
 pub fn send_text(
     cx: &ConnectionTo<Client>,
     session_id: &SessionId,
@@ -29,6 +30,7 @@ pub fn send_text(
     ))
 }
 
+/// Send a tool-use content block (request) to the ACP session response stream.
 pub fn send_tool_call(
     cx: &ConnectionTo<Client>,
     session_id: &SessionId,
@@ -46,6 +48,7 @@ pub fn send_tool_call(
     ))
 }
 
+/// Send a tool-result content block to the ACP session response stream.
 pub fn send_tool_result(
     cx: &ConnectionTo<Client>,
     session_id: &SessionId,
@@ -66,6 +69,7 @@ pub fn send_tool_result(
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
+/// Resolve the target wiki name from ACP params, falling back to the engine default.
 pub fn resolve_wiki_name(
     manager: &WikiEngine,
     sessions: &Sessions,
@@ -82,6 +86,7 @@ pub fn resolve_wiki_name(
         .to_string()
 }
 
+/// Return the working directory for an ACP session (repo root of the default wiki).
 pub fn session_cwd(manager: &WikiEngine) -> PathBuf {
     let engine = manager.state.read().expect("engine lock poisoned");
     let name = engine.default_wiki_name();
@@ -96,6 +101,7 @@ pub fn get_cancelled(sessions: &Sessions, session_id: &str) -> Option<Arc<Atomic
     sessions.lock().get(session_id)?.cancelled.clone().into()
 }
 
+/// Clear the active-run flag for a session after a workflow completes or is cancelled.
 pub fn clear_active_run(sessions: &Sessions, session_id: &str) {
     let mut s = sessions.lock();
     if let Some(sess) = s.get_mut(session_id) {

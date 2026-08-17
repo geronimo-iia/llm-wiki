@@ -121,7 +121,7 @@ impl AsRef<str> for Slug {
 /// A slug that has been lowercased and validated.
 ///
 /// Constructable only via [`Slug::normalize`] (for external callers) or
-/// [`NormalizedSlug::from_normalized`] (for internal index reads where the
+/// `NormalizedSlug::from_normalized` (for internal index reads where the
 /// stored value is already known to be normalized).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct NormalizedSlug(String);
