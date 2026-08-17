@@ -46,3 +46,10 @@ jobs:
       - name: Security audit
         if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
         run: cargo audit
+
+      - uses: taiki-e/install-action@v2.85.10
+        with:
+          tool: cargo-outdated
+
+      - name: Check outdated dependencies
+        run: cargo outdated --root-deps-only --exit-code 0
