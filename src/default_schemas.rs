@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::collections::HashMap;
 
 const BASE: &str = include_str!("../schemas/base.json");

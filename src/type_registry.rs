@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 

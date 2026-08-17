@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicU64, Ordering};

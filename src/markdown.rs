@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::path::{Path, PathBuf};
 
 use anyhow::{Result, bail};

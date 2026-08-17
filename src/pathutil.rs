@@ -15,7 +15,7 @@ use std::path::PathBuf;
 ///
 /// Paths without a verbatim prefix are returned unchanged, so this is a no-op
 /// on non-Windows platforms.
-pub fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
+pub(crate) fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
     let s = path.to_string_lossy();
     if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
         PathBuf::from(format!(r"\\{rest}"))

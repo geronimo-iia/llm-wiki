@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::sync::atomic::Ordering;
 
 use agent_client_protocol::schema::v1::{SessionId, ToolCallStatus, ToolKind};

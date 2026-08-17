@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::cmp::Reverse;
 use std::collections::HashMap;
 

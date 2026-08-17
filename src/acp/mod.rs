@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 mod graph;
 mod helpers;
 mod ingest;

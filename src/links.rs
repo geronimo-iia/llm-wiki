@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::collections::HashSet;
 
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};

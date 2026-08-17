@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 /// MCP tool handler functions.
 pub mod handlers;
 /// MCP helper utilities — argument extraction and tool result types.
