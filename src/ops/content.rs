@@ -104,7 +104,7 @@ pub fn content_read(
 
     match resolve_read_target(slug.as_str(), &wiki_root)? {
         ReadTarget::Page(_) => {
-            let wiki_cfg = config::load_wiki(&PathBuf::from(&entry.path)).unwrap_or_default();
+            let wiki_cfg = config::load_wiki(&entry.path).unwrap_or_default();
             let resolved = config::resolve(&engine.config, &wiki_cfg);
             let strip = no_frontmatter || resolved.read.no_frontmatter;
             let content = markdown::read_page(&slug, &wiki_root, strip)?;
@@ -170,7 +170,7 @@ pub fn content_new(
     type_: Option<&str>,
 ) -> Result<ContentNewResult> {
     let (entry, slug) = WikiUri::resolve(uri, wiki_flag, &engine.config)?;
-    let repo_root = PathBuf::from(&entry.path);
+    let repo_root = entry.path.clone();
     let wiki_root = engine.space(&entry.name)?.wiki_root.clone();
 
     let type_name = if section {

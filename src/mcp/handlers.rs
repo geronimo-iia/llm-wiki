@@ -246,7 +246,7 @@ pub fn handle_resolve(server: &McpServer, args: &Map<String, Value>) -> ToolHand
     let wiki_root = engine
         .space(&entry.name)
         .map(|s| s.wiki_root.clone())
-        .unwrap_or_else(|_| std::path::PathBuf::from(&entry.path).join("wiki"));
+        .unwrap_or_else(|_| entry.path.clone().join("wiki"));
 
     let (path, exists, bundle) = match resolve_read_target(slug.as_str(), &wiki_root) {
         Ok(ReadTarget::Page(p)) => {

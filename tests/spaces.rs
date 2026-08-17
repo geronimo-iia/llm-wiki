@@ -10,7 +10,7 @@ fn config_path(dir: &Path) -> std::path::PathBuf {
 fn make_entry(name: &str, path: &str) -> WikiEntry {
     WikiEntry {
         name: name.into(),
-        path: path.into(),
+        path: std::path::PathBuf::from(path),
         description: None,
         remote: None,
     }
@@ -163,7 +163,7 @@ fn register_force_updates_existing() {
 
     let config = load_global(&cfg).unwrap();
     assert_eq!(config.wikis.len(), 1);
-    assert_eq!(config.wikis[0].path, "/tmp/test2");
+    assert_eq!(config.wikis[0].path, std::path::Path::new("/tmp/test2"));
 }
 
 #[test]
@@ -202,7 +202,7 @@ fn remove_with_delete_removes_directory() {
 
     let entry = WikiEntry {
         name: "test".into(),
-        path: wiki_dir.to_string_lossy().into(),
+        path: wiki_dir.clone(),
         description: None,
         remote: None,
     };

@@ -33,7 +33,7 @@ pub fn spaces_create(
     {
         let entry = WikiEntry {
             name: name.to_string(),
-            path: report.path.clone(),
+            path: std::path::PathBuf::from(&report.path),
             description: description.map(|s| s.to_string()),
             remote: None,
         };
@@ -69,7 +69,7 @@ pub fn spaces_register(
     {
         let entry = WikiEntry {
             name: name.to_string(),
-            path: report.path.clone(),
+            path: std::path::PathBuf::from(&report.path),
             description: description.map(|s| s.to_string()),
             remote: None,
         };

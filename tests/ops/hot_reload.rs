@@ -38,7 +38,7 @@ fn hot_reload_mount_wiki_makes_it_searchable() {
     // Now hot-reload mount — index builds with the page already present
     let entry = llm_wiki::config::WikiEntry {
         name: "beta".into(),
-        path: beta_path.to_string_lossy().into(),
+        path: beta_path.clone(),
         description: Some("second wiki".into()),
         remote: None,
     };
@@ -149,7 +149,7 @@ fn hot_reload_cross_wiki_search_reflects_new_wiki() {
     // Re-register and hot-reload mount beta
     let entry = llm_wiki::config::WikiEntry {
         name: "beta".into(),
-        path: beta_path.to_string_lossy().into(),
+        path: beta_path.clone(),
         description: None,
         remote: None,
     };

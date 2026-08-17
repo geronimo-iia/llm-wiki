@@ -68,7 +68,7 @@ pub fn create(
     if let Some(existing) = global
         .wikis
         .iter()
-        .find(|w| w.path == path.to_string_lossy())
+        .find(|w| w.path == path)
     {
         if existing.name == name {
             ensure_structure(&path, name, description, wiki_root)?;
@@ -105,7 +105,7 @@ pub fn create(
     // Register
     let entry = WikiEntry {
         name: name.into(),
-        path: path.to_string_lossy().into(),
+        path: path.to_path_buf(),
         description: description.map(|s| s.into()),
         remote: None,
     };
@@ -156,7 +156,7 @@ pub fn register_existing(
             let raw = std::fs::read_to_string(&toml_path)?;
             if raw.contains("wiki_root") {
                 let cfg: crate::config::WikiConfig = toml::from_str(&raw).unwrap_or_default();
-                Some(cfg.wiki_root)
+                Some(cfg.wiki_root.to_string_lossy().into_owned())
             } else {
                 None
             }
@@ -184,7 +184,7 @@ pub fn register_existing(
 
     let entry = WikiEntry {
         name: name.into(),
-        path: path.to_string_lossy().into(),
+        path: path.to_path_buf(),
         description: description.map(|s| s.into()),
         remote: None,
     };

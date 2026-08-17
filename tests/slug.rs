@@ -287,7 +287,7 @@ fn make_global(wikis: Vec<WikiEntry>, default: &str) -> GlobalConfig {
 fn make_entry(name: &str, path: &str) -> WikiEntry {
     WikiEntry {
         name: name.into(),
-        path: path.into(),
+        path: std::path::PathBuf::from(path),
         description: None,
         remote: None,
     }

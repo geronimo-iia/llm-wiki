@@ -29,7 +29,7 @@ pub fn config_set(
         let g = config::load_global(config_path)?;
         let name = wiki_name.unwrap_or(&g.global.default_wiki);
         let entry = spaces::resolve_name(name, &g)?;
-        let entry_path = PathBuf::from(&entry.path);
+        let entry_path = entry.path.clone();
         let mut wiki_cfg = config::load_wiki(&entry_path)?;
         config::set_wiki_config_value(&mut wiki_cfg, key, value)?;
         config::save_wiki(&wiki_cfg, &entry_path)?;

@@ -648,13 +648,13 @@ fn save_wiki_roundtrips_types() {
 #[test]
 fn wiki_config_wiki_root_defaults_to_wiki() {
     let cfg: WikiConfig = toml::from_str("name = \"test\"\n").unwrap();
-    assert_eq!(cfg.wiki_root, "wiki");
+    assert_eq!(cfg.wiki_root, std::path::Path::new("wiki"));
 }
 
 #[test]
 fn wiki_config_wiki_root_parses_custom_value() {
     let cfg: WikiConfig = toml::from_str("name = \"test\"\nwiki_root = \"skills\"\n").unwrap();
-    assert_eq!(cfg.wiki_root, "skills");
+    assert_eq!(cfg.wiki_root, std::path::Path::new("skills"));
 }
 
 #[test]

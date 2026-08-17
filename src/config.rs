@@ -20,7 +20,8 @@ pub struct WikiEntry {
     /// Short identifier used in `wiki://` URIs and the `--wiki` flag.
     pub name: String,
     /// Absolute path to the wiki repository root on disk.
-    pub path: String,
+    #[serde(with = "crate::pathutil::path_as_string")]
+    pub path: std::path::PathBuf,
     /// Optional one-line description shown in `spaces list`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -529,8 +530,8 @@ pub struct WikiConfig {
     #[serde(default)]
     pub redact: Option<RedactConfig>,
     /// Content directory relative to repo root. Default: `"wiki"`.
-    #[serde(default = "default_wiki_root")]
-    pub wiki_root: String,
+    #[serde(default = "default_wiki_root", with = "crate::pathutil::path_as_string")]
+    pub wiki_root: std::path::PathBuf,
 }
 
 /// Fully merged config for a specific wiki — global settings overlaid with per-wiki overrides.
@@ -647,8 +648,8 @@ fn default_stale_days() -> u32 {
 fn default_stale_confidence_threshold() -> f32 {
     0.4
 }
-fn default_wiki_root() -> String {
-    "wiki".to_string()
+fn default_wiki_root() -> std::path::PathBuf {
+    std::path::PathBuf::from("wiki")
 }
 // ── Functions ─────────────────────────────────────────────────────────────────
 

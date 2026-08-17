@@ -98,7 +98,7 @@ fn main() -> Result<()> {
                             " "
                         };
                         let desc = e.description.as_deref().unwrap_or("—");
-                        println!("{marker} {:<12} {:<40} {desc}", e.name, e.path);
+                        println!("{marker} {:<12} {:<40} {desc}", e.name, e.path.display());
                     }
                 }
             }
