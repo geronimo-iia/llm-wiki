@@ -1935,6 +1935,7 @@ dependencies = [
  "hex",
  "jsonschema",
  "notify",
+ "parking_lot",
  "petgraph",
  "petgraph-live",
  "pulldown-cmark",
