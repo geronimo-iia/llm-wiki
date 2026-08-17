@@ -214,11 +214,6 @@ fn is_schema_path(path: &Path) -> bool {
     s.contains("/schemas/") && path.extension().and_then(|e| e.to_str()) == Some("json")
 }
 
-fn is_wiki_md(path: &Path) -> bool {
-    let s = path.to_string_lossy();
-    s.contains("/wiki/") && path.extension().and_then(|e| e.to_str()) == Some("md")
-}
-
 fn start_notify_watcher(
     engine: &WikiEngine,
     tx: mpsc::Sender<(String, PathBuf)>,
@@ -261,7 +256,7 @@ fn start_notify_watcher(
         for path in &event.paths {
             // Find which wiki this path belongs to
             for (wiki_name, wiki_root, repo_root) in &watch_dirs_clone {
-                if path.starts_with(wiki_root) && is_wiki_md(path) {
+                if path.starts_with(wiki_root) && path.extension().and_then(|e| e.to_str()) == Some("md") {
                     let _ = tx_clone.try_send((wiki_name.clone(), path.clone()));
                     break;
                 }

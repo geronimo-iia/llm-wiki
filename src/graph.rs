@@ -230,6 +230,10 @@ fn louvain_phase1(
     if m == 0 {
         return false;
     }
+    debug_assert!(
+        community.len() == adj.len(),
+        "community map must contain exactly the same nodes as the adjacency map"
+    );
     let m_f = m as f64;
 
     let mut sorted_nodes: Vec<NodeIndex> = adj.keys().copied().collect();
@@ -248,13 +252,13 @@ fn louvain_phase1(
         pass += 1;
         let mut any_move = false;
         for &node in &sorted_nodes {
-            let current_c = *community.get(&node).unwrap();
+            let current_c = *community.get(&node).expect("node must be in community map");
             let k_i = *degrees.get(&node).unwrap_or(&0) as f64;
 
             // Gather neighboring communities and k_i_in for each
             let mut neighbor_c_edges: HashMap<usize, usize> = HashMap::new();
             for &nb in adj.get(&node).into_iter().flatten() {
-                let nb_c = *community.get(&nb).unwrap();
+                let nb_c = *community.get(&nb).expect("neighbour must be in community map");
                 *neighbor_c_edges.entry(nb_c).or_default() += 1;
             }
 
@@ -1029,7 +1033,7 @@ fn build_community_data(
     let mut id_remap: HashMap<usize, usize> = HashMap::new();
     let mut next_id = 0usize;
     for &n in &local_nodes {
-        let c = *community.get(&n).unwrap();
+        let c = *community.get(&n).expect("node must be in community map after louvain_phase1");
         id_remap.entry(c).or_insert_with(|| {
             let id = next_id;
             next_id += 1;
@@ -1037,7 +1041,7 @@ fn build_community_data(
         });
     }
     for val in community.values_mut() {
-        *val = *id_remap.get(val).unwrap();
+        *val = *id_remap.get(val).expect("community id must exist in remap");
     }
 
     // Build community_map
@@ -1057,7 +1061,7 @@ fn build_community_data(
     let mut isolated: Vec<String> = local_nodes
         .iter()
         .filter(|&&n| {
-            let c = *community.get(&n).unwrap();
+            let c = *community.get(&n).expect("node must be in community map after remap");
             *sizes.get(&c).unwrap_or(&0) <= 2
         })
         .map(|&n| graph[n].slug.clone())
