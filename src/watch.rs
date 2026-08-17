@@ -174,7 +174,9 @@ pub async fn run_watcher(
                                     "Wiki \"{wiki_name}\" updated: {} page(s) changed.",
                                     report.updated + report.deleted
                                 );
-                                let _ = push_tx.try_send((wiki_name.clone(), msg));
+                                if push_tx.try_send((wiki_name.clone(), msg)).is_err() {
+                                    tracing::warn!(wiki = %wiki_name, "watcher update channel full; event dropped");
+                                }
                             }
                         }
                         Err(e) => {
@@ -259,11 +261,15 @@ fn start_notify_watcher(
                 if path.starts_with(wiki_root)
                     && path.extension().and_then(|e| e.to_str()) == Some("md")
                 {
-                    let _ = tx_clone.try_send((wiki_name.clone(), path.clone()));
+                    if tx_clone.try_send((wiki_name.clone(), path.clone())).is_err() {
+                        tracing::warn!(wiki = %wiki_name, "watcher update channel full; event dropped");
+                    }
                     break;
                 }
                 if path.starts_with(repo_root.join("schemas")) && is_schema_path(path) {
-                    let _ = tx_clone.try_send((wiki_name.clone(), path.clone()));
+                    if tx_clone.try_send((wiki_name.clone(), path.clone())).is_err() {
+                        tracing::warn!(wiki = %wiki_name, "watcher update channel full; event dropped");
+                    }
                     break;
                 }
             }

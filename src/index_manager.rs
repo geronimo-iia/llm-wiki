@@ -318,7 +318,7 @@ impl SpaceIndexManager {
             let slug = match Slug::from_path(path, wiki_root) {
                 Ok(s) => s,
                 Err(e) => {
-                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path");
+                    tracing::debug!(path = %path.display(), error = %e, "skipping invalid path");
                     skipped += 1;
                     continue;
                 }
@@ -440,7 +440,7 @@ impl SpaceIndexManager {
             let slug = match Slug::from_path(path, wiki_prefix) {
                 Ok(s) => s,
                 Err(e) => {
-                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path in update");
+                    tracing::debug!(path = %path.display(), error = %e, "skipping invalid path in update");
                     continue;
                 }
             };
@@ -652,7 +652,7 @@ impl SpaceIndexManager {
             let slug = match Slug::from_path(path, wiki_root) {
                 Ok(s) => s,
                 Err(e) => {
-                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path");
+                    tracing::debug!(path = %path.display(), error = %e, "skipping invalid path");
                     skipped += 1;
                     continue;
                 }

@@ -617,7 +617,10 @@ fn default_type_strictness() -> String {
     "loose".into()
 }
 fn default_log_path() -> String {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+    let home = std::env::var("HOME").unwrap_or_else(|_| {
+        tracing::warn!("HOME not set; falling back to current directory for log path");
+        ".".into()
+    });
     std::path::PathBuf::from(home)
         .join(".llm-wiki")
         .join("logs")
