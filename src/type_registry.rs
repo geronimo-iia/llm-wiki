@@ -587,8 +587,12 @@ fn validate_schema_path(repo_root: &Path, schema: &str) -> Result<std::path::Pat
     let candidate = repo_root.join(schema);
     let repo_abs = std::fs::canonicalize(repo_root)
         .with_context(|| format!("cannot canonicalize repo root {}", repo_root.display()))?;
-    let schema_abs = std::fs::canonicalize(&candidate)
-        .with_context(|| format!("schema file not found or cannot be resolved: {}", candidate.display()))?;
+    let schema_abs = std::fs::canonicalize(&candidate).with_context(|| {
+        format!(
+            "schema file not found or cannot be resolved: {}",
+            candidate.display()
+        )
+    })?;
     if !schema_abs.starts_with(&repo_abs) {
         bail!(
             "schema path must be inside repository (resolved to {}, repo is {})",
