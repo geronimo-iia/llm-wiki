@@ -41,7 +41,7 @@ fn opt_int(desc: &str) -> Value {
     json!({"type": "integer", "description": desc})
 }
 
-// ── Tool definitions (22 tools) ───────────────────────────────────────────────
+// ── Tool definitions (24 tools) ───────────────────────────────────────────────
 
 /// Return the complete list of MCP tool definitions for registration.
 pub fn tool_list() -> Vec<Tool> {
