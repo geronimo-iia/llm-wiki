@@ -79,9 +79,9 @@ axum       = "0.8"
 agent-client-protocol = "2.0"
 tokio-util = { version = "0.7", features = ["compat"] }
 notify = "8"
+tempfile = "3"
 
 [dev-dependencies]
-tempfile      = "3"
 tracing-test  = "0.2"
 
 [profile.release]

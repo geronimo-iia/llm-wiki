@@ -1,7 +1,8 @@
 #![allow(unreachable_pub)]
-use std::path::Path;
+use std::{io::Write as _, path::Path};
 
 use anyhow::{Context, Result};
+use tempfile::NamedTempFile;
 use serde::{Deserialize, Serialize};
 
 // ── Section structs ───────────────────────────────────────────────────────────
@@ -733,19 +734,29 @@ pub fn load_wiki(wiki_root: &Path) -> Result<WikiConfig> {
 
 /// Serialize and write the global config to `path`, creating parent dirs if needed.
 pub fn save_global(config: &GlobalConfig, path: &Path) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
+    let parent = path.parent().unwrap_or(Path::new("."));
+    std::fs::create_dir_all(parent)?;
     let content = toml::to_string_pretty(config)?;
-    std::fs::write(path, content)?;
-    Ok(())
+    atomic_write(path, content.as_bytes())
 }
 
 /// Serialize and write the per-wiki config to `<wiki_root>/wiki.toml`.
 pub fn save_wiki(config: &WikiConfig, wiki_root: &Path) -> Result<()> {
     let path = wiki_root.join("wiki.toml");
     let content = toml::to_string_pretty(config)?;
-    std::fs::write(path, content)?;
+    atomic_write(&path, content.as_bytes())
+}
+
+/// Write `data` to `dest` atomically: write to a temp file in the same directory,
+/// then rename into place. Avoids a truncated `dest` on crash mid-write.
+fn atomic_write(dest: &Path, data: &[u8]) -> Result<()> {
+    let parent = dest.parent().unwrap_or(Path::new("."));
+    let mut tmp = NamedTempFile::new_in(parent)
+        .with_context(|| format!("creating temp file in {}", parent.display()))?;
+    tmp.write_all(data)
+        .with_context(|| format!("writing temp file for {}", dest.display()))?;
+    tmp.persist(dest)
+        .with_context(|| format!("renaming temp file to {}", dest.display()))?;
     Ok(())
 }
 
