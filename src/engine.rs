@@ -109,6 +109,7 @@ impl WikiEngine {
         let state_dir = config_path.parent().unwrap_or(Path::new(".")).to_path_buf();
 
         let mut spaces = HashMap::new();
+        let mut mount_failures = 0usize;
 
         for entry in &config.wikis {
             match mount_space(entry, &state_dir, &config) {
@@ -116,12 +117,16 @@ impl WikiEngine {
                     spaces.insert(entry.name.clone(), Arc::new(ctx));
                 }
                 Err(e) => {
+                    mount_failures += 1;
                     tracing::warn!(
                         wiki = %entry.name, error = %format_args!("{e:#}"),
                         "failed to mount wiki, skipping",
                     );
                 }
             }
+        }
+        if mount_failures > 0 {
+            tracing::warn!(count = mount_failures, "failed to mount {} wiki(s); see prior messages for details", mount_failures);
         }
 
         let engine = EngineState {
