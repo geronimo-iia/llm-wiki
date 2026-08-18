@@ -3,7 +3,7 @@
 ## Decision
 
 Keep the `[lib]` target in `Cargo.toml`. Publish `llm-wiki-engine` to
-crates.io as both a binary (`llm-wiki`) and a library (`llm_wiki`). Define
+crates.io as both a binary (`llm-wiki`) and a library (`llm_wiki_engine`). Define
 a stable public surface via a `pub use` façade at the crate root. Leave
 internal modules accessible to the test layer until a Post-1.0 test refactor
 completes the `pub(crate)` migration.
@@ -72,4 +72,17 @@ further as the test layer is refactored.
 - `#![warn(unreachable_pub)]` added crate-wide; suppressed per-module where
   tests block conversion (see
   `docs/decisions/1.0.0/pub-crate-partial-migration.md`).
+
+## Amendment — lib target renamed to `llm_wiki_engine`
+
+The original decision named the lib target `llm_wiki`. This was corrected
+before 1.0.0: the `[lib] name` in `Cargo.toml` is now `llm_wiki_engine`,
+matching the package name `llm-wiki-engine`.
+
+The mismatch meant embedders writing `use llm_wiki_engine::…` after
+`cargo add llm-wiki-engine` would get a compile error; they had to know the
+internal target name `llm_wiki` instead. The rename eliminates that
+discoverability gap with no API or behaviour change. All 231 internal `llm_wiki::`
+references were updated mechanically; the tracing default filter was updated from
+`llm_wiki=info,warn` to `llm_wiki_engine=info,warn`.
 
