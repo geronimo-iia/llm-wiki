@@ -357,7 +357,12 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_info",
-            "Return server version, config path, registered spaces, and index health.",
+            concat!(
+                "Return server version, config path, registered spaces, and index health. ",
+                "The `index_status` field is the string \"ok\" when all wikis are healthy, ",
+                "or an object `{\"<wiki-name>\": {\"status\": \"degraded\", \"reason\": \"...\"}}` ",
+                "for each degraded wiki. Call wiki_index_status for field-level detail on a specific wiki."
+            ),
             schema(json!({}), &[]),
         ),
     ]
