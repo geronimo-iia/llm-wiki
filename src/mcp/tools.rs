@@ -132,7 +132,7 @@ pub fn tool_list() -> Vec<Tool> {
             "Read full content of a page by slug or URI",
             schema(
                 json!({
-                    "uri": str_prop("Slug or wiki:// URI"),
+                    "uri": str_prop("Slug (e.g. \"concepts/attention\") or wiki:// URI (e.g. \"wiki://my-wiki/concepts/attention\")"),
                     "no_frontmatter": opt_bool("Strip frontmatter from output"),
                     "list_assets": opt_bool("List co-located assets instead of content"),
                     "backlinks": opt_bool("Include incoming links — pages that link to this page"),
@@ -146,8 +146,8 @@ pub fn tool_list() -> Vec<Tool> {
             "Write content to a page in the wiki tree",
             schema(
                 json!({
-                    "uri": str_prop("Slug or wiki:// URI"),
-                    "content": str_prop("File content"),
+                    "uri": str_prop("Slug (e.g. \"concepts/attention\") or wiki:// URI (e.g. \"wiki://my-wiki/concepts/attention\")"),
+                    "content": str_prop("Full file content including required YAML frontmatter (--- title: ... type: ... ---)"),
                     "wiki": opt_str("Target wiki name"),
                 }),
                 &["uri", "content"],
@@ -158,7 +158,7 @@ pub fn tool_list() -> Vec<Tool> {
             "Create a page or section with scaffolded frontmatter",
             schema(
                 json!({
-                    "uri": str_prop("Slug or wiki:// URI"),
+                    "uri": str_prop("Slug (e.g. \"concepts/attention\") or wiki:// URI (e.g. \"wiki://my-wiki/concepts/attention\")"),
                     "section": opt_bool("Create a section instead of a page"),
                     "bundle": opt_bool("Create as bundle (folder + index.md)"),
                     "name": opt_str("Page title (default: derived from slug)"),
@@ -185,11 +185,11 @@ pub fn tool_list() -> Vec<Tool> {
             "Full-text BM25 search, returns ranked results",
             schema(
                 json!({
-                    "query": str_prop("Search query"),
+                    "query": str_prop("Search query. Supports BM25 full-text, phrase quoting (\"exact phrase\"), field filters (title:\"foo\"), and type shorthand (type:concept)."),
                     "type": opt_str("Filter by frontmatter type"),
                     "no_excerpt": opt_bool("Omit excerpts — refs only"),
                     "include_sections": opt_bool("Include section index pages"),
-                    "top_k": opt_int("Max results"),
+                    "top_k": opt_int("Max results to return (default: 10, max: 100)"),
                     "wiki": opt_str("Target wiki name"),
                     "cross_wiki": opt_bool("Search across all wikis"),
                     "format": opt_str("Output format: json | llms (default: json)"),
@@ -205,7 +205,7 @@ pub fn tool_list() -> Vec<Tool> {
                     "type": opt_str("Filter by frontmatter type"),
                     "status": opt_str("Filter by frontmatter status"),
                     "page": opt_int("Page number, 1-based"),
-                    "page_size": opt_int("Results per page"),
+                    "page_size": opt_int("Results per page (default: 20, max: 200)"),
                     "wiki": opt_str("Target wiki name"),
                     "format": opt_str("Output format: json | llms (default: json)"),
                 }),

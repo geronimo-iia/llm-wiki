@@ -36,7 +36,7 @@ pub(crate) mod path_as_string {
 
     use serde::{Deserialize, Deserializer, Serializer};
 
-    pub fn serialize<S: Serializer>(path: &PathBuf, s: S) -> Result<S::Ok, S::Error> {
+    pub fn serialize<S: Serializer>(path: &std::path::Path, s: S) -> Result<S::Ok, S::Error> {
         s.serialize_str(&path.to_string_lossy())
     }
 
