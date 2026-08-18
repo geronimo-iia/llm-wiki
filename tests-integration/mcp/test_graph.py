@@ -47,3 +47,19 @@ async def test_graph_cross_wiki(mcp_env):
     text = await mcp_env.call("wiki_graph", {"cross_wiki": True})
     node_lines = [l for l in text.splitlines() if "[" in l and "]" in l]
     assert len(node_lines) > 0, "cross-wiki graph must contain at least one node"
+
+
+async def test_graph_json_format(mcp_env):
+    """wiki_graph with format=json must return valid JSON with nodes/edges/metrics."""
+    await mcp_env.rebuild(SPACE_NAME)
+    await mcp_env.rebuild(SPACE_NOTES)
+    import json
+    text = await mcp_env.call("wiki_graph", {"format": "json"})
+    data = json.loads(text)
+    assert "nodes" in data, "JSON output must have nodes key"
+    assert "edges" in data, "JSON output must have edges key"
+    assert "metrics" in data, "JSON output must have metrics key"
+    assert "communities" in data, "JSON output must have communities key"
+    assert isinstance(data["nodes"], list)
+    assert isinstance(data["edges"], list)
+    assert isinstance(data["metrics"]["nodes"], int)
