@@ -104,6 +104,7 @@ impl ServerHandler for McpServer {
         if !result.notify_uris.is_empty() {
             let peer = context.peer.clone();
             let uris = result.notify_uris.clone();
+            let tool_name = request.name.clone();
             tokio::spawn(async move {
                 for uri in uris {
                     if let Err(e) = peer
@@ -112,7 +113,7 @@ impl ServerHandler for McpServer {
                         )
                         .await
                     {
-                        tracing::warn!(error = %e, uri = %uri, "resource notification failed");
+                        tracing::warn!(tool = %tool_name, uri = %uri, error = %e, "resource notification failed");
                     }
                 }
             });
@@ -121,9 +122,10 @@ impl ServerHandler for McpServer {
         // Send resource list changed notification for space operations
         if result.notify_resources_changed {
             let peer = context.peer.clone();
+            let tool_name = request.name.clone();
             tokio::spawn(async move {
                 if let Err(e) = peer.notify_resource_list_changed().await {
-                    tracing::warn!(error = %e, "resource list changed notification failed");
+                    tracing::warn!(tool = %tool_name, error = %e, "resource list changed notification failed");
                 }
             });
         }
