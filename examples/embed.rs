@@ -1,4 +1,4 @@
-//! Embedding example — use `llm-wiki-engine` as a library (lib target: `llm_wiki`).
+//! Embedding example — use `llm-wiki-engine` as a library.
 //!
 //! Loads the default config, searches a wiki, and lists the first page of results.
 //!
@@ -33,7 +33,6 @@
 
 use std::path::PathBuf;
 
-// The package is `llm-wiki-engine`; the lib target is named `llm_wiki`.
 use llm_wiki_engine::ops::{SearchParams, list, search};
 use llm_wiki_engine::{SearchResult, WikiEngine};
 

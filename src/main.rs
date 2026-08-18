@@ -794,7 +794,7 @@ fn init_logging(
     use tracing_subscriber::prelude::*;
 
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| "llm_wiki=info,warn".into());
+        .unwrap_or_else(|_| "llm_wiki_engine=info,warn".into());
 
     let is_serve = matches!(command, Commands::Serve { .. });
 
