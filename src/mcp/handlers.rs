@@ -9,17 +9,19 @@ use crate::slug::{ReadTarget, WikiUri, resolve_read_target};
 use super::McpServer;
 use super::helpers::*;
 
-static PATH_RE: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r"/[a-zA-Z0-9_./-]{3,}").unwrap());
+static PATH_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+    // Two alternatives:
+    //   /[a-zA-Z0-9_./-]{3,}  — absolute Unix paths starting with /
+    //   ~[a-zA-Z0-9_./~-]{2,} — tilde-prefixed paths (~/ or ~user/)
+    regex::Regex::new(r"(?:/[a-zA-Z0-9_./-]{3,}|~[a-zA-Z0-9_./~-]{2,})").unwrap()
+});
 
 /// Redact filesystem paths from an error message before sending to LLM clients.
 ///
-/// Strips absolute Unix paths so that
+/// Strips absolute and tilde-prefixed Unix paths so that
 /// `failed to open /home/user/wikis/my-wiki/search-index/state.toml: No such file`
-/// becomes `failed to open <path>: No such file`.
-///
-/// Known gap: `~`-prefixed paths (`~/.config/llm-wiki`) are not matched because
-/// `~` is not a `/` separator; those are rare in error messages from std/anyhow.
+/// becomes `failed to open <path>: No such file`, and
+/// `config at ~/wikis/foo` becomes `config at <path>`.
 fn redact_error(e: impl std::fmt::Display) -> String {
     PATH_RE.replace_all(&format!("{e}"), "<path>").into_owned()
 }
@@ -54,14 +56,16 @@ mod tests {
     }
 
     #[test]
-    fn tilde_path_partially_redacted() {
-        // ~ itself is not in the pattern, but the /... portion is matched and
-        // replaced, so ~/.config/llm-wiki becomes ~<path> — the ~ leaks but
-        // the full path does not.
+    fn tilde_path_fully_redacted() {
+        // ~/... paths are matched by the ~[...]{2,} alternative — full redaction.
         let msg = "config not found at ~/.config/llm-wiki/config.toml";
-        let out = redact_error(msg);
-        assert!(out.contains('~'), "tilde should be preserved");
-        assert!(!out.contains(".config"), "path after tilde should be redacted");
+        assert_eq!(redact_error(msg), "config not found at <path>");
+    }
+
+    #[test]
+    fn tilde_user_path_redacted() {
+        let msg = "open ~user/wikis/foo failed";
+        assert_eq!(redact_error(msg), "open <path> failed");
     }
 }
 
