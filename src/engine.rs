@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use anyhow::{Context, Result};
 
@@ -98,6 +98,8 @@ impl EngineState {
 pub struct WikiEngine {
     /// Shared engine state protected by a reader-writer lock.
     pub state: Arc<RwLock<EngineState>>,
+    /// Serializes config file mutations (load → modify → save) to prevent lost writes.
+    pub config_write_lock: Arc<Mutex<()>>,
 }
 
 impl WikiEngine {
@@ -131,6 +133,7 @@ impl WikiEngine {
 
         Ok(WikiEngine {
             state: Arc::new(RwLock::new(engine)),
+            config_write_lock: Arc::new(Mutex::new(())),
         })
     }
 
@@ -276,6 +279,19 @@ impl WikiEngine {
         }
         tracing::info!(wiki = %name, "reload: unmounted");
         Ok(())
+    }
+
+    /// Serialize a config mutation (load → modify → save) so concurrent MCP
+    /// transports cannot interleave their read-modify-write cycles and lose writes.
+    pub fn with_config_lock<F, T>(&self, f: F) -> Result<T>
+    where
+        F: FnOnce() -> Result<T>,
+    {
+        let _guard = self
+            .config_write_lock
+            .lock()
+            .map_err(|_| anyhow::anyhow!("config lock poisoned"))?;
+        f()
     }
 
     /// Update the default wiki. The wiki must be mounted.
