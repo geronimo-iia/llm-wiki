@@ -21,7 +21,8 @@ fn graph_snapshot_keyed_by_sha_not_generation() {
     let wiki_path = dir.path().join("mywiki");
 
     // Create wiki with at least one commit so last_commit() returns a real SHA.
-    llm_wiki_engine::spaces::create(&wiki_path, "mywiki", None, false, true, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&wiki_path, "mywiki", None, false, true, &config_path, None)
+        .unwrap();
     let wiki_root = wiki_path.join("wiki");
     std::fs::create_dir_all(wiki_root.join("concepts")).unwrap();
     std::fs::write(
@@ -88,7 +89,8 @@ fn build_fn_does_not_capture_path_or_tokenizer() {
 
 #[test]
 fn wiki_graph_cache_no_snapshot_uses_generation_cache() {
-    let cache = WikiGraphCache::NoSnapshot(GenerationCache::<llm_wiki_engine::graph::WikiGraph>::new());
+    let cache =
+        WikiGraphCache::NoSnapshot(GenerationCache::<llm_wiki_engine::graph::WikiGraph>::new());
     assert!(matches!(cache, WikiGraphCache::NoSnapshot(_)));
 }
 
@@ -112,7 +114,8 @@ fn graph_not_empty_after_index_rebuild_simulating_fresh_process() {
 
     // ── Process 1: create empty wiki, trigger first mount ──────────────────
     // This saves wiki-graph-0.snap.lz4 (empty) because generation=0 and wiki has 0 pages.
-    llm_wiki_engine::spaces::create(&wiki_path, "mywiki", None, false, true, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&wiki_path, "mywiki", None, false, true, &config_path, None)
+        .unwrap();
     let engine1 = llm_wiki_engine::engine::WikiEngine::build(&config_path).unwrap();
     drop(engine1); // process exits
 

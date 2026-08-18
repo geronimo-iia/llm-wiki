@@ -72,7 +72,8 @@ fn hot_reload_unmount_wiki_removes_from_search() {
 
     // Create beta
     let beta_path = dir.path().join("beta");
-    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None)
+        .unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
 
@@ -114,7 +115,8 @@ fn spaces_set_default_fails_and_keeps_disk_config_when_wiki_unmounted() {
     let config_path = setup_wiki(dir.path(), "alpha");
 
     let beta_path = dir.path().join("beta");
-    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None)
+        .unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
 
@@ -142,7 +144,8 @@ fn hot_reload_set_default_updates_engine() {
     let config_path = setup_wiki(dir.path(), "alpha");
 
     let beta_path = dir.path().join("beta");
-    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None)
+        .unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
 
@@ -161,7 +164,8 @@ fn hot_reload_cross_wiki_search_reflects_new_wiki() {
 
     // Create beta with a page before building the engine
     let beta_path = dir.path().join("beta");
-    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None)
+        .unwrap();
 
     let beta_wiki = beta_path.join("wiki");
     fs::create_dir_all(beta_wiki.join("concepts")).unwrap();

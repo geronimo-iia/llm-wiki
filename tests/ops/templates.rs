@@ -123,7 +123,8 @@ fn spaces_create_writes_template_files() {
     let config_path = dir.path().join("state").join("config.toml");
     let wiki_path = dir.path().join("wiki");
 
-    llm_wiki_engine::spaces::create(&wiki_path, "test", None, false, true, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&wiki_path, "test", None, false, true, &config_path, None)
+        .unwrap();
 
     assert!(wiki_path.join("schemas/concept.md").exists());
     assert!(wiki_path.join("schemas/paper.md").exists());

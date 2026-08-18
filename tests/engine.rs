@@ -10,7 +10,8 @@ fn setup_wiki(dir: &Path, name: &str) -> (std::path::PathBuf, std::path::PathBuf
     let config_path = dir.join("state").join("config.toml");
     let wiki_path = dir.join(name);
 
-    llm_wiki_engine::spaces::create(&wiki_path, name, None, false, true, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&wiki_path, name, None, false, true, &config_path, None)
+        .unwrap();
 
     // Write a page so the index has something
     let wiki_root = wiki_path.join("wiki");
@@ -322,7 +323,8 @@ fn set_default_updates_engine_and_disk_atomically() {
 
     // Register a second wiki so switching default is meaningful.
     let beta_path = dir.path().join("beta");
-    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None)
+        .unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
 

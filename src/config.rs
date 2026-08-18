@@ -1095,7 +1095,9 @@ mod tests {
 
     #[test]
     fn default_wiki_opt_set_is_some() {
-        let s = GlobalSection { default_wiki: "research".to_string() };
+        let s = GlobalSection {
+            default_wiki: "research".to_string(),
+        };
         assert_eq!(s.default_wiki_opt(), Some("research"));
     }
 }

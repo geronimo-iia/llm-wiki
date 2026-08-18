@@ -496,7 +496,8 @@ fn create_without_wiki_root_keeps_default_wiki_dir() {
     let wiki_path = dir.path().join("research");
     let cfg = config_path(dir.path());
 
-    llm_wiki_engine::spaces::create(&wiki_path, "research", None, false, false, &cfg, None).unwrap();
+    llm_wiki_engine::spaces::create(&wiki_path, "research", None, false, false, &cfg, None)
+        .unwrap();
 
     assert!(wiki_path.join("wiki").is_dir());
     let toml_content = std::fs::read_to_string(wiki_path.join("wiki.toml")).unwrap();
@@ -516,7 +517,8 @@ fn register_existing_basic() {
     std::fs::write(wiki_path.join("wiki.toml"), "name = \"existing\"\n").unwrap();
 
     let report =
-        llm_wiki_engine::spaces::register_existing(&wiki_path, "existing", None, None, &cfg).unwrap();
+        llm_wiki_engine::spaces::register_existing(&wiki_path, "existing", None, None, &cfg)
+            .unwrap();
 
     assert!(report.registered);
     assert!(!report.created);
@@ -596,8 +598,9 @@ fn register_existing_wiki_root_flag_conflicts_with_toml() {
     )
     .unwrap();
 
-    let err = llm_wiki_engine::spaces::register_existing(&wiki_path, "skills", None, Some("other"), &cfg)
-        .unwrap_err();
+    let err =
+        llm_wiki_engine::spaces::register_existing(&wiki_path, "skills", None, Some("other"), &cfg)
+            .unwrap_err();
 
     assert!(err.to_string().contains("already declares wiki_root"));
 }
@@ -615,8 +618,8 @@ fn register_existing_missing_wiki_root_directory_errors() {
     )
     .unwrap();
 
-    let err =
-        llm_wiki_engine::spaces::register_existing(&wiki_path, "skills", None, None, &cfg).unwrap_err();
+    let err = llm_wiki_engine::spaces::register_existing(&wiki_path, "skills", None, None, &cfg)
+        .unwrap_err();
 
     assert!(err.to_string().contains("does not exist"));
 }

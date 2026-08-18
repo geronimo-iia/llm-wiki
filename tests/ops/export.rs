@@ -385,7 +385,8 @@ fn export_loads_bundle_body() {
 fn setup_empty_wiki(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
     let config_path = dir.join("state").join("config.toml");
     let wiki_path = dir.join(name);
-    llm_wiki_engine::spaces::create(&wiki_path, name, None, false, true, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&wiki_path, name, None, false, true, &config_path, None)
+        .unwrap();
     llm_wiki_engine::git::commit(&wiki_path, "init empty").unwrap();
     config_path
 }

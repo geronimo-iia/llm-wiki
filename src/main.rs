@@ -637,7 +637,12 @@ fn main() -> Result<()> {
                 .and_then(|opt| opt.and_then(|s| s.trim_start_matches(':').parse::<u16>().ok()));
 
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(llm_wiki_engine::server::serve(&config_path, http_port, acp, watch))?;
+            rt.block_on(llm_wiki_engine::server::serve(
+                &config_path,
+                http_port,
+                acp,
+                watch,
+            ))?;
         }
 
         // ── Stats ───────────────────────────────────────────────────────
