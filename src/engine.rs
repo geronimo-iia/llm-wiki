@@ -242,12 +242,20 @@ impl WikiEngine {
     /// Mount a wiki into the running engine. Called by space management
     /// tools for hot reload.
     pub fn mount_wiki(&self, entry: &WikiEntry) -> Result<()> {
+        // Clone cheap fields under the read lock, then drop before I/O.
+        let (state_dir, config) = {
+            let engine = self
+                .state
+                .read()
+                .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+            (engine.state_dir.clone(), engine.config.clone())
+        };
+        let ctx = mount_space(entry, &state_dir, &config)?;
+        tracing::info!(wiki = %entry.name, "reload: mounted");
         let mut engine = self
             .state
             .write()
             .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-        let ctx = mount_space(entry, &engine.state_dir, &engine.config)?;
-        tracing::info!(wiki = %entry.name, "reload: mounted");
         engine.spaces.insert(entry.name.clone(), Arc::new(ctx));
         Ok(())
     }
