@@ -99,7 +99,7 @@ pub async fn serve_acp(
                             return responder.respond_with_error(
                                 agent_client_protocol::schema::v1::Error::new(
                                     i32::from(agent_client_protocol::schema::v1::ErrorCode::InvalidParams),
-                                    format!("Session limit reached (max: {})", config.acp_max_sessions),
+                                    format!("Session limit reached (max: {}); increase with `wiki_config set serve.acp_max_sessions <n>`", config.acp_max_sessions),
                                 ),
                             );
                         }
