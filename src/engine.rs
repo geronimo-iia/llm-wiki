@@ -254,12 +254,12 @@ impl WikiEngine {
             (engine.state_dir.clone(), engine.config.clone())
         };
         let ctx = mount_space(entry, &state_dir, &config)?;
-        tracing::info!(wiki = %entry.name, "reload: mounted");
         let mut engine = self
             .state
             .write()
             .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
         engine.spaces.insert(entry.name.clone(), Arc::new(ctx));
+        tracing::info!(wiki = %entry.name, "reload: mounted");
         Ok(())
     }
 
