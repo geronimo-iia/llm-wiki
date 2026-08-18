@@ -3,10 +3,15 @@
 //! exposes the engine internals for embedding or testing.
 #![warn(unreachable_pub)]
 
+#[doc(inline)]
 pub use config::GlobalConfig;
+#[doc(inline)]
 pub use engine::WikiEngine;
+#[doc(inline)]
 pub use graph::WikiGraph;
+#[doc(inline)]
 pub use ingest::IngestReport;
+#[doc(inline)]
 pub use search::SearchResult;
 
 /// ACP (Agent Client Protocol) transport and session handling.
