@@ -6,15 +6,66 @@ fn wiki_graph_cache_no_snapshot_variant_exists() {
     let _ = std::mem::discriminant(&WikiGraphCache::NoSnapshot(GenerationCache::new()));
 }
 
-/// Snapshot written on first mount; second mount loads from disk without calling build_fn.
+/// Snapshot file name must contain the git commit SHA, not a generation counter.
+///
+/// Invariant 1: the snapshot key is `last_commit()` (git HEAD SHA). If `key_fn`
+/// were changed to return `generation().to_string()` the key would be "0" after
+/// every process restart, causing stale snapshots to be served after index rebuilds.
+/// This test pins the key by asserting the SHA appears in the snapshot filename.
 #[test]
-fn graph_state_warm_start_skips_cold_build() {
-    use std::sync::Arc;
-    use std::sync::atomic::AtomicU32;
-    // For now assert the enum discriminants are correct:
-    let _build_count = Arc::new(AtomicU32::new(0));
-    let cache = WikiGraphCache::NoSnapshot(GenerationCache::new());
-    assert!(matches!(cache, WikiGraphCache::NoSnapshot(_)));
+fn graph_snapshot_keyed_by_sha_not_generation() {
+    use llm_wiki::graph::{GraphFilter, get_or_build_graph};
+
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = dir.path().join("state").join("config.toml");
+    let wiki_path = dir.path().join("mywiki");
+
+    // Create wiki with at least one commit so last_commit() returns a real SHA.
+    llm_wiki::spaces::create(&wiki_path, "mywiki", None, false, true, &config_path, None).unwrap();
+    let wiki_root = wiki_path.join("wiki");
+    std::fs::create_dir_all(wiki_root.join("concepts")).unwrap();
+    std::fs::write(
+        wiki_root.join("concepts/a.md"),
+        "---\ntitle: \"A\"\ntype: concept\nstatus: active\n---\nBody.\n",
+    )
+    .unwrap();
+    llm_wiki::git::commit(&wiki_path, "add page").unwrap();
+
+    // Build engine, trigger snapshot creation via get_or_build_graph.
+    let expected_sha = {
+        let manager = llm_wiki::engine::WikiEngine::build(&config_path).unwrap();
+        let engine = manager.state.read().unwrap();
+        let space = engine.spaces.get("mywiki").unwrap();
+        let sha = space
+            .index_manager
+            .last_commit()
+            .expect("index must have a commit after rebuild at mount time");
+        let searcher = space.index_manager.searcher().unwrap();
+        let _ = get_or_build_graph(
+            &space.index_schema,
+            &space.type_registry,
+            &space.index_manager,
+            &space.graph_cache,
+            &searcher,
+            &GraphFilter::default(),
+        )
+        .unwrap();
+        sha
+    };
+
+    // The snapshot file name must embed the git SHA, not "0" or "1".
+    let snap_dir = dir.path().join("state").join("snapshots").join("mywiki");
+    let files: Vec<String> = std::fs::read_dir(&snap_dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+        .collect();
+    assert_eq!(files.len(), 1, "expected exactly one snapshot file, got {files:?}");
+    assert!(
+        files[0].contains(&expected_sha),
+        "snapshot filename must contain the git SHA '{expected_sha}' but got '{}'; \
+         if key_fn was changed to generation() the filename would contain '0' instead",
+        files[0]
+    );
 }
 
 #[test]
