@@ -16,9 +16,53 @@ static PATH_RE: LazyLock<regex::Regex> =
 ///
 /// Strips absolute Unix paths so that
 /// `failed to open /home/user/wikis/my-wiki/search-index/state.toml: No such file`
-/// becomes `failed to open <path>/state.toml: No such file`.
+/// becomes `failed to open <path>: No such file`.
+///
+/// Known gap: `~`-prefixed paths (`~/.config/llm-wiki`) are not matched because
+/// `~` is not a `/` separator; those are rare in error messages from std/anyhow.
 fn redact_error(e: impl std::fmt::Display) -> String {
     PATH_RE.replace_all(&format!("{e}"), "<path>").into_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::redact_error;
+
+    #[test]
+    fn redact_absolute_path_in_error() {
+        let msg = "failed to open /home/user/wikis/my-wiki/state.toml: No such file";
+        assert_eq!(redact_error(msg), "failed to open <path>: No such file");
+    }
+
+    #[test]
+    fn redact_multiple_paths() {
+        let msg = "copy /tmp/build/a.idx to /var/data/b.idx failed";
+        assert_eq!(redact_error(msg), "copy <path> to <path> failed");
+    }
+
+    #[test]
+    fn path_free_message_unchanged() {
+        let msg = "permission denied";
+        assert_eq!(redact_error(msg), "permission denied");
+    }
+
+    #[test]
+    fn very_short_path_not_redacted() {
+        // regex requires 3+ chars after the leading slash
+        let msg = "error at /ab";
+        assert_eq!(redact_error(msg), "error at /ab");
+    }
+
+    #[test]
+    fn tilde_path_partially_redacted() {
+        // ~ itself is not in the pattern, but the /... portion is matched and
+        // replaced, so ~/.config/llm-wiki becomes ~<path> — the ~ leaks but
+        // the full path does not.
+        let msg = "config not found at ~/.config/llm-wiki/config.toml";
+        let out = redact_error(msg);
+        assert!(out.contains('~'), "tilde should be preserved");
+        assert!(!out.contains(".config"), "path after tilde should be redacted");
+    }
 }
 
 // ── Spaces ────────────────────────────────────────────────────────────────────
