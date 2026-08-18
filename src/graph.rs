@@ -71,7 +71,9 @@ pub struct GraphFilter {
 
 impl GraphFilter {
     /// Returns `true` when the filter represents an unfiltered full-graph request.
-    /// Note: `depth` is intentionally excluded — a depth-limited full graph still uses the full cache.
+    /// `depth` is intentionally excluded: a depth-limited full graph still loads from the full
+    /// snapshot cache and applies the hop limit at render time, so the cache key must not vary
+    /// by depth.
     pub fn is_default(&self) -> bool {
         self.root.is_none() && self.types.is_empty() && self.relation.is_none()
     }
