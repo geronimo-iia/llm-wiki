@@ -776,7 +776,10 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "index.auto_recovery" => global.index.auto_recovery = value.parse()?,
         "index.memory_budget_mb" => global.index.memory_budget_mb = value.parse()?,
         "index.tokenizer" => global.index.tokenizer = value.into(),
-        "graph.format" => global.graph.format = value.into(),
+        "graph.format" => {
+            check_enum(key, value, &["mermaid", "dot", "llms", "json"])?;
+            global.graph.format = value.into();
+        }
         "graph.depth" => global.graph.depth = value.parse()?,
         "graph.output" => global.graph.output = value.into(),
         "graph.snapshot" => global.graph.snapshot = value.parse()?,
@@ -801,11 +804,20 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "history.default_limit" => global.history.default_limit = value.parse()?,
         "suggest.default_limit" => global.suggest.default_limit = value.parse()?,
         "suggest.min_score" => global.suggest.min_score = value.parse()?,
-        "validation.type_strictness" => global.validation.type_strictness = value.into(),
+        "validation.type_strictness" => {
+            check_enum(key, value, &["strict", "loose"])?;
+            global.validation.type_strictness = value.into();
+        }
         "logging.log_path" => global.logging.log_path = value.into(),
-        "logging.log_rotation" => global.logging.log_rotation = value.into(),
+        "logging.log_rotation" => {
+            check_enum(key, value, &["daily", "hourly", "never"])?;
+            global.logging.log_rotation = value.into();
+        }
         "logging.log_max_files" => global.logging.log_max_files = value.parse()?,
-        "logging.log_format" => global.logging.log_format = value.into(),
+        "logging.log_format" => {
+            check_enum(key, value, &["text", "json"])?;
+            global.logging.log_format = value.into();
+        }
         "watch.debounce_ms" => global.watch.debounce_ms = value.parse()?,
         _ => {
             if let Some(status_key) = search_status_key(key) {
@@ -817,6 +829,17 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
                 anyhow::bail!("unknown key: {key}");
             }
         }
+    }
+    Ok(())
+}
+
+fn check_enum(key: &str, value: &str, allowed: &[&str]) -> Result<()> {
+    if !allowed.contains(&value) {
+        anyhow::bail!(
+            "invalid value {:?} for {key}; allowed: {}",
+            value,
+            allowed.join(", ")
+        );
     }
     Ok(())
 }
@@ -965,6 +988,7 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
                 .min_score = value.parse()?;
         }
         "graph.format" => {
+            check_enum(key, value, &["mermaid", "dot", "llms", "json"])?;
             wiki_cfg
                 .graph
                 .get_or_insert_with(GraphConfig::default)

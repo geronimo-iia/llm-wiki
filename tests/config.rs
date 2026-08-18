@@ -266,6 +266,54 @@ fn set_global_rejects_unknown_key() {
     assert!(set_global_config_value(&mut g, "nonexistent.key", "v").is_err());
 }
 
+// ── enum validation ───────────────────────────────────────────────────────────
+
+#[test]
+fn set_global_rejects_invalid_graph_format() {
+    let mut g = GlobalConfig::default();
+    let err = set_global_config_value(&mut g, "graph.format", "bogus").unwrap_err();
+    assert!(err.to_string().contains("graph.format"), "error must name the key");
+    assert!(err.to_string().contains("mermaid"), "error must list allowed values");
+}
+
+#[test]
+fn set_global_accepts_valid_graph_formats() {
+    let mut g = GlobalConfig::default();
+    for fmt in ["mermaid", "dot", "llms", "json"] {
+        set_global_config_value(&mut g, "graph.format", fmt).unwrap();
+        assert_eq!(g.graph.format, fmt);
+    }
+}
+
+#[test]
+fn set_global_rejects_invalid_type_strictness() {
+    let mut g = GlobalConfig::default();
+    // "Strict" (capital S) must be rejected — was silently treated as "loose" before.
+    let err = set_global_config_value(&mut g, "validation.type_strictness", "Strict").unwrap_err();
+    assert!(err.to_string().contains("type_strictness"));
+}
+
+#[test]
+fn set_global_rejects_invalid_log_rotation() {
+    let mut g = GlobalConfig::default();
+    let err = set_global_config_value(&mut g, "logging.log_rotation", "weekly").unwrap_err();
+    assert!(err.to_string().contains("log_rotation"));
+    assert!(err.to_string().contains("daily"));
+}
+
+#[test]
+fn set_global_rejects_invalid_log_format() {
+    let mut g = GlobalConfig::default();
+    let err = set_global_config_value(&mut g, "logging.log_format", "xml").unwrap_err();
+    assert!(err.to_string().contains("log_format"));
+}
+
+#[test]
+fn set_wiki_rejects_invalid_graph_format() {
+    let mut cfg = WikiConfig::default();
+    assert!(set_wiki_config_value(&mut cfg, "graph.format", "invalid").is_err());
+}
+
 // ── set_wiki_config_value ─────────────────────────────────────────────────────
 
 #[test]
