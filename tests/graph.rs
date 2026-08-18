@@ -1,16 +1,16 @@
 use std::fs;
 use std::path::Path;
 
-use llm_wiki::git;
-use llm_wiki::graph::*;
-use llm_wiki::index_manager::SpaceIndexManager;
-use llm_wiki::index_schema::IndexSchema;
-use llm_wiki::space_builder;
-use llm_wiki::type_registry::SpaceTypeRegistry;
+use llm_wiki_engine::git;
+use llm_wiki_engine::graph::*;
+use llm_wiki_engine::index_manager::SpaceIndexManager;
+use llm_wiki_engine::index_schema::IndexSchema;
+use llm_wiki_engine::space_builder;
+use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 use petgraph_live as _;
 
 fn schema_and_registry() -> (IndexSchema, SpaceTypeRegistry) {
-    let (registry, schema) = space_builder::build_space_from_embedded("en_stem");
+    let (registry, schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
     (schema, registry)
 }
 
@@ -860,13 +860,13 @@ fn index_manager_generation_starts_at_zero() {
 
 #[test]
 fn graphfilter_default_is_default() {
-    let f = llm_wiki::graph::GraphFilter::default();
+    let f = llm_wiki_engine::graph::GraphFilter::default();
     assert!(f.is_default());
 }
 
 #[test]
 fn graphfilter_with_types_not_default() {
-    let f = llm_wiki::graph::GraphFilter {
+    let f = llm_wiki_engine::graph::GraphFilter {
         types: vec!["concept".to_string()],
         ..Default::default()
     };
@@ -875,7 +875,7 @@ fn graphfilter_with_types_not_default() {
 
 #[test]
 fn graphfilter_with_root_not_default() {
-    let f = llm_wiki::graph::GraphFilter {
+    let f = llm_wiki_engine::graph::GraphFilter {
         root: Some("concepts/foo".to_string()),
         ..Default::default()
     };
@@ -905,7 +905,7 @@ fn build_graph_empty_wiki() {
 
 #[test]
 fn graph_diameter_empty() {
-    let g = llm_wiki::graph::WikiGraph::new();
+    let g = llm_wiki_engine::graph::WikiGraph::new();
     // petgraph-live returns None for empty graph — assert the contract
     let result = petgraph_live::metrics::diameter(&g);
     assert!(result.is_none(), "diameter of empty graph must be None");
@@ -913,7 +913,7 @@ fn graph_diameter_empty() {
 
 #[test]
 fn graph_radius_empty() {
-    let g = llm_wiki::graph::WikiGraph::new();
+    let g = llm_wiki_engine::graph::WikiGraph::new();
     let result = petgraph_live::metrics::radius(&g);
     assert!(result.is_none(), "radius of empty graph must be None");
 }
@@ -1017,7 +1017,7 @@ fn build_graph_disconnected_components() {
 
 #[test]
 fn compute_metrics_empty_graph() {
-    let g = llm_wiki::graph::WikiGraph::new();
+    let g = llm_wiki_engine::graph::WikiGraph::new();
     let m = compute_metrics(&g);
     assert_eq!(m.nodes, 0);
     assert_eq!(m.edges, 0);
@@ -1028,21 +1028,21 @@ fn compute_metrics_empty_graph() {
 
 #[test]
 fn render_mermaid_empty_graph_no_panic() {
-    let g = llm_wiki::graph::WikiGraph::new();
+    let g = llm_wiki_engine::graph::WikiGraph::new();
     let out = render_mermaid(&g);
     assert!(!out.is_empty(), "mermaid output must not be empty string");
 }
 
 #[test]
 fn render_dot_empty_graph_no_panic() {
-    let g = llm_wiki::graph::WikiGraph::new();
+    let g = llm_wiki_engine::graph::WikiGraph::new();
     let out = render_dot(&g);
     assert!(!out.is_empty(), "dot output must not be empty string");
 }
 
 #[test]
 fn render_llms_empty_graph_no_panic() {
-    let g = llm_wiki::graph::WikiGraph::new();
+    let g = llm_wiki_engine::graph::WikiGraph::new();
     let out = render_llms(&g);
     // Should not panic; output may be empty or contain header text
     let _ = out;

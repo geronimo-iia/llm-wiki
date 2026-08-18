@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -44,6 +45,10 @@ pub struct UpdateReport {
 }
 
 /// Current health snapshot of a wiki's search index.
+///
+/// Healthy when `openable = true`, `queryable = true`, and `stale = false`.
+/// Any failing condition sets `degraded_reason`; priority order: openable →
+/// queryable → stale (a non-openable index is also non-queryable by definition).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexStatus {
     /// Wiki name.
@@ -62,6 +67,10 @@ pub struct IndexStatus {
     pub openable: bool,
     /// True if the index can be queried (reader opened successfully).
     pub queryable: bool,
+    /// Human-readable explanation when the index is degraded (not ok).
+    /// None when the index is fully healthy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub degraded_reason: Option<String>,
 }
 
 /// Classification of index staleness used to choose the cheapest rebuild strategy.
@@ -144,12 +153,13 @@ impl SpaceIndexManager {
 
     /// Return the current generation counter value.
     /// Incremented on every successful `reload_reader()` call.
+    /// Used as a graph/community cache key: more conservative than `last_commit()` because
+    /// same-commit schema-triggered rebuilds must also invalidate downstream caches.
     pub fn generation(&self) -> u64 {
         self.inner
             .read()
-            .unwrap()
-            .generation
-            .load(Ordering::Acquire)
+            .map(|g| g.generation.load(Ordering::Acquire))
+            .unwrap_or(0)
     }
 
     /// Open the index from disk and hold the reader.
@@ -281,7 +291,12 @@ impl SpaceIndexManager {
         // lock file inside build_dir; opening a writer before wiping would reuse a
         // corrupt partial state.
         if build_dir.exists() {
-            std::fs::remove_dir_all(&build_dir).context("failed to remove stale build dir")?;
+            std::fs::remove_dir_all(&build_dir).with_context(|| {
+                format!(
+                    "failed to remove stale build dir at {}",
+                    build_dir.display()
+                )
+            })?;
         }
         std::fs::create_dir_all(&build_dir)?;
 
@@ -312,7 +327,7 @@ impl SpaceIndexManager {
             let slug = match Slug::from_path(path, wiki_root) {
                 Ok(s) => s,
                 Err(e) => {
-                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path");
+                    tracing::debug!(path = %path.display(), error = %e, "skipping invalid path");
                     skipped += 1;
                     continue;
                 }
@@ -349,7 +364,12 @@ impl SpaceIndexManager {
         // Atomic swap: live → prev, building → live.
         // Both dirs are under self.index_path — same filesystem, rename is atomic.
         if backup_dir.exists() {
-            std::fs::remove_dir_all(&backup_dir).context("failed to remove stale backup dir")?;
+            std::fs::remove_dir_all(&backup_dir).with_context(|| {
+                format!(
+                    "failed to remove stale backup dir at {}",
+                    backup_dir.display()
+                )
+            })?;
         }
         if live_dir.exists() {
             std::fs::rename(&live_dir, &backup_dir).context("failed to move live dir to backup")?;
@@ -363,15 +383,21 @@ impl SpaceIndexManager {
                 error = %e,
                 "reload_reader failed after index swap — rolling back"
             );
+            // Step 1: move broken new index out of live_dir back to build_dir.
+            // If this fails, live_dir still holds the broken index; in-process
+            // reader keeps serving the old data via its open file descriptors.
+            // On next process start, open() with recovery=Some(...) will auto-rebuild.
             let r1 = std::fs::rename(&live_dir, &build_dir);
             if let Err(e2) = &r1 {
-                tracing::error!(error = %e2, "rollback step 1 failed — index unavailable, manual intervention required");
+                tracing::error!(error = %e2, "rollback step 1 failed — live index broken on disk; restart will auto-rebuild");
             }
-            // backup_dir only exists when there was a prior live_dir (not first build)
+            // Step 2: restore old index from backup. Only exists when there was a prior
+            // live_dir (not first build). If step 1 failed, live_dir is non-empty so
+            // this rename will also fail with ENOTEMPTY — both errors are logged.
             if backup_dir.exists() {
                 let r2 = std::fs::rename(&backup_dir, &live_dir);
                 if let Err(e2) = &r2 {
-                    tracing::error!(error = %e2, "rollback step 2 failed — index unavailable, manual intervention required");
+                    tracing::error!(error = %e2, "rollback step 2 failed — live index broken on disk; restart will auto-rebuild");
                 }
             }
             let _ = std::fs::remove_dir_all(&build_dir);
@@ -434,7 +460,7 @@ impl SpaceIndexManager {
             let slug = match Slug::from_path(path, wiki_prefix) {
                 Ok(s) => s,
                 Err(e) => {
-                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path in update");
+                    tracing::debug!(path = %path.display(), error = %e, "skipping invalid path in update");
                     continue;
                 }
             };
@@ -523,6 +549,19 @@ impl SpaceIndexManager {
             (false, false)
         };
 
+        let degraded_reason = if !openable {
+            Some("search index directory cannot be opened by Tantivy; run wiki_index_rebuild to recover".to_string())
+        } else if !queryable {
+            Some(
+                "search index reader failed to initialize; run wiki_index_rebuild to recover"
+                    .to_string(),
+            )
+        } else if stale {
+            Some("index is behind the current HEAD commit or schema — rebuild needed".to_string())
+        } else {
+            None
+        };
+
         Ok(IndexStatus {
             wiki: self.wiki_name.clone(),
             path: search_dir.to_string_lossy().into(),
@@ -532,6 +571,7 @@ impl SpaceIndexManager {
             stale,
             openable,
             queryable,
+            degraded_reason,
         })
     }
 
@@ -635,7 +675,7 @@ impl SpaceIndexManager {
             let slug = match Slug::from_path(path, wiki_root) {
                 Ok(s) => s,
                 Err(e) => {
-                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path");
+                    tracing::debug!(path = %path.display(), error = %e, "skipping invalid path");
                     skipped += 1;
                     continue;
                 }
@@ -663,13 +703,16 @@ impl SpaceIndexManager {
 
         writer.commit()?;
         self.reload_reader()?;
+        let total_pages = self.searcher()?.num_docs() as usize;
 
         // Update state.toml
         let commit = git::current_head(repo_root).unwrap_or_default();
         let state = IndexState {
             schema_hash: registry.schema_hash().to_string(),
             built: Utc::now().to_rfc3339(),
-            pages: 0, // not accurate for partial, but state.toml is refreshed
+            pages: total_pages,
+            // rebuild() counts sections via page_type filter; update() does not —
+            // a type-filtered tantivy query would be needed, out of P3.4 scope.
             sections: 0,
             commit,
             types: registry.type_hashes().clone(),

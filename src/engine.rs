@@ -1,6 +1,8 @@
+#![allow(unreachable_pub)]
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex, RwLock};
 
 use anyhow::{Context, Result};
 
@@ -35,6 +37,11 @@ pub struct SpaceContext {
     pub graph_cache: WikiGraphCache,
     /// Generation-keyed community cache. Shares the same generation key as graph_cache.
     pub community_cache: GenerationCache<CommunityData>,
+    /// Guard preventing redundant concurrent rebuilds. Set to `true` while a
+    /// rebuild is in progress; watch.rs checks before dispatching a new one.
+    /// If run_watcher is cancelled between setting and clearing this flag,
+    /// the engine is shutting down and SpaceContext will be dropped anyway.
+    pub rebuilding: Arc<AtomicBool>,
 }
 
 impl SpaceContext {
@@ -60,9 +67,9 @@ pub struct EngineState {
 }
 
 impl EngineState {
-    /// Return the configured default wiki name.
-    pub fn default_wiki_name(&self) -> &str {
-        &self.config.global.default_wiki
+    /// Return the configured default wiki name, or `None` if unset.
+    pub fn default_wiki_name(&self) -> Option<&str> {
+        self.config.global.default_wiki_opt()
     }
 
     /// Look up a mounted wiki space by name. Errors if not mounted.
@@ -72,9 +79,16 @@ impl EngineState {
             .ok_or_else(|| anyhow::anyhow!("wiki \"{name}\" is not mounted"))
     }
 
-    /// Return `explicit` if given, otherwise the default wiki name.
-    pub fn resolve_wiki_name<'a>(&'a self, explicit: Option<&'a str>) -> &'a str {
-        explicit.unwrap_or(self.default_wiki_name())
+    /// Return `explicit` if given, otherwise the default wiki name, or an error.
+    pub fn resolve_wiki_name<'a>(&'a self, explicit: Option<&'a str>) -> Result<&'a str> {
+        explicit
+            .or_else(|| self.default_wiki_name())
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "no wiki specified and no default wiki configured \u{2014} \
+                     run `llm-wiki spaces set-default <name>`"
+                )
+            })
     }
 
     /// Return the index directory path for a wiki by name.
@@ -91,6 +105,8 @@ impl EngineState {
 pub struct WikiEngine {
     /// Shared engine state protected by a reader-writer lock.
     pub state: Arc<RwLock<EngineState>>,
+    /// Serializes config file mutations (load → modify → save) to prevent lost writes.
+    pub config_write_lock: Arc<Mutex<()>>,
 }
 
 impl WikiEngine {
@@ -100,6 +116,7 @@ impl WikiEngine {
         let state_dir = config_path.parent().unwrap_or(Path::new(".")).to_path_buf();
 
         let mut spaces = HashMap::new();
+        let mut mount_failures = 0usize;
 
         for entry in &config.wikis {
             match mount_space(entry, &state_dir, &config) {
@@ -107,12 +124,20 @@ impl WikiEngine {
                     spaces.insert(entry.name.clone(), Arc::new(ctx));
                 }
                 Err(e) => {
+                    mount_failures += 1;
                     tracing::warn!(
                         wiki = %entry.name, error = %format_args!("{e:#}"),
                         "failed to mount wiki, skipping",
                     );
                 }
             }
+        }
+        if mount_failures > 0 {
+            tracing::warn!(
+                count = mount_failures,
+                "failed to mount {} wiki(s); see prior messages for details",
+                mount_failures
+            );
         }
 
         let engine = EngineState {
@@ -124,16 +149,19 @@ impl WikiEngine {
 
         Ok(WikiEngine {
             state: Arc::new(RwLock::new(engine)),
+            config_write_lock: Arc::new(Mutex::new(())),
         })
     }
 
     /// Incrementally update the index from git changes since the last indexed commit.
     pub fn refresh_index(&self, wiki_name: &str) -> Result<UpdateReport> {
-        let engine = self
-            .state
-            .read()
-            .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-        let space = engine.space(wiki_name)?;
+        let space: Arc<SpaceContext> = {
+            let engine = self
+                .state
+                .read()
+                .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+            Arc::clone(engine.space(wiki_name)?)
+        };
         let last_commit = space.index_manager.last_commit();
         let report = space.index_manager.update(
             &space.wiki_root,
@@ -155,11 +183,13 @@ impl WikiEngine {
 
     /// Rebuild the search index from scratch by walking the wiki tree.
     pub fn rebuild_index(&self, wiki_name: &str) -> Result<IndexReport> {
-        let engine = self
-            .state
-            .read()
-            .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-        let space = engine.space(wiki_name)?;
+        let space: Arc<SpaceContext> = {
+            let engine = self
+                .state
+                .read()
+                .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+            Arc::clone(engine.space(wiki_name)?)
+        };
         let report = space.index_manager.rebuild(
             &space.wiki_root,
             &space.repo_root,
@@ -178,11 +208,14 @@ impl WikiEngine {
     /// Smart schema rebuild: checks staleness and does partial rebuild
     /// when possible, full rebuild only when necessary.
     pub fn schema_rebuild(&self, wiki_name: &str) -> Result<()> {
-        let engine = self
-            .state
-            .read()
-            .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-        let space = engine.space(wiki_name)?;
+        // Hold the read lock only long enough to clone the Arc — drops before I/O.
+        let space: Arc<SpaceContext> = {
+            let engine = self
+                .state
+                .read()
+                .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+            Arc::clone(engine.space(wiki_name)?)
+        };
         match space.index_manager.staleness_kind(&space.repo_root) {
             Ok(StalenessKind::Current) => {}
             Ok(StalenessKind::CommitChanged) => {
@@ -228,13 +261,21 @@ impl WikiEngine {
     /// Mount a wiki into the running engine. Called by space management
     /// tools for hot reload.
     pub fn mount_wiki(&self, entry: &WikiEntry) -> Result<()> {
+        // Clone cheap fields under the read lock, then drop before I/O.
+        let (state_dir, config) = {
+            let engine = self
+                .state
+                .read()
+                .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+            (engine.state_dir.clone(), engine.config.clone())
+        };
+        let ctx = mount_space(entry, &state_dir, &config)?;
         let mut engine = self
             .state
             .write()
             .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-        let ctx = mount_space(entry, &engine.state_dir, &engine.config)?;
-        tracing::info!(wiki = %entry.name, "reload: mounted");
         engine.spaces.insert(entry.name.clone(), Arc::new(ctx));
+        tracing::info!(wiki = %entry.name, "reload: mounted");
         Ok(())
     }
 
@@ -246,7 +287,7 @@ impl WikiEngine {
             .state
             .write()
             .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-        if engine.default_wiki_name() == name {
+        if engine.default_wiki_name() == Some(name) {
             anyhow::bail!("\"{name}\" is the default wiki \u{2014} set a new default first");
         }
         if engine.spaces.remove(name).is_none() {
@@ -256,7 +297,24 @@ impl WikiEngine {
         Ok(())
     }
 
-    /// Update the default wiki. The wiki must be mounted.
+    /// Serialize a config mutation (load → modify → save) so concurrent MCP
+    /// transports cannot interleave their read-modify-write cycles and lose writes.
+    pub fn with_config_lock<F, T>(&self, f: F) -> Result<T>
+    where
+        F: FnOnce() -> Result<T>,
+    {
+        let _guard = self
+            .config_write_lock
+            .lock()
+            .map_err(|_| anyhow::anyhow!("config lock poisoned"))?;
+        f()
+    }
+
+    /// Update the in-memory default wiki. The wiki must be mounted.
+    ///
+    /// Intentionally in-memory only — callers that need disk persistence must also call
+    /// `spaces::set_default_wiki()`. `ops::spaces_set_default()` does both atomically
+    /// under `with_config_lock`; do not call this directly from handlers.
     pub fn set_default(&self, name: &str) -> Result<()> {
         let mut engine = self
             .state
@@ -274,7 +332,7 @@ impl WikiEngine {
 // ── mount_wiki ────────────────────────────────────────────────────────────────
 
 fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Result<SpaceContext> {
-    let repo_root = crate::pathutil::strip_verbatim_prefix(PathBuf::from(&entry.path));
+    let repo_root = crate::pathutil::strip_verbatim_prefix(entry.path.clone());
     let wiki_cfg = config::load_wiki(&repo_root).unwrap_or_default();
     let wiki_root = repo_root.join(&wiki_cfg.wiki_root);
     let index_path = state_dir.join("indexes").join(&entry.name);
@@ -305,7 +363,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
         tracing::info!(wiki = %entry.name, "building index for the first time");
         if let Err(e) = index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry)
         {
-            tracing::warn!(wiki = %entry.name, error = %e, "initial index build failed");
+            tracing::error!(wiki = %entry.name, error = %e, "initial index build failed; wiki will serve no results");
         }
     } else if config.index.auto_rebuild {
         match index_manager.staleness_kind(&repo_root) {
@@ -320,7 +378,8 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
                     &index_schema,
                     &type_registry,
                 ) {
-                    tracing::warn!(wiki = %entry.name, error = %e, "incremental update failed");
+                    // warn not error: the watcher will retry on the next commit
+                    tracing::warn!(wiki = %entry.name, error = %e, "incremental update failed; index serves last successful state");
                 }
             }
             Ok(StalenessKind::TypesChanged(types)) => {
@@ -332,13 +391,12 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
                     &index_schema,
                     &type_registry,
                 ) {
-                    tracing::warn!(wiki = %entry.name, error = %e, "partial rebuild failed, doing full");
-                    let _ = index_manager.rebuild(
-                        &wiki_root,
-                        &repo_root,
-                        &index_schema,
-                        &type_registry,
-                    );
+                    tracing::warn!(wiki = %entry.name, error = %e, "partial rebuild failed, attempting full rebuild");
+                    if let Err(e) =
+                        index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry)
+                    {
+                        tracing::error!(wiki = %entry.name, error = %e, "full rebuild after partial failure also failed; wiki will serve stale results");
+                    }
                 }
             }
             Ok(StalenessKind::FullRebuildNeeded) => {
@@ -346,13 +404,16 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
                 if let Err(e) =
                     index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry)
                 {
-                    tracing::warn!(wiki = %entry.name, error = %e, "index rebuild failed");
+                    tracing::error!(wiki = %entry.name, error = %e, "index rebuild failed; wiki will serve stale results");
                 }
             }
             Err(e) => {
-                tracing::warn!(wiki = %entry.name, error = %e, "staleness check failed, rebuilding");
-                let _ =
-                    index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry);
+                tracing::warn!(wiki = %entry.name, error = %e, "staleness check failed, attempting rebuild");
+                if let Err(e) =
+                    index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry)
+                {
+                    tracing::error!(wiki = %entry.name, error = %e, "rebuild after staleness check failure also failed; wiki will serve stale results");
+                }
             }
         }
     } else if let Ok(ref s) = status
@@ -365,12 +426,18 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
         );
     }
 
-    // Open the index for serving
-    if let Err(e) = index_manager.open(
-        &index_schema,
-        Some((&wiki_root, &repo_root, &type_registry)),
-    ) {
-        tracing::warn!(wiki = %entry.name, error = %e, "failed to open index");
+    // Open the index for serving; pass recovery args only when auto_recovery is enabled.
+    let recovery = if config.index.auto_recovery {
+        Some((
+            &wiki_root as &std::path::Path,
+            &repo_root as &std::path::Path,
+            &type_registry,
+        ))
+    } else {
+        None
+    };
+    if let Err(e) = index_manager.open(&index_schema, recovery) {
+        tracing::error!(wiki = %entry.name, error = %e, "failed to open index; wiki will serve no results");
     }
 
     let resolved_cfg = config::resolve(config, &wiki_cfg);
@@ -415,6 +482,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
         index_manager,
         graph_cache,
         community_cache: GenerationCache::new(),
+        rebuilding: Arc::new(AtomicBool::new(false)),
     })
 }
 

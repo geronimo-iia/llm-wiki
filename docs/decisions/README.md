@@ -2,9 +2,44 @@
 
 Architectural decisions and their rationale, grouped by release.
 
----
+## v1.0.0
 
-## v0.6.0 — 2026-08-04
+### Concurrency
+
+| Decision | Summary |
+| -------- | ------- |
+| [acp-sessions-parking-lot-mutex](1.0.0/acp-sessions-parking-lot-mutex.md) | `parking_lot::Mutex` for ACP `Sessions` — `tokio::sync::Mutex` rejected because helper functions are sync; `std::sync::Mutex` rejected due to poison crash vector; `parking_lot` already in transitive tree, zero new packages |
+| [watcher-rebuild-guard-atomic-bool](1.0.0/watcher-rebuild-guard-atomic-bool.md) | `Arc<AtomicBool>` per `SpaceContext` to skip redundant concurrent rebuilds — `JoinHandle` abort rejected (Tantivy non-cancellable); per-wiki watch channel rejected (disproportionate); flag resets on re-mount; stuck-flag edge case on shutdown is benign |
+
+### Stable API
+
+| Decision | Summary |
+| -------- | ------- |
+| [binary-and-library-crate](1.0.0/binary-and-library-crate.md) | Keep `[lib]` target — embedding value (non-trivial engine reuse without forking), test architecture (direct unit testing of internals), docs.rs façade; stable surface = 5 re-exported types; internal modules remain accessible to test layer until Post-1.0 refactor |
+| [normalized-slug-newtype](1.0.0/normalized-slug-newtype.md) | `NormalizedSlug(String)` newtype — slug normalisation was convention-only; `Slug::normalize()` is the only public constructor; `from_normalized` bypass for internal index reads; `PartialEq<str>` impls keep test assertions unchanged; serializes as plain string |
+| [pub-crate-partial-migration](1.0.0/pub-crate-partial-migration.md) | Only 4 of 22 modules converted to `pub(crate)` (`cli`, `server`, `watch`, `pathutil`) — 18 remain `pub mod` because `tests/*.rs` imports them directly; `#[allow(unreachable_pub)]` per module suppresses noise; full migration deferred to Post-1.0 test-layer refactor |
+| [wiki-graph-json-format](1.0.0/wiki-graph-json-format.md) | `json` format for `wiki_graph` deferred to Post-1.0 — `GraphReport` is already `Serialize` so implementation cost is near-zero, but field names must be stable before exposing as a versioned JSON contract |
+
+### Performance
+
+| Decision | Summary |
+| -------- | ------- |
+| [louvain-sigma-tot-precompute](1.0.0/louvain-sigma-tot-precompute.md) | Full Louvain ΔQ formula (join gain − leave cost) + `sigma_tot` precomputed per pass — original formula was incomplete (join-only), causing oscillation and wrong partitions; `test_louvain_two_clusters` failed on original code; formula fix is correctness, sigma_tot is performance (O(N³)→O(M)); pass cap retained |
+
+### Dependency hygiene
+
+| Decision | Summary |
+| -------- | ------- |
+| [suppress-lru-rustsec-2026-0253](1.0.0/suppress-lru-rustsec-2026-0253.md) | Suppress `lru` use-after-free advisory — upstream-blocked via `tantivy ^0.16.3` pin; no fixed version in range; risk low (trigger requires panic inside tantivy LRU internals); re-evaluate on each `tantivy` release |
+| [suppress-atomic-polyfill-rustsec-2023-0089](1.0.0/suppress-atomic-polyfill-rustsec-2023-0089.md) | Suppress `atomic-polyfill` unmaintained advisory — upstream-blocked via `postcard → heapless ^0.7.0` chain; crate not compiled into binary on any supported target; risk negligible; re-evaluate on each `postcard` release |
+
+### Known gaps
+
+| Decision | Summary |
+| -------- | ------- |
+| [redact-error-windows-paths](1.0.0/redact-error-windows-paths.md) | `redact_error` does not redact Windows drive-letter or UNC paths — deferred; no maintainer can test the fix end-to-end; information-leak concern only, not correctness; fix design documented for a Windows contributor |
+
+## v0.6.0
 
 ### Bug fixes
 
@@ -13,9 +48,7 @@ Architectural decisions and their rationale, grouped by release.
 | [graph-snapshot-stale-key](0.6.0/graph-snapshot-stale-key.md) | Fix stale graph snapshot: `key_fn` switched from `generation()` (resets to 0 on process start) to `last_commit()` (git HEAD SHA, stable across restarts). Supersedes keying section of [0.3.0/graph-cache](0.3.0/graph-cache.md) for `WithSnapshot` variant. |
 | [reject-page-id](0.6.0/reject-page-id.md) | Permanent page identity via ULID was evaluated and rejected — the lint loop already covers reorganization |
 
----
-
-## v0.5.8 — Unreleased
+## v0.5.8
 
 ### Bug fixes
 
@@ -24,9 +57,7 @@ Architectural decisions and their rationale, grouped by release.
 | [mermaid-node-id-from-petgraph-index](0.5.8/mermaid-node-id-from-petgraph-index.md) | Use `N{idx.index()}` as mermaid node ID — eliminates sanitization logic and collision risk; `mermaid_id` deleted entirely; labels unchanged ([#128](https://github.com/geronimo-iia/llm-wiki/issues/128)) |
 | [markdown-parser-for-link-extraction](0.5.8/markdown-parser-for-link-extraction.md) | Adopt `pulldown-cmark` for body link extraction — replaces manual walker; TOML `[[section]]` headers and inline code no longer extracted as wikilinks. Supersedes "manual walker, not a Markdown parser" in [0.2.0/commonmark-body-links](0.2.0/commonmark-body-links.md). |
 
----
-
-## v0.5.7 — Unreleased
+## v0.5.7
 
 ### New tools
 
@@ -40,9 +71,7 @@ Architectural decisions and their rationale, grouped by release.
 | -------- | ------- |
 | [commonmark-link-normalization](0.5.7/commonmark-link-normalization.md) | Normalize CommonMark relative link destinations (`./page.md`, `../dir/page.md`) before storing in `body_links`; `source_dir` threaded as `Option<&str>` through `index_page` → `extract_body_wikilinks` → `extract_commonmark_links`. Supersedes "No callers change" in [0.2.0/commonmark-body-links](0.2.0/commonmark-body-links.md). |
 
----
-
-## v0.5.0 — 2026-07-23
+## v0.5.0
 
 ### Search & Export
 
@@ -51,9 +80,7 @@ Architectural decisions and their rationale, grouped by release.
 | [config-search-status](0.5.0/config-search-status.md) | `search.status.<key>` is now a valid dot-notation path in `config set/get`, enabling CLI access to search ranking multipliers |
 | [export-custom-frontmatter](0.5.0/export-custom-frontmatter.md) | JSON export now includes a `frontmatter` object per page with fields not already surfaced at the top level |
 
----
-
-## v0.4.1 — 2026-05-04
+## v0.4.1
 
 ### Testing
 
@@ -61,9 +88,7 @@ Architectural decisions and their rationale, grouped by release.
 | -------- | ------- |
 | [pytest-integration-suite](0.4.1/pytest-integration-suite.md) | Replace bash integration scripts with pytest suite under `tests-integration/`; eliminates false-positive grep patterns, provides automatic teardown and structured JSON inspection |
 
----
-
-## v0.4.0 — 2026-05-03
+## v0.4.0
 
 ### Graph
 
@@ -71,11 +96,7 @@ Architectural decisions and their rationale, grouped by release.
 | -------- | ------- |
 | [petgraph-live](0.4.0/petgraph-live.md) | Adopt `petgraph-live` — replace bespoke `CachedGraph` with `GenerationCache`; enables snapshot warm-start and algorithm suite |
 
----
-
-## v0.3.0 — 2026-05-01
-
-Decisions made during ACP workflow expansion and transport stabilization.
+## v0.3.0
 
 ### Transport & Protocol
 
@@ -95,19 +116,7 @@ Decisions made during ACP workflow expansion and transport stabilization.
 | -------- | ------- |
 | [configurable-wiki-root](0.3.0/configurable-wiki-root.md) | `wiki_root` in `wiki.toml`; `spaces register` command; eliminates all hardcoded `.join("wiki")` |
 
----
-
-## Backlog — deferred decisions
-
-| Decision | Summary |
-| -------- | ------- |
-| [config-crate](backlog/config-crate.md) | Reject `config` crate — current TOML loading sufficient; revisit if env-var overrides needed at scale |
-
----
-
-## v0.2.0 — 2026-04-27
-
-Decisions made during improvement design phase.
+## v0.2.0
 
 ### Skill / Engine Boundary
 
@@ -134,11 +143,7 @@ Decisions made during improvement design phase.
 | -------- | ------- |
 | [commonmark-body-links](0.2.0/commonmark-body-links.md) | Both `[[slug]]` and `[text](slug)` supported as body links; manual walker not a Markdown parser; code-block false positives are a known shared limitation |
 
----
-
-## v0.1.1 — 2026-04-18 to 2026-04-23
-
-All decisions made during the initial development cycle leading to the first public release.
+## v0.1.1
 
 ### Architecture (2026-04-18)
 
@@ -201,3 +206,11 @@ All decisions made during the initial development cycle leading to the first pub
 | [wiki-stats](0.1.1/wiki-stats.md) | Composed from existing primitives, fixed staleness buckets |
 | [wiki-suggest](0.1.1/wiki-suggest.md) | Three strategies, edge field suggestion, suggest only |
 | [wiki-watch](0.1.1/wiki-watch.md) | Notify crate, debounce, smart schema rebuild, CLI flag only |
+
+## Backlog
+
+| Decision | Summary |
+| -------- | ------- |
+| [config-crate](backlog/config-crate.md) | Reject `config` crate — current TOML loading sufficient; revisit if env-var overrides needed at scale |
+| [replace-serde-yaml](backlog/replace-serde-yaml.md) | Migrate off abandoned `serde_yaml 0.9` — blocked: `saphyr-serde v0.0.0` is a stub, `serde_yaml2` serializer output format is broken; revisit when `saphyr-serde >= 0.1.0` ships |
+| [engine-state-embedding-api](backlog/engine-state-embedding-api.md) | Hide `engine.state` behind `WikiEngine::with_state<F,T>` — decouples embedders from the lock type and `EngineState` shape; purely additive |

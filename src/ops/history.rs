@@ -26,7 +26,7 @@ pub fn history(
         let (entry, slug) = WikiUri::resolve(slug_or_uri, wiki_flag, &engine.config)?;
         (entry.name, slug)
     } else {
-        let wiki_name = engine.resolve_wiki_name(wiki_flag).to_string();
+        let wiki_name = engine.resolve_wiki_name(wiki_flag)?.to_string();
         let slug = Slug::try_from(slug_or_uri)?;
         (wiki_name, slug)
     };

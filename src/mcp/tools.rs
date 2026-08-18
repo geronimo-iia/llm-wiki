@@ -5,21 +5,24 @@ use serde_json::{Map, Value, json};
 
 use super::McpServer;
 use super::handlers;
-use super::helpers::{ToolResult, err_text};
+use super::helpers::{ToolResult, check_param_lengths, err_text};
 
 // ── Schema helpers ────────────────────────────────────────────────────────────
 
 fn schema(props: Value, required: &[&str]) -> Arc<Map<String, Value>> {
-    let req: Vec<Value> = required
-        .iter()
-        .map(|s| Value::String(s.to_string()))
-        .collect();
-    let obj = json!({
-        "type": "object",
-        "properties": props,
-        "required": req,
-    });
-    Arc::new(obj.as_object().unwrap().clone())
+    let mut map = Map::new();
+    map.insert("type".to_string(), Value::String("object".to_string()));
+    map.insert("properties".to_string(), props);
+    map.insert(
+        "required".to_string(),
+        Value::Array(
+            required
+                .iter()
+                .map(|s| Value::String(s.to_string()))
+                .collect(),
+        ),
+    );
+    Arc::new(map)
 }
 
 fn str_prop(desc: &str) -> Value {
@@ -38,14 +41,14 @@ fn opt_int(desc: &str) -> Value {
     json!({"type": "integer", "description": desc})
 }
 
-// ── Tool definitions (22 tools) ───────────────────────────────────────────────
+// ── Tool definitions ──────────────────────────────────────────────────────────
 
 /// Return the complete list of MCP tool definitions for registration.
 pub fn tool_list() -> Vec<Tool> {
     vec![
         Tool::new(
             "wiki_spaces_create",
-            "Initialize a new wiki repository",
+            "Initialize a new wiki repository.",
             schema(
                 json!({
                     "path": str_prop("Path to create the wiki at"),
@@ -60,7 +63,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_spaces_register",
-            "Register an existing wiki repository without creating files",
+            "Register an existing wiki repository without creating files.",
             schema(
                 json!({
                     "path": str_prop("Absolute path to the existing wiki repository"),
@@ -73,7 +76,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_spaces_list",
-            "List all registered wiki spaces",
+            "List all registered wiki spaces.",
             schema(
                 json!({
                     "name": opt_str("Wiki name (omit for all)"),
@@ -83,7 +86,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_spaces_remove",
-            "Remove a wiki space",
+            "Unregister a wiki space from the config. Pass delete=true to also delete the wiki directory from disk (irreversible).",
             schema(
                 json!({
                     "name": str_prop("Wiki name to remove"),
@@ -94,7 +97,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_spaces_set_default",
-            "Set the default wiki space",
+            "Set the default wiki space.",
             schema(
                 json!({
                     "name": str_prop("Wiki name to set as default"),
@@ -104,24 +107,37 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_config",
-            "Get or set configuration values",
+            concat!(
+                "Get, set, or list configuration values. ",
+                "action=\"get\" returns the current value of a key; ",
+                "action=\"set\" writes a new value; ",
+                "action=\"list\" shows all key/value pairs for the target config. ",
+                "Use action=\"list\" to discover all supported keys. ",
+                "Key namespaces: ",
+                "\"global.*\" (default_wiki); ",
+                "\"defaults.*\" (search_top_k, search_excerpt, search_sections, page_mode, list_page_size, output_format, facets_top_tags); ",
+                "\"index.*\" (auto_rebuild, auto_recovery, memory_budget_mb, tokenizer); ",
+                "\"graph.*\" (format, depth, output, snapshot, snapshot_keep, snapshot_format); ",
+                "\"serve.*\" (http, http_port, http_allowed_hosts, acp, acp_port). ",
+                "Omit --wiki to target the global config; pass --wiki <name> for per-wiki overrides."
+            ),
             schema(
                 json!({
-                    "action": str_prop("Action: get, set, or list"),
-                    "key": opt_str("Config key (for get/set)"),
-                    "value": opt_str("Config value (for set)"),
-                    "global": opt_bool("Write to global config"),
-                    "wiki": opt_str("Target wiki name"),
+                    "action": str_prop("Action: \"get\" (read a key), \"set\" (write a key), or \"list\" (show all keys)"),
+                    "key": opt_str("Dot-notation config key, e.g. \"global.default_wiki\", \"defaults.search_top_k\", \"index.auto_rebuild\""),
+                    "value": opt_str("New value for the key (required for action=\"set\")"),
+                    "global": opt_bool("Write to global config instead of per-wiki wiki.toml"),
+                    "wiki": opt_str("Target wiki name (omit to use default wiki)"),
                 }),
                 &["action"],
             ),
         ),
         Tool::new(
             "wiki_content_read",
-            "Read full content of a page by slug or URI",
+            "Read full content of a page by slug or URI.",
             schema(
                 json!({
-                    "uri": str_prop("Slug or wiki:// URI"),
+                    "uri": str_prop("Slug (e.g. \"concepts/attention\") or wiki:// URI (e.g. \"wiki://my-wiki/concepts/attention\")"),
                     "no_frontmatter": opt_bool("Strip frontmatter from output"),
                     "list_assets": opt_bool("List co-located assets instead of content"),
                     "backlinks": opt_bool("Include incoming links — pages that link to this page"),
@@ -132,11 +148,11 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_content_write",
-            "Write content to a page in the wiki tree",
+            "Write content to a page in the wiki tree.",
             schema(
                 json!({
-                    "uri": str_prop("Slug or wiki:// URI"),
-                    "content": str_prop("File content"),
+                    "uri": str_prop("Slug (e.g. \"concepts/attention\") or wiki:// URI (e.g. \"wiki://my-wiki/concepts/attention\")"),
+                    "content": str_prop("Full file content including required YAML frontmatter (--- title: ... type: ... ---)"),
                     "wiki": opt_str("Target wiki name"),
                 }),
                 &["uri", "content"],
@@ -144,10 +160,10 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_content_new",
-            "Create a page or section with scaffolded frontmatter",
+            "Create a page or section with scaffolded frontmatter.",
             schema(
                 json!({
-                    "uri": str_prop("Slug or wiki:// URI"),
+                    "uri": str_prop("Slug (e.g. \"concepts/attention\") or wiki:// URI (e.g. \"wiki://my-wiki/concepts/attention\")"),
                     "section": opt_bool("Create a section instead of a page"),
                     "bundle": opt_bool("Create as bundle (folder + index.md)"),
                     "name": opt_str("Page title (default: derived from slug)"),
@@ -159,7 +175,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_content_commit",
-            "Commit pending changes to git",
+            "Commit pending changes to git.",
             schema(
                 json!({
                     "slugs": opt_str("Comma-separated page slugs to commit (omit for all)"),
@@ -171,14 +187,14 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_search",
-            "Full-text BM25 search, returns ranked results",
+            "Full-text BM25 search, returns ranked results.",
             schema(
                 json!({
-                    "query": str_prop("Search query"),
+                    "query": str_prop("Search query. Supports BM25 full-text, phrase quoting (\"exact phrase\"), field filters (title:\"foo\"), and type shorthand (type:concept)."),
                     "type": opt_str("Filter by frontmatter type"),
                     "no_excerpt": opt_bool("Omit excerpts — refs only"),
                     "include_sections": opt_bool("Include section index pages"),
-                    "top_k": opt_int("Max results"),
+                    "top_k": opt_int("Max results to return (default: 10, max: 100)"),
                     "wiki": opt_str("Target wiki name"),
                     "cross_wiki": opt_bool("Search across all wikis"),
                     "format": opt_str("Output format: json | llms (default: json)"),
@@ -188,13 +204,13 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_list",
-            "Paginated page listing with filters",
+            "Paginated page listing with filters.",
             schema(
                 json!({
                     "type": opt_str("Filter by frontmatter type"),
                     "status": opt_str("Filter by frontmatter status"),
                     "page": opt_int("Page number, 1-based"),
-                    "page_size": opt_int("Results per page"),
+                    "page_size": opt_int("Results per page (default: 20, max: 200)"),
                     "wiki": opt_str("Target wiki name"),
                     "format": opt_str("Output format: json | llms (default: json)"),
                 }),
@@ -203,7 +219,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_ingest",
-            "Validate, commit, and index files in the wiki tree",
+            "Validate, commit, and index files in the wiki tree.",
             schema(
                 json!({
                     "path": str_prop("File or folder path, relative to wiki root"),
@@ -216,7 +232,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_index_rebuild",
-            "Rebuild the tantivy search index",
+            "Rebuild the tantivy search index.",
             schema(
                 json!({
                     "wiki": opt_str("Target wiki name"),
@@ -226,7 +242,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_index_status",
-            "Inspect index health",
+            "Return detailed health for the search index of one wiki — reports openable, queryable, stale, and degraded_reason. Call this when wiki_info shows index_status: \"degraded\" to identify the specific failure.",
             schema(
                 json!({
                     "wiki": opt_str("Target wiki name"),
@@ -236,10 +252,10 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_graph",
-            "Generate concept graph, returns GraphReport",
+            "Generate concept graph, returns GraphReport.",
             schema(
                 json!({
-                    "format": opt_str("Output format: mermaid | dot | llms (default: mermaid)"),
+                    "format": opt_str("Output format: mermaid | dot | llms | json (default: mermaid)"),
                     "root": opt_str("Subgraph from this node (slug)"),
                     "depth": opt_int("Hop limit from root"),
                     "type": opt_str("Comma-separated page types to include"),
@@ -266,7 +282,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_history",
-            "Git commit history for a page",
+            "Git commit history for a page.",
             schema(
                 json!({
                     "slug": str_prop("Slug or wiki:// URI"),
@@ -279,7 +295,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_stats",
-            "Wiki health dashboard — page counts, graph metrics, staleness, structural topology (diameter, radius, center)",
+            "Wiki health dashboard — page counts, graph metrics, staleness, structural topology (diameter, radius, center).",
             schema(
                 json!({
                     "wiki": opt_str("Target wiki name"),
@@ -289,7 +305,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_suggest",
-            "Suggest related pages to link",
+            "Suggest related pages to link. Returns ranked slug candidates for link insertion, scored by shared concept overlap with the target page.",
             schema(
                 json!({
                     "slug": str_prop("Slug or wiki:// URI"),
@@ -301,7 +317,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_lint",
-            "Run deterministic lint rules on the wiki index",
+            "Run deterministic lint checks on wiki pages — validates frontmatter fields, detects broken links, and reports structural issues.",
             schema(
                 json!({
                     "rules": opt_str("Comma-separated rule names: orphan, broken-link, broken-cross-wiki-link, missing-fields, stale, unknown-type, articulation-point, bridge, periphery (omit for all)"),
@@ -324,7 +340,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_schema",
-            "Inspect and manage type schemas",
+            "List, show, or validate the YAML type schemas that define frontmatter structure for wiki pages. Actions: list, show, validate.",
             schema(
                 json!({
                     "action": str_prop("Action: list, show, add, remove, validate"),
@@ -341,7 +357,12 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_info",
-            "Return server version, config path, registered spaces, and index health",
+            concat!(
+                "Return server version, config path, registered spaces, and index health. ",
+                "The `index_status` field is the string \"ok\" when all wikis are healthy, ",
+                "or an object `{\"<wiki-name>\": {\"status\": \"degraded\", \"reason\": \"...\"}}` ",
+                "for each degraded wiki. Call wiki_index_status for field-level detail on a specific wiki."
+            ),
             schema(json!({}), &[]),
         ),
     ]
@@ -352,6 +373,15 @@ pub fn tool_list() -> Vec<Tool> {
 /// Dispatch a tool call by name to the appropriate handler, catching panics.
 pub fn call(server: &McpServer, name: &str, args: &Map<String, Value>) -> ToolResult {
     let _span = tracing::info_span!("tool_call", tool = name).entered();
+    let max_len = server.engine().config.serve.mcp_max_param_len;
+    if let Err(e) = check_param_lengths(args, max_len) {
+        return ToolResult {
+            content: err_text(e),
+            is_error: true,
+            notify_uris: vec![],
+            notify_resources_changed: false,
+        };
+    }
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match name {
         "wiki_spaces_create" => handlers::handle_spaces_create(server, args),
         "wiki_spaces_register" => handlers::handle_spaces_register(server, args),

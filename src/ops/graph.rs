@@ -15,7 +15,7 @@ pub struct GraphResult {
 
 /// Parameters for `graph_build`.
 pub struct GraphParams<'a> {
-    /// Output format: `"mermaid"`, `"dot"`, or `"llms"`.
+    /// Output format: `"mermaid"`, `"dot"`, `"llms"`, or `"json"`.
     pub format: Option<&'a str>,
     /// Slug of the root node for a subgraph traversal.
     pub root: Option<String>,
@@ -84,8 +84,11 @@ pub fn graph_build(
     let rendered = match fmt {
         "dot" => graph::render_dot(&g),
         "llms" => graph::render_llms(&g),
+        "json" => graph::render_json(&g),
         "mermaid" => graph::render_mermaid(&g),
-        other => anyhow::bail!("unknown graph format {other:?}: expected mermaid, dot, or llms"),
+        other => {
+            anyhow::bail!("unknown graph format {other:?}: expected mermaid, dot, llms, or json")
+        }
     };
 
     let out = if let Some(out_path) = params.output {

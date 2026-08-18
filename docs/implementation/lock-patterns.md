@@ -2,7 +2,7 @@
 title: "Lock Patterns"
 summary: "How RwLock<EngineState> is acquired and released across the codebase — rules, anti-patterns, and call-site examples."
 status: ready
-last_updated: "2026-05-03"
+last_updated: "2026-08-17"
 read_when:
   - Adding a new operation that reads or writes engine state
   - Writing an MCP handler that needs both a read and a write path
@@ -50,6 +50,7 @@ Write paths in `WikiEngine` acquire the read lock, do the work using
 return. They do NOT hold a write lock for the duration of the rebuild.
 
 ```rust
+// Legacy pattern — read lock held for the full duration of rebuild I/O.
 pub fn rebuild_index(&self, wiki_name: &str) -> Result<IndexReport> {
     let engine = self.state.read()
         .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
@@ -60,8 +61,37 @@ pub fn rebuild_index(&self, wiki_name: &str) -> Result<IndexReport> {
 }
 ```
 
+> **Note:** The pattern above is the legacy form. `schema_rebuild` now uses
+> the preferred pattern (see below): clone the `Arc<SpaceContext>` under the
+> lock, drop the lock, then perform I/O. This unblocks `mount_wiki` /
+> `unmount_wiki` (which need `state.write()`) during long rebuilds.
+
 The write lock (`self.state.write()`) is used only in `mount_space` at startup
 or hot-reload, when `SpaceContext` itself needs to be inserted or replaced.
+
+### Preferred pattern: clone Arc under lock, drop before I/O
+
+Hold the read lock only long enough to clone the `Arc<SpaceContext>`, then
+drop the lock before doing any I/O. This unblocks `mount_wiki` /
+`unmount_wiki` (both need `state.write()`) while the rebuild runs.
+
+```rust
+pub fn schema_rebuild(&self, wiki_name: &str) -> Result<()> {
+    // Hold the read lock only long enough to clone the Arc.
+    let space: Arc<SpaceContext> = {
+        let engine = self.state.read()
+            .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+        Arc::clone(engine.space(wiki_name)?)
+    }; // lock drops here
+    // All I/O runs without holding state.read().
+    space.index_manager.rebuild(...)?;
+    Ok(())
+}
+```
+
+`SpaceContext` fields with their own synchronisation (`index_manager`,
+`graph_cache`, `community_cache`) are safe to use after the read guard drops
+— they manage their own concurrency internally.
 
 ## Two-Phase Pattern: Read → Drop → New Read
 

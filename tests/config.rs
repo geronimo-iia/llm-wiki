@@ -1,8 +1,8 @@
 use std::fs;
 
-use llm_wiki::config::*;
-use llm_wiki::index_manager::SpaceIndexManager;
-use llm_wiki::space_builder;
+use llm_wiki_engine::config::*;
+use llm_wiki_engine::index_manager::SpaceIndexManager;
+use llm_wiki_engine::space_builder;
 
 // ── load_global ───────────────────────────────────────────────────────────────
 
@@ -264,6 +264,60 @@ fn set_global_sets_serve_keys() {
 fn set_global_rejects_unknown_key() {
     let mut g = GlobalConfig::default();
     assert!(set_global_config_value(&mut g, "nonexistent.key", "v").is_err());
+}
+
+// ── enum validation ───────────────────────────────────────────────────────────
+
+#[test]
+fn set_global_rejects_invalid_graph_format() {
+    let mut g = GlobalConfig::default();
+    let err = set_global_config_value(&mut g, "graph.format", "bogus").unwrap_err();
+    assert!(
+        err.to_string().contains("graph.format"),
+        "error must name the key"
+    );
+    assert!(
+        err.to_string().contains("mermaid"),
+        "error must list allowed values"
+    );
+}
+
+#[test]
+fn set_global_accepts_valid_graph_formats() {
+    let mut g = GlobalConfig::default();
+    for fmt in ["mermaid", "dot", "llms", "json"] {
+        set_global_config_value(&mut g, "graph.format", fmt).unwrap();
+        assert_eq!(g.graph.format, fmt);
+    }
+}
+
+#[test]
+fn set_global_rejects_invalid_type_strictness() {
+    let mut g = GlobalConfig::default();
+    // "Strict" (capital S) must be rejected — was silently treated as "loose" before.
+    let err = set_global_config_value(&mut g, "validation.type_strictness", "Strict").unwrap_err();
+    assert!(err.to_string().contains("type_strictness"));
+}
+
+#[test]
+fn set_global_rejects_invalid_log_rotation() {
+    let mut g = GlobalConfig::default();
+    let err = set_global_config_value(&mut g, "logging.log_rotation", "weekly").unwrap_err();
+    assert!(err.to_string().contains("log_rotation"));
+    assert!(err.to_string().contains("daily"));
+}
+
+#[test]
+fn set_global_rejects_invalid_log_format() {
+    let mut g = GlobalConfig::default();
+    let err = set_global_config_value(&mut g, "logging.log_format", "xml").unwrap_err();
+    assert!(err.to_string().contains("log_format"));
+}
+
+#[test]
+fn set_wiki_rejects_invalid_graph_format() {
+    let mut cfg = WikiConfig::default();
+    assert!(set_wiki_config_value(&mut cfg, "graph.format", "invalid").is_err());
 }
 
 // ── set_wiki_config_value ─────────────────────────────────────────────────────
@@ -648,13 +702,13 @@ fn save_wiki_roundtrips_types() {
 #[test]
 fn wiki_config_wiki_root_defaults_to_wiki() {
     let cfg: WikiConfig = toml::from_str("name = \"test\"\n").unwrap();
-    assert_eq!(cfg.wiki_root, "wiki");
+    assert_eq!(cfg.wiki_root, std::path::Path::new("wiki"));
 }
 
 #[test]
 fn wiki_config_wiki_root_parses_custom_value() {
     let cfg: WikiConfig = toml::from_str("name = \"test\"\nwiki_root = \"skills\"\n").unwrap();
-    assert_eq!(cfg.wiki_root, "skills");
+    assert_eq!(cfg.wiki_root, std::path::Path::new("skills"));
 }
 
 #[test]
@@ -749,7 +803,8 @@ fn config_invalid_tokenizer_name_no_panic() {
     fs::create_dir_all(&wiki_root).unwrap();
 
     // Should not panic
-    let (registry, schema) = space_builder::build_space_from_embedded("nonexistent_tokenizer");
+    let (registry, schema) =
+        space_builder::build_space_from_embedded("nonexistent_tokenizer").unwrap();
     let index_path = dir.path().join("idx");
     let mgr = SpaceIndexManager::new("test", &index_path);
     // Empty wiki — no documents to tokenize, so rebuild succeeds

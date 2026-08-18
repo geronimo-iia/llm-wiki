@@ -1,5 +1,5 @@
-use llm_wiki::config::RedactConfig;
-use llm_wiki::ops::redact::redact_body;
+use llm_wiki_engine::config::RedactConfig;
+use llm_wiki_engine::ops::redact::redact_body;
 
 fn cfg_default() -> RedactConfig {
     RedactConfig::default()
@@ -13,7 +13,7 @@ fn cfg_disable(names: &[&str]) -> RedactConfig {
 }
 
 fn cfg_custom(name: &str, pattern: &str, replacement: &str) -> RedactConfig {
-    use llm_wiki::config::CustomPattern;
+    use llm_wiki_engine::config::CustomPattern;
     RedactConfig {
         patterns: vec![CustomPattern {
             name: name.to_string(),
@@ -155,10 +155,10 @@ fn match_reports_correct_line_number() {
 
 #[test]
 fn ingest_redact_false_leaves_body_unchanged() {
-    use llm_wiki::config::ValidationConfig;
-    use llm_wiki::git;
-    use llm_wiki::ingest::{IngestOptions, ingest};
-    use llm_wiki::type_registry::SpaceTypeRegistry;
+    use llm_wiki_engine::config::ValidationConfig;
+    use llm_wiki_engine::git;
+    use llm_wiki_engine::ingest::{IngestOptions, ingest};
+    use llm_wiki_engine::type_registry::SpaceTypeRegistry;
     use std::path::Path;
 
     let dir = tempfile::tempdir().unwrap();
@@ -182,7 +182,7 @@ fn ingest_redact_false_leaves_body_unchanged() {
         Path::new("concepts/test.md"),
         &opts,
         &wiki_root,
-        &SpaceTypeRegistry::from_embedded(),
+        &SpaceTypeRegistry::from_embedded().unwrap(),
         &ValidationConfig::default(),
     )
     .unwrap();

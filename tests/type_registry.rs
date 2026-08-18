@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 
-use llm_wiki::type_registry::SpaceTypeRegistry;
+use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 use serde_yaml::Value;
 
 fn fm(fields: &[(&str, &str)]) -> BTreeMap<String, Value> {
@@ -15,7 +15,7 @@ fn fm(fields: &[(&str, &str)]) -> BTreeMap<String, Value> {
 
 #[test]
 fn embedded_knows_all_15_types() {
-    let reg = SpaceTypeRegistry::from_embedded();
+    let reg = SpaceTypeRegistry::from_embedded().unwrap();
     for t in &[
         "default",
         "concept",
@@ -39,19 +39,19 @@ fn embedded_knows_all_15_types() {
 
 #[test]
 fn embedded_unknown_type() {
-    let reg = SpaceTypeRegistry::from_embedded();
+    let reg = SpaceTypeRegistry::from_embedded().unwrap();
     assert!(!reg.is_known("alien"));
 }
 
 #[test]
 fn embedded_list_types_returns_15() {
-    let reg = SpaceTypeRegistry::from_embedded();
+    let reg = SpaceTypeRegistry::from_embedded().unwrap();
     assert_eq!(reg.list_types().len(), 15);
 }
 
 #[test]
 fn embedded_skill_has_aliases() {
-    let reg = SpaceTypeRegistry::from_embedded();
+    let reg = SpaceTypeRegistry::from_embedded().unwrap();
     let aliases = reg.aliases("skill").expect("skill should have aliases");
     assert_eq!(aliases["name"], "title");
     assert_eq!(aliases["description"], "summary");
@@ -60,15 +60,15 @@ fn embedded_skill_has_aliases() {
 
 #[test]
 fn embedded_concept_has_no_aliases() {
-    let reg = SpaceTypeRegistry::from_embedded();
+    let reg = SpaceTypeRegistry::from_embedded().unwrap();
     let aliases = reg.aliases("concept").expect("concept should exist");
     assert!(aliases.is_empty());
 }
 
 #[test]
 fn embedded_schema_hash_is_stable() {
-    let r1 = SpaceTypeRegistry::from_embedded();
-    let r2 = SpaceTypeRegistry::from_embedded();
+    let r1 = SpaceTypeRegistry::from_embedded().unwrap();
+    let r2 = SpaceTypeRegistry::from_embedded().unwrap();
     assert_eq!(r1.schema_hash(), r2.schema_hash());
 }
 
@@ -193,7 +193,7 @@ fn build_falls_back_to_embedded_when_no_schemas_dir() {
 
 #[test]
 fn validate_valid_concept() {
-    let reg = SpaceTypeRegistry::from_embedded();
+    let reg = SpaceTypeRegistry::from_embedded().unwrap();
     let warnings = reg
         .validate(
             &fm(&[
@@ -211,21 +211,21 @@ fn validate_valid_concept() {
 
 #[test]
 fn validate_missing_title_in_strict() {
-    let reg = SpaceTypeRegistry::from_embedded();
+    let reg = SpaceTypeRegistry::from_embedded().unwrap();
     let result = reg.validate(&fm(&[("type", "concept")]), "strict");
     assert!(result.is_err());
 }
 
 #[test]
 fn validate_missing_type_warns() {
-    let reg = SpaceTypeRegistry::from_embedded();
+    let reg = SpaceTypeRegistry::from_embedded().unwrap();
     let warnings = reg.validate(&fm(&[("title", "Test")]), "loose").unwrap();
     assert!(warnings.iter().any(|w| w.contains("type")));
 }
 
 #[test]
 fn validate_unknown_type_loose_warns() {
-    let reg = SpaceTypeRegistry::from_embedded();
+    let reg = SpaceTypeRegistry::from_embedded().unwrap();
     let warnings = reg
         .validate(&fm(&[("title", "Test"), ("type", "alien")]), "loose")
         .unwrap();
@@ -234,7 +234,7 @@ fn validate_unknown_type_loose_warns() {
 
 #[test]
 fn validate_unknown_type_strict_errors() {
-    let reg = SpaceTypeRegistry::from_embedded();
+    let reg = SpaceTypeRegistry::from_embedded().unwrap();
     let result = reg.validate(&fm(&[("title", "Test"), ("type", "alien")]), "strict");
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("unknown type"));
@@ -242,7 +242,7 @@ fn validate_unknown_type_strict_errors() {
 
 #[test]
 fn validate_base_type_accepts_minimal() {
-    let reg = SpaceTypeRegistry::from_embedded();
+    let reg = SpaceTypeRegistry::from_embedded().unwrap();
     let warnings = reg
         .validate(&fm(&[("title", "Test"), ("type", "page")]), "loose")
         .unwrap();
@@ -375,8 +375,8 @@ fn build_rejects_base_missing_type_requirement() {
 
 // ── compute_disk_hashes ───────────────────────────────────────────────────────
 
-use llm_wiki::git;
-use llm_wiki::type_registry::compute_disk_hashes;
+use llm_wiki_engine::git;
+use llm_wiki_engine::type_registry::compute_disk_hashes;
 
 fn setup_repo(dir: &std::path::Path) {
     fs::create_dir_all(dir.join("wiki")).unwrap();
@@ -394,7 +394,7 @@ fn disk_hashes_change_on_schema_file_modification() {
 
     let schemas_dir = dir.path().join("schemas");
     fs::create_dir_all(&schemas_dir).unwrap();
-    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+    for (filename, content) in llm_wiki_engine::default_schemas::default_schemas() {
         fs::write(schemas_dir.join(filename), content).unwrap();
     }
     fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
@@ -425,7 +425,7 @@ fn disk_hashes_identical_schemas_same_hash() {
         setup_repo(dir);
         let schemas_dir = dir.join("schemas");
         fs::create_dir_all(&schemas_dir).unwrap();
-        for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+        for (filename, content) in llm_wiki_engine::default_schemas::default_schemas() {
             fs::write(schemas_dir.join(filename), content).unwrap();
         }
         fs::write(dir.join("wiki.toml"), "[types]\n").unwrap();
@@ -455,7 +455,7 @@ fn disk_hashes_deterministic() {
 
     let schemas_dir = dir.path().join("schemas");
     fs::create_dir_all(&schemas_dir).unwrap();
-    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+    for (filename, content) in llm_wiki_engine::default_schemas::default_schemas() {
         fs::write(schemas_dir.join(filename), content).unwrap();
     }
     fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();

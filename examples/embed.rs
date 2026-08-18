@@ -1,0 +1,93 @@
+//! Embedding example — use `llm-wiki-engine` as a library.
+//!
+//! Loads the default config, searches a wiki, and lists the first page of results.
+//!
+//! ```
+//! WIKI=rust-kb cargo run --example embed -- "async rust"
+//! ```
+//!
+//! Sample output:
+//!
+//! ```text
+//! Wiki   : rust-kb
+//! Query  : async rust
+//!
+//! Results (5 hits):
+//!   [7.79] concepts/async-rust-runtime — Async Rust Runtime
+//!   [7.04] concepts/sync-async-bridge — Sync-to-Async Bridge
+//!   [6.38] concepts/rust-error-handling — Rust Error Handling
+//!   [4.65] technology/error-handling/patterns — Error Handling — Patterns
+//!   [4.47] engineering/ci — Rust CI Pipeline
+//!
+//! All pages (first 5):
+//!   concepts [active]
+//!   concepts/actor-model-rust [active]
+//!   concepts/async-rust-runtime [active]
+//!   concepts/cargo-features [active]
+//!   concepts/data-oriented-design [active]
+//!   … 136 total
+//! ```
+//!
+//! The wiki name defaults to the configured default. Override with the `WIKI`
+//! environment variable: `WIKI=research cargo run --example embed -- "query"`.
+
+use std::path::PathBuf;
+
+use llm_wiki_engine::ops::{SearchParams, list, search};
+use llm_wiki_engine::{SearchResult, WikiEngine};
+
+fn main() -> anyhow::Result<()> {
+    let query = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "knowledge".into());
+    let wiki_override = std::env::var("WIKI").ok();
+
+    // ── 1. Locate and load the global config ──────────────────────────────────
+    let home = std::env::var("HOME").expect("HOME not set");
+    let config_path = PathBuf::from(home).join(".llm-wiki").join("config.toml");
+
+    let engine = WikiEngine::build(&config_path)?;
+
+    // ── 2. Resolve target wiki name ────────────────────────────────────────────
+    let state = engine
+        .state
+        .read()
+        .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+    let wiki_name = state
+        .resolve_wiki_name(wiki_override.as_deref())?
+        .to_string();
+
+    println!("Wiki   : {wiki_name}");
+    println!("Query  : {query}\n");
+
+    // ── 3. Search ──────────────────────────────────────────────────────────────
+    let params = SearchParams {
+        query: &query,
+        type_filter: None,
+        no_excerpt: false,
+        top_k: Some(5),
+        include_sections: false,
+        cross_wiki: false,
+    };
+
+    let result: SearchResult = search(&state, &wiki_name, &params)?;
+
+    if result.results.is_empty() {
+        println!("No results.");
+    } else {
+        println!("Results ({} hits):", result.results.len());
+        for hit in &result.results {
+            println!("  [{:.2}] {} — {}", hit.score, hit.slug, hit.title);
+        }
+    }
+
+    // ── 4. List first page ─────────────────────────────────────────────────────
+    println!("\nAll pages (first 5):");
+    let page_list = list(&state, &wiki_name, None, None, 1, Some(5))?;
+    for entry in &page_list.pages {
+        println!("  {} [{}]", entry.slug, entry.status);
+    }
+    println!("  … {} total", page_list.total);
+
+    Ok(())
+}

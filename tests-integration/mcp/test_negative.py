@@ -41,6 +41,19 @@ async def test_graph_invalid_format_returns_error(mcp_env):
     assert "invalid-format-xyz" in text or "unknown" in text.lower()
 
 
+async def test_search_before_rebuild_returns_empty_not_error(mcp_env):
+    # Search on a fresh wiki with no index built yet must return empty results,
+    # not crash or return is_error=True.
+    import json
+
+    is_error, text = await mcp_env.call_raw(
+        "wiki_search", {"query": "anything", "wiki": SPACE_NAME, "format": "json"}
+    )
+    assert is_error is False, f"search before rebuild must not error: {text}"
+    data = json.loads(text)
+    assert isinstance(data.get("results"), list)
+
+
 async def test_resolve_missing_page_not_crash(mcp_env):
     data = await mcp_env.json("wiki_resolve", {"uri": SLUG_MISSING, "wiki": SPACE_NAME})
     assert isinstance(data, dict)

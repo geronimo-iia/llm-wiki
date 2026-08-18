@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use llm_wiki::config::*;
-use llm_wiki::spaces;
+use llm_wiki_engine::config::*;
+use llm_wiki_engine::spaces;
 
 fn config_path(dir: &Path) -> std::path::PathBuf {
     dir.join("dot-wiki").join("config.toml")
@@ -10,7 +10,7 @@ fn config_path(dir: &Path) -> std::path::PathBuf {
 fn make_entry(name: &str, path: &str) -> WikiEntry {
     WikiEntry {
         name: name.into(),
-        path: path.into(),
+        path: std::path::PathBuf::from(path),
         description: None,
         remote: None,
     }
@@ -163,7 +163,7 @@ fn register_force_updates_existing() {
 
     let config = load_global(&cfg).unwrap();
     assert_eq!(config.wikis.len(), 1);
-    assert_eq!(config.wikis[0].path, "/tmp/test2");
+    assert_eq!(config.wikis[0].path, std::path::Path::new("/tmp/test2"));
 }
 
 #[test]
@@ -202,7 +202,7 @@ fn remove_with_delete_removes_directory() {
 
     let entry = WikiEntry {
         name: "test".into(),
-        path: wiki_dir.to_string_lossy().into(),
+        path: wiki_dir.clone(),
         description: None,
         remote: None,
     };
@@ -315,7 +315,7 @@ fn create_schema_files_match_embedded() {
 
     spaces::create(&wiki_path, "research", None, false, false, &cfg, None).unwrap();
 
-    let embedded = llm_wiki::default_schemas::default_schemas();
+    let embedded = llm_wiki_engine::default_schemas::default_schemas();
     for (filename, expected) in &embedded {
         let on_disk = std::fs::read_to_string(wiki_path.join("schemas").join(filename)).unwrap();
         assert_eq!(&on_disk, *expected, "mismatch for {filename}");
@@ -339,7 +339,7 @@ fn create_generates_wiki_toml_without_types() {
     )
     .unwrap();
 
-    let wiki_cfg = llm_wiki::config::load_wiki(&wiki_path).unwrap();
+    let wiki_cfg = llm_wiki_engine::config::load_wiki(&wiki_path).unwrap();
     assert_eq!(wiki_cfg.name, "research");
     assert_eq!(wiki_cfg.description, "ML wiki");
     // Types are discovered from schemas, not written to wiki.toml
@@ -375,7 +375,7 @@ fn validate_wiki_root_accepts_simple_name() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().join("skills");
     std::fs::create_dir_all(&root).unwrap();
-    assert!(llm_wiki::spaces::validate_wiki_root(dir.path(), "skills").is_ok());
+    assert!(llm_wiki_engine::spaces::validate_wiki_root(dir.path(), "skills").is_ok());
 }
 
 #[test]
@@ -383,14 +383,14 @@ fn validate_wiki_root_accepts_multi_component() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().join("src").join("wiki");
     std::fs::create_dir_all(&root).unwrap();
-    assert!(llm_wiki::spaces::validate_wiki_root(dir.path(), "src/wiki").is_ok());
+    assert!(llm_wiki_engine::spaces::validate_wiki_root(dir.path(), "src/wiki").is_ok());
 }
 
 #[test]
 #[cfg(not(windows))]
 fn validate_wiki_root_rejects_absolute() {
     let dir = tempfile::tempdir().unwrap();
-    let err = llm_wiki::spaces::validate_wiki_root(dir.path(), "/absolute").unwrap_err();
+    let err = llm_wiki_engine::spaces::validate_wiki_root(dir.path(), "/absolute").unwrap_err();
     assert!(err.to_string().contains("must be a relative path"));
 }
 
@@ -400,28 +400,28 @@ fn validate_wiki_root_rejects_absolute_windows() {
     let dir = tempfile::tempdir().unwrap();
     // On Windows, /absolute has no drive letter so is_absolute() is false.
     // The check must still reject it via starts_with('/').
-    let err = llm_wiki::spaces::validate_wiki_root(dir.path(), "/absolute").unwrap_err();
+    let err = llm_wiki_engine::spaces::validate_wiki_root(dir.path(), "/absolute").unwrap_err();
     assert!(err.to_string().contains("must be a relative path"));
 }
 
 #[test]
 fn validate_wiki_root_rejects_dotdot() {
     let dir = tempfile::tempdir().unwrap();
-    let err = llm_wiki::spaces::validate_wiki_root(dir.path(), "../outside").unwrap_err();
+    let err = llm_wiki_engine::spaces::validate_wiki_root(dir.path(), "../outside").unwrap_err();
     assert!(err.to_string().contains("must not contain"));
 }
 
 #[test]
 fn validate_wiki_root_rejects_empty() {
     let dir = tempfile::tempdir().unwrap();
-    let err = llm_wiki::spaces::validate_wiki_root(dir.path(), "").unwrap_err();
+    let err = llm_wiki_engine::spaces::validate_wiki_root(dir.path(), "").unwrap_err();
     assert!(err.to_string().contains("must not be empty"));
 }
 
 #[test]
 fn validate_wiki_root_rejects_dot() {
     let dir = tempfile::tempdir().unwrap();
-    let err = llm_wiki::spaces::validate_wiki_root(dir.path(), ".").unwrap_err();
+    let err = llm_wiki_engine::spaces::validate_wiki_root(dir.path(), ".").unwrap_err();
     assert!(err.to_string().contains("must not be empty"));
 }
 
@@ -429,7 +429,7 @@ fn validate_wiki_root_rejects_dot() {
 fn validate_wiki_root_rejects_reserved_dirs() {
     let dir = tempfile::tempdir().unwrap();
     for reserved in &["inbox", "raw", "schemas"] {
-        let err = llm_wiki::spaces::validate_wiki_root(dir.path(), reserved).unwrap_err();
+        let err = llm_wiki_engine::spaces::validate_wiki_root(dir.path(), reserved).unwrap_err();
         assert!(
             err.to_string().contains("reserved"),
             "expected reserved error for {reserved}, got: {err}"
@@ -441,7 +441,7 @@ fn validate_wiki_root_rejects_reserved_dirs() {
 fn validate_wiki_root_rejects_missing_directory() {
     let dir = tempfile::tempdir().unwrap();
     // "content" dir does NOT exist
-    let err = llm_wiki::spaces::validate_wiki_root(dir.path(), "content").unwrap_err();
+    let err = llm_wiki_engine::spaces::validate_wiki_root(dir.path(), "content").unwrap_err();
     assert!(err.to_string().contains("does not exist"));
 }
 
@@ -454,7 +454,7 @@ fn validate_wiki_root_rejects_traversal_via_symlink() {
     std::os::unix::fs::symlink(inner.path(), &link).unwrap();
     #[cfg(unix)]
     {
-        let err = llm_wiki::spaces::validate_wiki_root(outer.path(), "escape").unwrap_err();
+        let err = llm_wiki_engine::spaces::validate_wiki_root(outer.path(), "escape").unwrap_err();
         assert!(err.to_string().contains("must be inside"));
     }
 }
@@ -467,7 +467,7 @@ fn create_with_custom_wiki_root_creates_correct_directory() {
     let wiki_path = dir.path().join("skills-wiki");
     let cfg = config_path(dir.path());
 
-    llm_wiki::spaces::create(
+    llm_wiki_engine::spaces::create(
         &wiki_path,
         "skills",
         None,
@@ -496,7 +496,8 @@ fn create_without_wiki_root_keeps_default_wiki_dir() {
     let wiki_path = dir.path().join("research");
     let cfg = config_path(dir.path());
 
-    llm_wiki::spaces::create(&wiki_path, "research", None, false, false, &cfg, None).unwrap();
+    llm_wiki_engine::spaces::create(&wiki_path, "research", None, false, false, &cfg, None)
+        .unwrap();
 
     assert!(wiki_path.join("wiki").is_dir());
     let toml_content = std::fs::read_to_string(wiki_path.join("wiki.toml")).unwrap();
@@ -516,7 +517,8 @@ fn register_existing_basic() {
     std::fs::write(wiki_path.join("wiki.toml"), "name = \"existing\"\n").unwrap();
 
     let report =
-        llm_wiki::spaces::register_existing(&wiki_path, "existing", None, None, &cfg).unwrap();
+        llm_wiki_engine::spaces::register_existing(&wiki_path, "existing", None, None, &cfg)
+            .unwrap();
 
     assert!(report.registered);
     assert!(!report.created);
@@ -559,7 +561,7 @@ fn register_existing_with_custom_wiki_root() {
     .unwrap();
 
     let report =
-        llm_wiki::spaces::register_existing(&wiki_path, "skills", None, None, &cfg).unwrap();
+        llm_wiki_engine::spaces::register_existing(&wiki_path, "skills", None, None, &cfg).unwrap();
 
     assert!(report.registered);
 
@@ -596,8 +598,9 @@ fn register_existing_wiki_root_flag_conflicts_with_toml() {
     )
     .unwrap();
 
-    let err = llm_wiki::spaces::register_existing(&wiki_path, "skills", None, Some("other"), &cfg)
-        .unwrap_err();
+    let err =
+        llm_wiki_engine::spaces::register_existing(&wiki_path, "skills", None, Some("other"), &cfg)
+            .unwrap_err();
 
     assert!(err.to_string().contains("already declares wiki_root"));
 }
@@ -615,8 +618,8 @@ fn register_existing_missing_wiki_root_directory_errors() {
     )
     .unwrap();
 
-    let err =
-        llm_wiki::spaces::register_existing(&wiki_path, "skills", None, None, &cfg).unwrap_err();
+    let err = llm_wiki_engine::spaces::register_existing(&wiki_path, "skills", None, None, &cfg)
+        .unwrap_err();
 
     assert!(err.to_string().contains("does not exist"));
 }
@@ -630,7 +633,7 @@ fn register_existing_no_prior_toml_creates_wiki_toml() {
     // Only create the content dir — no wiki.toml, no other dirs
     std::fs::create_dir_all(wiki_path.join("content")).unwrap();
 
-    let report = llm_wiki::spaces::register_existing(
+    let report = llm_wiki_engine::spaces::register_existing(
         &wiki_path,
         "new-repo",
         Some("test description"),

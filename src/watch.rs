@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -78,20 +79,59 @@ pub async fn run_watcher(
         match action {
             WatchAction::RebuildIndex => {
                 for wiki_name in &schema_wikis {
+                    // Get the per-wiki rebuild guard under a brief read lock.
+                    let flag: Arc<AtomicBool> = {
+                        let state = engine
+                            .state
+                            .read()
+                            .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+                        match state.spaces.get(wiki_name.as_str()) {
+                            Some(space) => Arc::clone(&space.rebuilding),
+                            None => continue,
+                        }
+                    };
+
+                    // Skip if a rebuild is already running for this wiki.
+                    // Note: if this future is dropped between here and the .await below
+                    // (e.g. CancellationToken fires mid-iteration), the flag stays true.
+                    // That is benign: on shutdown SpaceContext is dropped; on re-mount the
+                    // new SpaceContext starts with rebuilding = false.
+                    if flag.swap(true, Ordering::AcqRel) {
+                        tracing::debug!(wiki = %wiki_name, "watch: rebuild already in progress, skipping");
+                        continue;
+                    }
+
+                    let engine_clone = Arc::clone(&engine);
+                    let wiki_name_clone = wiki_name.clone();
                     let start = std::time::Instant::now();
-                    match engine.schema_rebuild(wiki_name) {
-                        Ok(()) => {
+
+                    match tokio::task::spawn_blocking(move || {
+                        engine_clone.schema_rebuild(&wiki_name_clone)
+                    })
+                    .await
+                    {
+                        Ok(Ok(())) => {
+                            flag.store(false, Ordering::Release);
                             tracing::info!(
                                 wiki = %wiki_name,
                                 duration_ms = start.elapsed().as_millis() as u64,
                                 "watch: schema changed, index updated",
                             );
                         }
-                        Err(e) => {
+                        Ok(Err(e)) => {
+                            flag.store(false, Ordering::Release);
                             tracing::warn!(
                                 wiki = %wiki_name,
                                 error = %e,
                                 "watch: schema rebuild failed",
+                            );
+                        }
+                        Err(e) => {
+                            flag.store(false, Ordering::Release);
+                            tracing::warn!(
+                                wiki = %wiki_name,
+                                error = %e,
+                                "watch: schema rebuild task panicked",
                             );
                         }
                     }
@@ -134,7 +174,9 @@ pub async fn run_watcher(
                                     "Wiki \"{wiki_name}\" updated: {} page(s) changed.",
                                     report.updated + report.deleted
                                 );
-                                let _ = push_tx.try_send((wiki_name.clone(), msg));
+                                if push_tx.try_send((wiki_name.clone(), msg)).is_err() {
+                                    tracing::warn!(wiki = %wiki_name, "watcher update channel full; event dropped");
+                                }
                             }
                         }
                         Err(e) => {
@@ -172,11 +214,6 @@ fn is_schema_path(path: &Path) -> bool {
     // Check if path contains /schemas/ and ends with .json
     let s = path.to_string_lossy();
     s.contains("/schemas/") && path.extension().and_then(|e| e.to_str()) == Some("json")
-}
-
-fn is_wiki_md(path: &Path) -> bool {
-    let s = path.to_string_lossy();
-    s.contains("/wiki/") && path.extension().and_then(|e| e.to_str()) == Some("md")
 }
 
 fn start_notify_watcher(
@@ -221,12 +258,24 @@ fn start_notify_watcher(
         for path in &event.paths {
             // Find which wiki this path belongs to
             for (wiki_name, wiki_root, repo_root) in &watch_dirs_clone {
-                if path.starts_with(wiki_root) && is_wiki_md(path) {
-                    let _ = tx_clone.try_send((wiki_name.clone(), path.clone()));
+                if path.starts_with(wiki_root)
+                    && path.extension().and_then(|e| e.to_str()) == Some("md")
+                {
+                    if tx_clone
+                        .try_send((wiki_name.clone(), path.clone()))
+                        .is_err()
+                    {
+                        tracing::warn!(wiki = %wiki_name, "watcher update channel full; event dropped");
+                    }
                     break;
                 }
                 if path.starts_with(repo_root.join("schemas")) && is_schema_path(path) {
-                    let _ = tx_clone.try_send((wiki_name.clone(), path.clone()));
+                    if tx_clone
+                        .try_send((wiki_name.clone(), path.clone()))
+                        .is_err()
+                    {
+                        tracing::warn!(wiki = %wiki_name, "watcher update channel full; event dropped");
+                    }
                     break;
                 }
             }

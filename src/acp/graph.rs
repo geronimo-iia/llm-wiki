@@ -11,6 +11,7 @@ use super::helpers::{
 };
 use super::{Sessions, StepResult, make_tool_id};
 
+/// Execute one graph-workflow step: build the concept graph and render it.
 pub fn step_graph(
     cx: &ConnectionTo<Client>,
     manager: &WikiEngine,
@@ -74,6 +75,7 @@ pub fn step_graph(
     }
 }
 
+/// Run the full graph ACP workflow from params to final text response.
 pub fn run_graph(
     cx: &ConnectionTo<Client>,
     manager: &WikiEngine,

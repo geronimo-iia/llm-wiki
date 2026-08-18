@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
@@ -41,6 +42,26 @@ pub struct RegisterReport {
     pub committed: bool,
 }
 
+// ── name validation ───────────────────────────────────────────────────────────
+
+/// Reject wiki names that would escape the state directory when used as a path component.
+/// Only `[a-zA-Z0-9_-]` with length 1–64 is accepted.
+fn validate_wiki_name(name: &str) -> Result<()> {
+    if name.is_empty() || name.len() > 64 {
+        bail!("wiki name must be 1–64 characters");
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        bail!(
+            "wiki name '{}' contains invalid characters; use only [a-zA-Z0-9_-]",
+            name
+        );
+    }
+    Ok(())
+}
+
 // ── create ────────────────────────────────────────────────────────────────────
 
 /// Create a new wiki repository at `path`, register it, and optionally commit.
@@ -53,6 +74,7 @@ pub fn create(
     config_path: &Path,
     wiki_root: Option<&str>,
 ) -> Result<CreateReport> {
+    validate_wiki_name(name)?;
     let mut created = false;
     if !path.exists() {
         std::fs::create_dir_all(path)?;
@@ -64,11 +86,7 @@ pub fn create(
 
     // Check re-run conditions
     let global = load_global(config_path)?;
-    if let Some(existing) = global
-        .wikis
-        .iter()
-        .find(|w| w.path == path.to_string_lossy())
-    {
+    if let Some(existing) = global.wikis.iter().find(|w| w.path == path) {
         if existing.name == name {
             ensure_structure(&path, name, description, wiki_root)?;
             return Ok(CreateReport {
@@ -104,7 +122,7 @@ pub fn create(
     // Register
     let entry = WikiEntry {
         name: name.into(),
-        path: path.to_string_lossy().into(),
+        path: path.to_path_buf(),
         description: description.map(|s| s.into()),
         remote: None,
     };
@@ -143,6 +161,7 @@ pub fn register_existing(
     wiki_root_override: Option<&str>,
     config_path: &Path,
 ) -> Result<RegisterReport> {
+    validate_wiki_name(name)?;
     if !path.exists() {
         bail!("path \"{}\" does not exist", path.display());
     }
@@ -154,8 +173,10 @@ pub fn register_existing(
         if toml_path.exists() {
             let raw = std::fs::read_to_string(&toml_path)?;
             if raw.contains("wiki_root") {
-                let cfg: crate::config::WikiConfig = toml::from_str(&raw).unwrap_or_default();
-                Some(cfg.wiki_root)
+                let cfg: crate::config::WikiConfig = toml::from_str(&raw).with_context(|| {
+                    format!("failed to parse wiki.toml at {}", toml_path.display())
+                })?;
+                Some(cfg.wiki_root.to_string_lossy().into_owned())
             } else {
                 None
             }
@@ -183,7 +204,7 @@ pub fn register_existing(
 
     let entry = WikiEntry {
         name: name.into(),
-        path: path.to_string_lossy().into(),
+        path: path.to_path_buf(),
         description: description.map(|s| s.into()),
         remote: None,
     };
@@ -402,4 +423,48 @@ pub fn set_default_wiki(name: &str, config_path: &Path) -> Result<()> {
 
     config.global.default_wiki = name.to_string();
     save_global(&config, config_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_wiki_name;
+
+    #[test]
+    fn valid_names_accepted() {
+        for name in ["research", "my-wiki", "wiki_1", "A", "a-b-c_D"] {
+            assert!(validate_wiki_name(name).is_ok(), "expected ok for '{name}'");
+        }
+    }
+
+    #[test]
+    fn traversal_rejected() {
+        assert!(validate_wiki_name("../../evil").is_err());
+        assert!(validate_wiki_name("../secrets").is_err());
+    }
+
+    #[test]
+    fn slash_rejected() {
+        assert!(validate_wiki_name("a/b").is_err());
+        assert!(validate_wiki_name("a\\b").is_err());
+    }
+
+    #[test]
+    fn dot_prefix_rejected() {
+        assert!(validate_wiki_name(".hidden").is_err());
+    }
+
+    #[test]
+    fn empty_rejected() {
+        assert!(validate_wiki_name("").is_err());
+    }
+
+    #[test]
+    fn too_long_rejected() {
+        assert!(validate_wiki_name(&"a".repeat(65)).is_err());
+    }
+
+    #[test]
+    fn max_length_accepted() {
+        assert!(validate_wiki_name(&"a".repeat(64)).is_ok());
+    }
 }

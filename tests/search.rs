@@ -1,21 +1,21 @@
 use std::fs;
 use std::path::Path;
 
-use llm_wiki::config::SearchConfig;
-use llm_wiki::git;
-use llm_wiki::index_manager::SpaceIndexManager;
-use llm_wiki::index_schema::IndexSchema;
-use llm_wiki::search::*;
-use llm_wiki::space_builder;
-use llm_wiki::type_registry::SpaceTypeRegistry;
+use llm_wiki_engine::config::SearchConfig;
+use llm_wiki_engine::git;
+use llm_wiki_engine::index_manager::SpaceIndexManager;
+use llm_wiki_engine::index_schema::IndexSchema;
+use llm_wiki_engine::search::*;
+use llm_wiki_engine::space_builder;
+use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 
 fn schema() -> IndexSchema {
-    let (_registry, schema) = space_builder::build_space_from_embedded("en_stem");
+    let (_registry, schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
     schema
 }
 
 fn registry() -> SpaceTypeRegistry {
-    let (registry, _schema) = space_builder::build_space_from_embedded("en_stem");
+    let (registry, _schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
     registry
 }
 
@@ -783,7 +783,7 @@ fn search_ranking_custom_config_zero_archived() {
 
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
-    let mut custom_status = llm_wiki::config::SearchConfig::default();
+    let mut custom_status = llm_wiki_engine::config::SearchConfig::default();
     custom_status.status.insert("archived".into(), 0.0);
     let opts = SearchOptions {
         search_config: custom_status,

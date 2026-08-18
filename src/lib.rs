@@ -1,6 +1,18 @@
 //! Git-backed wiki engine. Full-text search, typed pages, concept graph,
 //! MCP and ACP transports. The CLI is the primary interface; this crate also
 //! exposes the engine internals for embedding or testing.
+#![warn(unreachable_pub)]
+
+#[doc(inline)]
+pub use config::GlobalConfig;
+#[doc(inline)]
+pub use engine::WikiEngine;
+#[doc(inline)]
+pub use graph::WikiGraph;
+#[doc(inline)]
+pub use ingest::IngestReport;
+#[doc(inline)]
+pub use search::SearchResult;
 
 /// ACP (Agent Client Protocol) transport and session handling.
 pub mod acp;
@@ -33,7 +45,7 @@ pub mod mcp;
 /// High-level operations called by CLI and server handlers.
 pub mod ops;
 /// Filesystem path helpers shared across the engine.
-pub mod pathutil;
+pub(crate) mod pathutil;
 /// Full-text BM25 search and paginated list operations.
 pub mod search;
 /// HTTP and stdio server entry points.

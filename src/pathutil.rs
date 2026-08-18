@@ -1,4 +1,5 @@
 //! Filesystem path helpers shared across the engine.
+#![allow(unreachable_pub)]
 
 use std::path::PathBuf;
 
@@ -15,7 +16,7 @@ use std::path::PathBuf;
 ///
 /// Paths without a verbatim prefix are returned unchanged, so this is a no-op
 /// on non-Windows platforms.
-pub fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
+pub(crate) fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
     let s = path.to_string_lossy();
     if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
         PathBuf::from(format!(r"\\{rest}"))
@@ -23,6 +24,25 @@ pub fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
         PathBuf::from(rest)
     } else {
         path
+    }
+}
+
+/// Serde module for TOML-compatible PathBuf serialization.
+///
+/// TOML has no native path type; paths round-trip as UTF-8 strings.
+/// Use as `#[serde(with = "crate::pathutil::path_as_string")]`.
+pub(crate) mod path_as_string {
+    use std::path::PathBuf;
+
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(path: &std::path::Path, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&path.to_string_lossy())
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<PathBuf, D::Error> {
+        let s = String::deserialize(d)?;
+        Ok(PathBuf::from(s))
     }
 }
 

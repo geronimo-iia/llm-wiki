@@ -1,4 +1,4 @@
-use llm_wiki::ops;
+use llm_wiki_engine::ops;
 
 fn config_path(dir: &std::path::Path) -> std::path::PathBuf {
     dir.join("state").join("config.toml")

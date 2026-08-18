@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::fmt;
 use std::path::{Component, Path, PathBuf};
 
@@ -64,6 +65,12 @@ impl Slug {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// Normalize this slug: lowercase all path segments.
+    /// Returns a [`NormalizedSlug`] that can be safely compared to other normalized slugs.
+    pub fn normalize(&self) -> NormalizedSlug {
+        NormalizedSlug(self.0.to_lowercase())
+    }
 }
 
 impl TryFrom<&str> for Slug {
@@ -86,14 +93,11 @@ impl TryFrom<&str> for Slug {
         if s.split('/').any(|seg| seg.starts_with('.')) {
             bail!("slug cannot contain hidden components: {s}");
         }
-        // Reject if the last segment has a file extension
+        // Reject if the last segment has a file extension (including trailing dot).
         if let Some(last) = s.rsplit('/').next()
-            && let Some(dot) = last.rfind('.')
+            && last.contains('.')
         {
-            let ext = &last[dot + 1..];
-            if !ext.is_empty() {
-                bail!("slug cannot have a file extension: {s}");
-            }
+            bail!("slug cannot have a file extension: {s}");
         }
         Ok(Slug(s.to_string()))
     }
@@ -111,6 +115,61 @@ impl AsRef<str> for Slug {
     }
 }
 
+/// A slug that has been lowercased and validated.
+///
+/// Constructable only via [`Slug::normalize`] (for external callers) or
+/// `NormalizedSlug::from_normalized` (for internal index reads where the
+/// stored value is already known to be normalized).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct NormalizedSlug(String);
+
+impl NormalizedSlug {
+    /// Wrap a string that is already known to be normalized.
+    /// For internal crate use only — bypasses the normalization step.
+    pub(crate) fn from_normalized(s: String) -> Self {
+        debug_assert!(
+            s == s.to_lowercase(),
+            "from_normalized called with non-normalized input: {s:?}"
+        );
+        NormalizedSlug(s)
+    }
+
+    /// Return the normalized slug as a string slice.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for NormalizedSlug {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl AsRef<str> for NormalizedSlug {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl PartialEq<str> for NormalizedSlug {
+    fn eq(&self, other: &str) -> bool {
+        self.0 == other
+    }
+}
+
+impl PartialEq<&str> for NormalizedSlug {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+impl PartialEq<String> for NormalizedSlug {
+    fn eq(&self, other: &String) -> bool {
+        self.0 == *other
+    }
+}
+
 /// A parsed `wiki://` URI or bare slug.
 ///
 /// `wiki://research/concepts/moe` → wiki: Some("research"), slug: "concepts/moe"
@@ -123,6 +182,12 @@ pub struct WikiUri {
     pub wiki: Option<String>,
     /// The slug portion.
     pub slug: Slug,
+}
+
+fn default_wiki(global: &crate::config::GlobalConfig) -> anyhow::Result<&str> {
+    global.global.default_wiki_opt().ok_or_else(|| {
+        anyhow::anyhow!("no default wiki configured — run `llm-wiki spaces set-default <name>`")
+    })
 }
 
 impl WikiUri {
@@ -178,15 +243,21 @@ impl WikiUri {
                 // Not a wiki name — treat as slug segment
                 let full_slug = format!("{name}/{}", parsed.slug);
                 let slug = Slug::try_from(full_slug.as_str())?;
-                let default = &global.global.default_wiki;
+                let default = default_wiki(global)?;
                 let entry = spaces::resolve_name(default, global)?;
                 return Ok((entry, slug));
             }
-            let default = &global.global.default_wiki;
+            let default = default_wiki(global)?;
             let entry = spaces::resolve_name(default, global)?;
             Ok((entry, parsed.slug))
         } else {
-            let wiki_name = wiki_flag.unwrap_or(&global.global.default_wiki);
+            let wiki_name = wiki_flag
+                .or_else(|| global.global.default_wiki_opt())
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "no default wiki configured — run `llm-wiki spaces set-default <name>`"
+                    )
+                })?;
             let entry = spaces::resolve_name(wiki_name, global)?;
             let slug = Slug::try_from(input)?;
             Ok((entry, slug))
@@ -252,4 +323,105 @@ fn title_case(segment: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── Slug construction ─────────────────────────────────────────────────────
+
+    #[test]
+    fn slug_rejects_empty() {
+        assert!(Slug::try_from("").is_err());
+        assert!(Slug::try_from("   ").is_err());
+    }
+
+    #[test]
+    fn slug_rejects_leading_slash() {
+        assert!(Slug::try_from("/concepts/page").is_err());
+    }
+
+    #[test]
+    fn slug_rejects_path_traversal() {
+        assert!(Slug::try_from("../etc/passwd").is_err());
+        assert!(Slug::try_from("concepts/../../etc/passwd").is_err());
+    }
+
+    #[test]
+    fn slug_rejects_hidden_components() {
+        assert!(Slug::try_from(".hidden/page").is_err());
+        assert!(Slug::try_from("concepts/.dotfile").is_err());
+    }
+
+    #[test]
+    fn slug_rejects_file_extension() {
+        assert!(Slug::try_from("concepts/page.md").is_err());
+        assert!(Slug::try_from("concepts/page.txt").is_err());
+        // Trailing dot (empty extension) must also be rejected — "concepts/page."
+        // previously bypassed the extension check because ext == "".
+        assert!(Slug::try_from("concepts/page.").is_err());
+        assert!(Slug::try_from("top-level.").is_err());
+    }
+
+    #[test]
+    fn slug_accepts_valid_paths() {
+        assert!(Slug::try_from("concepts/moe").is_ok());
+        assert!(Slug::try_from("concepts/mixture-of-experts").is_ok());
+        assert!(Slug::try_from("a/b/c").is_ok());
+        assert!(Slug::try_from("top-level").is_ok());
+    }
+
+    // ── Normalization ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn normalize_lowercases_all_segments() {
+        let slug = Slug::try_from("Concepts/MOE").unwrap();
+        assert_eq!(slug.normalize(), "concepts/moe");
+    }
+
+    #[test]
+    fn normalize_already_lowercase_is_identity() {
+        let slug = Slug::try_from("concepts/moe").unwrap();
+        assert_eq!(slug.normalize(), "concepts/moe");
+    }
+
+    #[test]
+    fn normalize_nested_path() {
+        let slug = Slug::try_from("A/B/C-Deep").unwrap();
+        assert_eq!(slug.normalize(), "a/b/c-deep");
+    }
+
+    // ── NormalizedSlug round-trips ────────────────────────────────────────────
+
+    #[test]
+    fn normalized_slug_display_and_as_str() {
+        let slug = Slug::try_from("concepts/moe").unwrap().normalize();
+        assert_eq!(slug.as_str(), "concepts/moe");
+        assert_eq!(slug.to_string(), "concepts/moe");
+    }
+
+    #[test]
+    fn normalized_slug_partial_eq_str() {
+        let slug = Slug::try_from("concepts/moe").unwrap().normalize();
+        assert_eq!(slug, "concepts/moe");
+        assert_ne!(slug, "concepts/MOE");
+    }
+
+    #[test]
+    fn normalized_slug_partial_eq_string() {
+        let slug = Slug::try_from("concepts/moe").unwrap().normalize();
+        assert_eq!(slug, String::from("concepts/moe"));
+    }
+
+    // ── from_normalized (internal) ────────────────────────────────────────────
+
+    #[test]
+    fn from_normalized_wraps_without_transformation() {
+        // Simulates what search.rs does when reading slugs from the Tantivy index.
+        // The index stores pre-normalized (already lowercase) slugs, so no
+        // re-normalization is needed.
+        let s = NormalizedSlug::from_normalized("concepts/moe".to_string());
+        assert_eq!(s.as_str(), "concepts/moe");
+    }
 }

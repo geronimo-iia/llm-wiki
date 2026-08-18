@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 mod config;
 mod content;
 /// Wiki export operations — llms.txt, llms-full, and JSON export formats.

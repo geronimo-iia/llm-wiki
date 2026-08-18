@@ -5,6 +5,248 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [Unreleased]
+
+
+## [1.0.0] — 2026-08-19
+
+### Added
+
+- **Lib target renamed to `llm_wiki_engine`** — the crate's `[lib]` target name now
+  matches the package name `llm-wiki-engine`. Embedders who add the crate via
+  `cargo add llm-wiki-engine` can write `use llm_wiki_engine::…` as expected.
+  The tracing default filter is updated accordingly (`llm_wiki_engine=info,warn`).
+- **`examples/embed.rs`** — minimal library usage example: loads the global config,
+  resolves the default (or `$WIKI`-overridden) wiki, searches, and lists the first page.
+  Run with `WIKI=<name> cargo run --example embed -- "<query>"`.
+- **`wiki_graph` JSON format** — `format: "json"` (MCP) / `--format json` (CLI) emits
+  a pretty-printed JSON object with `nodes` (slug, title, type, external), `edges`
+  (from, to, relation), `metrics` (nodes, edges, orphans, avg_connections, density),
+  and `communities` (slug → community_id map, or `null` for small graphs). No new
+  dependencies — uses `serde_json` already in tree.
+
+### Security
+
+- **Path traversal in `type_registry.rs` closed** — `SpaceTypeRegistry::build` and
+  `compute_disk_hashes` now validate every `schema` path from `wiki.toml` via
+  `validate_schema_path`: absolute paths and `..` components are rejected, and the
+  resolved path must be inside `repo_root`. Previously an adversarial
+  `schema = "../../etc/passwd"` entry would read arbitrary files from the filesystem.
+- **MCP parameter length limit** — all MCP tool calls are now rejected before dispatch
+  if any string argument exceeds `serve.mcp_max_param_len` bytes (default: 8192).
+  Configurable via `llm-wiki config set serve.mcp_max_param_len <n> --global`.
+- **MCP slug validation** — `slug` arguments in `wiki_history` and `wiki_suggest` are
+  now validated through `Slug::try_from` before reaching the ops layer, rejecting
+  `..` components, hidden path segments, and invalid characters.
+- **`wiki_content_write` content size cap** — requests with a `content` argument
+  exceeding 10 MB (10 485 760 bytes) are rejected before any filesystem write with a
+  clear error including the actual byte count.
+- **`redact_error` covers tilde-prefixed paths** — the path-scrubbing regex previously
+  matched only absolute paths starting with `/`; `~/wikis/foo` and `~user/repo` would
+  pass through unredacted. Extended to also match `~[…]{2,}`, so tilde-expanded paths
+  are fully replaced with `<path>`.
+
+### Dependencies
+
+- `memmap2` updated — resolves RUSTSEC-2026-0186 (unchecked pointer offset).
+- `event-listener` updated — resolves RUSTSEC-2026-0221 (`!Send` tags crossing thread
+  boundaries via `StackSlot`).
+- `h2` updated to 0.4.16 — resolves RUSTSEC-2026-0258 (HTTP/2 request smuggling via
+  malformed `Content-Length`).
+- `boxfnonce` RUSTSEC-2019-0040 suppression dropped — `agent-client-protocol` updated
+  to v2.0.0 and no longer pulls in `boxfnonce`; the advisory entry is removed from
+  `audit.toml`.
+- `lru` RUSTSEC-2026-0253 (use-after-free in `LruCache::pop()`) — suppressed as an
+  allowed warning. Upstream-blocked: `tantivy 0.26.1` pins `lru ^0.16.3` and no fixed
+  version exists in that range. Will be resolved when `tantivy` bumps to `lru ^0.17`.
+  See `docs/decisions/1.0.0/suppress-lru-rustsec-2026-0253.md`.
+- `atomic-polyfill` RUSTSEC-2023-0089 (unmaintained) — suppressed as an allowed
+  warning. Upstream-blocked via `postcard → heapless ^0.7.0` chain; crate is not
+  compiled into the binary on any supported target. Will be resolved when `postcard`
+  relaxes its `heapless` constraint to `^0.8` or later.
+  See `docs/decisions/1.0.0/suppress-atomic-polyfill-rustsec-2023-0089.md`.
+
+### Changed
+
+- **Stable public API surface** — `lib.rs` now re-exports the five primary
+  types (`WikiEngine`, `GlobalConfig`, `SearchResult`, `IngestReport`, `WikiGraph`) at
+  the crate root. Internal helpers are `pub(crate)`. `#![warn(unreachable_pub)]` enabled
+  crate-wide to keep the boundary stable going forward.
+- **`WikiEntry.path` and `WikiConfig.wiki_root` changed from `String` to `PathBuf`** —
+  eliminates manual `PathBuf::from(&entry.path)` conversions throughout the codebase.
+  TOML round-trips via `crate::pathutil::path_as_string` (UTF-8 string on disk,
+  `PathBuf` in memory). Callers that stored `entry.path` as `String` must use
+  `entry.path.display()` or `.to_string_lossy()`.
+- **`PageRef.slug` and `PageSummary.slug` changed from `String` to `NormalizedSlug`** —
+  `NormalizedSlug` is a newtype that carries the invariant "this slug is already
+  lowercased". Serializes as a plain JSON string (no structure change for API consumers).
+  Use `.as_str()` / `.to_string()` to extract the inner string; compare with `==`
+  against `&str`, `String`, or `NormalizedSlug` directly.
+- **`IndexStatus.degraded_reason`** — new optional field (`Option<String>`) on
+  `wiki_index_status` JSON output. Present only when `stale`, `!openable`, or
+  `!queryable`; omitted from JSON when `None`. Explains why the index is unhealthy.
+- **`wiki_config` tool description expanded** — MCP `action` values (`"get"`, `"set"`,
+  `"list"`), example key paths, and `--wiki` scoping behaviour are now documented in the
+  tool description visible to LLM clients.
+- **MCP error messages redact filesystem paths** — all tool error strings returned to
+  LLM clients are processed by `redact_error`, replacing absolute paths with `<path>` to
+  avoid leaking workspace layout. Tilde-prefixed paths (`~/…`) are now also covered
+  (see Security above).
+- **`wiki_info` degraded detail** — `index_status` in `wiki_info` responses now returns
+  a per-wiki map when any wiki is degraded: `{"<name>": {"status": "degraded", "reason":
+  "…; run wiki_index_rebuild to recover"}}` instead of the flat string `"degraded"`.
+  LLM clients can surface the actionable reason directly.
+- **`degraded_reason` includes remediation hint** — messages appended with
+  `"; run wiki_index_rebuild to recover"` for `openable=false` and `queryable=false`
+  cases so operators and LLM clients know what action to take.
+
+- `serve.mcp_max_param_len` added to `ServeConfig` (default: 8192 bytes). Accessible
+  via `wiki_config get/set serve.mcp_max_param_len` (global-only key).
+
+### Concurrency
+
+- **Blocking I/O moved off Tokio thread** — `schema_rebuild` is now dispatched via
+  `tokio::task::spawn_blocking` in the watcher loop; file I/O, `git log`, and Tantivy
+  fsync no longer block MCP request handling or ACP sessions during schema changes.
+- **Read lock scope narrowed in `schema_rebuild`** — `state.read()` is held only long
+  enough to clone `Arc<SpaceContext>`, then dropped before any I/O. `mount_wiki` and
+  `unmount_wiki` (which need `state.write()`) are no longer blocked for the full
+  rebuild duration.
+- **Redundant concurrent rebuilds eliminated** — `SpaceContext` carries a per-wiki
+  `Arc<AtomicBool>` rebuild guard; a second watcher event arriving while a rebuild is
+  in progress is skipped with a `debug` log instead of queuing a redundant rebuild.
+  See `docs/decisions/1.0.0/watcher-rebuild-guard-atomic-bool.md`.
+- **ACP session mutex hardened** — `Sessions` now uses `parking_lot::Mutex` instead of
+  `std::sync::Mutex`. A panic in a critical section no longer poisons the mutex and
+  permanently crashes the ACP server task. Helper functions remain sync.
+  See `docs/decisions/1.0.0/acp-sessions-parking-lot-mutex.md`.
+
+### Correctness
+
+- **`default_wiki_name()` silent empty-string propagation** — `EngineState::default_wiki_name()`
+  now returns `Option<&str>` (`None` when `global.default_wiki` is unset) instead of `""`.
+  `resolve_wiki_name()` returns `Result<&str>` and surfaces a clear error:
+  `"no wiki specified and no default wiki configured — run \`llm-wiki spaces set-default <name>\`"`
+  instead of the confusing `wiki "" is not mounted`.
+- **`is_wiki_md` deleted** — the watcher previously silently dropped all `.md` events
+  when `wiki_root` was not named `"wiki"`. The hardcoded `/wiki/` path check is
+  replaced by `path.extension() == Some("md")`; the existing `starts_with(wiki_root)`
+  guard already scopes events correctly.
+- **Louvain HashMap lookups hardened** — bare `.unwrap()` on `community.get()` and
+  `id_remap.get()` in `louvain_phase1` and `build_community_data` replaced with
+  `.expect("...")` carrying an invariant message. A `debug_assert!` at
+  `louvain_phase1` entry verifies the community map covers all adjacency nodes.
+- **Rollback errors logged** — `spaces_create` and `spaces_register` previously called
+  `let _ = spaces::remove(...)` on mount failure, silently discarding any error from
+  the rollback itself. The error is now logged via `tracing::error!` so a stranded
+  config entry is visible in logs.
+- **Startup index failures promoted to `error`** — permanent degradation at engine
+  startup (`build_space` failure, unrecoverable `open()`) was logged at `warn`;
+  promoted to `error` so operators are not misled into thinking the condition is
+  transient. Incremental watcher failures remain `warn` (the watcher retries on the
+  next commit).
+- **Resource notification failures correlated to source operation** — `tracing::warn!`
+  for failed MCP resource-updated and resource-list-changed notifications now carries a
+  `tool` structured field, allowing log correlation back to the originating tool call.
+- **Stale-dir removal error context includes path** — the two `.context("…")` sites in
+  `index_manager.rs` that remove stale directories now use `.with_context(|| format!("…
+  at {}", dir.display()))` so the failing path is visible in the error chain.
+- **`wiki_content_read` error context includes wiki and slug** — all four I/O failure
+  sites in `ops/content.rs` (`list_assets`, `resolve_read_target`, `read_page`,
+  `read_asset`) now attach `wiki=<name> slug=<slug>` via `.with_context()` so the
+  error chain identifies which wiki and page triggered the failure.
+- **Engine mount-loop failures aggregated** — `WikiEngine::new()` now counts per-wiki
+  mount failures during startup and emits a single `tracing::warn!` summary
+  (`failed_to_mount_count={N}`) after the loop; previously each failure was logged
+  individually with no summary visible at startup.
+- **`wiki_search` "index not open" error includes rebuild hint** — errors emitted when
+  the index is unavailable now append `"; run wiki_index_rebuild to recover"` so
+  operators and LLM clients know the next action.
+- **`wiki_index_rebuild` logs rebuild completion** — successful rebuilds emit
+  `tracing::info!(wiki, pages, duration_ms, "index rebuild completed")` for operational
+  observability; previously the operation was silent on success.
+- **`wiki_content_commit` "nothing to commit" includes ingest hint** — the response now
+  reads `"nothing to commit; run wiki_ingest first if you have unsaved changes"`.
+- **ACP session-limit error includes config key** — `NewSession` rejection message now
+  reads `"Session limit reached (max: N); increase with \`wiki_config set
+  serve.acp_max_sessions <n>\`"` so operators can act without consulting documentation.
+
+### Performance
+
+- **Louvain community detection correctness + O(N³) fix** — `louvain_phase1` previously
+  used an incomplete gain formula (join-only, missing the leave cost), allowing
+  modularity-decreasing moves and causing oscillation that hit the pass cap without
+  converging. The full Louvain ΔQ formula is now implemented: `net_gain = join_gain −
+  leave_gain`. Additionally, `sigma_tot` is precomputed once per pass (O(N)) and
+  updated incrementally on each move instead of being rebuilt per node (O(N²) per
+  pass). Combined fix: correctness restored, complexity reduced from O(N³) to O(M)
+  per pass. Regression test `test_louvain_two_clusters` added.
+  See `docs/decisions/1.0.0/louvain-sigma-tot-precompute.md`.
+- **Graph truncation warning** — `build_graph` now emits `tracing::warn!` when
+  `TopDocs::with_limit(100_000)` is reached, making silent graph truncation visible
+  to operators on wikis with >100 000 pages.
+- **Accurate page count after incremental index update** — `update()` previously wrote
+  `pages: 0` to `state.toml` after every watcher-triggered incremental update;
+  `wiki_index_status` always showed 0 pages. Now reads the actual total via
+  `searcher.num_docs()` after `reload_reader()`.
+- **`subgraph` edge scan O(E_subgraph)** — previously iterated over every edge in the
+  full graph (`E_total`) to find edges within the subgraph; now uses
+  `graph.edges_directed(node, Outgoing)` to walk only edges reachable from visited
+  nodes, reducing work to O(E_subgraph).
+- **`build_graph_cross_wiki` builds each wiki graph once** — previously called
+  `get_or_build_graph` inside the per-page loop, re-entering the cache on every page;
+  moved to a pre-build phase so each wiki graph is fetched exactly once.
+- **`redact_error` regex compiled once** — regex previously compiled on every call site
+  invocation; hoisted to a `LazyLock<Regex>` static so compilation happens once at
+  first use.
+
+### Documentation
+
+- **Lenient query parser fallback documented** — both `parse_query_lenient` call sites in
+  `search.rs` now carry a comment explaining why the lenient parser is used (Tantivy
+  rejects free-text queries containing `:` or field specifiers) and pointing to the
+  pinning test.
+
+- **`generation()` cache-key contract documented** — added code comments in
+  `get_or_build_graph`, `get_cached_community_map`, and `get_cached_community_stats`
+  explaining why `generation()` is used as the cache invalidation key instead of
+  `last_commit()`: same-commit schema-triggered rebuilds produce a new index without
+  changing the commit hash and must still invalidate downstream graph caches.
+  Extended the `generation()` doc comment in `index_manager.rs` with the same
+  rationale.
+- **`engine::set_default()` intentional scope clarified** — doc comment now explicitly
+  states the method is in-memory only by design and documents that callers requiring
+  disk persistence must use `ops::spaces_set_default()`, which coordinates both layers
+  under `with_config_lock`.
+
+### Tests
+
+- **Colon-query regression test** — Python integration test for `parse_query_lenient`
+  fallback path (fixed 0.5.6): `search "Layer 1: Attention"` must exit 0 even though
+  the colon would fail Tantivy's strict query parser.
+- **Cross-wiki body link lint regression test** — Python integration test for the
+  false-positive fix (fixed 0.5.9): `[text](wiki://other/slug)` in a body link must
+  not trigger `broken-link` when the target wiki is mounted.
+- **`spaces set-default` config state assertion** — `test_spaces_set_default` now also
+  asserts `config get global.default_wiki` matches the newly-set wiki, verifying
+  the engine persists the change and not just the display layer.
+- **Invariant-pinning tests (review 2026-08-17)** — unit and integration tests added to
+  pin previously untested invariants:
+  - `NormalizedSlug`: case-folding, traversal rejection, hidden-component rejection,
+    extension rejection, round-trips, and `PartialEq` impls (`src/slug.rs`).
+  - `set_default` atomicity: `spaces_set_default` failure must not update disk config
+    (`tests/ops/hot_reload.rs`).
+  - Graph snapshot key: snapshot filename must contain the git SHA, not the generation
+    counter (`tests/graph_snapshot.rs`).
+  - `redact_error`: absolute paths, multiple paths, short paths, and tilde paths
+    (`src/mcp/handlers.rs`).
+- **MCP handler unit tests** — `tests/handlers.rs` (new file): 20 tests covering
+  required-param validation for all 17 handlers with required parameters, 10 MB content
+  cap rejection and within-limit acceptance for `wiki_content_write`, and a search
+  error smoke test for the rebuild-hint path.
+
+
 ## [0.5.9] — 2026-08-17
 
 ### Fixed

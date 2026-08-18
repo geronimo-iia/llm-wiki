@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;

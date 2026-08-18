@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 mod graph;
 mod helpers;
 mod ingest;
@@ -5,9 +6,10 @@ mod lint;
 mod research;
 mod server;
 
+use parking_lot::Mutex;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::v1::{ContentBlock, PromptRequest};
 

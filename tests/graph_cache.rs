@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 use petgraph::visit::EdgeRef;
 
-use llm_wiki::engine::WikiEngine;
-use llm_wiki::git;
-use llm_wiki::graph::{
+use llm_wiki_engine::engine::WikiEngine;
+use llm_wiki_engine::git;
+use llm_wiki_engine::graph::{
     GraphFilter, compute_communities, get_cached_community_map, get_cached_community_stats,
     get_or_build_graph, merge_cached_graphs, node_community_map,
 };
@@ -15,7 +15,8 @@ fn setup_wiki(dir: &Path, name: &str) -> std::path::PathBuf {
     let config_path = dir.join("state").join("config.toml");
     let wiki_path = dir.join(name);
 
-    llm_wiki::spaces::create(&wiki_path, name, None, false, true, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&wiki_path, name, None, false, true, &config_path, None)
+        .unwrap();
 
     let wiki_root = wiki_path.join("wiki");
     fs::create_dir_all(wiki_root.join("concepts")).unwrap();
@@ -212,7 +213,8 @@ fn get_cached_community_stats_returns_none_for_small_graph() {
 /// Helper: create a wiki space at `dir/name` with given pages, sharing `config_path`.
 fn setup_space(dir: &Path, name: &str, config_path: &Path, pages: &[(&str, &str)]) {
     let wiki_path = dir.join(name);
-    llm_wiki::spaces::create(&wiki_path, name, None, false, true, config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&wiki_path, name, None, false, true, config_path, None)
+        .unwrap();
     let wiki_root = wiki_path.join("wiki");
     fs::create_dir_all(wiki_root.join("concepts")).unwrap();
     for (filename, content) in pages {
@@ -263,7 +265,7 @@ fn cross_wiki_merge_cached_graphs_matches_build_graph_cross_wiki() {
     let filter = GraphFilter::default();
 
     // Build via merge_cached_graphs (the new path)
-    let mut per_space: Vec<(&str, Arc<llm_wiki::graph::WikiGraph>)> = Vec::new();
+    let mut per_space: Vec<(&str, Arc<llm_wiki_engine::graph::WikiGraph>)> = Vec::new();
     for (name, sp) in engine.spaces.iter() {
         let searcher = sp.index_manager.searcher().unwrap();
         let g = get_or_build_graph(
@@ -428,7 +430,7 @@ fn graph_cache_invalidated_after_rebuild() {
     }; // drop engine read lock
 
     // Trigger rebuild — refreshes graph cache (ops::index_rebuild calls graph_cache.rebuild)
-    llm_wiki::ops::index_rebuild(&manager, "test").unwrap();
+    llm_wiki_engine::ops::index_rebuild(&manager, "test").unwrap();
 
     let arc2 = {
         let engine = manager.state.read().unwrap();

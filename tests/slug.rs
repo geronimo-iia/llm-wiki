@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use llm_wiki::slug::{ReadTarget, Slug, WikiUri, resolve_read_target};
+use llm_wiki_engine::slug::{NormalizedSlug, ReadTarget, Slug, WikiUri, resolve_read_target};
 
 // ── Slug construction ─────────────────────────────────────────────────────────
 
@@ -272,7 +272,7 @@ fn slug_as_ref() {
 
 // ── WikiUri::resolve ────────────────────────────────────────────────────
 
-use llm_wiki::config::{GlobalConfig, GlobalSection, WikiEntry};
+use llm_wiki_engine::config::{GlobalConfig, GlobalSection, WikiEntry};
 
 fn make_global(wikis: Vec<WikiEntry>, default: &str) -> GlobalConfig {
     GlobalConfig {
@@ -287,7 +287,7 @@ fn make_global(wikis: Vec<WikiEntry>, default: &str) -> GlobalConfig {
 fn make_entry(name: &str, path: &str) -> WikiEntry {
     WikiEntry {
         name: name.into(),
-        path: path.into(),
+        path: std::path::PathBuf::from(path),
         description: None,
         remote: None,
     }
@@ -352,4 +352,67 @@ fn resolve_uri_ignores_wiki_flag() {
 fn resolve_unknown_wiki_errors() {
     let global = make_global(vec![], "");
     assert!(WikiUri::resolve("concepts/moe", None, &global).is_err());
+}
+
+// ── NormalizedSlug ────────────────────────────────────────────────────────────
+
+#[test]
+fn normalize_lowercases_all_segments() {
+    let slug = Slug::try_from("Concepts/Mixture-Of-Experts").unwrap();
+    let norm = slug.normalize();
+    assert_eq!(norm.as_str(), "concepts/mixture-of-experts");
+}
+
+#[test]
+fn normalize_already_lowercase_unchanged() {
+    let slug = Slug::try_from("concepts/moe").unwrap();
+    assert_eq!(slug.normalize().as_str(), "concepts/moe");
+}
+
+#[test]
+fn normalized_slug_eq_str() {
+    let norm = Slug::try_from("concepts/moe").unwrap().normalize();
+    assert!(norm == "concepts/moe");
+}
+
+#[test]
+fn normalized_slug_ne_uppercase_str() {
+    // Invariant 6: comparing NormalizedSlug to a non-normalized raw string must not match.
+    // If it did, callers could bypass normalization and produce false positives.
+    let norm = Slug::try_from("concepts/moe").unwrap().normalize();
+    assert!(norm != "concepts/Moe");
+    assert!(norm != "Concepts/moe");
+}
+
+#[test]
+fn normalized_slug_eq_string_type() {
+    let norm = Slug::try_from("concepts/moe").unwrap().normalize();
+    assert!(norm == "concepts/moe");
+}
+
+#[test]
+fn normalized_slug_from_normalized_round_trip() {
+    // from_normalized is pub(crate) — test via the public normalize() path.
+    // Two slugs that differ only in case must normalize to the same value.
+    let a = Slug::try_from("Concepts/MoE").unwrap().normalize();
+    let b = Slug::try_from("concepts/moe").unwrap().normalize();
+    assert_eq!(a, b);
+}
+
+#[test]
+fn normalized_slug_display() {
+    let norm = Slug::try_from("concepts/moe").unwrap().normalize();
+    assert_eq!(format!("{norm}"), "concepts/moe");
+}
+
+#[test]
+fn normalized_slug_serde_round_trip() {
+    let norm = Slug::try_from("concepts/moe").unwrap().normalize();
+    let json = serde_json::to_string(&norm).unwrap();
+    assert_eq!(
+        json, r#""concepts/moe""#,
+        "NormalizedSlug must serialize as plain string"
+    );
+    let back: NormalizedSlug = serde_json::from_str(&json).unwrap();
+    assert_eq!(back, norm);
 }

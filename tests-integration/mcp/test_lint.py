@@ -97,3 +97,17 @@ async def test_lint_no_false_broken_links_from_toml_code_block(mcp_env):
     assert not any("not-a-link" in m for m in msgs), (
         "[[not-a-link]] inside inline code must not produce a broken-link finding"
     )
+
+
+async def test_lint_cross_wiki_no_false_positive(mcp_env):
+    # Regression for issue #132: [text](wiki://notes/slug) in body of a research page
+    # must not produce a broken-link finding — the target wiki (notes) is mounted.
+    # concepts/cross-wiki-link-concept.md contains [Attention Mechanism](wiki://notes/concepts/attention-mechanism)
+    await mcp_env.rebuild()
+    await mcp_env.rebuild("notes")
+    data = await mcp_env.json("wiki_lint", {"rules": ["broken-link"], "format": "json", "wiki": "research"})
+    msgs = [f["message"] for f in data["findings"] if f["rule"] == "broken-link"]
+    assert not any("attention-mechanism" in m for m in msgs), (
+        "wiki://notes/concepts/attention-mechanism is a valid cross-wiki link to a mounted wiki "
+        "and must not appear as a broken-link finding"
+    )

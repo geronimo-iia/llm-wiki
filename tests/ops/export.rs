@@ -1,10 +1,10 @@
 use std::fs;
 
 use super::helpers::setup_wiki;
-use llm_wiki::engine::WikiEngine;
-use llm_wiki::git;
-use llm_wiki::ops;
-use llm_wiki::ops::{ExportFormat, ExportOptions};
+use llm_wiki_engine::engine::WikiEngine;
+use llm_wiki_engine::git;
+use llm_wiki_engine::ops;
+use llm_wiki_engine::ops::{ExportFormat, ExportOptions};
 
 // ── llms-txt ──────────────────────────────────────────────────────────────────
 
@@ -124,7 +124,7 @@ fn export_default_path_resolves_to_wiki_root() {
 
 #[test]
 fn export_excludes_archived_by_default() {
-    use llm_wiki::git;
+    use llm_wiki_engine::git;
     use std::fs;
 
     let dir = tempfile::tempdir().unwrap();
@@ -209,7 +209,7 @@ fn export_json_includes_custom_frontmatter_fields() {
         "---\ntitle: \"ADR 1\"\ntype: decision\nstatus: active\ncreated: 2026-07-19\nreference: DEC-001\ndeciders: [alice, bob]\npriority: 3\n---\n\nDecision body.\n",
     )
     .unwrap();
-    llm_wiki::git::commit(&wiki_path, "add decision").unwrap();
+    llm_wiki_engine::git::commit(&wiki_path, "add decision").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();
@@ -385,8 +385,9 @@ fn export_loads_bundle_body() {
 fn setup_empty_wiki(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
     let config_path = dir.join("state").join("config.toml");
     let wiki_path = dir.join(name);
-    llm_wiki::spaces::create(&wiki_path, name, None, false, true, &config_path, None).unwrap();
-    llm_wiki::git::commit(&wiki_path, "init empty").unwrap();
+    llm_wiki_engine::spaces::create(&wiki_path, name, None, false, true, &config_path, None)
+        .unwrap();
+    llm_wiki_engine::git::commit(&wiki_path, "init empty").unwrap();
     config_path
 }
 
@@ -475,7 +476,7 @@ fn export_unicode_in_fields() {
         "---\ntitle: \"Réseaux de neurones\"\ntype: concept\nstatus: active\n---\n\n神经网络。Transformer attention.\n",
     )
     .unwrap();
-    llm_wiki::git::commit(dir.path().join("test").as_path(), "add unicode page").unwrap();
+    llm_wiki_engine::git::commit(dir.path().join("test").as_path(), "add unicode page").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();

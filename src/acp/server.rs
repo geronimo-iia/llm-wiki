@@ -50,7 +50,8 @@ pub async fn serve_acp(
             while let Some((wiki_name, msg)) = push_rx.recv().await {
                 // Refresh cx in case it was updated
                 let cx = cx_rx.borrow().clone().unwrap_or_else(|| cx.clone());
-                if let Ok(s) = sessions.lock() {
+                {
+                    let s = sessions.lock();
                     for (id, sess) in s.iter() {
                         if sess.wiki.as_deref() == Some(&wiki_name) && sess.active_run.is_none() {
                             let sid = SessionId::new(id.clone());
@@ -93,12 +94,12 @@ pub async fn serve_acp(
                 let config = config.clone();
                 async move |req: NewSessionRequest, responder, _cx| {
                     {
-                        let sessions = sessions.lock().unwrap();
+                        let sessions = sessions.lock();
                         if sessions.len() >= config.acp_max_sessions {
                             return responder.respond_with_error(
                                 agent_client_protocol::schema::v1::Error::new(
                                     i32::from(agent_client_protocol::schema::v1::ErrorCode::InvalidParams),
-                                    format!("Session limit reached (max: {})", config.acp_max_sessions),
+                                    format!("Session limit reached (max: {}); increase with `wiki_config set serve.acp_max_sessions <n>`", config.acp_max_sessions),
                                 ),
                             );
                         }
@@ -120,7 +121,7 @@ pub async fn serve_acp(
                         active_run: None,
                         cancelled: Arc::new(AtomicBool::new(false)),
                     };
-                    sessions.lock().unwrap().insert(id.clone(), session);
+                    sessions.lock().insert(id.clone(), session);
                     tracing::info!(session = %id, "session created");
                     responder.respond(NewSessionResponse::new(SessionId::new(id)))
                 }
@@ -134,8 +135,7 @@ pub async fn serve_acp(
                 async move |req: LoadSessionRequest, responder, _cx| {
                     let exists = sessions
                         .lock()
-                        .map(|s| s.contains_key(&req.session_id.to_string()))
-                        .unwrap_or(false);
+                        .contains_key(&req.session_id.to_string());
                     if exists {
                         responder.respond(LoadSessionResponse::new())
                     } else {
@@ -157,27 +157,25 @@ pub async fn serve_acp(
                 let sessions = sessions.clone();
                 async move |_req: ListSessionsRequest, responder, _cx| {
                     let cwd = session_cwd(&mgr);
-                    let infos: Vec<SessionInfo> = sessions
-                        .lock()
-                        .map(|s| {
-                            s.values()
-                                .map(|sess| {
-                                    SessionInfo::new(
-                                        SessionId::new(sess.id.clone()),
-                                        cwd.clone(),
-                                    )
-                                    .title(if sess.active_run.is_some() {
-                                        Some(format!(
-                                            "[active] {}",
-                                            sess.label.clone().unwrap_or_default()
-                                        ))
-                                    } else {
-                                        sess.label.clone()
-                                    })
+                    let infos: Vec<SessionInfo> = {
+                        let s = sessions.lock();
+                        s.values()
+                            .map(|sess| {
+                                SessionInfo::new(
+                                    SessionId::new(sess.id.clone()),
+                                    cwd.clone(),
+                                )
+                                .title(if sess.active_run.is_some() {
+                                    Some(format!(
+                                        "[active] {}",
+                                        sess.label.clone().unwrap_or_default()
+                                    ))
+                                } else {
+                                    sess.label.clone()
                                 })
-                                .collect()
-                        })
-                        .unwrap_or_default();
+                            })
+                            .collect()
+                    };
                     responder.respond(ListSessionsResponse::new(infos))
                 }
             },
@@ -204,18 +202,20 @@ pub async fn serve_acp(
                     let wiki_name = resolve_wiki_name(&mgr, &sessions, &req.session_id);
 
                     // Reset cancellation flag for new prompt
-                    if let Ok(mut s) = sessions.lock()
-                        && let Some(sess) = s.get_mut(&session_id_str)
                     {
-                        sess.cancelled.store(false, Ordering::Relaxed);
+                        let mut s = sessions.lock();
+                        if let Some(sess) = s.get_mut(&session_id_str) {
+                            sess.cancelled.store(false, Ordering::Relaxed);
+                        }
                     }
 
                     // Mark active run
-                    if let Ok(mut s) = sessions.lock()
-                        && let Some(sess) = s.get_mut(&session_id_str)
                     {
-                        sess.active_run =
-                            Some(format!("run-{}", chrono::Utc::now().timestamp_millis()));
+                        let mut s = sessions.lock();
+                        if let Some(sess) = s.get_mut(&session_id_str) {
+                            sess.active_run =
+                                Some(format!("run-{}", chrono::Utc::now().timestamp_millis()));
+                        }
                     }
 
                     let query_text = if query.is_empty() { &text } else { query };
@@ -281,10 +281,11 @@ pub async fn serve_acp(
                 let sessions = sessions.clone();
                 async move |notif: CancelNotification, _cx| {
                     let id = notif.session_id.to_string();
-                    if let Ok(sessions) = sessions.lock()
-                        && let Some(sess) = sessions.get(&id)
                     {
-                        sess.cancelled.store(true, Ordering::Relaxed);
+                        let sessions = sessions.lock();
+                        if let Some(sess) = sessions.get(&id) {
+                            sess.cancelled.store(true, Ordering::Relaxed);
+                        }
                     }
                     clear_active_run(&sessions, &id);
                     Ok(())

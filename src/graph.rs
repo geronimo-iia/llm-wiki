@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -5,7 +6,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use chrono::Utc;
 use petgraph::Direction;
-use petgraph::graph::{DiGraph, NodeIndex};
+use petgraph::graph::{DiGraph, EdgeIndex, NodeIndex};
+use petgraph::visit::EdgeRef as _;
 use serde::{Deserialize, Serialize};
 use tantivy::Searcher;
 use tantivy::collector::TopDocs;
@@ -46,6 +48,14 @@ pub struct LabeledEdge {
 /// Directed graph type used for the wiki concept graph.
 pub type WikiGraph = DiGraph<PageNode, LabeledEdge>;
 
+/// DiGraph never returns None for edges that exist in the graph.
+/// All call sites hold an EdgeIndex obtained from the same graph iteration,
+/// so the edge is guaranteed to be present.
+fn endpoints(g: &WikiGraph, e: EdgeIndex) -> (NodeIndex, NodeIndex) {
+    g.edge_endpoints(e)
+        .expect("edge index from graph iteration must be valid")
+}
+
 /// Filtering parameters for graph construction and subgraph extraction.
 #[derive(Debug, Clone, Default)]
 pub struct GraphFilter {
@@ -61,7 +71,9 @@ pub struct GraphFilter {
 
 impl GraphFilter {
     /// Returns `true` when the filter represents an unfiltered full-graph request.
-    /// Note: `depth` is intentionally excluded — a depth-limited full graph still uses the full cache.
+    /// `depth` is intentionally excluded: a depth-limited full graph still loads from the full
+    /// snapshot cache and applies the hop limit at render time, so the cache key must not vary
+    /// by depth.
     pub fn is_default(&self) -> bool {
         self.root.is_none() && self.types.is_empty() && self.relation.is_none()
     }
@@ -76,6 +88,89 @@ pub struct GraphReport {
     pub edges: usize,
     /// Rendered graph content (Mermaid, DOT, or LLM text).
     pub output: String,
+}
+
+/// A node in the JSON graph output.
+#[derive(Debug, Serialize)]
+pub struct JsonNode {
+    /// Slug identifying this page within its wiki.
+    pub slug: String,
+    /// Display title.
+    pub title: String,
+    /// Frontmatter type.
+    #[serde(rename = "type")]
+    pub page_type: String,
+    /// True for cross-wiki placeholder nodes not in the local index.
+    pub external: bool,
+}
+
+/// A directed edge in the JSON graph output.
+#[derive(Debug, Serialize)]
+pub struct JsonEdge {
+    /// Slug of the source node.
+    pub from: String,
+    /// Slug of the target node.
+    pub to: String,
+    /// Relation label.
+    pub relation: String,
+}
+
+/// Full machine-readable graph output for `wiki_graph --format json`.
+#[derive(Debug, Serialize)]
+pub struct WikiGraphJson {
+    /// All nodes in the graph.
+    pub nodes: Vec<JsonNode>,
+    /// All directed edges.
+    pub edges: Vec<JsonEdge>,
+    /// Aggregate graph health metrics.
+    pub metrics: GraphMetrics,
+    /// Louvain community assignments: slug → community_id.
+    /// `null` when the graph is too small for community detection (< 3 nodes per community).
+    pub communities: Option<std::collections::HashMap<String, usize>>,
+}
+
+/// Render a wiki graph as pretty-printed JSON.
+///
+/// Produces a `WikiGraphJson` with all nodes, edges, metrics, and community
+/// assignments. Edges reference nodes by slug. Community assignments are
+/// `null` for very small graphs (Louvain requires ≥ 3 nodes per group).
+pub fn render_json(graph: &WikiGraph) -> String {
+    let nodes: Vec<JsonNode> = graph
+        .node_indices()
+        .map(|idx| {
+            let n = &graph[idx];
+            JsonNode {
+                slug: n.slug.clone(),
+                title: n.title.clone(),
+                page_type: n.r#type.clone(),
+                external: n.external,
+            }
+        })
+        .collect();
+
+    let edges: Vec<JsonEdge> = graph
+        .edge_indices()
+        .map(|eidx| {
+            let (src, dst) = endpoints(graph, eidx);
+            JsonEdge {
+                from: graph[src].slug.clone(),
+                to: graph[dst].slug.clone(),
+                relation: graph[eidx].relation.clone(),
+            }
+        })
+        .collect();
+
+    let output = WikiGraphJson {
+        nodes,
+        edges,
+        metrics: compute_metrics(graph),
+        communities: node_community_map(graph, 3),
+    };
+
+    serde_json::to_string_pretty(&output).unwrap_or_else(|e| {
+        tracing::error!(error = %e, "render_json serialization failed");
+        "{}".to_string()
+    })
 }
 
 /// Health metrics computed from a built wiki graph.
@@ -101,8 +196,14 @@ pub fn compute_metrics(graph: &WikiGraph) -> GraphMetrics {
     let orphans = graph
         .node_indices()
         .filter(|&idx| {
-            graph.neighbors_directed(idx, Direction::Incoming).count() == 0
-                && graph.neighbors_directed(idx, Direction::Outgoing).count() == 0
+            graph
+                .neighbors_directed(idx, Direction::Incoming)
+                .next()
+                .is_none()
+                && graph
+                    .neighbors_directed(idx, Direction::Outgoing)
+                    .next()
+                    .is_none()
         })
         .count();
 
@@ -203,7 +304,8 @@ fn build_adjacency(graph: &WikiGraph) -> HashMap<NodeIndex, HashSet<NodeIndex>> 
         }
     }
     for edge in graph.edge_indices() {
-        let (a, b) = graph.edge_endpoints(edge).unwrap();
+        // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
+        let (a, b) = endpoints(graph, edge);
         if graph[a].external || graph[b].external {
             continue;
         }
@@ -230,6 +332,10 @@ fn louvain_phase1(
     if m == 0 {
         return false;
     }
+    debug_assert!(
+        community.len() == adj.len(),
+        "community map must contain exactly the same nodes as the adjacency map"
+    );
     let m_f = m as f64;
 
     let mut sorted_nodes: Vec<NodeIndex> = adj.keys().copied().collect();
@@ -240,6 +346,8 @@ fn louvain_phase1(
     let mut moved = false;
     let max_passes = sorted_nodes.len().max(10) * 10;
     let mut pass = 0;
+    // Hoisted outside the loop so the heap allocation is reused across passes.
+    let mut sigma_tot: HashMap<usize, f64> = HashMap::new();
 
     loop {
         if pass >= max_passes {
@@ -247,26 +355,36 @@ fn louvain_phase1(
         }
         pass += 1;
         let mut any_move = false;
+
+        // Precompute sigma_tot once per pass — O(N) instead of O(N) per node.
+        // sigma_tot[c] = sum of degrees of all nodes currently in community c.
+        // Incremental updates keep it accurate after each move within the pass.
+        sigma_tot.clear();
+        for (&n2, &c2) in community.iter() {
+            let d = *degrees.get(&n2).unwrap_or(&0) as f64;
+            *sigma_tot.entry(c2).or_default() += d;
+        }
+
         for &node in &sorted_nodes {
-            let current_c = *community.get(&node).unwrap();
+            let current_c = *community.get(&node).expect("node must be in community map");
             let k_i = *degrees.get(&node).unwrap_or(&0) as f64;
 
             // Gather neighboring communities and k_i_in for each
             let mut neighbor_c_edges: HashMap<usize, usize> = HashMap::new();
             for &nb in adj.get(&node).into_iter().flatten() {
-                let nb_c = *community.get(&nb).unwrap();
+                let nb_c = *community
+                    .get(&nb)
+                    .expect("neighbour must be in community map");
                 *neighbor_c_edges.entry(nb_c).or_default() += 1;
             }
 
-            // sigma_tot per community (sum of degrees)
-            let mut sigma_tot: HashMap<usize, f64> = HashMap::new();
-            for (&n2, &c2) in community.iter() {
-                if n2 == node {
-                    continue;
-                }
-                let d = *degrees.get(&n2).unwrap_or(&0) as f64;
-                *sigma_tot.entry(c2).or_default() += d;
-            }
+            // Full ΔQ: gain of joining c minus cost of leaving current_c.
+            // Using the full formula guarantees modularity strictly increases on
+            // every accepted move, preventing oscillation and ensuring convergence.
+            let k_i_in_current = *neighbor_c_edges.get(&current_c).unwrap_or(&0) as f64;
+            // sigma_tot[current_c] includes node itself; remove it for leave cost.
+            let sigma_s_minus_i = sigma_tot.get(&current_c).unwrap_or(&0.0) - k_i;
+            let leave_gain = k_i_in_current / m_f - sigma_s_minus_i * k_i / (2.0 * m_f * m_f);
 
             // Find best community
             let mut best_c = current_c;
@@ -277,7 +395,8 @@ fn louvain_phase1(
                     continue;
                 }
                 let st = *sigma_tot.get(&c).unwrap_or(&0.0);
-                let gain = (k_i_in as f64) / m_f - st * k_i / (2.0 * m_f * m_f);
+                let join_gain = (k_i_in as f64) / m_f - st * k_i / (2.0 * m_f * m_f);
+                let gain = join_gain - leave_gain;
                 if gain > best_gain {
                     best_gain = gain;
                     best_c = c;
@@ -288,6 +407,9 @@ fn louvain_phase1(
                 community.insert(node, best_c);
                 any_move = true;
                 moved = true;
+                // Incremental update: node leaves current_c, joins best_c.
+                *sigma_tot.entry(current_c).or_default() -= k_i;
+                *sigma_tot.entry(best_c).or_default() += k_i;
             }
         }
         if !any_move {
@@ -326,6 +448,13 @@ pub fn build_graph(
     let f_body_links = is.field("body_links");
 
     let top_docs = searcher.search(&AllQuery, &TopDocs::with_limit(100_000).order_by_score())?;
+
+    if top_docs.len() >= 100_000 {
+        tracing::warn!(
+            count = top_docs.len(),
+            "graph: TopDocs limit reached — index has ≥100 000 pages; graph may be silently truncated"
+        );
+    }
 
     let mut graph = WikiGraph::new();
     let mut slug_to_idx: HashMap<String, NodeIndex> = HashMap::new();
@@ -506,9 +635,16 @@ pub fn build_graph_cross_wiki(
     // Map from "wikiname/slug" -> NodeIndex in merged graph
     let mut global_idx: HashMap<String, NodeIndex> = HashMap::new();
 
+    // Build per-wiki graphs once; reuse in both passes.
+    let per_wiki: Vec<(&str, WikiGraph)> = wikis
+        .iter()
+        .map(|(wiki_name, searcher, is, registry)| {
+            build_graph(searcher, is, filter, registry).map(|g| (*wiki_name, g))
+        })
+        .collect::<Result<_>>()?;
+
     // First: add all local (non-external) nodes from each wiki
-    for (wiki_name, searcher, is, registry) in wikis {
-        let g = build_graph(searcher, is, filter, registry)?;
+    for (wiki_name, g) in &per_wiki {
         for idx in g.node_indices() {
             let node = &g[idx];
             if node.external {
@@ -526,10 +662,10 @@ pub fn build_graph_cross_wiki(
     }
 
     // Second: add edges, re-resolving cross-wiki targets
-    for (wiki_name, searcher, is, registry) in wikis {
-        let g = build_graph(searcher, is, filter, registry)?;
+    for (wiki_name, g) in &per_wiki {
         for edge_idx in g.edge_indices() {
-            let (from, to) = g.edge_endpoints(edge_idx).unwrap();
+            // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
+            let (from, to) = endpoints(g, edge_idx);
             let from_node = &g[from];
             let to_node = &g[to];
 
@@ -630,7 +766,8 @@ pub fn merge_cached_graphs(
     // Second pass: add edges, re-resolving cross-wiki external nodes
     for (wiki_name, graph) in wikis {
         for edge_idx in graph.edge_indices() {
-            let (from, to) = graph.edge_endpoints(edge_idx).unwrap();
+            // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
+            let (from, to) = endpoints(graph, edge_idx);
             let from_node = &graph[from];
             let to_node = &graph[to];
 
@@ -750,8 +887,14 @@ pub fn render_llms(graph: &WikiGraph) -> String {
     let isolated: Vec<String> = graph
         .node_indices()
         .filter(|&idx| {
-            graph.neighbors_directed(idx, Direction::Incoming).count() == 0
-                && graph.neighbors_directed(idx, Direction::Outgoing).count() == 0
+            graph
+                .neighbors_directed(idx, Direction::Incoming)
+                .next()
+                .is_none()
+                && graph
+                    .neighbors_directed(idx, Direction::Outgoing)
+                    .next()
+                    .is_none()
         })
         .map(|idx| graph[idx].title.clone())
         .collect();
@@ -813,7 +956,7 @@ pub fn render_mermaid(graph: &WikiGraph) -> String {
     let mut out = String::from("graph LR\n");
 
     // Collect unique types for classDef
-    let mut types_seen: HashSet<String> = HashSet::new();
+    let mut types_seen: HashSet<&str> = HashSet::new();
 
     let mut has_external = false;
 
@@ -829,7 +972,7 @@ pub fn render_mermaid(graph: &WikiGraph) -> String {
                 "  {safe_id}[\"{}\"]:::{}\n",
                 node.title, node.r#type
             ));
-            types_seen.insert(node.r#type.clone());
+            types_seen.insert(&node.r#type);
         }
     }
 
@@ -837,7 +980,8 @@ pub fn render_mermaid(graph: &WikiGraph) -> String {
 
     // Edges with relation labels
     for edge in graph.edge_indices() {
-        let (from, to) = graph.edge_endpoints(edge).unwrap();
+        // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
+        let (from, to) = endpoints(graph, edge);
         let from_id = format!("N{}", from.index());
         let to_id = format!("N{}", to.index());
         let relation = &graph[edge].relation;
@@ -890,7 +1034,8 @@ pub fn render_dot(graph: &WikiGraph) -> String {
     }
 
     for edge in graph.edge_indices() {
-        let (from, to) = graph.edge_endpoints(edge).unwrap();
+        // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
+        let (from, to) = endpoints(graph, edge);
         let relation = &graph[edge].relation;
         let from_id = if graph[from].external {
             &graph[from].title
@@ -981,10 +1126,14 @@ pub fn subgraph(graph: &WikiGraph, root_slug: &str, depth: usize) -> WikiGraph {
         old_to_new.insert(old_idx, new_idx);
     }
 
-    for edge in graph.edge_indices() {
-        let (from, to) = graph.edge_endpoints(edge).unwrap();
-        if let (Some(&new_from), Some(&new_to)) = (old_to_new.get(&from), old_to_new.get(&to)) {
-            new_graph.add_edge(new_from, new_to, graph[edge].clone());
+    for &old_from in &visited {
+        for edge_ref in graph.edges_directed(old_from, Direction::Outgoing) {
+            let old_to = edge_ref.target();
+            if let (Some(&new_from), Some(&new_to)) =
+                (old_to_new.get(&old_from), old_to_new.get(&old_to))
+            {
+                new_graph.add_edge(new_from, new_to, edge_ref.weight().clone());
+            }
         }
     }
 
@@ -1029,7 +1178,9 @@ fn build_community_data(
     let mut id_remap: HashMap<usize, usize> = HashMap::new();
     let mut next_id = 0usize;
     for &n in &local_nodes {
-        let c = *community.get(&n).unwrap();
+        let c = *community
+            .get(&n)
+            .expect("node must be in community map after louvain_phase1");
         id_remap.entry(c).or_insert_with(|| {
             let id = next_id;
             next_id += 1;
@@ -1037,7 +1188,7 @@ fn build_community_data(
         });
     }
     for val in community.values_mut() {
-        *val = *id_remap.get(val).unwrap();
+        *val = *id_remap.get(val).expect("community id must exist in remap");
     }
 
     // Build community_map
@@ -1057,7 +1208,9 @@ fn build_community_data(
     let mut isolated: Vec<String> = local_nodes
         .iter()
         .filter(|&&n| {
-            let c = *community.get(&n).unwrap();
+            let c = *community
+                .get(&n)
+                .expect("node must be in community map after remap");
             *sizes.get(&c).unwrap_or(&0) <= 2
         })
         .map(|&n| graph[n].slug.clone())
@@ -1091,6 +1244,9 @@ pub fn get_or_build_graph(
         return Ok(Arc::new(g));
     }
 
+    // generation() increments on every reload_reader() call. last_commit() is NOT used
+    // because same-commit schema-triggered rebuilds produce a new index without changing
+    // the commit hash — those must also invalidate the graph cache.
     let current_gen = index_manager.generation();
     graph_cache.get_fresh(current_gen, || {
         build_graph(
@@ -1115,6 +1271,9 @@ pub fn get_cached_community_map(
     searcher: &Searcher,
     min_nodes: usize,
 ) -> Result<Option<Arc<HashMap<String, usize>>>> {
+    // generation() increments on every reload_reader() call. last_commit() is NOT used
+    // because same-commit schema-triggered rebuilds produce a new index without changing
+    // the commit hash — those must also invalidate the graph cache.
     let current_gen = index_manager.generation();
 
     let community = community_cache.get_or_build(current_gen, || -> Result<CommunityData> {
@@ -1160,6 +1319,9 @@ pub fn get_cached_community_stats(
     searcher: &Searcher,
     min_nodes: usize,
 ) -> Result<Option<CommunityStats>> {
+    // generation() increments on every reload_reader() call. last_commit() is NOT used
+    // because same-commit schema-triggered rebuilds produce a new index without changing
+    // the commit hash — those must also invalidate the graph cache.
     let current_gen = index_manager.generation();
 
     let community = community_cache.get_or_build(current_gen, || -> Result<CommunityData> {
@@ -1196,6 +1358,72 @@ pub fn get_cached_community_stats(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn render_json_output_is_valid_json_with_expected_keys() {
+        use serde_json::Value;
+
+        let mut g = WikiGraph::new();
+        let a = g.add_node(PageNode {
+            slug: "concepts/a".into(),
+            title: "A".into(),
+            r#type: "concept".into(),
+            external: false,
+        });
+        let b = g.add_node(PageNode {
+            slug: "concepts/b".into(),
+            title: "B".into(),
+            r#type: "concept".into(),
+            external: false,
+        });
+        g.add_edge(
+            a,
+            b,
+            LabeledEdge {
+                relation: "links-to".into(),
+            },
+        );
+
+        let json_str = render_json(&g);
+        let v: Value =
+            serde_json::from_str(&json_str).expect("render_json must produce valid JSON");
+
+        assert!(
+            v.get("nodes").and_then(|n| n.as_array()).is_some(),
+            "must have nodes array"
+        );
+        assert!(
+            v.get("edges").and_then(|e| e.as_array()).is_some(),
+            "must have edges array"
+        );
+        assert!(v.get("metrics").is_some(), "must have metrics object");
+        assert!(v.get("communities").is_some(), "must have communities key");
+
+        let nodes = v["nodes"].as_array().unwrap();
+        assert_eq!(nodes.len(), 2);
+        assert_eq!(nodes[0]["slug"], "concepts/a");
+        assert_eq!(nodes[0]["type"], "concept");
+        assert_eq!(nodes[0]["external"], false);
+
+        let edges = v["edges"].as_array().unwrap();
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0]["from"], "concepts/a");
+        assert_eq!(edges[0]["to"], "concepts/b");
+        assert_eq!(edges[0]["relation"], "links-to");
+
+        assert_eq!(v["metrics"]["nodes"], 2);
+        assert_eq!(v["metrics"]["edges"], 1);
+    }
+
+    #[test]
+    fn render_json_empty_graph() {
+        let g = WikiGraph::new();
+        let json_str = render_json(&g);
+        let v: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(v["nodes"].as_array().unwrap().len(), 0);
+        assert_eq!(v["edges"].as_array().unwrap().len(), 0);
+        assert_eq!(v["metrics"]["nodes"], 0);
+    }
 
     #[test]
     fn labeled_edge_serializes() {
@@ -1330,5 +1558,131 @@ mod tests {
             !output.contains("wiki__"),
             "wiki:// must not appear as sanitized ID fragment: {output}"
         );
+    }
+
+    // Helper — free function avoids borrow-checker conflict with closure + loop reborrow.
+    fn connect(
+        adj: &mut HashMap<NodeIndex, HashSet<NodeIndex>>,
+        degrees: &mut HashMap<NodeIndex, usize>,
+        a: NodeIndex,
+        b: NodeIndex,
+    ) {
+        adj.entry(a).or_default().insert(b);
+        adj.entry(b).or_default().insert(a);
+        *degrees.entry(a).or_default() += 1;
+        *degrees.entry(b).or_default() += 1;
+    }
+
+    /// Two clear clusters of 4 nodes each, with one bridge edge.
+    /// Louvain should assign all nodes in cluster A the same community id,
+    /// and all nodes in cluster B the same community id (different from A).
+    #[test]
+    fn test_louvain_two_clusters() {
+        // Cluster A: nodes 0,1,2,3 — fully connected (6 edges)
+        // Cluster B: nodes 4,5,6,7 — fully connected (6 edges)
+        // Bridge: 3 -- 4 (1 edge)
+        // Total edges m = 13
+
+        use petgraph::graph::NodeIndex;
+        use std::collections::{HashMap, HashSet};
+
+        let make = |i: usize| NodeIndex::new(i);
+
+        let cluster_a: Vec<NodeIndex> = (0..4).map(make).collect();
+        let cluster_b: Vec<NodeIndex> = (4..8).map(make).collect();
+
+        let mut adj: HashMap<NodeIndex, HashSet<NodeIndex>> = HashMap::new();
+        let mut degrees: HashMap<NodeIndex, usize> = HashMap::new();
+
+        // Fully connect cluster A
+        for i in 0..4usize {
+            for j in (i + 1)..4 {
+                connect(&mut adj, &mut degrees, make(i), make(j));
+            }
+        }
+        // Fully connect cluster B
+        for i in 4..8usize {
+            for j in (i + 1)..8 {
+                connect(&mut adj, &mut degrees, make(i), make(j));
+            }
+        }
+        // Bridge edge
+        connect(&mut adj, &mut degrees, make(3), make(4));
+
+        // Ensure every node has an adjacency entry (even if empty)
+        for i in 0..8usize {
+            adj.entry(make(i)).or_default();
+            degrees.entry(make(i)).or_insert(0);
+        }
+
+        let m: usize = degrees.values().sum::<usize>() / 2;
+
+        // Each node starts in its own community
+        let mut community: HashMap<NodeIndex, usize> = (0..8usize).map(|i| (make(i), i)).collect();
+
+        louvain_phase1(&adj, &mut community, &degrees, m);
+
+        // All cluster A nodes must share one community id
+        let ca: HashSet<usize> = cluster_a.iter().map(|n| community[n]).collect();
+        assert_eq!(
+            ca.len(),
+            1,
+            "cluster A nodes must all share one community, got {:?}",
+            ca
+        );
+
+        // All cluster B nodes must share one community id
+        let cb: HashSet<usize> = cluster_b.iter().map(|n| community[n]).collect();
+        assert_eq!(
+            cb.len(),
+            1,
+            "cluster B nodes must all share one community, got {:?}",
+            cb
+        );
+
+        // The two clusters must be in different communities
+        assert_ne!(
+            ca.iter().next(),
+            cb.iter().next(),
+            "cluster A and cluster B must be in different communities"
+        );
+    }
+
+    /// 8-node cycle: 0-1-2-3-4-5-6-7-0.
+    /// Symmetric topology is oscillation-prone without incremental sigma_tot updates.
+    /// The cycle has multiple valid local optima, so independent runs may produce different
+    /// valid partitions — that is not oscillation. The oscillation regression is:
+    ///   after phase1 reaches a local optimum, a second pass must make zero moves.
+    /// Without the sigma_tot incremental update, the algorithm keeps accepting moves
+    /// that were only beneficial due to stale sigma_tot, and never stabilises.
+    #[test]
+    fn test_louvain_converges_no_oscillation() {
+        use petgraph::graph::NodeIndex;
+        use std::collections::{HashMap, HashSet};
+
+        let n = 8usize;
+        let make = |i: usize| NodeIndex::new(i);
+
+        let mut adj: HashMap<NodeIndex, HashSet<NodeIndex>> = HashMap::new();
+        let mut degrees: HashMap<NodeIndex, usize> = HashMap::new();
+        for i in 0..n {
+            connect(&mut adj, &mut degrees, make(i), make((i + 1) % n));
+        }
+        for i in 0..n {
+            adj.entry(make(i)).or_default();
+            degrees.entry(make(i)).or_insert(0);
+        }
+        let m: usize = degrees.values().sum::<usize>() / 2;
+
+        // Run 12 times; each run must converge (second pass makes no moves).
+        for run in 0..12 {
+            let mut community: HashMap<NodeIndex, usize> = (0..n).map(|i| (make(i), i)).collect();
+            louvain_phase1(&adj, &mut community, &degrees, m);
+            let moved = louvain_phase1(&adj, &mut community, &degrees, m);
+            assert!(
+                !moved,
+                "run {run}: second louvain_phase1 pass on a converged partition should make no moves — oscillation detected"
+            );
+        }
     }
 }

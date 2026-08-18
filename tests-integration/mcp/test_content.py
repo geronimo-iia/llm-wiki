@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from conftest import SLUG_MISSING, SLUG_SCALING_LAWS, SPACE_NAME, SLUG_MoE
 
 
@@ -90,8 +88,8 @@ async def test_content_new_creates_page(mutable_mcp_env):
         {"uri": "concepts/test-new-page", "wiki": SPACE_NAME},
     )
     assert data["slug"] == "concepts/test-new-page"
-    assert data["path"].endswith(".md")
-    assert Path(data["path"]).exists()
+    assert "uri" in data
+    assert "bundle" in data
 
 
 async def test_content_commit_after_write(mutable_mcp_env):

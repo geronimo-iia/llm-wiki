@@ -1,5 +1,5 @@
 use jsonschema::Validator;
-use llm_wiki::default_schemas::default_schemas;
+use llm_wiki_engine::default_schemas::default_schemas;
 use serde_json::{Value, json};
 
 fn compile(name: &str) -> Validator {
@@ -190,7 +190,7 @@ fn all_schemas_have_x_wiki_types() {
 
 #[test]
 fn default_type_entries_discovers_all_15_types() {
-    let entries = llm_wiki::default_schemas::default_type_entries();
+    let entries = llm_wiki_engine::default_schemas::default_type_entries();
     assert_eq!(entries.len(), 15);
 
     let names: Vec<&str> = entries.iter().map(|e| e.type_name.as_str()).collect();
@@ -213,7 +213,7 @@ fn default_type_entries_discovers_all_15_types() {
 
 #[test]
 fn default_type_entries_schema_paths_are_correct() {
-    let entries = llm_wiki::default_schemas::default_type_entries();
+    let entries = llm_wiki_engine::default_schemas::default_type_entries();
     for entry in &entries {
         let filename = entry.schema_file.strip_prefix("schemas/").unwrap();
         assert!(

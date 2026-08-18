@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
@@ -27,10 +28,9 @@ pub fn build_space(repo_root: &Path, tokenizer: &str) -> Result<(SpaceTypeRegist
 }
 
 /// Build both from embedded defaults (no disk access).
-pub fn build_space_from_embedded(tokenizer: &str) -> (SpaceTypeRegistry, IndexSchema) {
-    let parsed = parse_from_embedded().expect("embedded schemas are valid");
-    // No wiki.toml overrides for embedded
-    assemble_without_overrides(parsed, tokenizer).expect("embedded schemas are valid")
+pub fn build_space_from_embedded(tokenizer: &str) -> Result<(SpaceTypeRegistry, IndexSchema)> {
+    let parsed = parse_from_embedded()?;
+    assemble_without_overrides(parsed, tokenizer)
 }
 
 // ── Intermediate parsed data ──────────────────────────────────────────────────
@@ -59,7 +59,11 @@ fn parse_from_dir(schemas_dir: &Path, repo_root: &Path) -> Result<Vec<ParsedSche
 
     for entry in entries {
         let path = entry.path();
-        let filename = path.file_name().unwrap().to_string_lossy().to_string();
+        let filename = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         seen_files.insert(filename.clone());
         let content = std::fs::read_to_string(&path)?;
         let schema_rel = format!("schemas/{filename}");
@@ -75,7 +79,7 @@ fn parse_from_dir(schemas_dir: &Path, repo_root: &Path) -> Result<Vec<ParsedSche
         let schema_path = repo_root.join(&type_entry.schema);
         let filename = schema_path
             .file_name()
-            .unwrap()
+            .unwrap_or_default()
             .to_string_lossy()
             .to_string();
         if !seen_files.contains(&filename) {
@@ -281,4 +285,55 @@ fn assemble_without_overrides(
     let index_schema = schema_builder.finish();
 
     Ok((registry, index_schema))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_space_from_embedded_succeeds_with_default_tokenizer() {
+        let (registry, _index) = build_space_from_embedded("default").unwrap();
+        // Embedded schemas must always register the "default" fallback type.
+        assert!(
+            registry.is_known("default"),
+            "embedded schemas must register 'default' type"
+        );
+        // Must register at least one non-default type (concept, page, …).
+        let types = registry.list_types();
+        assert!(
+            types.len() > 1,
+            "embedded schemas must register more than just 'default'"
+        );
+        // schema_hash must be non-empty (computed from registered types).
+        assert!(!registry.schema_hash().is_empty());
+    }
+
+    #[test]
+    fn build_space_from_embedded_succeeds_with_simple_tokenizer() {
+        // Tokenizer choice must not cause a build failure.
+        if let Err(e) = build_space_from_embedded("simple") {
+            panic!("build_space_from_embedded with 'simple' tokenizer failed: {e:#}");
+        }
+    }
+
+    #[test]
+    fn build_space_corrupted_json_error_contains_file_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo_root = dir.path();
+        let schemas_dir = repo_root.join("schemas");
+        std::fs::create_dir(&schemas_dir).unwrap();
+        std::fs::write(schemas_dir.join("bad.json"), b"{ not valid json ~~~ ").unwrap();
+
+        match build_space(repo_root, "default") {
+            Ok(_) => panic!("corrupted JSON schema must cause build_space to fail"),
+            Err(e) => {
+                let msg = format!("{e:#}");
+                assert!(
+                    msg.contains("bad.json"),
+                    "error message must contain the schema filename; got: {msg}"
+                );
+            }
+        }
+    }
 }

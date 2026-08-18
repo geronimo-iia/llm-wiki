@@ -5,12 +5,12 @@ read_when:
   - Getting an overview of all available tools
   - Understanding why a tool belongs in the engine vs a skill
 status: ready
-last_updated: "2025-07-18"
+last_updated: "2026-08-18"
 ---
 
 # Tool Surface Overview
 
-The engine exposes 19 tools. Every tool is available via MCP
+The engine exposes 24 tools. Every tool is available via MCP
 (stdio + HTTP), ACP, and CLI. Same tool surface, three transports.
 
 ## Design Principle
@@ -26,13 +26,14 @@ access** that a skill cannot replicate:
 Everything else — workflow orchestration, LLM prompting, multi-step
 procedures — belongs in skills (the `llm-wiki-skills` repository).
 
-## The 16 Tools
+## The 24 Tools
 
-### Space management (4 tools)
+### Space management (5 tools)
 
 | Tool | Description |
 |------|-------------|
 | `wiki_spaces_create` | Create a new wiki repo + register (hot-reloaded if server running) |
+| `wiki_spaces_register` | Register an existing wiki repo without creating files |
 | `wiki_spaces_list` | List all registered wikis |
 | `wiki_spaces_remove` | Remove a wiki from the registry (unmounted if server running) |
 | `wiki_spaces_set_default` | Set the default wiki (updated immediately if server running) |
@@ -67,17 +68,21 @@ References:
 References:
 - [content-operations.md](content-operations.md)
 
-### Search & index (9 tools)
+### Search & index (13 tools)
 
 | Tool | Description |
 |------|-------------|
 | `wiki_search` | Full-text BM25 search with optional `--type` filter |
 | `wiki_list` | Paginated page listing with type/status filters |
 | `wiki_ingest` | Validate frontmatter + update index + commit |
-| `wiki_graph` | Generate concept graph (Mermaid/DOT) |
+| `wiki_graph` | Generate concept graph (Mermaid/DOT/LLMs/JSON) |
 | `wiki_history` | Git commit history for a page |
+| `wiki_info` | Server status — version, config path, spaces, and per-wiki index health |
 | `wiki_stats` | Wiki health dashboard |
 | `wiki_suggest` | Suggest related pages to link |
+| `wiki_resolve` | Resolve a slug or `wiki://` URI to a canonical path |
+| `wiki_lint` | Lint pages for broken links, orphans, and schema violations |
+| `wiki_export` | Export wiki content as a single document |
 | `wiki_index_rebuild` | Rebuild tantivy index from committed files |
 | `wiki_index_status` | Check index health |
 

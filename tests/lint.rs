@@ -3,22 +3,22 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-use llm_wiki::config::GlobalConfig;
-use llm_wiki::engine::{EngineState, SpaceContext};
-use llm_wiki::git;
-use llm_wiki::index_manager::SpaceIndexManager;
-use llm_wiki::index_schema::IndexSchema;
-use llm_wiki::ops::{LintFinding, Severity, run_lint};
-use llm_wiki::space_builder;
-use llm_wiki::type_registry::SpaceTypeRegistry;
+use llm_wiki_engine::config::GlobalConfig;
+use llm_wiki_engine::engine::{EngineState, SpaceContext};
+use llm_wiki_engine::git;
+use llm_wiki_engine::index_manager::SpaceIndexManager;
+use llm_wiki_engine::index_schema::IndexSchema;
+use llm_wiki_engine::ops::{LintFinding, Severity, run_lint};
+use llm_wiki_engine::space_builder;
+use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 
 fn schema() -> IndexSchema {
-    let (_registry, schema) = space_builder::build_space_from_embedded("en_stem");
+    let (_registry, schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
     schema
 }
 
 fn registry() -> SpaceTypeRegistry {
-    let (registry, _schema) = space_builder::build_space_from_embedded("en_stem");
+    let (registry, _schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
     registry
 }
 
@@ -55,10 +55,11 @@ fn build_engine(dir: &Path, wiki_root: &Path) -> EngineState {
         type_registry: Arc::new(registry()),
         index_schema: schema(),
         index_manager: Arc::new(mgr),
-        graph_cache: llm_wiki::graph::WikiGraphCache::NoSnapshot(
+        graph_cache: llm_wiki_engine::graph::WikiGraphCache::NoSnapshot(
             petgraph_live::cache::GenerationCache::new(),
         ),
         community_cache: petgraph_live::cache::GenerationCache::new(),
+        rebuilding: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
     });
 
     let mut spaces = HashMap::new();
@@ -434,10 +435,11 @@ fn build_engine_with_name(dir: &Path, wiki_root: &Path, name: &str) -> EngineSta
         type_registry: Arc::new(registry()),
         index_schema: schema(),
         index_manager: Arc::new(mgr),
-        graph_cache: llm_wiki::graph::WikiGraphCache::NoSnapshot(
+        graph_cache: llm_wiki_engine::graph::WikiGraphCache::NoSnapshot(
             petgraph_live::cache::GenerationCache::new(),
         ),
         community_cache: petgraph_live::cache::GenerationCache::new(),
+        rebuilding: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
     });
 
     let mut spaces = HashMap::new();

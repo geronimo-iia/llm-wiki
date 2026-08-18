@@ -1,5 +1,5 @@
-use llm_wiki::frontmatter::*;
-use llm_wiki::slug::Slug;
+use llm_wiki_engine::frontmatter::*;
+use llm_wiki_engine::slug::Slug;
 
 // ── parse ─────────────────────────────────────────────────────────────────────
 

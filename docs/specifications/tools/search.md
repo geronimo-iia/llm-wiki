@@ -128,7 +128,7 @@ Each result object (`PageRef`) contains:
 
 | Field        | Type   | Description                                   |
 | ------------ | ------ | --------------------------------------------- |
-| `slug`       | string | Page slug                                     |
+| `slug`       | string | Normalized page slug (lowercase, validated)   |
 | `uri`        | string | `wiki://<name>/<slug>`                        |
 | `title`      | string | Page title                                    |
 | `score`      | float  | Combined final score (`bm25 × status × conf`) |

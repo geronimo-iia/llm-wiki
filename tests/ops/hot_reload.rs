@@ -1,7 +1,7 @@
 use super::helpers::setup_wiki;
-use llm_wiki::engine::WikiEngine;
-use llm_wiki::git;
-use llm_wiki::ops;
+use llm_wiki_engine::engine::WikiEngine;
+use llm_wiki_engine::git;
+use llm_wiki_engine::ops;
 use std::fs;
 
 // ── Hot Reload ────────────────────────────────────────────────────────────────
@@ -14,7 +14,7 @@ fn hot_reload_mount_wiki_makes_it_searchable() {
 
     // Create beta wiki structure first (before mounting)
     let beta_path = dir.path().join("beta");
-    llm_wiki::spaces::create(
+    llm_wiki_engine::spaces::create(
         &beta_path,
         "beta",
         Some("second wiki"),
@@ -36,9 +36,9 @@ fn hot_reload_mount_wiki_makes_it_searchable() {
     git::commit(&beta_path, "add page").unwrap();
 
     // Now hot-reload mount — index builds with the page already present
-    let entry = llm_wiki::config::WikiEntry {
+    let entry = llm_wiki_engine::config::WikiEntry {
         name: "beta".into(),
-        path: beta_path.to_string_lossy().into(),
+        path: beta_path.clone(),
         description: Some("second wiki".into()),
         remote: None,
     };
@@ -72,7 +72,8 @@ fn hot_reload_unmount_wiki_removes_from_search() {
 
     // Create beta
     let beta_path = dir.path().join("beta");
-    llm_wiki::spaces::create(&beta_path, "beta", None, false, false, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None)
+        .unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
 
@@ -105,13 +106,46 @@ fn hot_reload_refuse_unmount_default_wiki() {
     );
 }
 
+/// Invariant 4: `spaces_set_default` must not update disk config when the target
+/// wiki is not mounted. The engine validation runs BEFORE the disk write, so a
+/// failure leaves the on-disk config unchanged.
+#[test]
+fn spaces_set_default_fails_and_keeps_disk_config_when_wiki_unmounted() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "alpha");
+
+    let beta_path = dir.path().join("beta");
+    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None)
+        .unwrap();
+
+    let manager = WikiEngine::build(&config_path).unwrap();
+
+    // Unmount beta from the engine (it remains in config, but is not mounted)
+    manager.unmount_wiki("beta").unwrap();
+
+    // Attempting set_default("beta") must fail — wiki not mounted in engine
+    let result = ops::spaces_set_default("beta", &config_path, Some(&manager));
+    assert!(
+        result.is_err(),
+        "spaces_set_default must fail when wiki is not mounted"
+    );
+
+    // Disk config must still show alpha as default — no partial write
+    let global = llm_wiki_engine::config::load_global(&config_path).unwrap();
+    assert_eq!(
+        global.global.default_wiki, "alpha",
+        "disk config must not be updated after set_default failure"
+    );
+}
+
 #[test]
 fn hot_reload_set_default_updates_engine() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "alpha");
 
     let beta_path = dir.path().join("beta");
-    llm_wiki::spaces::create(&beta_path, "beta", None, false, false, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None)
+        .unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
 
@@ -120,7 +154,7 @@ fn hot_reload_set_default_updates_engine() {
 
     // Verify engine state updated
     let engine = manager.state.read().unwrap();
-    assert_eq!(engine.default_wiki_name(), "beta");
+    assert_eq!(engine.default_wiki_name(), Some("beta"));
 }
 
 #[test]
@@ -130,7 +164,8 @@ fn hot_reload_cross_wiki_search_reflects_new_wiki() {
 
     // Create beta with a page before building the engine
     let beta_path = dir.path().join("beta");
-    llm_wiki::spaces::create(&beta_path, "beta", None, false, false, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None)
+        .unwrap();
 
     let beta_wiki = beta_path.join("wiki");
     fs::create_dir_all(beta_wiki.join("concepts")).unwrap();
@@ -143,17 +178,17 @@ fn hot_reload_cross_wiki_search_reflects_new_wiki() {
 
     // Build engine with only alpha mounted
     // Remove beta from config so it's not mounted at startup
-    llm_wiki::spaces::remove("beta", false, &config_path).unwrap();
+    llm_wiki_engine::spaces::remove("beta", false, &config_path).unwrap();
     let manager = WikiEngine::build(&config_path).unwrap();
 
     // Re-register and hot-reload mount beta
-    let entry = llm_wiki::config::WikiEntry {
+    let entry = llm_wiki_engine::config::WikiEntry {
         name: "beta".into(),
-        path: beta_path.to_string_lossy().into(),
+        path: beta_path.clone(),
         description: None,
         remote: None,
     };
-    llm_wiki::spaces::register(entry.clone(), false, &config_path).unwrap();
+    llm_wiki_engine::spaces::register(entry.clone(), false, &config_path).unwrap();
     manager.mount_wiki(&entry).unwrap();
 
     // Cross-wiki search from alpha should find beta's page
@@ -202,7 +237,7 @@ fn spaces_create_set_default_updates_engine() {
 
     // Engine default must update in-process without restart.
     let engine = manager.state.read().unwrap();
-    assert_eq!(engine.default_wiki_name(), "beta");
+    assert_eq!(engine.default_wiki_name(), Some("beta"));
 }
 
 #[test]
@@ -239,7 +274,7 @@ fn spaces_create_mount_failure_rolls_back_config() {
     );
 
     // Invariant: config must not contain beta after a failed spaces_create.
-    let global = llm_wiki::config::load_global(&config_path).unwrap();
+    let global = llm_wiki_engine::config::load_global(&config_path).unwrap();
     assert!(
         !global.wikis.iter().any(|w| w.name == "beta"),
         "beta must be absent from config after rollback"
@@ -261,7 +296,7 @@ fn spaces_register_mount_failure_rolls_back_config() {
     // Create a wiki dir with git, wiki/ root, and a corrupt .json schema.
     let beta_path = dir.path().join("beta");
     std::fs::create_dir_all(beta_path.join("wiki")).unwrap();
-    llm_wiki::git::init_repo(&beta_path).unwrap();
+    llm_wiki_engine::git::init_repo(&beta_path).unwrap();
     let schemas = beta_path.join("schemas");
     std::fs::create_dir_all(&schemas).unwrap();
     std::fs::write(schemas.join("bad.json"), "{ this is not valid json").unwrap();
@@ -273,7 +308,7 @@ fn spaces_register_mount_failure_rolls_back_config() {
         "spaces_register must return Err when mount_wiki fails"
     );
 
-    let global = llm_wiki::config::load_global(&config_path).unwrap();
+    let global = llm_wiki_engine::config::load_global(&config_path).unwrap();
     assert!(
         !global.wikis.iter().any(|w| w.name == "beta"),
         "beta must be absent from config after rollback"

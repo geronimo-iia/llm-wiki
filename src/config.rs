@@ -1,7 +1,9 @@
-use std::path::Path;
+#![allow(unreachable_pub)]
+use std::{io::Write as _, path::Path};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use tempfile::NamedTempFile;
 
 // ── Section structs ───────────────────────────────────────────────────────────
 
@@ -13,13 +15,21 @@ pub struct GlobalSection {
     pub default_wiki: String,
 }
 
+impl GlobalSection {
+    pub fn default_wiki_opt(&self) -> Option<&str> {
+        let s = self.default_wiki.as_str();
+        if s.is_empty() { None } else { Some(s) }
+    }
+}
+
 /// A registered wiki entry in the `[[wikis]]` array of the global config.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WikiEntry {
     /// Short identifier used in `wiki://` URIs and the `--wiki` flag.
     pub name: String,
     /// Absolute path to the wiki repository root on disk.
-    pub path: String,
+    #[serde(with = "crate::pathutil::path_as_string")]
+    pub path: std::path::PathBuf,
     /// Optional one-line description shown in `spaces list`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -186,6 +196,10 @@ fn default_acp_max_sessions() -> usize {
     20
 }
 
+fn default_mcp_max_param_len() -> usize {
+    8192
+}
+
 /// `[serve]` section — HTTP and ACP server configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServeConfig {
@@ -213,6 +227,9 @@ pub struct ServeConfig {
     /// Maximum number of concurrent ACP sessions (default: 20). Rejects NewSession when reached.
     #[serde(default = "default_acp_max_sessions")]
     pub acp_max_sessions: usize,
+    /// Maximum byte length of any string parameter accepted by MCP tools (default: 8192).
+    #[serde(default = "default_mcp_max_param_len")]
+    pub mcp_max_param_len: usize,
 }
 
 impl Default for ServeConfig {
@@ -226,6 +243,7 @@ impl Default for ServeConfig {
             restart_backoff: 1,
             heartbeat_secs: 60,
             acp_max_sessions: default_acp_max_sessions(),
+            mcp_max_param_len: default_mcp_max_param_len(),
         }
     }
 }
@@ -520,8 +538,11 @@ pub struct WikiConfig {
     #[serde(default)]
     pub redact: Option<RedactConfig>,
     /// Content directory relative to repo root. Default: `"wiki"`.
-    #[serde(default = "default_wiki_root")]
-    pub wiki_root: String,
+    #[serde(
+        default = "default_wiki_root",
+        with = "crate::pathutil::path_as_string"
+    )]
+    pub wiki_root: std::path::PathBuf,
 }
 
 /// Fully merged config for a specific wiki — global settings overlaid with per-wiki overrides.
@@ -604,7 +625,10 @@ fn default_type_strictness() -> String {
     "loose".into()
 }
 fn default_log_path() -> String {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+    let home = std::env::var("HOME").unwrap_or_else(|_| {
+        tracing::warn!("HOME not set; falling back to current directory for log path");
+        ".".into()
+    });
     std::path::PathBuf::from(home)
         .join(".llm-wiki")
         .join("logs")
@@ -638,8 +662,8 @@ fn default_stale_days() -> u32 {
 fn default_stale_confidence_threshold() -> f32 {
     0.4
 }
-fn default_wiki_root() -> String {
-    "wiki".to_string()
+fn default_wiki_root() -> std::path::PathBuf {
+    std::path::PathBuf::from("wiki")
 }
 // ── Functions ─────────────────────────────────────────────────────────────────
 
@@ -717,19 +741,29 @@ pub fn load_wiki(wiki_root: &Path) -> Result<WikiConfig> {
 
 /// Serialize and write the global config to `path`, creating parent dirs if needed.
 pub fn save_global(config: &GlobalConfig, path: &Path) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
+    let parent = path.parent().unwrap_or(Path::new("."));
+    std::fs::create_dir_all(parent)?;
     let content = toml::to_string_pretty(config)?;
-    std::fs::write(path, content)?;
-    Ok(())
+    atomic_write(path, content.as_bytes())
 }
 
 /// Serialize and write the per-wiki config to `<wiki_root>/wiki.toml`.
 pub fn save_wiki(config: &WikiConfig, wiki_root: &Path) -> Result<()> {
     let path = wiki_root.join("wiki.toml");
     let content = toml::to_string_pretty(config)?;
-    std::fs::write(path, content)?;
+    atomic_write(&path, content.as_bytes())
+}
+
+/// Write `data` to `dest` atomically: write to a temp file in the same directory,
+/// then rename into place. Avoids a truncated `dest` on crash mid-write.
+fn atomic_write(dest: &Path, data: &[u8]) -> Result<()> {
+    let parent = dest.parent().unwrap_or(Path::new("."));
+    let mut tmp = NamedTempFile::new_in(parent)
+        .with_context(|| format!("creating temp file in {}", parent.display()))?;
+    tmp.write_all(data)
+        .with_context(|| format!("writing temp file for {}", dest.display()))?;
+    tmp.persist(dest)
+        .with_context(|| format!("renaming temp file to {}", dest.display()))?;
     Ok(())
 }
 
@@ -749,7 +783,10 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "index.auto_recovery" => global.index.auto_recovery = value.parse()?,
         "index.memory_budget_mb" => global.index.memory_budget_mb = value.parse()?,
         "index.tokenizer" => global.index.tokenizer = value.into(),
-        "graph.format" => global.graph.format = value.into(),
+        "graph.format" => {
+            check_enum(key, value, &["mermaid", "dot", "llms", "json"])?;
+            global.graph.format = value.into();
+        }
         "graph.depth" => global.graph.depth = value.parse()?,
         "graph.output" => global.graph.output = value.into(),
         "graph.snapshot" => global.graph.snapshot = value.parse()?,
@@ -768,16 +805,26 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "serve.restart_backoff" => global.serve.restart_backoff = value.parse()?,
         "serve.heartbeat_secs" => global.serve.heartbeat_secs = value.parse()?,
         "serve.acp_max_sessions" => global.serve.acp_max_sessions = value.parse()?,
+        "serve.mcp_max_param_len" => global.serve.mcp_max_param_len = value.parse()?,
         "ingest.auto_commit" => global.ingest.auto_commit = value.parse()?,
         "history.follow" => global.history.follow = value.parse()?,
         "history.default_limit" => global.history.default_limit = value.parse()?,
         "suggest.default_limit" => global.suggest.default_limit = value.parse()?,
         "suggest.min_score" => global.suggest.min_score = value.parse()?,
-        "validation.type_strictness" => global.validation.type_strictness = value.into(),
+        "validation.type_strictness" => {
+            check_enum(key, value, &["strict", "loose"])?;
+            global.validation.type_strictness = value.into();
+        }
         "logging.log_path" => global.logging.log_path = value.into(),
-        "logging.log_rotation" => global.logging.log_rotation = value.into(),
+        "logging.log_rotation" => {
+            check_enum(key, value, &["daily", "hourly", "never"])?;
+            global.logging.log_rotation = value.into();
+        }
         "logging.log_max_files" => global.logging.log_max_files = value.parse()?,
-        "logging.log_format" => global.logging.log_format = value.into(),
+        "logging.log_format" => {
+            check_enum(key, value, &["text", "json"])?;
+            global.logging.log_format = value.into();
+        }
         "watch.debounce_ms" => global.watch.debounce_ms = value.parse()?,
         _ => {
             if let Some(status_key) = search_status_key(key) {
@@ -789,6 +836,17 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
                 anyhow::bail!("unknown key: {key}");
             }
         }
+    }
+    Ok(())
+}
+
+fn check_enum(key: &str, value: &str, allowed: &[&str]) -> Result<()> {
+    if !allowed.contains(&value) {
+        anyhow::bail!(
+            "invalid value {:?} for {key}; allowed: {}",
+            value,
+            allowed.join(", ")
+        );
     }
     Ok(())
 }
@@ -810,7 +868,7 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "defaults.output_format" => resolved.defaults.output_format.clone(),
         "defaults.facets_top_tags" => resolved.defaults.facets_top_tags.to_string(),
         "read.no_frontmatter" => resolved.read.no_frontmatter.to_string(),
-        "index.auto_rebuild" => resolved.index.auto_rebuild.to_string(),
+        "index.auto_rebuild" => global.index.auto_rebuild.to_string(),
         "index.auto_recovery" => global.index.auto_recovery.to_string(),
         "index.memory_budget_mb" => global.index.memory_budget_mb.to_string(),
         "index.tokenizer" => global.index.tokenizer.clone(),
@@ -822,14 +880,15 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "graph.snapshot_format" => resolved.graph.snapshot_format.clone(),
         "graph.structural_algorithms" => resolved.graph.structural_algorithms.to_string(),
         "graph.max_nodes_for_diameter" => resolved.graph.max_nodes_for_diameter.to_string(),
-        "serve.http" => resolved.serve.http.to_string(),
-        "serve.http_port" => resolved.serve.http_port.to_string(),
-        "serve.http_allowed_hosts" => resolved.serve.http_allowed_hosts.join(","),
-        "serve.acp" => resolved.serve.acp.to_string(),
+        "serve.http" => global.serve.http.to_string(),
+        "serve.http_port" => global.serve.http_port.to_string(),
+        "serve.http_allowed_hosts" => global.serve.http_allowed_hosts.join(","),
+        "serve.acp" => global.serve.acp.to_string(),
         "serve.max_restarts" => global.serve.max_restarts.to_string(),
         "serve.restart_backoff" => global.serve.restart_backoff.to_string(),
         "serve.heartbeat_secs" => global.serve.heartbeat_secs.to_string(),
         "serve.acp_max_sessions" => global.serve.acp_max_sessions.to_string(),
+        "serve.mcp_max_param_len" => global.serve.mcp_max_param_len.to_string(),
         "validation.type_strictness" => resolved.validation.type_strictness.clone(),
         "logging.log_path" => global.logging.log_path.clone(),
         "logging.log_rotation" => global.logging.log_rotation.clone(),
@@ -936,6 +995,7 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
                 .min_score = value.parse()?;
         }
         "graph.format" => {
+            check_enum(key, value, &["mermaid", "dot", "llms", "json"])?;
             wiki_cfg
                 .graph
                 .get_or_insert_with(GraphConfig::default)
@@ -996,6 +1056,7 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
         | "serve.restart_backoff"
         | "serve.heartbeat_secs"
         | "serve.acp_max_sessions"
+        | "serve.mcp_max_param_len"
         | "logging.log_path"
         | "logging.log_rotation"
         | "logging.log_max_files"
@@ -1020,4 +1081,23 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_wiki_opt_empty_is_none() {
+        let s = GlobalSection::default();
+        assert!(s.default_wiki_opt().is_none());
+    }
+
+    #[test]
+    fn default_wiki_opt_set_is_some() {
+        let s = GlobalSection {
+            default_wiki: "research".to_string(),
+        };
+        assert_eq!(s.default_wiki_opt(), Some("research"));
+    }
 }

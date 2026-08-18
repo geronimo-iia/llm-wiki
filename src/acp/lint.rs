@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -12,6 +13,7 @@ use super::helpers::{
 };
 use super::{Sessions, StepResult, make_tool_id};
 
+/// Execute the lint step: run the requested lint rules and format findings.
 pub fn step_lint(
     cx: &ConnectionTo<Client>,
     manager: &WikiEngine,
@@ -79,6 +81,7 @@ pub fn step_lint(
     }
 }
 
+/// Run the full lint ACP workflow from params to final text response.
 pub fn run_lint(
     cx: &ConnectionTo<Client>,
     manager: &WikiEngine,

@@ -5,7 +5,11 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "llm-wiki",
     version,
-    about = "Git-backed wiki engine with MCP server"
+    about = "Git-backed wiki engine with MCP server",
+    long_about = "Git-backed wiki engine with MCP server.\n\n\
+        Config is loaded from ~/.llm-wiki/config.toml by default.\n\
+        Override with --config <path> or the LLM_WIKI_CONFIG environment variable.\n\n\
+        To start the MCP server: llm-wiki serve --help"
 )]
 pub struct Cli {
     /// The subcommand to execute.
@@ -100,7 +104,7 @@ pub enum Commands {
     },
     /// Generate a concept graph
     Graph {
-        /// Output format: mermaid | dot | llms
+        /// Output format: mermaid | dot | llms | json
         #[arg(long)]
         format: Option<String>,
         /// Subgraph from this node (slug)

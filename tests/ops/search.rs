@@ -1,7 +1,7 @@
 use super::helpers::setup_wiki;
-use llm_wiki::engine::WikiEngine;
-use llm_wiki::git;
-use llm_wiki::ops;
+use llm_wiki_engine::engine::WikiEngine;
+use llm_wiki_engine::git;
+use llm_wiki_engine::ops;
 use std::fs;
 
 // ── Search ────────────────────────────────────────────────────────────────────

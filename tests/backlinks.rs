@@ -1,20 +1,20 @@
 use std::fs;
 use std::path::Path;
 
-use llm_wiki::git;
-use llm_wiki::index_manager::SpaceIndexManager;
-use llm_wiki::index_schema::IndexSchema;
-use llm_wiki::ops::backlinks_query;
-use llm_wiki::space_builder;
-use llm_wiki::type_registry::SpaceTypeRegistry;
+use llm_wiki_engine::git;
+use llm_wiki_engine::index_manager::SpaceIndexManager;
+use llm_wiki_engine::index_schema::IndexSchema;
+use llm_wiki_engine::ops::backlinks_query;
+use llm_wiki_engine::space_builder;
+use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 
 fn schema() -> IndexSchema {
-    let (_registry, schema) = space_builder::build_space_from_embedded("en_stem");
+    let (_registry, schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
     schema
 }
 
 fn registry() -> SpaceTypeRegistry {
-    let (registry, _schema) = space_builder::build_space_from_embedded("en_stem");
+    let (registry, _schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
     registry
 }
 

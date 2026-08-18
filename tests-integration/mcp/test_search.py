@@ -77,3 +77,12 @@ async def test_list_json_type_filter_all_concepts(mcp_env):
     assert isinstance(data["pages"], list)
     assert len(data["pages"]) > 0
     assert all(p["type"] == "concept" for p in data["pages"])
+
+
+async def test_search_colon_query_lenient_fallback(mcp_env):
+    """Regression: parse_query_lenient fallback must not error on field specifiers."""
+    await mcp_env.rebuild()
+    data = await mcp_env.json("wiki_search", {"query": "title:attention", "format": "json"})
+    assert isinstance(data, dict), "expected dict response, got error"
+    assert "results" in data, f"expected 'results' key, got: {data}"
+    assert isinstance(data["results"], list)

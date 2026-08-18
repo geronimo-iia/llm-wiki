@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::sync::atomic::Ordering;
 
 use agent_client_protocol::schema::v1::{SessionId, ToolCallStatus, ToolKind};
@@ -11,6 +12,7 @@ use super::helpers::{
 };
 use super::{Sessions, StepResult, make_tool_id};
 
+/// Execute the ingest step: process an inbox file and move it to the wiki tree.
 pub fn step_ingest(
     cx: &ConnectionTo<Client>,
     manager: &WikiEngine,
@@ -70,6 +72,7 @@ pub fn step_ingest(
     }
 }
 
+/// Run the full ingest ACP workflow from params to final text response.
 pub fn run_ingest(
     cx: &ConnectionTo<Client>,
     manager: &WikiEngine,

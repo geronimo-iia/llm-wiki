@@ -18,29 +18,37 @@ pub fn spaces_create(
     engine: Option<&WikiEngine>,
     wiki_root: Option<&str>,
 ) -> Result<spaces::CreateReport> {
-    let report = spaces::create(
-        path,
-        name,
-        description,
-        force,
-        set_default,
-        config_path,
-        wiki_root,
-    )?;
+    let do_create = || {
+        spaces::create(
+            path,
+            name,
+            description,
+            force,
+            set_default,
+            config_path,
+            wiki_root,
+        )
+    };
+    let report = match engine {
+        Some(e) => e.with_config_lock(do_create)?,
+        None => do_create()?,
+    };
 
     if report.registered
         && let Some(engine) = engine
     {
         let entry = WikiEntry {
             name: name.to_string(),
-            path: report.path.clone(),
+            path: std::path::PathBuf::from(&report.path),
             description: description.map(|s| s.to_string()),
             remote: None,
         };
         // Roll back config entry if mount fails so caller is never left with a
         // registered-but-unmountable wiki.
         if let Err(e) = engine.mount_wiki(&entry) {
-            let _ = spaces::remove(name, false, config_path);
+            let _ = spaces::remove(name, false, config_path).inspect_err(
+                |e| tracing::error!(error = %e, "rollback failed; wiki may be stranded in config"),
+            );
             return Err(e);
         }
         if set_default {
@@ -60,19 +68,25 @@ pub fn spaces_register(
     config_path: &Path,
     engine: Option<&WikiEngine>,
 ) -> Result<spaces::RegisterReport> {
-    let report = spaces::register_existing(path, name, description, wiki_root, config_path)?;
+    let do_register = || spaces::register_existing(path, name, description, wiki_root, config_path);
+    let report = match engine {
+        Some(e) => e.with_config_lock(do_register)?,
+        None => do_register()?,
+    };
 
     if report.registered
         && let Some(engine) = engine
     {
         let entry = WikiEntry {
             name: name.to_string(),
-            path: report.path.clone(),
+            path: std::path::PathBuf::from(&report.path),
             description: description.map(|s| s.to_string()),
             remote: None,
         };
         if let Err(e) = engine.mount_wiki(&entry) {
-            let _ = spaces::remove(name, false, config_path);
+            let _ = spaces::remove(name, false, config_path).inspect_err(
+                |e| tracing::error!(error = %e, "rollback failed; wiki may be stranded in config"),
+            );
             return Err(e);
         }
     }
@@ -96,11 +110,17 @@ pub fn spaces_remove(
     config_path: &Path,
     engine: Option<&WikiEngine>,
 ) -> Result<()> {
-    // Hot reload: unmount before removing from config
-    if let Some(engine) = engine {
-        engine.unmount_wiki(name)?;
+    let do_remove = || {
+        // Hot reload: unmount before removing from config
+        if let Some(engine) = engine {
+            engine.unmount_wiki(name)?;
+        }
+        spaces::remove(name, delete, config_path)
+    };
+    match engine {
+        Some(e) => e.with_config_lock(do_remove),
+        None => do_remove(),
     }
-    spaces::remove(name, delete, config_path)
 }
 
 /// Set the default wiki in config and update the running engine.
@@ -109,11 +129,16 @@ pub fn spaces_set_default(
     config_path: &Path,
     engine: Option<&WikiEngine>,
 ) -> Result<()> {
-    spaces::set_default_wiki(name, config_path)?;
-
-    // Hot reload: update default in the running engine
-    if let Some(engine) = engine {
-        engine.set_default(name)?;
+    let do_set_default = || {
+        // Validate and update in-memory engine first — if the wiki is not mounted
+        // this returns an error before touching disk, keeping config and engine in sync.
+        if let Some(engine) = engine {
+            engine.set_default(name)?;
+        }
+        spaces::set_default_wiki(name, config_path)
+    };
+    match engine {
+        Some(e) => e.with_config_lock(do_set_default),
+        None => do_set_default(),
     }
-    Ok(())
 }

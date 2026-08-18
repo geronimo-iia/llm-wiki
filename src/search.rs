@@ -1,3 +1,4 @@
+#![allow(unreachable_pub)]
 use std::cmp::Reverse;
 use std::collections::HashMap;
 
@@ -19,8 +20,8 @@ use crate::index_schema::IndexSchema;
 /// A single search result with BM25 score and optional highlighted excerpt.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageRef {
-    /// Page slug (repository-relative path without extension).
-    pub slug: String,
+    /// Page slug, normalized (lowercased).
+    pub slug: crate::slug::NormalizedSlug,
     /// Fully-qualified `wiki://` URI for the page.
     pub uri: String,
     /// Page title from frontmatter.
@@ -40,8 +41,8 @@ pub struct PageRef {
 /// Lightweight page metadata returned by listing operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageSummary {
-    /// Page slug.
-    pub slug: String,
+    /// Page slug, normalized (lowercased).
+    pub slug: crate::slug::NormalizedSlug,
     /// Fully-qualified `wiki://` URI.
     pub uri: String,
     /// Page title from frontmatter.
@@ -187,6 +188,10 @@ pub fn search(
         query_fields.insert(1, f);
     }
     let query_parser = QueryParser::for_index(index, query_fields);
+    // Lenient fallback: queries containing colons or field specifiers (e.g. "title:foo")
+    // are rejected by the strict parser. The lenient parser silently discards invalid
+    // tokens and returns the rest of the query rather than failing the search call.
+    // Pinned by: src/search.rs tests::colon_query_uses_lenient_fallback.
     let parsed = query_parser
         .parse_query(query_str)
         .unwrap_or_else(|_| query_parser.parse_query_lenient(query_str).0);
@@ -267,11 +272,14 @@ pub fn search(
     for (score, doc_addr) in top_docs {
         let doc: tantivy::TantivyDocument = searcher.doc(doc_addr)?;
 
-        let slug = doc
-            .get_first(f_slug)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+        // Slug stored in the Tantivy index was written via Slug::normalize() at
+        // index time, so the value is already lowercase-validated. Skip re-normalization.
+        let slug = crate::slug::NormalizedSlug::from_normalized(
+            doc.get_first(f_slug)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+        );
         let title = doc
             .get_first(f_title)
             .and_then(|v| v.as_str())
@@ -307,7 +315,7 @@ pub fn search(
     }
 
     // Facets: type is unfiltered, status and tags are filtered
-    // Re-parse query for the unfiltered facet query
+    // Re-parse query for the unfiltered facet query (same lenient fallback as above).
     let unfiltered_query: Box<dyn tantivy::query::Query> = {
         let parsed2 = query_parser
             .parse_query(query_str)
@@ -435,11 +443,13 @@ pub fn list(
     for (_slug_val, doc_addr) in window {
         let doc: tantivy::TantivyDocument = searcher.doc(*doc_addr)?;
 
-        let slug = doc
-            .get_first(f_slug)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+        // See comment above: Tantivy index stores pre-normalized slugs.
+        let slug = crate::slug::NormalizedSlug::from_normalized(
+            doc.get_first(f_slug)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+        );
         let title = doc
             .get_first(f_title)
             .and_then(|v| v.as_str())
@@ -661,4 +671,79 @@ pub fn render_search_llms(result: &SearchResult) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use tantivy::Index;
+    use tantivy::query::QueryParser;
+    use tantivy::schema::{SchemaBuilder, TEXT};
+
+    /// `parse_query` fails on bare field specifiers like `title:attention` when
+    /// `title` is not a registered query field. `parse_query_lenient` must
+    /// succeed and return a usable query rather than propagating the error.
+    #[test]
+    fn parse_query_lenient_fallback_on_field_specifier() {
+        let mut builder = SchemaBuilder::new();
+        let body = builder.add_text_field("body", TEXT);
+        let schema = builder.build();
+        let index = Index::create_in_ram(schema);
+        let parser = QueryParser::for_index(&index, vec![body]);
+
+        // `title:attention` fails strict parse (title not in query fields)
+        assert!(parser.parse_query("title:attention").is_err());
+        // lenient parse must succeed
+        let (query, _errors) = parser.parse_query_lenient("title:attention");
+        // the returned query must be usable (searcher.search won't panic)
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let count = searcher.search(&query, &tantivy::collector::Count).unwrap();
+        assert_eq!(count, 0); // empty index — just verifying no panic
+    }
+
+    /// Type-filter query: indexing two docs with different types and filtering on one
+    /// must return only the matching doc. Mirrors the BooleanQuery + TermQuery path
+    /// in the production `search()` function.
+    #[test]
+    fn type_filter_excludes_non_matching_type() {
+        use tantivy::doc;
+        use tantivy::query::{BooleanQuery, Occur, TermQuery};
+        use tantivy::schema::{IndexRecordOption, STRING, SchemaBuilder, TEXT};
+        use tantivy::{Index, Term};
+
+        let mut builder = SchemaBuilder::new();
+        let f_body = builder.add_text_field("body", TEXT);
+        let f_type = builder.add_text_field("type", STRING);
+        let schema = builder.build();
+        let index = Index::create_in_ram(schema.clone());
+
+        let mut writer = index.writer(15_000_000).unwrap();
+        writer
+            .add_document(doc!(f_body => "attention mechanism", f_type => "concept"))
+            .unwrap();
+        writer
+            .add_document(doc!(f_body => "mixtral paper", f_type => "source"))
+            .unwrap();
+        writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let parser = QueryParser::for_index(&index, vec![f_body]);
+        let base = parser.parse_query("attention").unwrap();
+
+        // Filter: type must be "concept"
+        let type_term = Term::from_field_text(f_type, "concept");
+        let filtered = BooleanQuery::new(vec![
+            (Occur::Must, base),
+            (
+                Occur::Must,
+                Box::new(TermQuery::new(type_term, IndexRecordOption::Basic)),
+            ),
+        ]);
+
+        let count = searcher
+            .search(&filtered, &tantivy::collector::Count)
+            .unwrap();
+        assert_eq!(count, 1, "type filter must return only the concept doc");
+    }
 }
