@@ -237,7 +237,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_index_status",
-            "Inspect index health",
+            "Return detailed health for the search index of one wiki — reports openable, queryable, stale, and degraded_reason. Call this when wiki_info shows index_status: \"degraded\" to identify the specific failure.",
             schema(
                 json!({
                     "wiki": opt_str("Target wiki name"),
