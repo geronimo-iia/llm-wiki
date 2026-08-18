@@ -253,6 +253,8 @@ fn louvain_phase1(
     let mut moved = false;
     let max_passes = sorted_nodes.len().max(10) * 10;
     let mut pass = 0;
+    // Hoisted outside the loop so the heap allocation is reused across passes.
+    let mut sigma_tot: HashMap<usize, f64> = HashMap::new();
 
     loop {
         if pass >= max_passes {
@@ -264,7 +266,7 @@ fn louvain_phase1(
         // Precompute sigma_tot once per pass — O(N) instead of O(N) per node.
         // sigma_tot[c] = sum of degrees of all nodes currently in community c.
         // Incremental updates keep it accurate after each move within the pass.
-        let mut sigma_tot: HashMap<usize, f64> = HashMap::new();
+        sigma_tot.clear();
         for (&n2, &c2) in community.iter() {
             let d = *degrees.get(&n2).unwrap_or(&0) as f64;
             *sigma_tot.entry(c2).or_default() += d;
