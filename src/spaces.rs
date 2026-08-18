@@ -173,7 +173,8 @@ pub fn register_existing(
         if toml_path.exists() {
             let raw = std::fs::read_to_string(&toml_path)?;
             if raw.contains("wiki_root") {
-                let cfg: crate::config::WikiConfig = toml::from_str(&raw).unwrap_or_default();
+                let cfg: crate::config::WikiConfig = toml::from_str(&raw)
+                    .with_context(|| format!("failed to parse wiki.toml at {}", toml_path.display()))?;
                 Some(cfg.wiki_root.to_string_lossy().into_owned())
             } else {
                 None
