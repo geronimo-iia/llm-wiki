@@ -141,6 +141,7 @@ Decisions made during ACP workflow expansion and transport stabilization.
 | Decision | Summary |
 | -------- | ------- |
 | [config-crate](backlog/config-crate.md) | Reject `config` crate — current TOML loading sufficient; revisit if env-var overrides needed at scale |
+| [replace-serde-yaml](backlog/replace-serde-yaml.md) | Migrate off abandoned `serde_yaml 0.9` — blocked: `saphyr-serde v0.0.0` is a stub, `serde_yaml2` serializer output format is broken; revisit when `saphyr-serde >= 0.1.0` ships |
 
 ---
 
