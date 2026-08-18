@@ -205,11 +205,7 @@ pub fn handle_content_write(server: &McpServer, args: &Map<String, Value>) -> To
 
     let result =
         ops::content_write(&engine, &uri, wiki_flag.as_deref(), &content).map_err(redact_error)?;
-    ok_text(format!(
-        "Wrote {} bytes to {}",
-        result.bytes_written,
-        result.path.display()
-    ))
+    ok_text(format!("Wrote {} bytes to {}", result.bytes_written, uri))
 }
 
 /// Handle `wiki_content_new` — create a new page or section with scaffolded frontmatter.
