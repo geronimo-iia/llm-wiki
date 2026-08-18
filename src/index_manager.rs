@@ -45,6 +45,10 @@ pub struct UpdateReport {
 }
 
 /// Current health snapshot of a wiki's search index.
+///
+/// Healthy when `openable = true`, `queryable = true`, and `stale = false`.
+/// Any failing condition sets `degraded_reason`; priority order: openable →
+/// queryable → stale (a non-openable index is also non-queryable by definition).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexStatus {
     /// Wiki name.
