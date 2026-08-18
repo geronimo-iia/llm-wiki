@@ -299,7 +299,11 @@ impl WikiEngine {
         f()
     }
 
-    /// Update the default wiki. The wiki must be mounted.
+    /// Update the in-memory default wiki. The wiki must be mounted.
+    ///
+    /// Intentionally in-memory only — callers that need disk persistence must also call
+    /// `spaces::set_default_wiki()`. `ops::spaces_set_default()` does both atomically
+    /// under `with_config_lock`; do not call this directly from handlers.
     pub fn set_default(&self, name: &str) -> Result<()> {
         let mut engine = self
             .state
