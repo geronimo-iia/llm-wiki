@@ -282,6 +282,40 @@ fn content_read_works_with_custom_wiki_root() {
 }
 
 #[test]
+fn auto_recovery_false_leaves_index_unavailable_after_corruption() {
+    let dir = tempfile::tempdir().unwrap();
+    let (config_path, _) = setup_wiki(dir.path(), "test");
+
+    // First build — index is healthy.
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let idx_path = manager.state.read().unwrap().index_path_for("test");
+    drop(manager);
+
+    // Corrupt every file in the search-index directory.
+    let search_dir = idx_path.join("search-index");
+    for entry in fs::read_dir(&search_dir).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_type().unwrap().is_file() {
+            fs::write(entry.path(), b"corrupted").unwrap();
+        }
+    }
+
+    // Disable auto-recovery in config.
+    let mut cfg = llm_wiki::config::load_global(&config_path).unwrap();
+    cfg.index.auto_recovery = false;
+    llm_wiki::config::save_global(&cfg, &config_path).unwrap();
+
+    // Remount — open() should NOT rebuild; searcher must be unavailable.
+    let manager2 = WikiEngine::build(&config_path).unwrap();
+    let engine = manager2.state.read().unwrap();
+    let space = engine.space("test").unwrap();
+    assert!(
+        space.index_manager.searcher().is_err(),
+        "searcher must be unavailable when auto_recovery = false and index is corrupt"
+    );
+}
+
+#[test]
 fn set_default_updates_engine_and_disk_atomically() {
     let dir = tempfile::tempdir().unwrap();
     let (config_path, _) = setup_wiki(dir.path(), "alpha");
