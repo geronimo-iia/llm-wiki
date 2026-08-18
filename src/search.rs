@@ -665,3 +665,32 @@ pub fn render_search_llms(result: &SearchResult) -> String {
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use tantivy::Index;
+    use tantivy::query::QueryParser;
+    use tantivy::schema::{SchemaBuilder, TEXT};
+
+    /// `parse_query` fails on bare field specifiers like `title:attention` when
+    /// `title` is not a registered query field. `parse_query_lenient` must
+    /// succeed and return a usable query rather than propagating the error.
+    #[test]
+    fn parse_query_lenient_fallback_on_field_specifier() {
+        let mut builder = SchemaBuilder::new();
+        let body = builder.add_text_field("body", TEXT);
+        let schema = builder.build();
+        let index = Index::create_in_ram(schema);
+        let parser = QueryParser::for_index(&index, vec![body]);
+
+        // `title:attention` fails strict parse (title not in query fields)
+        assert!(parser.parse_query("title:attention").is_err());
+        // lenient parse must succeed
+        let (query, _errors) = parser.parse_query_lenient("title:attention");
+        // the returned query must be usable (searcher.search won't panic)
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let count = searcher.search(&query, &tantivy::collector::Count).unwrap();
+        assert_eq!(count, 0); // empty index — just verifying no panic
+    }
+}
