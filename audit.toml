@@ -2,8 +2,6 @@
 
 [advisories]
 ignore = [
-    # boxfnonce unmaintained — transitive via agent-client-protocol 0.11
-    "RUSTSEC-2019-0040",
     # lru unsound (use-after-free in LruCache::pop) — transitive via tantivy ^0.16.3;
     # tantivy 0.26.1 is latest and still pins lru ^0.16. Unblocks when tantivy bumps lru.
     "RUSTSEC-2026-0253",
