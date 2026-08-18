@@ -1464,4 +1464,43 @@ mod tests {
             "cluster A and cluster B must be in different communities"
         );
     }
+
+    /// 8-node cycle: 0-1-2-3-4-5-6-7-0.
+    /// Symmetric topology is oscillation-prone without incremental sigma_tot updates.
+    /// The cycle has multiple valid local optima, so independent runs may produce different
+    /// valid partitions — that is not oscillation. The oscillation regression is:
+    ///   after phase1 reaches a local optimum, a second pass must make zero moves.
+    /// Without the sigma_tot incremental update, the algorithm keeps accepting moves
+    /// that were only beneficial due to stale sigma_tot, and never stabilises.
+    #[test]
+    fn test_louvain_converges_no_oscillation() {
+        use petgraph::graph::NodeIndex;
+        use std::collections::{HashMap, HashSet};
+
+        let n = 8usize;
+        let make = |i: usize| NodeIndex::new(i);
+
+        let mut adj: HashMap<NodeIndex, HashSet<NodeIndex>> = HashMap::new();
+        let mut degrees: HashMap<NodeIndex, usize> = HashMap::new();
+        for i in 0..n {
+            connect(&mut adj, &mut degrees, make(i), make((i + 1) % n));
+        }
+        for i in 0..n {
+            adj.entry(make(i)).or_default();
+            degrees.entry(make(i)).or_insert(0);
+        }
+        let m: usize = degrees.values().sum::<usize>() / 2;
+
+        // Run 12 times; each run must converge (second pass makes no moves).
+        for run in 0..12 {
+            let mut community: HashMap<NodeIndex, usize> =
+                (0..n).map(|i| (make(i), i)).collect();
+            louvain_phase1(&adj, &mut community, &degrees, m);
+            let moved = louvain_phase1(&adj, &mut community, &degrees, m);
+            assert!(
+                !moved,
+                "run {run}: second louvain_phase1 pass on a converged partition should make no moves — oscillation detected"
+            );
+        }
+    }
 }
