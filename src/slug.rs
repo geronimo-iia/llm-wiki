@@ -127,7 +127,10 @@ impl NormalizedSlug {
     /// Wrap a string that is already known to be normalized.
     /// For internal crate use only — bypasses the normalization step.
     pub(crate) fn from_normalized(s: String) -> Self {
-        debug_assert!(s == s.to_lowercase(), "from_normalized called with non-normalized input: {s:?}");
+        debug_assert!(
+            s == s.to_lowercase(),
+            "from_normalized called with non-normalized input: {s:?}"
+        );
         NormalizedSlug(s)
     }
 
@@ -293,6 +296,23 @@ pub fn resolve_read_target(input: &str, wiki_root: &Path) -> Result<ReadTarget> 
     bail!("page not found: {input}")
 }
 
+fn title_case(segment: &str) -> String {
+    segment
+        .split('-')
+        .map(|w| {
+            let mut c = w.chars();
+            match c.next() {
+                None => String::new(),
+                Some(first) => {
+                    let upper: String = first.to_uppercase().collect();
+                    upper + c.as_str()
+                }
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -392,21 +412,4 @@ mod tests {
         let s = NormalizedSlug::from_normalized("concepts/moe".to_string());
         assert_eq!(s.as_str(), "concepts/moe");
     }
-}
-
-fn title_case(segment: &str) -> String {
-    segment
-        .split('-')
-        .map(|w| {
-            let mut c = w.chars();
-            match c.next() {
-                None => String::new(),
-                Some(first) => {
-                    let upper: String = first.to_uppercase().collect();
-                    upper + c.as_str()
-                }
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
 }

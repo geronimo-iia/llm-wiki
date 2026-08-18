@@ -387,7 +387,7 @@ fn normalized_slug_ne_uppercase_str() {
 #[test]
 fn normalized_slug_eq_string_type() {
     let norm = Slug::try_from("concepts/moe").unwrap().normalize();
-    assert!(norm == String::from("concepts/moe"));
+    assert!(norm == "concepts/moe");
 }
 
 #[test]

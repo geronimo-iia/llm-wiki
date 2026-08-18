@@ -196,8 +196,14 @@ pub fn compute_metrics(graph: &WikiGraph) -> GraphMetrics {
     let orphans = graph
         .node_indices()
         .filter(|&idx| {
-            graph.neighbors_directed(idx, Direction::Incoming).next().is_none()
-                && graph.neighbors_directed(idx, Direction::Outgoing).next().is_none()
+            graph
+                .neighbors_directed(idx, Direction::Incoming)
+                .next()
+                .is_none()
+                && graph
+                    .neighbors_directed(idx, Direction::Outgoing)
+                    .next()
+                    .is_none()
         })
         .count();
 
@@ -659,7 +665,7 @@ pub fn build_graph_cross_wiki(
     for (wiki_name, g) in &per_wiki {
         for edge_idx in g.edge_indices() {
             // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
-            let (from, to) = endpoints(&g, edge_idx);
+            let (from, to) = endpoints(g, edge_idx);
             let from_node = &g[from];
             let to_node = &g[to];
 
@@ -881,8 +887,14 @@ pub fn render_llms(graph: &WikiGraph) -> String {
     let isolated: Vec<String> = graph
         .node_indices()
         .filter(|&idx| {
-            graph.neighbors_directed(idx, Direction::Incoming).next().is_none()
-                && graph.neighbors_directed(idx, Direction::Outgoing).next().is_none()
+            graph
+                .neighbors_directed(idx, Direction::Incoming)
+                .next()
+                .is_none()
+                && graph
+                    .neighbors_directed(idx, Direction::Outgoing)
+                    .next()
+                    .is_none()
         })
         .map(|idx| graph[idx].title.clone())
         .collect();

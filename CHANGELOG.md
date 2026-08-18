@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [1.0.0]
+
 ### Added
 
 - **`wiki_graph` JSON format** — `format: "json"` (MCP) / `--format json` (CLI) emits
@@ -29,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MCP slug validation** — `slug` arguments in `wiki_history` and `wiki_suggest` are
   now validated through `Slug::try_from` before reaching the ops layer, rejecting
   `..` components, hidden path segments, and invalid characters.
+- **`wiki_content_write` content size cap** — requests with a `content` argument
+  exceeding 10 MB (10 485 760 bytes) are rejected before any filesystem write with a
+  clear error including the actual byte count.
 - **`redact_error` covers tilde-prefixed paths** — the path-scrubbing regex previously
   matched only absolute paths starting with `/`; `~/wikis/foo` and `~user/repo` would
   pass through unredacted. Extended to also match `~[…]{2,}`, so tilde-expanded paths
@@ -56,7 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Stable public API surface (Phase 5)** — `lib.rs` now re-exports the five primary
+- **Stable public API surface** — `lib.rs` now re-exports the five primary
   types (`WikiEngine`, `GlobalConfig`, `SearchResult`, `IngestReport`, `WikiGraph`) at
   the crate root. Internal helpers are `pub(crate)`. `#![warn(unreachable_pub)]` enabled
   crate-wide to keep the boundary stable going forward.
@@ -134,6 +140,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Stale-dir removal error context includes path** — the two `.context("…")` sites in
   `index_manager.rs` that remove stale directories now use `.with_context(|| format!("…
   at {}", dir.display()))` so the failing path is visible in the error chain.
+- **`wiki_content_read` error context includes wiki and slug** — all four I/O failure
+  sites in `ops/content.rs` (`list_assets`, `resolve_read_target`, `read_page`,
+  `read_asset`) now attach `wiki=<name> slug=<slug>` via `.with_context()` so the
+  error chain identifies which wiki and page triggered the failure.
+- **Engine mount-loop failures aggregated** — `WikiEngine::new()` now counts per-wiki
+  mount failures during startup and emits a single `tracing::warn!` summary
+  (`failed_to_mount_count={N}`) after the loop; previously each failure was logged
+  individually with no summary visible at startup.
+- **`wiki_search` "index not open" error includes rebuild hint** — errors emitted when
+  the index is unavailable now append `"; run wiki_index_rebuild to recover"` so
+  operators and LLM clients know the next action.
+- **`wiki_index_rebuild` logs rebuild completion** — successful rebuilds emit
+  `tracing::info!(wiki, pages, duration_ms, "index rebuild completed")` for operational
+  observability; previously the operation was silent on success.
+- **`wiki_content_commit` "nothing to commit" includes ingest hint** — the response now
+  reads `"nothing to commit; run wiki_ingest first if you have unsaved changes"`.
+- **ACP session-limit error includes config key** — `NewSession` rejection message now
+  reads `"Session limit reached (max: N); increase with \`wiki_config set
+  serve.acp_max_sessions <n>\`"` so operators can act without consulting documentation.
 
 ### Performance
 
@@ -178,6 +203,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   changing the commit hash and must still invalidate downstream graph caches.
   Extended the `generation()` doc comment in `index_manager.rs` with the same
   rationale.
+- **`engine::set_default()` intentional scope clarified** — doc comment now explicitly
+  states the method is in-memory only by design and documents that callers requiring
+  disk persistence must use `ops::spaces_set_default()`, which coordinates both layers
+  under `with_config_lock`.
 
 ### Tests
 
@@ -200,6 +229,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     counter (`tests/graph_snapshot.rs`).
   - `redact_error`: absolute paths, multiple paths, short paths, and tilde paths
     (`src/mcp/handlers.rs`).
+- **MCP handler unit tests** — `tests/handlers.rs` (new file): 20 tests covering
+  required-param validation for all 17 handlers with required parameters, 10 MB content
+  cap rejection and within-limit acceptance for `wiki_content_write`, and a search
+  error smoke test for the rebuild-hint path.
 
 
 ## [0.5.9] — 2026-08-17

@@ -26,49 +26,6 @@ fn redact_error(e: impl std::fmt::Display) -> String {
     PATH_RE.replace_all(&format!("{e}"), "<path>").into_owned()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::redact_error;
-
-    #[test]
-    fn redact_absolute_path_in_error() {
-        let msg = "failed to open /home/user/wikis/my-wiki/state.toml: No such file";
-        assert_eq!(redact_error(msg), "failed to open <path>: No such file");
-    }
-
-    #[test]
-    fn redact_multiple_paths() {
-        let msg = "copy /tmp/build/a.idx to /var/data/b.idx failed";
-        assert_eq!(redact_error(msg), "copy <path> to <path> failed");
-    }
-
-    #[test]
-    fn path_free_message_unchanged() {
-        let msg = "permission denied";
-        assert_eq!(redact_error(msg), "permission denied");
-    }
-
-    #[test]
-    fn very_short_path_not_redacted() {
-        // regex requires 3+ chars after the leading slash
-        let msg = "error at /ab";
-        assert_eq!(redact_error(msg), "error at /ab");
-    }
-
-    #[test]
-    fn tilde_path_fully_redacted() {
-        // ~/... paths are matched by the ~[...]{2,} alternative — full redaction.
-        let msg = "config not found at ~/.config/llm-wiki/config.toml";
-        assert_eq!(redact_error(msg), "config not found at <path>");
-    }
-
-    #[test]
-    fn tilde_user_path_redacted() {
-        let msg = "open ~user/wikis/foo failed";
-        assert_eq!(redact_error(msg), "open <path> failed");
-    }
-}
-
 // ── Spaces ────────────────────────────────────────────────────────────────────
 
 /// Handle `wiki_spaces_create` — create a new wiki repository and register it.
@@ -705,4 +662,47 @@ pub fn handle_info(server: &McpServer, _args: &Map<String, Value>) -> ToolHandle
         "index_status": if all_ok { Value::String("ok".into()) } else { Value::Object(index_status) },
     });
     ok_text(serde_json::to_string_pretty(&info).map_err(redact_error)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::redact_error;
+
+    #[test]
+    fn redact_absolute_path_in_error() {
+        let msg = "failed to open /home/user/wikis/my-wiki/state.toml: No such file";
+        assert_eq!(redact_error(msg), "failed to open <path>: No such file");
+    }
+
+    #[test]
+    fn redact_multiple_paths() {
+        let msg = "copy /tmp/build/a.idx to /var/data/b.idx failed";
+        assert_eq!(redact_error(msg), "copy <path> to <path> failed");
+    }
+
+    #[test]
+    fn path_free_message_unchanged() {
+        let msg = "permission denied";
+        assert_eq!(redact_error(msg), "permission denied");
+    }
+
+    #[test]
+    fn very_short_path_not_redacted() {
+        // regex requires 3+ chars after the leading slash
+        let msg = "error at /ab";
+        assert_eq!(redact_error(msg), "error at /ab");
+    }
+
+    #[test]
+    fn tilde_path_fully_redacted() {
+        // ~/... paths are matched by the ~[...]{2,} alternative — full redaction.
+        let msg = "config not found at ~/.config/llm-wiki/config.toml";
+        assert_eq!(redact_error(msg), "config not found at <path>");
+    }
+
+    #[test]
+    fn tilde_user_path_redacted() {
+        let msg = "open ~user/wikis/foo failed";
+        assert_eq!(redact_error(msg), "open <path> failed");
+    }
 }
