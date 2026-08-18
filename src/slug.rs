@@ -127,6 +127,7 @@ impl NormalizedSlug {
     /// Wrap a string that is already known to be normalized.
     /// For internal crate use only — bypasses the normalization step.
     pub(crate) fn from_normalized(s: String) -> Self {
+        debug_assert!(s == s.to_lowercase(), "from_normalized called with non-normalized input: {s:?}");
         NormalizedSlug(s)
     }
 
