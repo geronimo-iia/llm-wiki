@@ -383,15 +383,21 @@ impl SpaceIndexManager {
                 error = %e,
                 "reload_reader failed after index swap — rolling back"
             );
+            // Step 1: move broken new index out of live_dir back to build_dir.
+            // If this fails, live_dir still holds the broken index; in-process
+            // reader keeps serving the old data via its open file descriptors.
+            // On next process start, open() with recovery=Some(...) will auto-rebuild.
             let r1 = std::fs::rename(&live_dir, &build_dir);
             if let Err(e2) = &r1 {
-                tracing::error!(error = %e2, "rollback step 1 failed — index unavailable, manual intervention required");
+                tracing::error!(error = %e2, "rollback step 1 failed — live index broken on disk; restart will auto-rebuild");
             }
-            // backup_dir only exists when there was a prior live_dir (not first build)
+            // Step 2: restore old index from backup. Only exists when there was a prior
+            // live_dir (not first build). If step 1 failed, live_dir is non-empty so
+            // this rename will also fail with ENOTEMPTY — both errors are logged.
             if backup_dir.exists() {
                 let r2 = std::fs::rename(&backup_dir, &live_dir);
                 if let Err(e2) = &r2 {
-                    tracing::error!(error = %e2, "rollback step 2 failed — index unavailable, manual intervention required");
+                    tracing::error!(error = %e2, "rollback step 2 failed — live index broken on disk; restart will auto-rebuild");
                 }
             }
             let _ = std::fs::remove_dir_all(&build_dir);
