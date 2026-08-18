@@ -75,7 +75,7 @@ References:
 | `wiki_search` | Full-text BM25 search with optional `--type` filter |
 | `wiki_list` | Paginated page listing with type/status filters |
 | `wiki_ingest` | Validate frontmatter + update index + commit |
-| `wiki_graph` | Generate concept graph (Mermaid/DOT) |
+| `wiki_graph` | Generate concept graph (Mermaid/DOT/LLMs/JSON) |
 | `wiki_history` | Git commit history for a page |
 | `wiki_info` | Server status — version, config path, spaces, and per-wiki index health |
 | `wiki_stats` | Wiki health dashboard |

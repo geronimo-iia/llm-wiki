@@ -1362,13 +1362,26 @@ mod tests {
             r#type: "concept".into(),
             external: false,
         });
-        g.add_edge(a, b, LabeledEdge { relation: "links-to".into() });
+        g.add_edge(
+            a,
+            b,
+            LabeledEdge {
+                relation: "links-to".into(),
+            },
+        );
 
         let json_str = render_json(&g);
-        let v: Value = serde_json::from_str(&json_str).expect("render_json must produce valid JSON");
+        let v: Value =
+            serde_json::from_str(&json_str).expect("render_json must produce valid JSON");
 
-        assert!(v.get("nodes").and_then(|n| n.as_array()).is_some(), "must have nodes array");
-        assert!(v.get("edges").and_then(|e| e.as_array()).is_some(), "must have edges array");
+        assert!(
+            v.get("nodes").and_then(|n| n.as_array()).is_some(),
+            "must have nodes array"
+        );
+        assert!(
+            v.get("edges").and_then(|e| e.as_array()).is_some(),
+            "must have edges array"
+        );
         assert!(v.get("metrics").is_some(), "must have metrics object");
         assert!(v.get("communities").is_some(), "must have communities key");
 
