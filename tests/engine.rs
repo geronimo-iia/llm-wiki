@@ -280,3 +280,33 @@ fn content_read_works_with_custom_wiki_root() {
         _ => panic!("expected Page result"),
     }
 }
+
+#[test]
+fn set_default_updates_engine_and_disk_atomically() {
+    let dir = tempfile::tempdir().unwrap();
+    let (config_path, _) = setup_wiki(dir.path(), "alpha");
+
+    // Register a second wiki so switching default is meaningful.
+    let beta_path = dir.path().join("beta");
+    llm_wiki::spaces::create(&beta_path, "beta", None, false, false, &config_path, None).unwrap();
+
+    let manager = WikiEngine::build(&config_path).unwrap();
+
+    // Precondition: alpha is default.
+    assert_eq!(
+        manager.state.read().unwrap().default_wiki_name(),
+        "alpha"
+    );
+
+    llm_wiki::ops::spaces_set_default("beta", &config_path, Some(&manager)).unwrap();
+
+    // In-memory engine reflects the change immediately — no restart required.
+    assert_eq!(
+        manager.state.read().unwrap().default_wiki_name(),
+        "beta"
+    );
+
+    // Disk config also reflects the change.
+    let saved = llm_wiki::config::load_global(&config_path).unwrap();
+    assert_eq!(saved.global.default_wiki, "beta");
+}
