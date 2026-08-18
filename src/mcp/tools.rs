@@ -48,7 +48,7 @@ pub fn tool_list() -> Vec<Tool> {
     vec![
         Tool::new(
             "wiki_spaces_create",
-            "Initialize a new wiki repository",
+            "Initialize a new wiki repository."
             schema(
                 json!({
                     "path": str_prop("Path to create the wiki at"),
@@ -63,7 +63,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_spaces_register",
-            "Register an existing wiki repository without creating files",
+            "Register an existing wiki repository without creating files."
             schema(
                 json!({
                     "path": str_prop("Absolute path to the existing wiki repository"),
@@ -76,7 +76,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_spaces_list",
-            "List all registered wiki spaces",
+            "List all registered wiki spaces."
             schema(
                 json!({
                     "name": opt_str("Wiki name (omit for all)"),
@@ -97,7 +97,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_spaces_set_default",
-            "Set the default wiki space",
+            "Set the default wiki space."
             schema(
                 json!({
                     "name": str_prop("Wiki name to set as default"),
@@ -129,7 +129,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_content_read",
-            "Read full content of a page by slug or URI",
+            "Read full content of a page by slug or URI."
             schema(
                 json!({
                     "uri": str_prop("Slug (e.g. \"concepts/attention\") or wiki:// URI (e.g. \"wiki://my-wiki/concepts/attention\")"),
@@ -143,7 +143,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_content_write",
-            "Write content to a page in the wiki tree",
+            "Write content to a page in the wiki tree."
             schema(
                 json!({
                     "uri": str_prop("Slug (e.g. \"concepts/attention\") or wiki:// URI (e.g. \"wiki://my-wiki/concepts/attention\")"),
@@ -155,7 +155,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_content_new",
-            "Create a page or section with scaffolded frontmatter",
+            "Create a page or section with scaffolded frontmatter."
             schema(
                 json!({
                     "uri": str_prop("Slug (e.g. \"concepts/attention\") or wiki:// URI (e.g. \"wiki://my-wiki/concepts/attention\")"),
@@ -170,7 +170,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_content_commit",
-            "Commit pending changes to git",
+            "Commit pending changes to git."
             schema(
                 json!({
                     "slugs": opt_str("Comma-separated page slugs to commit (omit for all)"),
@@ -182,7 +182,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_search",
-            "Full-text BM25 search, returns ranked results",
+            "Full-text BM25 search, returns ranked results."
             schema(
                 json!({
                     "query": str_prop("Search query. Supports BM25 full-text, phrase quoting (\"exact phrase\"), field filters (title:\"foo\"), and type shorthand (type:concept)."),
@@ -199,7 +199,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_list",
-            "Paginated page listing with filters",
+            "Paginated page listing with filters."
             schema(
                 json!({
                     "type": opt_str("Filter by frontmatter type"),
@@ -214,7 +214,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_ingest",
-            "Validate, commit, and index files in the wiki tree",
+            "Validate, commit, and index files in the wiki tree."
             schema(
                 json!({
                     "path": str_prop("File or folder path, relative to wiki root"),
@@ -227,7 +227,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_index_rebuild",
-            "Rebuild the tantivy search index",
+            "Rebuild the tantivy search index."
             schema(
                 json!({
                     "wiki": opt_str("Target wiki name"),
@@ -247,7 +247,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_graph",
-            "Generate concept graph, returns GraphReport",
+            "Generate concept graph, returns GraphReport."
             schema(
                 json!({
                     "format": opt_str("Output format: mermaid | dot | llms (default: mermaid)"),
@@ -277,7 +277,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_history",
-            "Git commit history for a page",
+            "Git commit history for a page."
             schema(
                 json!({
                     "slug": str_prop("Slug or wiki:// URI"),
@@ -290,7 +290,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_stats",
-            "Wiki health dashboard — page counts, graph metrics, staleness, structural topology (diameter, radius, center)",
+            "Wiki health dashboard — page counts, graph metrics, staleness, structural topology (diameter, radius, center)."
             schema(
                 json!({
                     "wiki": opt_str("Target wiki name"),
@@ -352,7 +352,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_info",
-            "Return server version, config path, registered spaces, and index health",
+            "Return server version, config path, registered spaces, and index health.",
             schema(json!({}), &[]),
         ),
     ]
