@@ -105,6 +105,34 @@ fn hot_reload_refuse_unmount_default_wiki() {
     );
 }
 
+/// Invariant 4: `spaces_set_default` must not update disk config when the target
+/// wiki is not mounted. The engine validation runs BEFORE the disk write, so a
+/// failure leaves the on-disk config unchanged.
+#[test]
+fn spaces_set_default_fails_and_keeps_disk_config_when_wiki_unmounted() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "alpha");
+
+    let beta_path = dir.path().join("beta");
+    llm_wiki::spaces::create(&beta_path, "beta", None, false, false, &config_path, None).unwrap();
+
+    let manager = WikiEngine::build(&config_path).unwrap();
+
+    // Unmount beta from the engine (it remains in config, but is not mounted)
+    manager.unmount_wiki("beta").unwrap();
+
+    // Attempting set_default("beta") must fail — wiki not mounted in engine
+    let result = ops::spaces_set_default("beta", &config_path, Some(&manager));
+    assert!(result.is_err(), "spaces_set_default must fail when wiki is not mounted");
+
+    // Disk config must still show alpha as default — no partial write
+    let global = llm_wiki::config::load_global(&config_path).unwrap();
+    assert_eq!(
+        global.global.default_wiki, "alpha",
+        "disk config must not be updated after set_default failure"
+    );
+}
+
 #[test]
 fn hot_reload_set_default_updates_engine() {
     let dir = tempfile::tempdir().unwrap();
