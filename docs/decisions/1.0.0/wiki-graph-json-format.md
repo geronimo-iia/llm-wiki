@@ -25,12 +25,6 @@ The handler serializes `GraphReport` directly via `serde_json::to_string_pretty`
 No new types needed. The MCP tool description updates to:
 `"Output format: mermaid | dot | llms | json (default: mermaid)"`.
 
-## Why Post-1.0
-
-- The API surface for `GraphReport` fields is not yet frozen. Adding `json` before
-  stabilizing the struct risks a semver-breaking field rename after 1.0.0.
-- No current consumer (MCP client or CLI user) has requested it.
-- The `llms` format already covers the primary LLM use case.
 
 ## When to implement
 
