@@ -86,7 +86,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_spaces_remove",
-            "Remove a wiki space",
+            "Unregister a wiki space from the config. Pass delete=true to also delete the wiki directory from disk (irreversible).",
             schema(
                 json!({
                     "name": str_prop("Wiki name to remove"),
