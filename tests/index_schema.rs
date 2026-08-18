@@ -10,8 +10,8 @@ fn embedded_schema_fields_are_deterministic() {
     // build_space_from_embedded must produce identical field sets across
     // calls — guards against non-deterministic HashMap iteration in
     // default_schemas().
-    let (_, schema1) = space_builder::build_space_from_embedded("en_stem");
-    let (_, schema2) = space_builder::build_space_from_embedded("en_stem");
+    let (_, schema1) = space_builder::build_space_from_embedded("en_stem").unwrap();
+    let (_, schema2) = space_builder::build_space_from_embedded("en_stem").unwrap();
 
     let mut fields1: Vec<_> = schema1.fields.keys().collect();
     let mut fields2: Vec<_> = schema2.fields.keys().collect();

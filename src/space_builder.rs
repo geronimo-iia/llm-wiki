@@ -28,10 +28,9 @@ pub fn build_space(repo_root: &Path, tokenizer: &str) -> Result<(SpaceTypeRegist
 }
 
 /// Build both from embedded defaults (no disk access).
-pub fn build_space_from_embedded(tokenizer: &str) -> (SpaceTypeRegistry, IndexSchema) {
-    let parsed = parse_from_embedded().expect("embedded schemas are valid");
-    // No wiki.toml overrides for embedded
-    assemble_without_overrides(parsed, tokenizer).expect("embedded schemas are valid")
+pub fn build_space_from_embedded(tokenizer: &str) -> Result<(SpaceTypeRegistry, IndexSchema)> {
+    let parsed = parse_from_embedded()?;
+    assemble_without_overrides(parsed, tokenizer)
 }
 
 // ── Intermediate parsed data ──────────────────────────────────────────────────

@@ -10,7 +10,7 @@ use llm_wiki::type_registry::SpaceTypeRegistry;
 use petgraph_live as _;
 
 fn schema_and_registry() -> (IndexSchema, SpaceTypeRegistry) {
-    let (registry, schema) = space_builder::build_space_from_embedded("en_stem");
+    let (registry, schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
     (schema, registry)
 }
 

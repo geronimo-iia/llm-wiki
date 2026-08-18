@@ -95,16 +95,15 @@ impl SpaceTypeRegistry {
     }
 
     /// Build from embedded default schemas only (no disk access).
-    /// Used when no wiki is mounted or for backward compatibility.
-    pub fn from_embedded() -> Self {
+    pub fn from_embedded() -> Result<Self> {
         let mut types = HashMap::new();
-        discover_from_embedded(&mut types).expect("embedded schemas are valid");
+        discover_from_embedded(&mut types)?;
         let (schema_hash, type_hashes) = compute_hashes(&types);
-        Self {
+        Ok(Self {
             types,
             schema_hash,
             type_hashes,
-        }
+        })
     }
 
     /// Build from pre-constructed parts (used by space_builder).
@@ -234,7 +233,7 @@ impl SpaceTypeRegistry {
 
 impl Default for SpaceTypeRegistry {
     fn default() -> Self {
-        Self::from_embedded()
+        Self::from_embedded().expect("embedded schemas must be valid at compile time")
     }
 }
 

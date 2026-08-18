@@ -9,12 +9,12 @@ use llm_wiki::space_builder;
 use llm_wiki::type_registry::SpaceTypeRegistry;
 
 fn schema() -> IndexSchema {
-    let (_registry, schema) = space_builder::build_space_from_embedded("en_stem");
+    let (_registry, schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
     schema
 }
 
 fn registry() -> SpaceTypeRegistry {
-    let (registry, _schema) = space_builder::build_space_from_embedded("en_stem");
+    let (registry, _schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
     registry
 }
 

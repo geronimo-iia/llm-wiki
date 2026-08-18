@@ -182,7 +182,7 @@ fn ingest_redact_false_leaves_body_unchanged() {
         Path::new("concepts/test.md"),
         &opts,
         &wiki_root,
-        &SpaceTypeRegistry::from_embedded(),
+        &SpaceTypeRegistry::from_embedded().unwrap(),
         &ValidationConfig::default(),
     )
     .unwrap();

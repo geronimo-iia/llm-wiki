@@ -749,7 +749,7 @@ fn config_invalid_tokenizer_name_no_panic() {
     fs::create_dir_all(&wiki_root).unwrap();
 
     // Should not panic
-    let (registry, schema) = space_builder::build_space_from_embedded("nonexistent_tokenizer");
+    let (registry, schema) = space_builder::build_space_from_embedded("nonexistent_tokenizer").unwrap();
     let index_path = dir.path().join("idx");
     let mgr = SpaceIndexManager::new("test", &index_path);
     // Empty wiki — no documents to tokenize, so rebuild succeeds

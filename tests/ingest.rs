@@ -8,7 +8,7 @@ use llm_wiki::ingest::*;
 use llm_wiki::type_registry::SpaceTypeRegistry;
 
 fn registry() -> SpaceTypeRegistry {
-    SpaceTypeRegistry::from_embedded()
+    SpaceTypeRegistry::from_embedded().unwrap()
 }
 
 fn validation() -> ValidationConfig {
