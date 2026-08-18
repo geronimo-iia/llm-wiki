@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use tantivy::{
     Searcher, Term,
@@ -96,23 +96,29 @@ pub fn content_read(
 ) -> Result<ContentReadResult> {
     let (entry, slug) = WikiUri::resolve(uri, wiki_flag, &engine.config)?;
     let wiki_root = engine.space(&entry.name)?.wiki_root.clone();
+    let wiki_name = entry.name.clone();
 
     if list_assets {
-        let assets = markdown::list_assets(&slug, &wiki_root)?;
+        let assets = markdown::list_assets(&slug, &wiki_root)
+            .with_context(|| format!("wiki={wiki_name} slug={slug}"))?;
         return Ok(ContentReadResult::Assets(assets));
     }
 
-    match resolve_read_target(slug.as_str(), &wiki_root)? {
+    match resolve_read_target(slug.as_str(), &wiki_root)
+        .with_context(|| format!("wiki={wiki_name} slug={slug}"))?
+    {
         ReadTarget::Page(_) => {
             let wiki_cfg = config::load_wiki(&entry.path).unwrap_or_default();
             let resolved = config::resolve(&engine.config, &wiki_cfg);
             let strip = no_frontmatter || resolved.read.no_frontmatter;
-            let content = markdown::read_page(&slug, &wiki_root, strip)?;
+            let content = markdown::read_page(&slug, &wiki_root, strip)
+                .with_context(|| format!("wiki={wiki_name} slug={slug}"))?;
             Ok(ContentReadResult::Page(content))
         }
         ReadTarget::Asset(parent_slug, filename) => {
             let parent = Slug::try_from(parent_slug.as_str())?;
-            let bytes = markdown::read_asset(&parent, &filename, &wiki_root)?;
+            let bytes = markdown::read_asset(&parent, &filename, &wiki_root)
+                .with_context(|| format!("wiki={wiki_name} slug={slug}"))?;
             match String::from_utf8(bytes) {
                 Ok(text) => Ok(ContentReadResult::Page(text)),
                 Err(_) => Ok(ContentReadResult::Binary),
