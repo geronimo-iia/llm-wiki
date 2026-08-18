@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Lib target renamed to `llm_wiki_engine`** — the crate's `[lib]` target name now
+  matches the package name `llm-wiki-engine`. Embedders who add the crate via
+  `cargo add llm-wiki-engine` can write `use llm_wiki_engine::…` as expected.
+  The tracing default filter is updated accordingly (`llm_wiki_engine=info,warn`).
+- **`examples/embed.rs`** — minimal library usage example: loads the global config,
+  resolves the default (or `$WIKI`-overridden) wiki, searches, and lists the first page.
+  Run with `WIKI=<name> cargo run --example embed -- "<query>"`.
 - **`wiki_graph` JSON format** — `format: "json"` (MCP) / `--format json` (CLI) emits
   a pretty-printed JSON object with `nodes` (slug, title, type, external), `edges`
   (from, to, relation), `metrics` (nodes, edges, orphans, avg_connections, density),
@@ -117,6 +124,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Correctness
 
+- **`default_wiki_name()` silent empty-string propagation** — `EngineState::default_wiki_name()`
+  now returns `Option<&str>` (`None` when `global.default_wiki` is unset) instead of `""`.
+  `resolve_wiki_name()` returns `Result<&str>` and surfaces a clear error:
+  `"no wiki specified and no default wiki configured — run \`llm-wiki spaces set-default <name>\`"`
+  instead of the confusing `wiki "" is not mounted`.
 - **`is_wiki_md` deleted** — the watcher previously silently dropped all `.md` events
   when `wiki_root` was not named `"wiki"`. The hardcoded `/wiki/` path check is
   replaced by `path.extension() == Some("md")`; the existing `starts_with(wiki_root)`
