@@ -300,7 +300,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_suggest",
-            "Suggest related pages to link",
+            "Suggest related pages to link. Returns ranked slug candidates for link insertion, scored by shared concept overlap with the target page.",
             schema(
                 json!({
                     "slug": str_prop("Slug or wiki:// URI"),
