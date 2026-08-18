@@ -88,6 +88,89 @@ pub struct GraphReport {
     pub output: String,
 }
 
+/// A node in the JSON graph output.
+#[derive(Debug, Serialize)]
+pub struct JsonNode {
+    /// Slug identifying this page within its wiki.
+    pub slug: String,
+    /// Display title.
+    pub title: String,
+    /// Frontmatter type.
+    #[serde(rename = "type")]
+    pub page_type: String,
+    /// True for cross-wiki placeholder nodes not in the local index.
+    pub external: bool,
+}
+
+/// A directed edge in the JSON graph output.
+#[derive(Debug, Serialize)]
+pub struct JsonEdge {
+    /// Slug of the source node.
+    pub from: String,
+    /// Slug of the target node.
+    pub to: String,
+    /// Relation label.
+    pub relation: String,
+}
+
+/// Full machine-readable graph output for `wiki_graph --format json`.
+#[derive(Debug, Serialize)]
+pub struct WikiGraphJson {
+    /// All nodes in the graph.
+    pub nodes: Vec<JsonNode>,
+    /// All directed edges.
+    pub edges: Vec<JsonEdge>,
+    /// Aggregate graph health metrics.
+    pub metrics: GraphMetrics,
+    /// Louvain community assignments: slug → community_id.
+    /// `null` when the graph is too small for community detection (< 3 nodes per community).
+    pub communities: Option<std::collections::HashMap<String, usize>>,
+}
+
+/// Render a wiki graph as pretty-printed JSON.
+///
+/// Produces a `WikiGraphJson` with all nodes, edges, metrics, and community
+/// assignments. Edges reference nodes by slug. Community assignments are
+/// `null` for very small graphs (Louvain requires ≥ 3 nodes per group).
+pub fn render_json(graph: &WikiGraph) -> String {
+    let nodes: Vec<JsonNode> = graph
+        .node_indices()
+        .map(|idx| {
+            let n = &graph[idx];
+            JsonNode {
+                slug: n.slug.clone(),
+                title: n.title.clone(),
+                page_type: n.r#type.clone(),
+                external: n.external,
+            }
+        })
+        .collect();
+
+    let edges: Vec<JsonEdge> = graph
+        .edge_indices()
+        .map(|eidx| {
+            let (src, dst) = endpoints(graph, eidx);
+            JsonEdge {
+                from: graph[src].slug.clone(),
+                to: graph[dst].slug.clone(),
+                relation: graph[eidx].relation.clone(),
+            }
+        })
+        .collect();
+
+    let output = WikiGraphJson {
+        nodes,
+        edges,
+        metrics: compute_metrics(graph),
+        communities: node_community_map(graph, 3),
+    };
+
+    serde_json::to_string_pretty(&output).unwrap_or_else(|e| {
+        tracing::error!(error = %e, "render_json serialization failed");
+        "{}".to_string()
+    })
+}
+
 /// Health metrics computed from a built wiki graph.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphMetrics {
@@ -1261,6 +1344,59 @@ pub fn get_cached_community_stats(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn render_json_output_is_valid_json_with_expected_keys() {
+        use serde_json::Value;
+
+        let mut g = WikiGraph::new();
+        let a = g.add_node(PageNode {
+            slug: "concepts/a".into(),
+            title: "A".into(),
+            r#type: "concept".into(),
+            external: false,
+        });
+        let b = g.add_node(PageNode {
+            slug: "concepts/b".into(),
+            title: "B".into(),
+            r#type: "concept".into(),
+            external: false,
+        });
+        g.add_edge(a, b, LabeledEdge { relation: "links-to".into() });
+
+        let json_str = render_json(&g);
+        let v: Value = serde_json::from_str(&json_str).expect("render_json must produce valid JSON");
+
+        assert!(v.get("nodes").and_then(|n| n.as_array()).is_some(), "must have nodes array");
+        assert!(v.get("edges").and_then(|e| e.as_array()).is_some(), "must have edges array");
+        assert!(v.get("metrics").is_some(), "must have metrics object");
+        assert!(v.get("communities").is_some(), "must have communities key");
+
+        let nodes = v["nodes"].as_array().unwrap();
+        assert_eq!(nodes.len(), 2);
+        assert_eq!(nodes[0]["slug"], "concepts/a");
+        assert_eq!(nodes[0]["type"], "concept");
+        assert_eq!(nodes[0]["external"], false);
+
+        let edges = v["edges"].as_array().unwrap();
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0]["from"], "concepts/a");
+        assert_eq!(edges[0]["to"], "concepts/b");
+        assert_eq!(edges[0]["relation"], "links-to");
+
+        assert_eq!(v["metrics"]["nodes"], 2);
+        assert_eq!(v["metrics"]["edges"], 1);
+    }
+
+    #[test]
+    fn render_json_empty_graph() {
+        let g = WikiGraph::new();
+        let json_str = render_json(&g);
+        let v: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(v["nodes"].as_array().unwrap().len(), 0);
+        assert_eq!(v["edges"].as_array().unwrap().len(), 0);
+        assert_eq!(v["metrics"]["nodes"], 0);
+    }
 
     #[test]
     fn labeled_edge_serializes() {
