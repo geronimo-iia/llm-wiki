@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`wiki_graph` JSON format** — `format: "json"` (MCP) / `--format json` (CLI) emits
+  a pretty-printed JSON object with `nodes` (slug, title, type, external), `edges`
+  (from, to, relation), `metrics` (nodes, edges, orphans, avg_connections, density),
+  and `communities` (slug → community_id map, or `null` for small graphs). No new
+  dependencies — uses `serde_json` already in tree.
+
 ### Security
 
 - **Path traversal in `type_registry.rs` closed** — `SpaceTypeRegistry::build` and
