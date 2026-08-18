@@ -234,11 +234,9 @@ pub fn handle_content_new(server: &McpServer, args: &Map<String, Value>) -> Tool
     )
     .map_err(redact_error)?;
     let s = serde_json::to_string_pretty(&serde_json::json!({
-        "uri":       result.uri,
-        "slug":      result.slug,
-        "path":      result.path,
-        "wiki_root": result.wiki_root,
-        "bundle":    result.bundle,
+        "uri":    result.uri,
+        "slug":   result.slug,
+        "bundle": result.bundle,
     }))
     .map_err(redact_error)?;
     ok_text(s)
