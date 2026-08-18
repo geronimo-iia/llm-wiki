@@ -540,9 +540,16 @@ pub fn build_graph_cross_wiki(
     // Map from "wikiname/slug" -> NodeIndex in merged graph
     let mut global_idx: HashMap<String, NodeIndex> = HashMap::new();
 
+    // Build per-wiki graphs once; reuse in both passes.
+    let per_wiki: Vec<(&str, WikiGraph)> = wikis
+        .iter()
+        .map(|(wiki_name, searcher, is, registry)| {
+            build_graph(searcher, is, filter, registry).map(|g| (*wiki_name, g))
+        })
+        .collect::<Result<_>>()?;
+
     // First: add all local (non-external) nodes from each wiki
-    for (wiki_name, searcher, is, registry) in wikis {
-        let g = build_graph(searcher, is, filter, registry)?;
+    for (wiki_name, g) in &per_wiki {
         for idx in g.node_indices() {
             let node = &g[idx];
             if node.external {
@@ -560,8 +567,7 @@ pub fn build_graph_cross_wiki(
     }
 
     // Second: add edges, re-resolving cross-wiki targets
-    for (wiki_name, searcher, is, registry) in wikis {
-        let g = build_graph(searcher, is, filter, registry)?;
+    for (wiki_name, g) in &per_wiki {
         for edge_idx in g.edge_indices() {
             // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
             let (from, to) = endpoints(&g, edge_idx);
