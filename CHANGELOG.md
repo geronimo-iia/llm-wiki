@@ -20,12 +20,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MCP slug validation** — `slug` arguments in `wiki_history` and `wiki_suggest` are
   now validated through `Slug::try_from` before reaching the ops layer, rejecting
   `..` components, hidden path segments, and invalid characters.
+- **`redact_error` covers tilde-prefixed paths** — the path-scrubbing regex previously
+  matched only absolute paths starting with `/`; `~/wikis/foo` and `~user/repo` would
+  pass through unredacted. Extended to also match `~[…]{2,}`, so tilde-expanded paths
+  are fully replaced with `<path>`.
 
 ### Dependencies
 
 - `memmap2` updated — resolves RUSTSEC-2026-0186 (unchecked pointer offset).
 - `event-listener` updated — resolves RUSTSEC-2026-0221 (`!Send` tags crossing thread
   boundaries via `StackSlot`).
+- `h2` updated to 0.4.16 — resolves RUSTSEC-2026-0258 (HTTP/2 request smuggling via
+  malformed `Content-Length`).
+- `boxfnonce` RUSTSEC-2019-0040 suppression dropped — `agent-client-protocol` updated
+  to v2.0.0 and no longer pulls in `boxfnonce`; the advisory entry is removed from
+  `audit.toml`.
 - `lru` RUSTSEC-2026-0253 (use-after-free in `LruCache::pop()`) — suppressed as an
   allowed warning. Upstream-blocked: `tantivy 0.26.1` pins `lru ^0.16.3` and no fixed
   version exists in that range. Will be resolved when `tantivy` bumps to `lru ^0.17`.
@@ -60,7 +69,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tool description visible to LLM clients.
 - **MCP error messages redact filesystem paths** — all tool error strings returned to
   LLM clients are processed by `redact_error`, replacing absolute paths with `<path>` to
-  avoid leaking workspace layout.
+  avoid leaking workspace layout. Tilde-prefixed paths (`~/…`) are now also covered
+  (see Security above).
+- **`wiki_info` degraded detail** — `index_status` in `wiki_info` responses now returns
+  a per-wiki map when any wiki is degraded: `{"<name>": {"status": "degraded", "reason":
+  "…; run wiki_index_rebuild to recover"}}` instead of the flat string `"degraded"`.
+  LLM clients can surface the actionable reason directly.
+- **`degraded_reason` includes remediation hint** — messages appended with
+  `"; run wiki_index_rebuild to recover"` for `openable=false` and `queryable=false`
+  cases so operators and LLM clients know what action to take.
 
 - `serve.mcp_max_param_len` added to `ServeConfig` (default: 8192 bytes). Accessible
   via `wiki_config get/set serve.mcp_max_param_len` (global-only key).
@@ -97,6 +114,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `let _ = spaces::remove(...)` on mount failure, silently discarding any error from
   the rollback itself. The error is now logged via `tracing::error!` so a stranded
   config entry is visible in logs.
+- **Startup index failures promoted to `error`** — permanent degradation at engine
+  startup (`build_space` failure, unrecoverable `open()`) was logged at `warn`;
+  promoted to `error` so operators are not misled into thinking the condition is
+  transient. Incremental watcher failures remain `warn` (the watcher retries on the
+  next commit).
+- **Resource notification failures correlated to source operation** — `tracing::warn!`
+  for failed MCP resource-updated and resource-list-changed notifications now carries a
+  `tool` structured field, allowing log correlation back to the originating tool call.
+- **Stale-dir removal error context includes path** — the two `.context("…")` sites in
+  `index_manager.rs` that remove stale directories now use `.with_context(|| format!("…
+  at {}", dir.display()))` so the failing path is visible in the error chain.
 
 ### Performance
 
@@ -116,8 +144,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pages: 0` to `state.toml` after every watcher-triggered incremental update;
   `wiki_index_status` always showed 0 pages. Now reads the actual total via
   `searcher.num_docs()` after `reload_reader()`.
+- **`subgraph` edge scan O(E_subgraph)** — previously iterated over every edge in the
+  full graph (`E_total`) to find edges within the subgraph; now uses
+  `graph.edges_directed(node, Outgoing)` to walk only edges reachable from visited
+  nodes, reducing work to O(E_subgraph).
+- **`build_graph_cross_wiki` builds each wiki graph once** — previously called
+  `get_or_build_graph` inside the per-page loop, re-entering the cache on every page;
+  moved to a pre-build phase so each wiki graph is fetched exactly once.
+- **`redact_error` regex compiled once** — regex previously compiled on every call site
+  invocation; hoisted to a `LazyLock<Regex>` static so compilation happens once at
+  first use.
 
 ### Documentation
+
+- **Lenient query parser fallback documented** — both `parse_query_lenient` call sites in
+  `search.rs` now carry a comment explaining why the lenient parser is used (Tantivy
+  rejects free-text queries containing `:` or field specifiers) and pointing to the
+  pinning test.
 
 - **`generation()` cache-key contract documented** — added code comments in
   `get_or_build_graph`, `get_cached_community_map`, and `get_cached_community_stats`
@@ -138,6 +181,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`spaces set-default` config state assertion** — `test_spaces_set_default` now also
   asserts `config get global.default_wiki` matches the newly-set wiki, verifying
   the engine persists the change and not just the display layer.
+- **Invariant-pinning tests (review 2026-08-17)** — unit and integration tests added to
+  pin previously untested invariants:
+  - `NormalizedSlug`: case-folding, traversal rejection, hidden-component rejection,
+    extension rejection, round-trips, and `PartialEq` impls (`src/slug.rs`).
+  - `set_default` atomicity: `spaces_set_default` failure must not update disk config
+    (`tests/ops/hot_reload.rs`).
+  - Graph snapshot key: snapshot filename must contain the git SHA, not the generation
+    counter (`tests/graph_snapshot.rs`).
+  - `redact_error`: absolute paths, multiple paths, short paths, and tilde paths
+    (`src/mcp/handlers.rs`).
 
 
 ## [0.5.9] — 2026-08-17
