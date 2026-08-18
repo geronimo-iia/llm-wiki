@@ -15,6 +15,13 @@ pub struct GlobalSection {
     pub default_wiki: String,
 }
 
+impl GlobalSection {
+    pub fn default_wiki_opt(&self) -> Option<&str> {
+        let s = self.default_wiki.as_str();
+        if s.is_empty() { None } else { Some(s) }
+    }
+}
+
 /// A registered wiki entry in the `[[wikis]]` array of the global config.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WikiEntry {
@@ -1074,4 +1081,21 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_wiki_opt_empty_is_none() {
+        let s = GlobalSection::default();
+        assert!(s.default_wiki_opt().is_none());
+    }
+
+    #[test]
+    fn default_wiki_opt_set_is_some() {
+        let s = GlobalSection { default_wiki: "research".to_string() };
+        assert_eq!(s.default_wiki_opt(), Some("research"));
+    }
 }
