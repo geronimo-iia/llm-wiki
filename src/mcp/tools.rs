@@ -312,7 +312,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_lint",
-            "Run deterministic lint rules on the wiki index",
+            "Run deterministic lint checks on wiki pages — validates frontmatter fields, detects broken links, and reports structural issues.",
             schema(
                 json!({
                     "rules": opt_str("Comma-separated rule names: orphan, broken-link, broken-cross-wiki-link, missing-fields, stale, unknown-type, articulation-point, bridge, periphery (omit for all)"),
