@@ -93,14 +93,11 @@ impl TryFrom<&str> for Slug {
         if s.split('/').any(|seg| seg.starts_with('.')) {
             bail!("slug cannot contain hidden components: {s}");
         }
-        // Reject if the last segment has a file extension
+        // Reject if the last segment has a file extension (including trailing dot).
         if let Some(last) = s.rsplit('/').next()
-            && let Some(dot) = last.rfind('.')
+            && last.contains('.')
         {
-            let ext = &last[dot + 1..];
-            if !ext.is_empty() {
-                bail!("slug cannot have a file extension: {s}");
-            }
+            bail!("slug cannot have a file extension: {s}");
         }
         Ok(Slug(s.to_string()))
     }
@@ -328,6 +325,10 @@ mod tests {
     fn slug_rejects_file_extension() {
         assert!(Slug::try_from("concepts/page.md").is_err());
         assert!(Slug::try_from("concepts/page.txt").is_err());
+        // Trailing dot (empty extension) must also be rejected — "concepts/page."
+        // previously bypassed the extension check because ext == "".
+        assert!(Slug::try_from("concepts/page.").is_err());
+        assert!(Slug::try_from("top-level.").is_err());
     }
 
     #[test]
