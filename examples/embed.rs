@@ -3,7 +3,29 @@
 //! Loads the default config, searches a wiki, and lists the first page of results.
 //!
 //! ```
-//! cargo run --example embed -- "mixture of experts"
+//! WIKI=rust-kb cargo run --example embed -- "async rust"
+//! ```
+//!
+//! Sample output:
+//!
+//! ```text
+//! Wiki   : rust-kb
+//! Query  : async rust
+//!
+//! Results (5 hits):
+//!   [7.79] concepts/async-rust-runtime — Async Rust Runtime
+//!   [7.04] concepts/sync-async-bridge — Sync-to-Async Bridge
+//!   [6.38] concepts/rust-error-handling — Rust Error Handling
+//!   [4.65] technology/error-handling/patterns — Error Handling — Patterns
+//!   [4.47] engineering/ci — Rust CI Pipeline
+//!
+//! All pages (first 5):
+//!   concepts [active]
+//!   concepts/actor-model-rust [active]
+//!   concepts/async-rust-runtime [active]
+//!   concepts/cargo-features [active]
+//!   concepts/data-oriented-design [active]
+//!   … 136 total
 //! ```
 //!
 //! The wiki name defaults to the configured default. Override with the `WIKI`
@@ -58,7 +80,7 @@ fn main() -> anyhow::Result<()> {
 
     // ── 4. List first page ─────────────────────────────────────────────────────
     println!("\nAll pages (first 5):");
-    let page_list = list(&state, &wiki_name, None, None, 0, Some(5))?;
+    let page_list = list(&state, &wiki_name, None, None, 1, Some(5))?;
     for entry in &page_list.pages {
         println!("  {} [{}]", entry.slug, entry.status);
     }
