@@ -849,7 +849,7 @@ pub fn render_mermaid(graph: &WikiGraph) -> String {
     let mut out = String::from("graph LR\n");
 
     // Collect unique types for classDef
-    let mut types_seen: HashSet<String> = HashSet::new();
+    let mut types_seen: HashSet<&str> = HashSet::new();
 
     let mut has_external = false;
 
@@ -865,7 +865,7 @@ pub fn render_mermaid(graph: &WikiGraph) -> String {
                 "  {safe_id}[\"{}\"]:::{}\n",
                 node.title, node.r#type
             ));
-            types_seen.insert(node.r#type.clone());
+            types_seen.insert(&node.r#type);
         }
     }
 
