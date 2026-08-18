@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::Utc;
+use petgraph::visit::EdgeRef as _;
 use petgraph::Direction;
 use petgraph::graph::{DiGraph, EdgeIndex, NodeIndex};
 use serde::{Deserialize, Serialize};
@@ -1027,11 +1028,14 @@ pub fn subgraph(graph: &WikiGraph, root_slug: &str, depth: usize) -> WikiGraph {
         old_to_new.insert(old_idx, new_idx);
     }
 
-    for edge in graph.edge_indices() {
-        // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
-        let (from, to) = endpoints(graph, edge);
-        if let (Some(&new_from), Some(&new_to)) = (old_to_new.get(&from), old_to_new.get(&to)) {
-            new_graph.add_edge(new_from, new_to, graph[edge].clone());
+    for &old_from in &visited {
+        for edge_ref in graph.edges_directed(old_from, Direction::Outgoing) {
+            let old_to = edge_ref.target();
+            if let (Some(&new_from), Some(&new_to)) =
+                (old_to_new.get(&old_from), old_to_new.get(&old_to))
+            {
+                new_graph.add_edge(new_from, new_to, edge_ref.weight().clone());
+            }
         }
     }
 
