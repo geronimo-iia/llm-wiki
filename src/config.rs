@@ -861,7 +861,7 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "defaults.output_format" => resolved.defaults.output_format.clone(),
         "defaults.facets_top_tags" => resolved.defaults.facets_top_tags.to_string(),
         "read.no_frontmatter" => resolved.read.no_frontmatter.to_string(),
-        "index.auto_rebuild" => resolved.index.auto_rebuild.to_string(),
+        "index.auto_rebuild" => global.index.auto_rebuild.to_string(),
         "index.auto_recovery" => global.index.auto_recovery.to_string(),
         "index.memory_budget_mb" => global.index.memory_budget_mb.to_string(),
         "index.tokenizer" => global.index.tokenizer.clone(),
