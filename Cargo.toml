@@ -16,7 +16,7 @@ exclude = [".github/", "tests/", "tests-integration/", "docs/"]
 
 
 [lib]
-name = "llm_wiki"
+name = "llm_wiki_engine"
 path = "src/lib.rs"
 
 [[bin]]
