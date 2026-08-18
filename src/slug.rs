@@ -295,6 +295,103 @@ pub fn resolve_read_target(input: &str, wiki_root: &Path) -> Result<ReadTarget> 
     bail!("page not found: {input}")
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── Slug construction ─────────────────────────────────────────────────────
+
+    #[test]
+    fn slug_rejects_empty() {
+        assert!(Slug::try_from("").is_err());
+        assert!(Slug::try_from("   ").is_err());
+    }
+
+    #[test]
+    fn slug_rejects_leading_slash() {
+        assert!(Slug::try_from("/concepts/page").is_err());
+    }
+
+    #[test]
+    fn slug_rejects_path_traversal() {
+        assert!(Slug::try_from("../etc/passwd").is_err());
+        assert!(Slug::try_from("concepts/../../etc/passwd").is_err());
+    }
+
+    #[test]
+    fn slug_rejects_hidden_components() {
+        assert!(Slug::try_from(".hidden/page").is_err());
+        assert!(Slug::try_from("concepts/.dotfile").is_err());
+    }
+
+    #[test]
+    fn slug_rejects_file_extension() {
+        assert!(Slug::try_from("concepts/page.md").is_err());
+        assert!(Slug::try_from("concepts/page.txt").is_err());
+    }
+
+    #[test]
+    fn slug_accepts_valid_paths() {
+        assert!(Slug::try_from("concepts/moe").is_ok());
+        assert!(Slug::try_from("concepts/mixture-of-experts").is_ok());
+        assert!(Slug::try_from("a/b/c").is_ok());
+        assert!(Slug::try_from("top-level").is_ok());
+    }
+
+    // ── Normalization ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn normalize_lowercases_all_segments() {
+        let slug = Slug::try_from("Concepts/MOE").unwrap();
+        assert_eq!(slug.normalize(), "concepts/moe");
+    }
+
+    #[test]
+    fn normalize_already_lowercase_is_identity() {
+        let slug = Slug::try_from("concepts/moe").unwrap();
+        assert_eq!(slug.normalize(), "concepts/moe");
+    }
+
+    #[test]
+    fn normalize_nested_path() {
+        let slug = Slug::try_from("A/B/C-Deep").unwrap();
+        assert_eq!(slug.normalize(), "a/b/c-deep");
+    }
+
+    // ── NormalizedSlug round-trips ────────────────────────────────────────────
+
+    #[test]
+    fn normalized_slug_display_and_as_str() {
+        let slug = Slug::try_from("concepts/moe").unwrap().normalize();
+        assert_eq!(slug.as_str(), "concepts/moe");
+        assert_eq!(slug.to_string(), "concepts/moe");
+    }
+
+    #[test]
+    fn normalized_slug_partial_eq_str() {
+        let slug = Slug::try_from("concepts/moe").unwrap().normalize();
+        assert_eq!(slug, "concepts/moe");
+        assert_ne!(slug, "concepts/MOE");
+    }
+
+    #[test]
+    fn normalized_slug_partial_eq_string() {
+        let slug = Slug::try_from("concepts/moe").unwrap().normalize();
+        assert_eq!(slug, String::from("concepts/moe"));
+    }
+
+    // ── from_normalized (internal) ────────────────────────────────────────────
+
+    #[test]
+    fn from_normalized_wraps_without_transformation() {
+        // Simulates what search.rs does when reading slugs from the Tantivy index.
+        // The index stores pre-normalized (already lowercase) slugs, so no
+        // re-normalization is needed.
+        let s = NormalizedSlug::from_normalized("concepts/moe".to_string());
+        assert_eq!(s.as_str(), "concepts/moe");
+    }
+}
+
 fn title_case(segment: &str) -> String {
     segment
         .split('-')

@@ -268,6 +268,8 @@ pub fn search(
     for (score, doc_addr) in top_docs {
         let doc: tantivy::TantivyDocument = searcher.doc(doc_addr)?;
 
+        // Slug stored in the Tantivy index was written via Slug::normalize() at
+        // index time, so the value is already lowercase-validated. Skip re-normalization.
         let slug = crate::slug::NormalizedSlug::from_normalized(
             doc.get_first(f_slug)
                 .and_then(|v| v.as_str())
@@ -437,6 +439,7 @@ pub fn list(
     for (_slug_val, doc_addr) in window {
         let doc: tantivy::TantivyDocument = searcher.doc(*doc_addr)?;
 
+        // See comment above: Tantivy index stores pre-normalized slugs.
         let slug = crate::slug::NormalizedSlug::from_normalized(
             doc.get_first(f_slug)
                 .and_then(|v| v.as_str())
