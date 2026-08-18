@@ -343,7 +343,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
         tracing::info!(wiki = %entry.name, "building index for the first time");
         if let Err(e) = index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry)
         {
-            tracing::warn!(wiki = %entry.name, error = %e, "initial index build failed");
+            tracing::error!(wiki = %entry.name, error = %e, "initial index build failed; wiki will serve no results");
         }
     } else if config.index.auto_rebuild {
         match index_manager.staleness_kind(&repo_root) {
@@ -358,7 +358,8 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
                     &index_schema,
                     &type_registry,
                 ) {
-                    tracing::warn!(wiki = %entry.name, error = %e, "incremental update failed");
+                    // warn not error: the watcher will retry on the next commit
+                    tracing::warn!(wiki = %entry.name, error = %e, "incremental update failed; index serves last successful state");
                 }
             }
             Ok(StalenessKind::TypesChanged(types)) => {
@@ -370,13 +371,15 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
                     &index_schema,
                     &type_registry,
                 ) {
-                    tracing::warn!(wiki = %entry.name, error = %e, "partial rebuild failed, doing full");
-                    let _ = index_manager.rebuild(
+                    tracing::warn!(wiki = %entry.name, error = %e, "partial rebuild failed, attempting full rebuild");
+                    if let Err(e) = index_manager.rebuild(
                         &wiki_root,
                         &repo_root,
                         &index_schema,
                         &type_registry,
-                    );
+                    ) {
+                        tracing::error!(wiki = %entry.name, error = %e, "full rebuild after partial failure also failed; wiki will serve stale results");
+                    }
                 }
             }
             Ok(StalenessKind::FullRebuildNeeded) => {
@@ -384,13 +387,16 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
                 if let Err(e) =
                     index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry)
                 {
-                    tracing::warn!(wiki = %entry.name, error = %e, "index rebuild failed");
+                    tracing::error!(wiki = %entry.name, error = %e, "index rebuild failed; wiki will serve stale results");
                 }
             }
             Err(e) => {
-                tracing::warn!(wiki = %entry.name, error = %e, "staleness check failed, rebuilding");
-                let _ =
-                    index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry);
+                tracing::warn!(wiki = %entry.name, error = %e, "staleness check failed, attempting rebuild");
+                if let Err(e) =
+                    index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry)
+                {
+                    tracing::error!(wiki = %entry.name, error = %e, "rebuild after staleness check failure also failed; wiki will serve stale results");
+                }
             }
         }
     } else if let Ok(ref s) = status
@@ -408,7 +414,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
         &index_schema,
         Some((&wiki_root, &repo_root, &type_registry)),
     ) {
-        tracing::warn!(wiki = %entry.name, error = %e, "failed to open index");
+        tracing::error!(wiki = %entry.name, error = %e, "failed to open index; wiki will serve no results");
     }
 
     let resolved_cfg = config::resolve(config, &wiki_cfg);
