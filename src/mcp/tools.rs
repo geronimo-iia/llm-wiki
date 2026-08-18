@@ -250,7 +250,7 @@ pub fn tool_list() -> Vec<Tool> {
             "Generate concept graph, returns GraphReport.",
             schema(
                 json!({
-                    "format": opt_str("Output format: mermaid | dot | llms (default: mermaid)"),
+                    "format": opt_str("Output format: mermaid | dot | llms | json (default: mermaid)"),
                     "root": opt_str("Subgraph from this node (slug)"),
                     "depth": opt_int("Hop limit from root"),
                     "type": opt_str("Comma-separated page types to include"),

@@ -104,7 +104,7 @@ pub enum Commands {
     },
     /// Generate a concept graph
     Graph {
-        /// Output format: mermaid | dot | llms
+        /// Output format: mermaid | dot | llms | json
         #[arg(long)]
         format: Option<String>,
         /// Subgraph from this node (slug)
