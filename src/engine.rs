@@ -406,11 +406,13 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
         );
     }
 
-    // Open the index for serving
-    if let Err(e) = index_manager.open(
-        &index_schema,
-        Some((&wiki_root, &repo_root, &type_registry)),
-    ) {
+    // Open the index for serving; pass recovery args only when auto_recovery is enabled.
+    let recovery = if config.index.auto_recovery {
+        Some((&wiki_root as &std::path::Path, &repo_root as &std::path::Path, &type_registry))
+    } else {
+        None
+    };
+    if let Err(e) = index_manager.open(&index_schema, recovery) {
         tracing::error!(wiki = %entry.name, error = %e, "failed to open index; wiki will serve no results");
     }
 
