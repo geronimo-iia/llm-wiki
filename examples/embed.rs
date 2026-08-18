@@ -34,11 +34,13 @@
 use std::path::PathBuf;
 
 // The package is `llm-wiki-engine`; the lib target is named `llm_wiki`.
-use llm_wiki::{SearchResult, WikiEngine};
 use llm_wiki::ops::{SearchParams, list, search};
+use llm_wiki::{SearchResult, WikiEngine};
 
 fn main() -> anyhow::Result<()> {
-    let query = std::env::args().nth(1).unwrap_or_else(|| "knowledge".into());
+    let query = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "knowledge".into());
     let wiki_override = std::env::var("WIKI").ok();
 
     // ── 1. Locate and load the global config ──────────────────────────────────
@@ -48,7 +50,10 @@ fn main() -> anyhow::Result<()> {
     let engine = WikiEngine::build(&config_path)?;
 
     // ── 2. Resolve target wiki name ────────────────────────────────────────────
-    let state = engine.state.read().map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+    let state = engine
+        .state
+        .read()
+        .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
     let wiki_name = wiki_override
         .as_deref()
         .unwrap_or_else(|| state.default_wiki_name())
