@@ -376,7 +376,14 @@ pub fn handle_search(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
             cross_wiki,
         },
     )
-    .map_err(redact_error)?;
+    .map_err(|e| {
+        let msg = redact_error(e);
+        if msg.contains("index not open") {
+            format!("{msg}; call wiki_index_rebuild to rebuild or wiki_index_status for details")
+        } else {
+            msg
+        }
+    })?;
 
     if format.as_deref() == Some("llms") {
         ok_text(crate::search::render_search_llms(&results))
@@ -455,7 +462,12 @@ pub fn handle_index_rebuild(server: &McpServer, args: &Map<String, Value>) -> To
     };
 
     let report = ops::index_rebuild(&server.manager, &wiki_name).map_err(redact_error)?;
-
+    tracing::info!(
+        wiki = %wiki_name,
+        pages = report.pages_indexed,
+        duration_ms = report.duration_ms,
+        "index rebuild completed"
+    );
     let s = serde_json::to_string_pretty(&report).map_err(redact_error)?;
     ok_text(s)
 }
