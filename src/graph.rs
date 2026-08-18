@@ -6,7 +6,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use chrono::Utc;
 use petgraph::Direction;
-use petgraph::graph::{DiGraph, NodeIndex};
+use petgraph::graph::{DiGraph, EdgeIndex, NodeIndex};
 use serde::{Deserialize, Serialize};
 use tantivy::Searcher;
 use tantivy::collector::TopDocs;
@@ -46,6 +46,13 @@ pub struct LabeledEdge {
 
 /// Directed graph type used for the wiki concept graph.
 pub type WikiGraph = DiGraph<PageNode, LabeledEdge>;
+
+/// DiGraph never returns None for edges that exist in the graph.
+/// All call sites hold an EdgeIndex obtained from the same graph iteration,
+/// so the edge is guaranteed to be present.
+fn endpoints(g: &WikiGraph, e: EdgeIndex) -> (NodeIndex, NodeIndex) {
+    g.edge_endpoints(e).expect("edge index from graph iteration must be valid")
+}
 
 /// Filtering parameters for graph construction and subgraph extraction.
 #[derive(Debug, Clone, Default)]
@@ -205,7 +212,7 @@ fn build_adjacency(graph: &WikiGraph) -> HashMap<NodeIndex, HashSet<NodeIndex>> 
     }
     for edge in graph.edge_indices() {
         // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
-        let (a, b) = graph.edge_endpoints(edge).unwrap();
+        let (a, b) = endpoints(graph, edge);
         if graph[a].external || graph[b].external {
             continue;
         }
@@ -557,7 +564,7 @@ pub fn build_graph_cross_wiki(
         let g = build_graph(searcher, is, filter, registry)?;
         for edge_idx in g.edge_indices() {
             // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
-            let (from, to) = g.edge_endpoints(edge_idx).unwrap();
+            let (from, to) = endpoints(&g, edge_idx);
             let from_node = &g[from];
             let to_node = &g[to];
 
@@ -659,7 +666,7 @@ pub fn merge_cached_graphs(
     for (wiki_name, graph) in wikis {
         for edge_idx in graph.edge_indices() {
             // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
-            let (from, to) = graph.edge_endpoints(edge_idx).unwrap();
+            let (from, to) = endpoints(graph, edge_idx);
             let from_node = &graph[from];
             let to_node = &graph[to];
 
@@ -867,7 +874,7 @@ pub fn render_mermaid(graph: &WikiGraph) -> String {
     // Edges with relation labels
     for edge in graph.edge_indices() {
         // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
-        let (from, to) = graph.edge_endpoints(edge).unwrap();
+        let (from, to) = endpoints(graph, edge);
         let from_id = format!("N{}", from.index());
         let to_id = format!("N{}", to.index());
         let relation = &graph[edge].relation;
@@ -921,7 +928,7 @@ pub fn render_dot(graph: &WikiGraph) -> String {
 
     for edge in graph.edge_indices() {
         // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
-        let (from, to) = graph.edge_endpoints(edge).unwrap();
+        let (from, to) = endpoints(graph, edge);
         let relation = &graph[edge].relation;
         let from_id = if graph[from].external {
             &graph[from].title
@@ -1014,7 +1021,7 @@ pub fn subgraph(graph: &WikiGraph, root_slug: &str, depth: usize) -> WikiGraph {
 
     for edge in graph.edge_indices() {
         // SAFETY: edge index comes from edge_indices() on the same graph; always valid.
-        let (from, to) = graph.edge_endpoints(edge).unwrap();
+        let (from, to) = endpoints(graph, edge);
         if let (Some(&new_from), Some(&new_to)) = (old_to_new.get(&from), old_to_new.get(&to)) {
             new_graph.add_edge(new_from, new_to, graph[edge].clone());
         }
