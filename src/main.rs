@@ -92,7 +92,7 @@ fn main() -> Result<()> {
                 } else {
                     println!("  {:<12} {:<40} description", "name", "path");
                     for e in &entries {
-                        let marker = if e.name == global.global.default_wiki {
+                        let marker = if Some(e.name.as_str()) == global.global.default_wiki_opt() {
                             "*"
                         } else {
                             " "
@@ -241,7 +241,7 @@ fn main() -> Result<()> {
             } => {
                 let manager = WikiEngine::build(&config_path)?;
                 let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-                let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref()).to_string();
+                let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
 
                 let hash =
                     ops::content_commit(&engine, &wiki_name, &slugs, all, message.as_deref())?;
@@ -266,7 +266,7 @@ fn main() -> Result<()> {
         } => {
             let manager = WikiEngine::build(&config_path)?;
             let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref());
+            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
 
             let results = ops::search(
                 &engine,
@@ -309,7 +309,7 @@ fn main() -> Result<()> {
         } => {
             let manager = WikiEngine::build(&config_path)?;
             let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref());
+            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
 
             let result = ops::list(
                 &engine,
@@ -350,7 +350,7 @@ fn main() -> Result<()> {
             let manager = WikiEngine::build(&config_path)?;
             let report = {
                 let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-                let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref()).to_string();
+                let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
                 ops::ingest_with_redact(&engine, &manager, &path, dry_run, redact, &wiki_name)?
             };
 
@@ -397,7 +397,7 @@ fn main() -> Result<()> {
         } => {
             let manager = WikiEngine::build(&config_path)?;
             let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref());
+            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
 
             let result = ops::graph_build(
                 &engine,
@@ -429,7 +429,7 @@ fn main() -> Result<()> {
         } => {
             let manager = WikiEngine::build(&config_path)?;
             let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref()).to_string();
+            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
 
             let export_format = ops::ExportFormat::parse(format.as_deref().unwrap_or("llms-txt"));
             let include_archived = status.as_deref() == Some("all");
@@ -455,7 +455,7 @@ fn main() -> Result<()> {
                 let manager = WikiEngine::build(&config_path)?;
                 let wiki_name = {
                     let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-                    engine.resolve_wiki_name(cli.wiki.as_deref()).to_string()
+                    engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string()
                 };
 
                 if dry_run {
@@ -488,7 +488,7 @@ fn main() -> Result<()> {
             IndexAction::Status { format } => {
                 let manager = WikiEngine::build(&config_path)?;
                 let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-                let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref());
+                let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
 
                 let status = ops::index_status(&engine, wiki_name)?;
 
@@ -538,7 +538,7 @@ fn main() -> Result<()> {
         Commands::Schema { action } => {
             let manager = WikiEngine::build(&config_path)?;
             let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref()).to_string();
+            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
 
             match action {
                 SchemaAction::List { format } => {
@@ -644,7 +644,7 @@ fn main() -> Result<()> {
         Commands::Stats { format } => {
             let manager = WikiEngine::build(&config_path)?;
             let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref()).to_string();
+            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
             let result = ops::stats(&engine, &wiki_name)?;
 
             if is_json(&format) {
@@ -691,7 +691,7 @@ fn main() -> Result<()> {
         } => {
             let manager = WikiEngine::build(&config_path)?;
             let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref()).to_string();
+            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
             let report = ops::run_lint(&engine, &wiki_name, rules.as_deref(), severity.as_deref())?;
 
             if is_json(&format) {

@@ -184,6 +184,12 @@ pub struct WikiUri {
     pub slug: Slug,
 }
 
+fn default_wiki(global: &crate::config::GlobalConfig) -> anyhow::Result<&str> {
+    global.global.default_wiki_opt().ok_or_else(|| {
+        anyhow::anyhow!("no default wiki configured — run `llm-wiki spaces set-default <name>`")
+    })
+}
+
 impl WikiUri {
     /// Parse a string into a WikiUri. Accepts both `wiki://` URIs and bare slugs.
     pub fn parse(input: &str) -> Result<Self> {
@@ -237,15 +243,21 @@ impl WikiUri {
                 // Not a wiki name — treat as slug segment
                 let full_slug = format!("{name}/{}", parsed.slug);
                 let slug = Slug::try_from(full_slug.as_str())?;
-                let default = &global.global.default_wiki;
+                let default = default_wiki(global)?;
                 let entry = spaces::resolve_name(default, global)?;
                 return Ok((entry, slug));
             }
-            let default = &global.global.default_wiki;
+            let default = default_wiki(global)?;
             let entry = spaces::resolve_name(default, global)?;
             Ok((entry, parsed.slug))
         } else {
-            let wiki_name = wiki_flag.unwrap_or(&global.global.default_wiki);
+            let wiki_name = wiki_flag
+                .or_else(|| global.global.default_wiki_opt())
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "no default wiki configured — run `llm-wiki spaces set-default <name>`"
+                    )
+                })?;
             let entry = spaces::resolve_name(wiki_name, global)?;
             let slug = Slug::try_from(input)?;
             Ok((entry, slug))

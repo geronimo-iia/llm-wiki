@@ -96,7 +96,10 @@ pub fn resolve_wiki_name(
     args: &Map<String, Value>,
 ) -> Result<String, String> {
     let name = arg_str(args, "wiki");
-    Ok(engine.resolve_wiki_name(name.as_deref()).to_string())
+    engine
+        .resolve_wiki_name(name.as_deref())
+        .map(|s| s.to_string())
+        .map_err(|e| e.to_string())
 }
 
 // ── Resource notification helper ──────────────────────────────────────────────

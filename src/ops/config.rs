@@ -27,7 +27,13 @@ pub fn config_set(
         Ok(format!("Set {key} = {value} (global)"))
     } else {
         let g = config::load_global(config_path)?;
-        let name = wiki_name.unwrap_or(&g.global.default_wiki);
+        let name = match wiki_name {
+            Some(n) => n,
+            None => g
+                .global
+                .default_wiki_opt()
+                .ok_or_else(|| anyhow::anyhow!("no default wiki configured"))?,
+        };
         let entry = spaces::resolve_name(name, &g)?;
         let entry_path = entry.path.clone();
         let mut wiki_cfg = config::load_wiki(&entry_path)?;

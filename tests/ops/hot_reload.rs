@@ -151,7 +151,7 @@ fn hot_reload_set_default_updates_engine() {
 
     // Verify engine state updated
     let engine = manager.state.read().unwrap();
-    assert_eq!(engine.default_wiki_name(), "beta");
+    assert_eq!(engine.default_wiki_name(), Some("beta"));
 }
 
 #[test]
@@ -233,7 +233,7 @@ fn spaces_create_set_default_updates_engine() {
 
     // Engine default must update in-process without restart.
     let engine = manager.state.read().unwrap();
-    assert_eq!(engine.default_wiki_name(), "beta");
+    assert_eq!(engine.default_wiki_name(), Some("beta"));
 }
 
 #[test]

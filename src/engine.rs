@@ -67,9 +67,9 @@ pub struct EngineState {
 }
 
 impl EngineState {
-    /// Return the configured default wiki name.
-    pub fn default_wiki_name(&self) -> &str {
-        &self.config.global.default_wiki
+    /// Return the configured default wiki name, or `None` if unset.
+    pub fn default_wiki_name(&self) -> Option<&str> {
+        self.config.global.default_wiki_opt()
     }
 
     /// Look up a mounted wiki space by name. Errors if not mounted.
@@ -79,9 +79,16 @@ impl EngineState {
             .ok_or_else(|| anyhow::anyhow!("wiki \"{name}\" is not mounted"))
     }
 
-    /// Return `explicit` if given, otherwise the default wiki name.
-    pub fn resolve_wiki_name<'a>(&'a self, explicit: Option<&'a str>) -> &'a str {
-        explicit.unwrap_or(self.default_wiki_name())
+    /// Return `explicit` if given, otherwise the default wiki name, or an error.
+    pub fn resolve_wiki_name<'a>(&'a self, explicit: Option<&'a str>) -> Result<&'a str> {
+        explicit
+            .or_else(|| self.default_wiki_name())
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "no wiki specified and no default wiki configured \u{2014} \
+                     run `llm-wiki spaces set-default <name>`"
+                )
+            })
     }
 
     /// Return the index directory path for a wiki by name.
@@ -280,7 +287,7 @@ impl WikiEngine {
             .state
             .write()
             .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-        if engine.default_wiki_name() == name {
+        if engine.default_wiki_name() == Some(name) {
             anyhow::bail!("\"{name}\" is the default wiki \u{2014} set a new default first");
         }
         if engine.spaces.remove(name).is_none() {

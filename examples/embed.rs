@@ -54,9 +54,8 @@ fn main() -> anyhow::Result<()> {
         .state
         .read()
         .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-    let wiki_name = wiki_override
-        .as_deref()
-        .unwrap_or_else(|| state.default_wiki_name())
+    let wiki_name = state
+        .resolve_wiki_name(wiki_override.as_deref())?
         .to_string();
 
     println!("Wiki   : {wiki_name}");

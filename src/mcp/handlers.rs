@@ -182,7 +182,10 @@ pub fn handle_content_read(server: &McpServer, args: &Map<String, Value>) -> Too
     {
         ops::ContentReadResult::Page(content) => {
             if include_backlinks {
-                let wiki_name = engine.resolve_wiki_name(wiki_flag.as_deref()).to_string();
+                let wiki_name = engine
+                    .resolve_wiki_name(wiki_flag.as_deref())
+                    .map_err(redact_error)?
+                    .to_string();
                 let (_entry, slug) = WikiUri::resolve(&uri, wiki_flag.as_deref(), &engine.config)
                     .map_err(redact_error)?;
                 let backlinks =
