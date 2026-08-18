@@ -273,16 +273,6 @@ llm-wiki is a continuation of
 
 ---
 
-## Known limitations
-
-- **Windows path redaction** — `redact_error` strips Unix absolute paths and
-  tilde-prefixed paths from MCP error responses before they reach LLM clients.
-  Windows drive-letter (`C:\…`) and UNC (`\\server\…`) paths are not yet
-  redacted; they may appear in error strings returned to the LLM. This is an
-  information-leak concern, not a correctness issue. See
-  [docs/decisions/1.0.0/redact-error-windows-paths.md](docs/decisions/1.0.0/redact-error-windows-paths.md)
-  for the fix design.
-
 ## Contributing
 
 [Contributing guide](CONTRIBUTING.md) · [Code of conduct](CODE_OF_CONDUCT.md) · [Security policy](SECURITY.md)
