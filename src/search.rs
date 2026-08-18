@@ -188,6 +188,10 @@ pub fn search(
         query_fields.insert(1, f);
     }
     let query_parser = QueryParser::for_index(index, query_fields);
+    // Lenient fallback: queries containing colons or field specifiers (e.g. "title:foo")
+    // are rejected by the strict parser. The lenient parser silently discards invalid
+    // tokens and returns the rest of the query rather than failing the search call.
+    // Pinned by: src/search.rs tests::colon_query_uses_lenient_fallback.
     let parsed = query_parser
         .parse_query(query_str)
         .unwrap_or_else(|_| query_parser.parse_query_lenient(query_str).0);
@@ -311,7 +315,7 @@ pub fn search(
     }
 
     // Facets: type is unfiltered, status and tags are filtered
-    // Re-parse query for the unfiltered facet query
+    // Re-parse query for the unfiltered facet query (same lenient fallback as above).
     let unfiltered_query: Box<dyn tantivy::query::Query> = {
         let parsed2 = query_parser
             .parse_query(query_str)
