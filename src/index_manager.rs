@@ -287,7 +287,8 @@ impl SpaceIndexManager {
         // lock file inside build_dir; opening a writer before wiping would reuse a
         // corrupt partial state.
         if build_dir.exists() {
-            std::fs::remove_dir_all(&build_dir).context("failed to remove stale build dir")?;
+            std::fs::remove_dir_all(&build_dir)
+                .with_context(|| format!("failed to remove stale build dir at {}", build_dir.display()))?;
         }
         std::fs::create_dir_all(&build_dir)?;
 
@@ -355,7 +356,8 @@ impl SpaceIndexManager {
         // Atomic swap: live → prev, building → live.
         // Both dirs are under self.index_path — same filesystem, rename is atomic.
         if backup_dir.exists() {
-            std::fs::remove_dir_all(&backup_dir).context("failed to remove stale backup dir")?;
+            std::fs::remove_dir_all(&backup_dir)
+                .with_context(|| format!("failed to remove stale backup dir at {}", backup_dir.display()))?;
         }
         if live_dir.exists() {
             std::fs::rename(&live_dir, &backup_dir).context("failed to move live dir to backup")?;
