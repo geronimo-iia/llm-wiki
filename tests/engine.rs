@@ -327,18 +327,12 @@ fn set_default_updates_engine_and_disk_atomically() {
     let manager = WikiEngine::build(&config_path).unwrap();
 
     // Precondition: alpha is default.
-    assert_eq!(
-        manager.state.read().unwrap().default_wiki_name(),
-        "alpha"
-    );
+    assert_eq!(manager.state.read().unwrap().default_wiki_name(), "alpha");
 
     llm_wiki::ops::spaces_set_default("beta", &config_path, Some(&manager)).unwrap();
 
     // In-memory engine reflects the change immediately — no restart required.
-    assert_eq!(
-        manager.state.read().unwrap().default_wiki_name(),
-        "beta"
-    );
+    assert_eq!(manager.state.read().unwrap().default_wiki_name(), "beta");
 
     // Disk config also reflects the change.
     let saved = llm_wiki::config::load_global(&config_path).unwrap();

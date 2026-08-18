@@ -272,8 +272,14 @@ fn set_global_rejects_unknown_key() {
 fn set_global_rejects_invalid_graph_format() {
     let mut g = GlobalConfig::default();
     let err = set_global_config_value(&mut g, "graph.format", "bogus").unwrap_err();
-    assert!(err.to_string().contains("graph.format"), "error must name the key");
-    assert!(err.to_string().contains("mermaid"), "error must list allowed values");
+    assert!(
+        err.to_string().contains("graph.format"),
+        "error must name the key"
+    );
+    assert!(
+        err.to_string().contains("mermaid"),
+        "error must list allowed values"
+    );
 }
 
 #[test]

@@ -126,7 +126,11 @@ impl WikiEngine {
             }
         }
         if mount_failures > 0 {
-            tracing::warn!(count = mount_failures, "failed to mount {} wiki(s); see prior messages for details", mount_failures);
+            tracing::warn!(
+                count = mount_failures,
+                "failed to mount {} wiki(s); see prior messages for details",
+                mount_failures
+            );
         }
 
         let engine = EngineState {
@@ -417,7 +421,11 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
 
     // Open the index for serving; pass recovery args only when auto_recovery is enabled.
     let recovery = if config.index.auto_recovery {
-        Some((&wiki_root as &std::path::Path, &repo_root as &std::path::Path, &type_registry))
+        Some((
+            &wiki_root as &std::path::Path,
+            &repo_root as &std::path::Path,
+            &type_registry,
+        ))
     } else {
         None
     };

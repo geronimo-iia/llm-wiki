@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use llm_wiki::engine::WikiEngine;
-use llm_wiki::mcp::handlers;
 use llm_wiki::mcp::McpServer;
+use llm_wiki::mcp::handlers;
 use serde_json::{Map, Value};
 
 // ── Fixture ───────────────────────────────────────────────────────────────────
@@ -33,7 +33,11 @@ fn spaces_create_requires_path() {
     let (server, _dir) = make_server();
     let result = handlers::handle_spaces_create(&server, &str_arg("name", "wiki"));
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: path"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: path")
+    );
 }
 
 #[test]
@@ -41,7 +45,11 @@ fn spaces_create_requires_name() {
     let (server, _dir) = make_server();
     let result = handlers::handle_spaces_create(&server, &str_arg("path", "/tmp/wiki"));
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: name"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: name")
+    );
 }
 
 #[test]
@@ -49,7 +57,11 @@ fn spaces_register_requires_path() {
     let (server, _dir) = make_server();
     let result = handlers::handle_spaces_register(&server, &str_arg("name", "wiki"));
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: path"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: path")
+    );
 }
 
 #[test]
@@ -57,7 +69,11 @@ fn spaces_register_requires_name() {
     let (server, _dir) = make_server();
     let result = handlers::handle_spaces_register(&server, &str_arg("path", "/tmp/wiki"));
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: name"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: name")
+    );
 }
 
 #[test]
@@ -65,7 +81,11 @@ fn spaces_remove_requires_name() {
     let (server, _dir) = make_server();
     let result = handlers::handle_spaces_remove(&server, &empty());
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: name"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: name")
+    );
 }
 
 #[test]
@@ -73,7 +93,11 @@ fn spaces_set_default_requires_name() {
     let (server, _dir) = make_server();
     let result = handlers::handle_spaces_set_default(&server, &empty());
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: name"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: name")
+    );
 }
 
 #[test]
@@ -81,7 +105,11 @@ fn content_read_requires_uri() {
     let (server, _dir) = make_server();
     let result = handlers::handle_content_read(&server, &empty());
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: uri"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: uri")
+    );
 }
 
 #[test]
@@ -89,7 +117,11 @@ fn content_write_requires_uri() {
     let (server, _dir) = make_server();
     let result = handlers::handle_content_write(&server, &str_arg("content", "hello"));
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: uri"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: uri")
+    );
 }
 
 #[test]
@@ -97,7 +129,11 @@ fn content_write_requires_content() {
     let (server, _dir) = make_server();
     let result = handlers::handle_content_write(&server, &str_arg("uri", "page"));
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: content"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: content")
+    );
 }
 
 #[test]
@@ -105,7 +141,11 @@ fn content_new_requires_uri() {
     let (server, _dir) = make_server();
     let result = handlers::handle_content_new(&server, &empty());
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: uri"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: uri")
+    );
 }
 
 #[test]
@@ -113,7 +153,11 @@ fn resolve_requires_uri() {
     let (server, _dir) = make_server();
     let result = handlers::handle_resolve(&server, &empty());
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: uri"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: uri")
+    );
 }
 
 #[test]
@@ -121,7 +165,11 @@ fn search_requires_query() {
     let (server, _dir) = make_server();
     let result = handlers::handle_search(&server, &empty());
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: query"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: query")
+    );
 }
 
 #[test]
@@ -129,7 +177,11 @@ fn ingest_requires_path() {
     let (server, _dir) = make_server();
     let result = handlers::handle_ingest(&server, &empty());
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: path"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: path")
+    );
 }
 
 #[test]
@@ -137,7 +189,11 @@ fn history_requires_slug() {
     let (server, _dir) = make_server();
     let result = handlers::handle_history(&server, &empty());
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: slug"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: slug")
+    );
 }
 
 #[test]
@@ -145,7 +201,11 @@ fn suggest_requires_slug() {
     let (server, _dir) = make_server();
     let result = handlers::handle_suggest(&server, &empty());
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: slug"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: slug")
+    );
 }
 
 #[test]
@@ -161,7 +221,11 @@ fn export_requires_wiki() {
     let (server, _dir) = make_server();
     let result = handlers::handle_export(&server, &empty());
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("missing required parameter: wiki"));
+    assert!(
+        result
+            .unwrap_err()
+            .contains("missing required parameter: wiki")
+    );
 }
 
 // ── Error path tests (fixes from this review cycle) ──────────────────────────
@@ -189,10 +253,7 @@ fn content_write_accepts_content_within_limit() {
     let (server, _dir) = make_server();
     // Just enough to pass the size check — will fail later (no wiki), but not at the size check.
     let mut args = str_arg("uri", "test-page");
-    args.insert(
-        "content".to_string(),
-        Value::String("x".repeat(1024)),
-    );
+    args.insert("content".to_string(), Value::String("x".repeat(1024)));
     let result = handlers::handle_content_write(&server, &args);
     // Fails at wiki resolution, not at the size check.
     if let Err(ref msg) = result {
