@@ -166,7 +166,10 @@ mod tests {
         let nested = json!({ "body": long });
         let args = make_args("meta", nested);
         let result = check_param_lengths(&args, MAX_PARAM_LEN);
-        assert!(result.is_err(), "expected Err for oversized nested object param");
+        assert!(
+            result.is_err(),
+            "expected Err for oversized nested object param"
+        );
     }
 
     #[test]

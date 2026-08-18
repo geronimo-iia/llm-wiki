@@ -2,8 +2,8 @@
 use std::{io::Write as _, path::Path};
 
 use anyhow::{Context, Result};
-use tempfile::NamedTempFile;
 use serde::{Deserialize, Serialize};
+use tempfile::NamedTempFile;
 
 // ── Section structs ───────────────────────────────────────────────────────────
 

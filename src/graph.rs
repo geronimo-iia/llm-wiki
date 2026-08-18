@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::Utc;
-use petgraph::visit::EdgeRef as _;
 use petgraph::Direction;
 use petgraph::graph::{DiGraph, EdgeIndex, NodeIndex};
+use petgraph::visit::EdgeRef as _;
 use serde::{Deserialize, Serialize};
 use tantivy::Searcher;
 use tantivy::collector::TopDocs;
@@ -52,7 +52,8 @@ pub type WikiGraph = DiGraph<PageNode, LabeledEdge>;
 /// All call sites hold an EdgeIndex obtained from the same graph iteration,
 /// so the edge is guaranteed to be present.
 fn endpoints(g: &WikiGraph, e: EdgeIndex) -> (NodeIndex, NodeIndex) {
-    g.edge_endpoints(e).expect("edge index from graph iteration must be valid")
+    g.edge_endpoints(e)
+        .expect("edge index from graph iteration must be valid")
 }
 
 /// Filtering parameters for graph construction and subgraph extraction.
@@ -1512,8 +1513,7 @@ mod tests {
 
         // Run 12 times; each run must converge (second pass makes no moves).
         for run in 0..12 {
-            let mut community: HashMap<NodeIndex, usize> =
-                (0..n).map(|i| (make(i), i)).collect();
+            let mut community: HashMap<NodeIndex, usize> = (0..n).map(|i| (make(i), i)).collect();
             louvain_phase1(&adj, &mut community, &degrees, m);
             let moved = louvain_phase1(&adj, &mut community, &degrees, m);
             assert!(

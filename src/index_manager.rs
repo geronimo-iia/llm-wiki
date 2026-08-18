@@ -287,8 +287,12 @@ impl SpaceIndexManager {
         // lock file inside build_dir; opening a writer before wiping would reuse a
         // corrupt partial state.
         if build_dir.exists() {
-            std::fs::remove_dir_all(&build_dir)
-                .with_context(|| format!("failed to remove stale build dir at {}", build_dir.display()))?;
+            std::fs::remove_dir_all(&build_dir).with_context(|| {
+                format!(
+                    "failed to remove stale build dir at {}",
+                    build_dir.display()
+                )
+            })?;
         }
         std::fs::create_dir_all(&build_dir)?;
 
@@ -356,8 +360,12 @@ impl SpaceIndexManager {
         // Atomic swap: live → prev, building → live.
         // Both dirs are under self.index_path — same filesystem, rename is atomic.
         if backup_dir.exists() {
-            std::fs::remove_dir_all(&backup_dir)
-                .with_context(|| format!("failed to remove stale backup dir at {}", backup_dir.display()))?;
+            std::fs::remove_dir_all(&backup_dir).with_context(|| {
+                format!(
+                    "failed to remove stale backup dir at {}",
+                    backup_dir.display()
+                )
+            })?;
         }
         if live_dir.exists() {
             std::fs::rename(&live_dir, &backup_dir).context("failed to move live dir to backup")?;
@@ -534,7 +542,10 @@ impl SpaceIndexManager {
         let degraded_reason = if !openable {
             Some("search index directory cannot be opened by Tantivy; run wiki_index_rebuild to recover".to_string())
         } else if !queryable {
-            Some("search index reader failed to initialize; run wiki_index_rebuild to recover".to_string())
+            Some(
+                "search index reader failed to initialize; run wiki_index_rebuild to recover"
+                    .to_string(),
+            )
         } else if stale {
             Some("index is behind the current HEAD commit or schema — rebuild needed".to_string())
         } else {

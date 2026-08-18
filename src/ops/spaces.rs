@@ -19,7 +19,15 @@ pub fn spaces_create(
     wiki_root: Option<&str>,
 ) -> Result<spaces::CreateReport> {
     let do_create = || {
-        spaces::create(path, name, description, force, set_default, config_path, wiki_root)
+        spaces::create(
+            path,
+            name,
+            description,
+            force,
+            set_default,
+            config_path,
+            wiki_root,
+        )
     };
     let report = match engine {
         Some(e) => e.with_config_lock(do_create)?,

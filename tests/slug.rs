@@ -409,7 +409,10 @@ fn normalized_slug_display() {
 fn normalized_slug_serde_round_trip() {
     let norm = Slug::try_from("concepts/moe").unwrap().normalize();
     let json = serde_json::to_string(&norm).unwrap();
-    assert_eq!(json, r#""concepts/moe""#, "NormalizedSlug must serialize as plain string");
+    assert_eq!(
+        json, r#""concepts/moe""#,
+        "NormalizedSlug must serialize as plain string"
+    );
     let back: NormalizedSlug = serde_json::from_str(&json).unwrap();
     assert_eq!(back, norm);
 }

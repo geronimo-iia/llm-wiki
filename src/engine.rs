@@ -372,12 +372,9 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
                     &type_registry,
                 ) {
                     tracing::warn!(wiki = %entry.name, error = %e, "partial rebuild failed, attempting full rebuild");
-                    if let Err(e) = index_manager.rebuild(
-                        &wiki_root,
-                        &repo_root,
-                        &index_schema,
-                        &type_registry,
-                    ) {
+                    if let Err(e) =
+                        index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry)
+                    {
                         tracing::error!(wiki = %entry.name, error = %e, "full rebuild after partial failure also failed; wiki will serve stale results");
                     }
                 }

@@ -59,7 +59,11 @@ fn graph_snapshot_keyed_by_sha_not_generation() {
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
         .collect();
-    assert_eq!(files.len(), 1, "expected exactly one snapshot file, got {files:?}");
+    assert_eq!(
+        files.len(),
+        1,
+        "expected exactly one snapshot file, got {files:?}"
+    );
     assert!(
         files[0].contains(&expected_sha),
         "snapshot filename must contain the git SHA '{expected_sha}' but got '{}'; \

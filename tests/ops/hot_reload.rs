@@ -123,7 +123,10 @@ fn spaces_set_default_fails_and_keeps_disk_config_when_wiki_unmounted() {
 
     // Attempting set_default("beta") must fail — wiki not mounted in engine
     let result = ops::spaces_set_default("beta", &config_path, Some(&manager));
-    assert!(result.is_err(), "spaces_set_default must fail when wiki is not mounted");
+    assert!(
+        result.is_err(),
+        "spaces_set_default must fail when wiki is not mounted"
+    );
 
     // Disk config must still show alpha as default — no partial write
     let global = llm_wiki::config::load_global(&config_path).unwrap();
