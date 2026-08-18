@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use rmcp::model::ContentBlock as Content;
 use serde_json::{Map, Value};
 
@@ -7,15 +9,16 @@ use crate::slug::{ReadTarget, WikiUri, resolve_read_target};
 use super::McpServer;
 use super::helpers::*;
 
+static PATH_RE: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"/[a-zA-Z0-9_./-]{3,}").unwrap());
+
 /// Redact filesystem paths from an error message before sending to LLM clients.
 ///
 /// Strips absolute Unix paths so that
 /// `failed to open /home/user/wikis/my-wiki/search-index/state.toml: No such file`
 /// becomes `failed to open <path>/state.toml: No such file`.
 fn redact_error(e: impl std::fmt::Display) -> String {
-    let msg = format!("{e}");
-    let re = regex::Regex::new(r"/[a-zA-Z0-9_./-]{3,}").unwrap();
-    re.replace_all(&msg, "<path>").into_owned()
+    PATH_RE.replace_all(&format!("{e}"), "<path>").into_owned()
 }
 
 // ── Spaces ────────────────────────────────────────────────────────────────────
