@@ -251,6 +251,14 @@ pub fn handle_content_read(server: &McpServer, args: &Map<String, Value>) -> Too
 pub fn handle_content_write(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let uri = arg_str_req(args, "uri")?;
     let content = arg_str_req(args, "content")?;
+    const MAX_CONTENT_BYTES: usize = 10 * 1024 * 1024;
+    if content.len() > MAX_CONTENT_BYTES {
+        return Err(format!(
+            "content exceeds maximum allowed size of {} bytes (got {})",
+            MAX_CONTENT_BYTES,
+            content.len()
+        ));
+    }
     let engine = server.engine();
     let wiki_flag = arg_str(args, "wiki");
 
@@ -338,6 +346,11 @@ pub fn handle_content_commit(server: &McpServer, args: &Map<String, Value>) -> T
 
     let hash = ops::content_commit(&engine, &wiki_name, &slugs, all, message.as_deref())
         .map_err(redact_error)?;
+    if hash.is_empty() {
+        return ok_text(
+            "nothing to commit; run wiki_ingest first if you have unsaved changes".to_string(),
+        );
+    }
     ok_text(hash)
 }
 
