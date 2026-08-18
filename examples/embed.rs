@@ -34,8 +34,8 @@
 use std::path::PathBuf;
 
 // The package is `llm-wiki-engine`; the lib target is named `llm_wiki`.
-use llm_wiki::ops::{SearchParams, list, search};
-use llm_wiki::{SearchResult, WikiEngine};
+use llm_wiki_engine::ops::{SearchParams, list, search};
+use llm_wiki_engine::{SearchResult, WikiEngine};
 
 fn main() -> anyhow::Result<()> {
     let query = std::env::args()

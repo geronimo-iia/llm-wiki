@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use llm_wiki::engine::WikiEngine;
-use llm_wiki::mcp::McpServer;
-use llm_wiki::mcp::handlers;
+use llm_wiki_engine::engine::WikiEngine;
+use llm_wiki_engine::mcp::McpServer;
+use llm_wiki_engine::mcp::handlers;
 use serde_json::{Map, Value};
 
 // ── Fixture ───────────────────────────────────────────────────────────────────

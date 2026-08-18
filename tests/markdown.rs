@@ -1,8 +1,8 @@
 use std::fs;
 
-use llm_wiki::frontmatter;
-use llm_wiki::markdown::*;
-use llm_wiki::slug::Slug;
+use llm_wiki_engine::frontmatter;
+use llm_wiki_engine::markdown::*;
+use llm_wiki_engine::slug::Slug;
 
 fn setup_wiki(dir: &std::path::Path) -> std::path::PathBuf {
     let wiki_root = dir.join("wiki");

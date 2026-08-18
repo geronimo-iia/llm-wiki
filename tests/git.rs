@@ -1,6 +1,6 @@
 use std::fs;
 
-use llm_wiki::git;
+use llm_wiki_engine::git;
 
 #[test]
 fn init_repo_creates_git_repository() {

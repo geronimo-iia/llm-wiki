@@ -2,10 +2,10 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
-use llm_wiki::config::ValidationConfig;
-use llm_wiki::git;
-use llm_wiki::ingest::*;
-use llm_wiki::type_registry::SpaceTypeRegistry;
+use llm_wiki_engine::config::ValidationConfig;
+use llm_wiki_engine::git;
+use llm_wiki_engine::ingest::*;
+use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 
 fn registry() -> SpaceTypeRegistry {
     SpaceTypeRegistry::from_embedded().unwrap()

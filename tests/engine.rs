@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::Path;
 
-use llm_wiki::engine::WikiEngine;
-use llm_wiki::git;
+use llm_wiki_engine::engine::WikiEngine;
+use llm_wiki_engine::git;
 
 fn setup_wiki(dir: &Path, name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
     // config lives at <dir>/state/config.toml → state_dir = <dir>/state/
@@ -10,7 +10,7 @@ fn setup_wiki(dir: &Path, name: &str) -> (std::path::PathBuf, std::path::PathBuf
     let config_path = dir.join("state").join("config.toml");
     let wiki_path = dir.join(name);
 
-    llm_wiki::spaces::create(&wiki_path, name, None, false, true, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&wiki_path, name, None, false, true, &config_path, None).unwrap();
 
     // Write a page so the index has something
     let wiki_root = wiki_path.join("wiki");
@@ -80,7 +80,7 @@ fn engine_mount_fails_loud_on_broken_schema() {
     );
 
     // The error chain names the wiki and the broken schema file.
-    let err = match llm_wiki::space_builder::build_space(&wiki_path, "en_stem") {
+    let err = match llm_wiki_engine::space_builder::build_space(&wiki_path, "en_stem") {
         Err(e) => e,
         Ok(_) => panic!("build_space should fail on a broken schema"),
     };
@@ -197,7 +197,7 @@ fn engine_mounts_wiki_with_custom_wiki_root() {
     let config_path = dir.path().join("state").join("config.toml");
     let wiki_path = dir.path().join("skills-wiki");
 
-    llm_wiki::spaces::create(
+    llm_wiki_engine::spaces::create(
         &wiki_path,
         "skills",
         None,
@@ -215,7 +215,7 @@ fn engine_mounts_wiki_with_custom_wiki_root() {
         "---\ntitle: \"Bootstrap\"\ntype: page\nstatus: active\n---\n\nBootstrap skill.\n",
     )
     .unwrap();
-    llm_wiki::git::commit(&wiki_path, "add skill page").unwrap();
+    llm_wiki_engine::git::commit(&wiki_path, "add skill page").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();
@@ -231,7 +231,7 @@ fn engine_indexes_custom_wiki_root_fixture() {
     let config_path = dir.path().join("state").join("config.toml");
     let fixture_path = std::path::Path::new("tests/fixtures/wikis/alt-root");
 
-    llm_wiki::spaces::register_existing(fixture_path, "alt-root", None, None, &config_path)
+    llm_wiki_engine::spaces::register_existing(fixture_path, "alt-root", None, None, &config_path)
         .unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
@@ -247,7 +247,7 @@ fn content_read_works_with_custom_wiki_root() {
     let config_path = dir.path().join("state").join("config.toml");
     let wiki_path = dir.path().join("skills-wiki");
 
-    llm_wiki::spaces::create(
+    llm_wiki_engine::spaces::create(
         &wiki_path,
         "skills",
         None,
@@ -265,16 +265,16 @@ fn content_read_works_with_custom_wiki_root() {
         "---\ntitle: \"Bootstrap\"\ntype: page\nstatus: active\n---\n\nContent.\n",
     )
     .unwrap();
-    llm_wiki::git::commit(&wiki_path, "add page").unwrap();
+    llm_wiki_engine::git::commit(&wiki_path, "add page").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();
 
     let result =
-        llm_wiki::ops::content_read(&engine, "wiki://skills/bootstrap", None, false, false)
+        llm_wiki_engine::ops::content_read(&engine, "wiki://skills/bootstrap", None, false, false)
             .unwrap();
     match result {
-        llm_wiki::ops::ContentReadResult::Page(text) => {
+        llm_wiki_engine::ops::ContentReadResult::Page(text) => {
             assert!(text.contains("Bootstrap"));
         }
         _ => panic!("expected Page result"),
@@ -301,9 +301,9 @@ fn auto_recovery_false_leaves_index_unavailable_after_corruption() {
     }
 
     // Disable auto-recovery in config.
-    let mut cfg = llm_wiki::config::load_global(&config_path).unwrap();
+    let mut cfg = llm_wiki_engine::config::load_global(&config_path).unwrap();
     cfg.index.auto_recovery = false;
-    llm_wiki::config::save_global(&cfg, &config_path).unwrap();
+    llm_wiki_engine::config::save_global(&cfg, &config_path).unwrap();
 
     // Remount — open() should NOT rebuild; searcher must be unavailable.
     let manager2 = WikiEngine::build(&config_path).unwrap();
@@ -322,7 +322,7 @@ fn set_default_updates_engine_and_disk_atomically() {
 
     // Register a second wiki so switching default is meaningful.
     let beta_path = dir.path().join("beta");
-    llm_wiki::spaces::create(&beta_path, "beta", None, false, false, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&beta_path, "beta", None, false, false, &config_path, None).unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
 
@@ -332,7 +332,7 @@ fn set_default_updates_engine_and_disk_atomically() {
         Some("alpha")
     );
 
-    llm_wiki::ops::spaces_set_default("beta", &config_path, Some(&manager)).unwrap();
+    llm_wiki_engine::ops::spaces_set_default("beta", &config_path, Some(&manager)).unwrap();
 
     // In-memory engine reflects the change immediately — no restart required.
     assert_eq!(
@@ -341,6 +341,6 @@ fn set_default_updates_engine_and_disk_atomically() {
     );
 
     // Disk config also reflects the change.
-    let saved = llm_wiki::config::load_global(&config_path).unwrap();
+    let saved = llm_wiki_engine::config::load_global(&config_path).unwrap();
     assert_eq!(saved.global.default_wiki, "beta");
 }

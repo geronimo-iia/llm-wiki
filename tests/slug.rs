@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use llm_wiki::slug::{NormalizedSlug, ReadTarget, Slug, WikiUri, resolve_read_target};
+use llm_wiki_engine::slug::{NormalizedSlug, ReadTarget, Slug, WikiUri, resolve_read_target};
 
 // ── Slug construction ─────────────────────────────────────────────────────────
 
@@ -272,7 +272,7 @@ fn slug_as_ref() {
 
 // ── WikiUri::resolve ────────────────────────────────────────────────────
 
-use llm_wiki::config::{GlobalConfig, GlobalSection, WikiEntry};
+use llm_wiki_engine::config::{GlobalConfig, GlobalSection, WikiEntry};
 
 fn make_global(wikis: Vec<WikiEntry>, default: &str) -> GlobalConfig {
     GlobalConfig {

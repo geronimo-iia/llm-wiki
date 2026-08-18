@@ -1,5 +1,5 @@
-use llm_wiki::frontmatter;
-use llm_wiki::links::{ParsedLink, extract_body_wikilinks, extract_links, extract_parsed_links};
+use llm_wiki_engine::frontmatter;
+use llm_wiki_engine::links::{ParsedLink, extract_body_wikilinks, extract_links, extract_parsed_links};
 
 #[test]
 fn extract_links_from_sources() {

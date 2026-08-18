@@ -1,12 +1,12 @@
 use std::fs;
 use std::path::Path;
 
-use llm_wiki::git;
-use llm_wiki::index_manager::SpaceIndexManager;
-use llm_wiki::index_schema::IndexSchema;
-use llm_wiki::search;
-use llm_wiki::space_builder;
-use llm_wiki::type_registry::SpaceTypeRegistry;
+use llm_wiki_engine::git;
+use llm_wiki_engine::index_manager::SpaceIndexManager;
+use llm_wiki_engine::index_schema::IndexSchema;
+use llm_wiki_engine::search;
+use llm_wiki_engine::space_builder;
+use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 use tantivy::Searcher;
 
 fn schema_and_registry() -> (IndexSchema, SpaceTypeRegistry) {
@@ -610,7 +610,7 @@ fn status_stale_on_schema_hash_mismatch() {
 
     let schemas_dir = dir.path().join("schemas");
     std::fs::create_dir_all(&schemas_dir).unwrap();
-    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+    for (filename, content) in llm_wiki_engine::default_schemas::default_schemas() {
         std::fs::write(schemas_dir.join(filename), content).unwrap();
     }
     std::fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
@@ -640,7 +640,7 @@ fn round_trip_rebuild_then_not_stale() {
 
     let schemas_dir = dir.path().join("schemas");
     std::fs::create_dir_all(&schemas_dir).unwrap();
-    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+    for (filename, content) in llm_wiki_engine::default_schemas::default_schemas() {
         std::fs::write(schemas_dir.join(filename), content).unwrap();
     }
     std::fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
@@ -654,7 +654,7 @@ fn round_trip_rebuild_then_not_stale() {
 
 // ── staleness_kind + partial rebuild ──────────────────────────────────────────
 
-use llm_wiki::index_manager::StalenessKind;
+use llm_wiki_engine::index_manager::StalenessKind;
 
 #[test]
 fn staleness_kind_current_after_rebuild() {
@@ -688,7 +688,7 @@ fn staleness_kind_types_changed() {
 
     let schemas_dir = dir.path().join("schemas");
     std::fs::create_dir_all(&schemas_dir).unwrap();
-    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+    for (filename, content) in llm_wiki_engine::default_schemas::default_schemas() {
         std::fs::write(schemas_dir.join(filename), content).unwrap();
     }
     std::fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
@@ -795,7 +795,7 @@ fn staleness_kind_detects_type_modification() {
 
     let schemas_dir = dir.path().join("schemas");
     std::fs::create_dir_all(&schemas_dir).unwrap();
-    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+    for (filename, content) in llm_wiki_engine::default_schemas::default_schemas() {
         std::fs::write(schemas_dir.join(filename), content).unwrap();
     }
     std::fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();

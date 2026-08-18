@@ -1,5 +1,5 @@
 use super::helpers::setup_wiki;
-use llm_wiki::ops;
+use llm_wiki_engine::ops;
 
 // ── Config ────────────────────────────────────────────────────────────────────
 

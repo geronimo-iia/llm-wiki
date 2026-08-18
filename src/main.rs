@@ -3,13 +3,13 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use clap::Parser;
 
-use llm_wiki::cli::{
+use llm_wiki_engine::cli::{
     Cli, Commands, ConfigAction, ContentAction, IndexAction, LogsAction, SchemaAction, SpacesAction,
 };
-use llm_wiki::config;
-use llm_wiki::engine::WikiEngine;
-use llm_wiki::ops;
-use llm_wiki::search;
+use llm_wiki_engine::config;
+use llm_wiki_engine::engine::WikiEngine;
+use llm_wiki_engine::ops;
+use llm_wiki_engine::search;
 
 fn global_config_path(cli_override: Option<&Path>) -> PathBuf {
     if let Some(p) = cli_override {
@@ -210,7 +210,7 @@ fn main() -> Result<()> {
                     let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
                     let global = &engine.config;
                     let (entry, slug) =
-                        llm_wiki::slug::WikiUri::resolve(&uri, cli.wiki.as_deref(), global)?;
+                        llm_wiki_engine::slug::WikiUri::resolve(&uri, cli.wiki.as_deref(), global)?;
                     let kind = if section {
                         "section"
                     } else if bundle {
@@ -637,7 +637,7 @@ fn main() -> Result<()> {
                 .and_then(|opt| opt.and_then(|s| s.trim_start_matches(':').parse::<u16>().ok()));
 
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(llm_wiki::server::serve(&config_path, http_port, acp, watch))?;
+            rt.block_on(llm_wiki_engine::server::serve(&config_path, http_port, acp, watch))?;
         }
 
         // ── Stats ───────────────────────────────────────────────────────
@@ -751,7 +751,7 @@ fn main() -> Result<()> {
                     cancel_for_signal.cancel();
                 });
                 let (push_tx, _push_rx) = tokio::sync::mpsc::channel(1);
-                llm_wiki::watch::run_watcher(manager, debounce, cancel, push_tx).await
+                llm_wiki_engine::watch::run_watcher(manager, debounce, cancel, push_tx).await
             })?;
             let _ = wiki; // reserved for future single-wiki watch
         }

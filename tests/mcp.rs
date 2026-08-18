@@ -1,4 +1,4 @@
-use llm_wiki::mcp::tools;
+use llm_wiki_engine::mcp::tools;
 
 #[test]
 fn tool_list_returns_24_tools() {

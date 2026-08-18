@@ -1,7 +1,7 @@
 use std::fs;
 
-use llm_wiki::index_schema::IndexSchema;
-use llm_wiki::space_builder;
+use llm_wiki_engine::index_schema::IndexSchema;
+use llm_wiki_engine::space_builder;
 
 // ── build_space_from_embedded determinism ──────────────────────────────────────
 
@@ -287,7 +287,7 @@ fn duplicate_fields_across_schemas_are_deduplicated() {
 fn setup_wiki_with_repo_schemas(dir: &std::path::Path) {
     let schemas_dir = dir.join("schemas");
     fs::create_dir_all(&schemas_dir).unwrap();
-    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+    for (filename, content) in llm_wiki_engine::default_schemas::default_schemas() {
         fs::write(schemas_dir.join(filename), content).unwrap();
     }
     fs::write(dir.join("wiki.toml"), "name = \"test\"\n").unwrap();

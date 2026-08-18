@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 
-use llm_wiki::type_registry::SpaceTypeRegistry;
+use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 use serde_yaml::Value;
 
 fn fm(fields: &[(&str, &str)]) -> BTreeMap<String, Value> {
@@ -375,8 +375,8 @@ fn build_rejects_base_missing_type_requirement() {
 
 // ── compute_disk_hashes ───────────────────────────────────────────────────────
 
-use llm_wiki::git;
-use llm_wiki::type_registry::compute_disk_hashes;
+use llm_wiki_engine::git;
+use llm_wiki_engine::type_registry::compute_disk_hashes;
 
 fn setup_repo(dir: &std::path::Path) {
     fs::create_dir_all(dir.join("wiki")).unwrap();
@@ -394,7 +394,7 @@ fn disk_hashes_change_on_schema_file_modification() {
 
     let schemas_dir = dir.path().join("schemas");
     fs::create_dir_all(&schemas_dir).unwrap();
-    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+    for (filename, content) in llm_wiki_engine::default_schemas::default_schemas() {
         fs::write(schemas_dir.join(filename), content).unwrap();
     }
     fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();
@@ -425,7 +425,7 @@ fn disk_hashes_identical_schemas_same_hash() {
         setup_repo(dir);
         let schemas_dir = dir.join("schemas");
         fs::create_dir_all(&schemas_dir).unwrap();
-        for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+        for (filename, content) in llm_wiki_engine::default_schemas::default_schemas() {
             fs::write(schemas_dir.join(filename), content).unwrap();
         }
         fs::write(dir.join("wiki.toml"), "[types]\n").unwrap();
@@ -455,7 +455,7 @@ fn disk_hashes_deterministic() {
 
     let schemas_dir = dir.path().join("schemas");
     fs::create_dir_all(&schemas_dir).unwrap();
-    for (filename, content) in llm_wiki::default_schemas::default_schemas() {
+    for (filename, content) in llm_wiki_engine::default_schemas::default_schemas() {
         fs::write(schemas_dir.join(filename), content).unwrap();
     }
     fs::write(dir.path().join("wiki.toml"), "[types]\n").unwrap();

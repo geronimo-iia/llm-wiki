@@ -9,7 +9,7 @@ fn setup_wiki_for_cli(dir: &Path) -> std::path::PathBuf {
     let config_path = dir.join("state").join("config.toml");
     let wiki_path = dir.join("test");
 
-    llm_wiki::spaces::create(&wiki_path, "test", None, false, true, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&wiki_path, "test", None, false, true, &config_path, None).unwrap();
 
     let wiki_root = wiki_path.join("wiki");
     std::fs::create_dir_all(wiki_root.join("concepts")).unwrap();
@@ -23,7 +23,7 @@ fn setup_wiki_for_cli(dir: &Path) -> std::path::PathBuf {
         "---\ntitle: \"Beta\"\ntype: concept\nstatus: active\n---\nSee [[concepts/alpha]].\n",
     )
     .unwrap();
-    llm_wiki::git::commit(&wiki_path, "add pages").unwrap();
+    llm_wiki_engine::git::commit(&wiki_path, "add pages").unwrap();
 
     config_path
 }

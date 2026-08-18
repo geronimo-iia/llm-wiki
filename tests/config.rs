@@ -1,8 +1,8 @@
 use std::fs;
 
-use llm_wiki::config::*;
-use llm_wiki::index_manager::SpaceIndexManager;
-use llm_wiki::space_builder;
+use llm_wiki_engine::config::*;
+use llm_wiki_engine::index_manager::SpaceIndexManager;
+use llm_wiki_engine::space_builder;
 
 // ── load_global ───────────────────────────────────────────────────────────────
 

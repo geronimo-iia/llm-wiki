@@ -1,4 +1,4 @@
-use llm_wiki::acp::{dispatch_workflow, make_tool_id};
+use llm_wiki_engine::acp::{dispatch_workflow, make_tool_id};
 
 // ── Dispatch ──────────────────────────────────────────────────────────────────
 

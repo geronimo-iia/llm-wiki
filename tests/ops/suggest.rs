@@ -1,7 +1,7 @@
 use super::helpers::setup_wiki;
-use llm_wiki::engine::WikiEngine;
-use llm_wiki::git;
-use llm_wiki::ops;
+use llm_wiki_engine::engine::WikiEngine;
+use llm_wiki_engine::git;
+use llm_wiki_engine::ops;
 use std::fs;
 
 #[test]
@@ -66,7 +66,7 @@ fn suggest_on_empty_wiki() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = dir.path().join("state").join("config.toml");
     let wiki_path = dir.path().join("empty");
-    llm_wiki::spaces::create(&wiki_path, "empty", None, false, true, &config_path, None).unwrap();
+    llm_wiki_engine::spaces::create(&wiki_path, "empty", None, false, true, &config_path, None).unwrap();
 
     let wiki_root = wiki_path.join("wiki");
     fs::create_dir_all(wiki_root.join("concepts")).unwrap();
