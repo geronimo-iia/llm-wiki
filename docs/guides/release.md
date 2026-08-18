@@ -54,6 +54,7 @@ active `release/` branch if one is open.
 - [ ] Formatted: `cargo fmt --check`
 - [ ] No lint issues: `cargo clippy --all-targets -- -D warnings`
 - [ ] Release build clean: `cargo build --release --locked`
+- [ ] Examples compile and run: `cargo build --examples` and spot-check `WIKI=<name> cargo run --example embed -- <query>`
 - [ ] Integration tests green: trigger **Integration Tests** workflow (`suite: both`) on the release branch
 
 ### Documentation
