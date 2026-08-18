@@ -1,7 +1,7 @@
 # wiki_graph — JSON output format
 
 **Date:** 2026-08-17
-**Status:** Proposed
+**Status:** Implemented (1.0.0)
 
 ## Context
 
@@ -30,3 +30,10 @@ No new types needed. The MCP tool description updates to:
 
 When `GraphReport` field names are considered stable, or when a concrete consumer
 (agent skill, external tool) requires structured graph output.
+
+## Implementation note
+
+Implemented in 1.0.0. `GraphReport` fields (`nodes`, `edges`, `output`) were
+already stable. The JSON output uses a dedicated `WikiGraphJson` type rather
+than `GraphReport` to carry the full node list, edge list, metrics, and
+community assignments — matching the original intent of the decision.
