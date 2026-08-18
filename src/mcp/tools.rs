@@ -111,9 +111,14 @@ pub fn tool_list() -> Vec<Tool> {
                 "Get, set, or list configuration values. ",
                 "action=\"get\" returns the current value of a key; ",
                 "action=\"set\" writes a new value; ",
-                "action=\"list\" shows all key/value pairs. ",
-                "Example keys: \"global.default_wiki\", \"defaults.search_top_k\", ",
-                "\"index.auto_rebuild\", \"graph.format\". ",
+                "action=\"list\" shows all key/value pairs for the target config. ",
+                "Use action=\"list\" to discover all supported keys. ",
+                "Key namespaces: ",
+                "\"global.*\" (default_wiki); ",
+                "\"defaults.*\" (search_top_k, search_excerpt, search_sections, page_mode, list_page_size, output_format, facets_top_tags); ",
+                "\"index.*\" (auto_rebuild, auto_recovery, memory_budget_mb, tokenizer); ",
+                "\"graph.*\" (format, depth, output, snapshot, snapshot_keep, snapshot_format); ",
+                "\"serve.*\" (http, http_port, http_allowed_hosts, acp, acp_port). ",
                 "Omit --wiki to target the global config; pass --wiki <name> for per-wiki overrides."
             ),
             schema(
