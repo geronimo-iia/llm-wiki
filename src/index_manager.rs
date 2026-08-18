@@ -530,9 +530,9 @@ impl SpaceIndexManager {
         };
 
         let degraded_reason = if !openable {
-            Some("search index directory cannot be opened by Tantivy".to_string())
+            Some("search index directory cannot be opened by Tantivy; run wiki_index_rebuild to recover".to_string())
         } else if !queryable {
-            Some("search index reader failed to initialize".to_string())
+            Some("search index reader failed to initialize; run wiki_index_rebuild to recover".to_string())
         } else if stale {
             Some("index is behind the current HEAD commit or schema — rebuild needed".to_string())
         } else {
