@@ -113,11 +113,10 @@ pub fn spaces_set_default(
     config_path: &Path,
     engine: Option<&WikiEngine>,
 ) -> Result<()> {
-    spaces::set_default_wiki(name, config_path)?;
-
-    // Hot reload: update default in the running engine
+    // Validate and update in-memory engine first — if the wiki is not mounted
+    // this returns an error before touching disk, keeping config and engine in sync.
     if let Some(engine) = engine {
         engine.set_default(name)?;
     }
-    Ok(())
+    spaces::set_default_wiki(name, config_path)
 }
