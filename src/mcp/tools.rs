@@ -335,7 +335,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_schema",
-            "Inspect and manage type schemas",
+            "List, show, or validate the YAML type schemas that define frontmatter structure for wiki pages. Actions: list, show, validate.",
             schema(
                 json!({
                     "action": str_prop("Action: list, show, add, remove, validate"),
