@@ -136,11 +136,13 @@ impl WikiEngine {
 
     /// Incrementally update the index from git changes since the last indexed commit.
     pub fn refresh_index(&self, wiki_name: &str) -> Result<UpdateReport> {
-        let engine = self
-            .state
-            .read()
-            .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-        let space = engine.space(wiki_name)?;
+        let space: Arc<SpaceContext> = {
+            let engine = self
+                .state
+                .read()
+                .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+            Arc::clone(engine.space(wiki_name)?)
+        };
         let last_commit = space.index_manager.last_commit();
         let report = space.index_manager.update(
             &space.wiki_root,
@@ -162,11 +164,13 @@ impl WikiEngine {
 
     /// Rebuild the search index from scratch by walking the wiki tree.
     pub fn rebuild_index(&self, wiki_name: &str) -> Result<IndexReport> {
-        let engine = self
-            .state
-            .read()
-            .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-        let space = engine.space(wiki_name)?;
+        let space: Arc<SpaceContext> = {
+            let engine = self
+                .state
+                .read()
+                .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+            Arc::clone(engine.space(wiki_name)?)
+        };
         let report = space.index_manager.rebuild(
             &space.wiki_root,
             &space.repo_root,
