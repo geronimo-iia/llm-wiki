@@ -303,6 +303,54 @@ fn ops_set_default_rolls_back_in_memory_on_disk_failure() {
     );
 }
 
+#[test]
+fn ops_create_rolls_back_config_when_mount_fails() {
+    // This test proves rollback correctness (config entry removed on mount failure),
+    // not race elimination. The race fix (mount+rollback inside with_config_lock)
+    // cannot be verified deterministically in a unit test.
+    use llm_wiki_engine::engine::WikiEngine;
+    use llm_wiki_engine::ops;
+
+    let dir = tempfile::tempdir().unwrap();
+    // Create one valid wiki so WikiEngine::build succeeds
+    let seed_path = dir.path().join("seed");
+    let cfg = config_path(dir.path());
+    spaces::create(&seed_path, "seed", None, false, false, &cfg, None).unwrap();
+    let manager = WikiEngine::build(&cfg).unwrap();
+
+    // Attempt to create a wiki at a path that will make mount_space fail.
+    // We create the path structure valid enough for spaces::create to succeed,
+    // but add a broken schemas/ entry so build_space fails during mount.
+    let bad_path = dir.path().join("bad");
+    // Create minimal directory structure so spaces::create does not fail
+    std::fs::create_dir_all(bad_path.join("wiki")).unwrap();
+    std::fs::write(bad_path.join("wiki.toml"), "[wiki]\nwiki_root = \"wiki\"\n").unwrap();
+    // Create a schemas/ dir with an invalid JSON file to make build_space error.
+    // parse_from_dir reads only .json files, so .yaml would be silently ignored.
+    std::fs::create_dir_all(bad_path.join("schemas")).unwrap();
+    std::fs::write(bad_path.join("schemas").join("bad.json"), "not valid json {{{").unwrap();
+
+    let result = ops::spaces_create(
+        &bad_path,
+        "bad",
+        None,
+        false,
+        false,
+        &cfg,
+        Some(&manager),
+        None,
+    );
+
+    assert!(result.is_err(), "mount failure must propagate");
+
+    // Config must not contain "bad" — rollback must have removed it
+    let config = llm_wiki_engine::config::load_global(&cfg).unwrap();
+    assert!(
+        !config.wikis.iter().any(|w| w.name == "bad"),
+        "rollback must remove wiki from config on mount failure"
+    );
+}
+
 // ── load_all ──────────────────────────────────────────────────────────────────
 
 #[test]

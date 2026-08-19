@@ -19,7 +19,7 @@ pub fn spaces_create(
     wiki_root: Option<&str>,
 ) -> Result<spaces::CreateReport> {
     let do_create = || {
-        spaces::create(
+        let report = spaces::create(
             path,
             name,
             description,
@@ -27,32 +27,39 @@ pub fn spaces_create(
             set_default,
             config_path,
             wiki_root,
-        )
+        )?;
+        if report.registered {
+            if let Some(e) = engine {
+                let entry = WikiEntry {
+                    name: name.to_string(),
+                    path: std::path::PathBuf::from(&report.path),
+                    description: description.map(|s| s.to_string()),
+                    remote: None,
+                };
+                // Roll back config entry if mount fails — inside the lock so no
+                // concurrent config mutation can interleave with the rollback.
+                if let Err(mount_err) = e.mount_wiki(&entry) {
+                    let _ = spaces::remove(name, false, config_path).inspect_err(
+                        |e| tracing::error!(error = %e, "rollback failed; wiki may be stranded in config"),
+                    );
+                    return Err(mount_err);
+                }
+            }
+        }
+        Ok(report)
     };
+
     let report = match engine {
         Some(e) => e.with_config_lock(do_create)?,
         None => do_create()?,
     };
 
-    if report.registered
-        && let Some(engine) = engine
-    {
-        let entry = WikiEntry {
-            name: name.to_string(),
-            path: std::path::PathBuf::from(&report.path),
-            description: description.map(|s| s.to_string()),
-            remote: None,
-        };
-        // Roll back config entry if mount fails so caller is never left with a
-        // registered-but-unmountable wiki.
-        if let Err(e) = engine.mount_wiki(&entry) {
-            let _ = spaces::remove(name, false, config_path).inspect_err(
-                |e| tracing::error!(error = %e, "rollback failed; wiki may be stranded in config"),
-            );
-            return Err(e);
-        }
-        if set_default {
-            engine.set_default(name)?;
+    // set_default is outside with_config_lock — this mirrors the original code and is a
+    // pre-existing pattern, not a regression introduced by this fix. A future hardening
+    // pass could move it inside the closure; out of scope for D5-3.
+    if report.registered && set_default {
+        if let Some(e) = engine {
+            e.set_default(name)?;
         }
     }
 
@@ -68,30 +75,30 @@ pub fn spaces_register(
     config_path: &Path,
     engine: Option<&WikiEngine>,
 ) -> Result<spaces::RegisterReport> {
-    let do_register = || spaces::register_existing(path, name, description, wiki_root, config_path);
-    let report = match engine {
-        Some(e) => e.with_config_lock(do_register)?,
-        None => do_register()?,
-    };
-
-    if report.registered
-        && let Some(engine) = engine
-    {
-        let entry = WikiEntry {
-            name: name.to_string(),
-            path: std::path::PathBuf::from(&report.path),
-            description: description.map(|s| s.to_string()),
-            remote: None,
-        };
-        if let Err(e) = engine.mount_wiki(&entry) {
-            let _ = spaces::remove(name, false, config_path).inspect_err(
-                |e| tracing::error!(error = %e, "rollback failed; wiki may be stranded in config"),
-            );
-            return Err(e);
+    let do_register = || {
+        let report = spaces::register_existing(path, name, description, wiki_root, config_path)?;
+        if report.registered {
+            if let Some(e) = engine {
+                let entry = WikiEntry {
+                    name: name.to_string(),
+                    path: std::path::PathBuf::from(&report.path),
+                    description: description.map(|s| s.to_string()),
+                    remote: None,
+                };
+                if let Err(mount_err) = e.mount_wiki(&entry) {
+                    let _ = spaces::remove(name, false, config_path).inspect_err(
+                        |e| tracing::error!(error = %e, "rollback failed; wiki may be stranded in config"),
+                    );
+                    return Err(mount_err);
+                }
+            }
         }
+        Ok(report)
+    };
+    match engine {
+        Some(e) => e.with_config_lock(do_register),
+        None => do_register(),
     }
-
-    Ok(report)
 }
 
 /// List registered wiki spaces, optionally filtered to a single name.
