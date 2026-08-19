@@ -328,7 +328,11 @@ fn ops_create_rolls_back_config_when_mount_fails() {
     // Create a schemas/ dir with an invalid JSON file to make build_space error.
     // parse_from_dir reads only .json files, so .yaml would be silently ignored.
     std::fs::create_dir_all(bad_path.join("schemas")).unwrap();
-    std::fs::write(bad_path.join("schemas").join("bad.json"), "not valid json {{{").unwrap();
+    std::fs::write(
+        bad_path.join("schemas").join("bad.json"),
+        "not valid json {{{",
+    )
+    .unwrap();
 
     let result = ops::spaces_create(
         &bad_path,

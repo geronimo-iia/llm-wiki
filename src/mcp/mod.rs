@@ -105,45 +105,45 @@ impl ServerHandler for McpServer {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let args = request.arguments.unwrap_or_default();
-            let result = tokio::task::block_in_place(|| tools::call(self, &request.name, &args));
+        let result = tokio::task::block_in_place(|| tools::call(self, &request.name, &args));
 
-            // Send resource update notifications for ingested pages
-            if !result.notify_uris.is_empty() {
-                let peer = context.peer.clone();
-                let uris = result.notify_uris.clone();
-                let tool_name = request.name.clone();
-                tokio::spawn(async move {
-                    for uri in uris {
-                        if let Err(e) = peer
-                            .notify_resource_updated(
-                                rmcp::model::ResourceUpdatedNotificationParam::new(uri.clone()),
-                            )
-                            .await
-                        {
-                            tracing::warn!(tool = %tool_name, uri = %uri, error = %e, "resource notification failed");
-                        }
+        // Send resource update notifications for ingested pages
+        if !result.notify_uris.is_empty() {
+            let peer = context.peer.clone();
+            let uris = result.notify_uris.clone();
+            let tool_name = request.name.clone();
+            tokio::spawn(async move {
+                for uri in uris {
+                    if let Err(e) = peer
+                        .notify_resource_updated(
+                            rmcp::model::ResourceUpdatedNotificationParam::new(uri.clone()),
+                        )
+                        .await
+                    {
+                        tracing::warn!(tool = %tool_name, uri = %uri, error = %e, "resource notification failed");
                     }
-                });
-            }
+                }
+            });
+        }
 
-            // Send resource list changed notification for space operations
-            if result.notify_resources_changed {
-                let peer = context.peer.clone();
-                let tool_name = request.name.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = peer.notify_resource_list_changed().await {
-                        tracing::warn!(tool = %tool_name, error = %e, "resource list changed notification failed");
-                    }
-                });
-            }
+        // Send resource list changed notification for space operations
+        if result.notify_resources_changed {
+            let peer = context.peer.clone();
+            let tool_name = request.name.clone();
+            tokio::spawn(async move {
+                if let Err(e) = peer.notify_resource_list_changed().await {
+                    tracing::warn!(tool = %tool_name, error = %e, "resource list changed notification failed");
+                }
+            });
+        }
 
-            let tool_result = if result.is_error {
-                CallToolResult::error(result.content)
-            } else {
-                CallToolResult::success(result.content)
-            };
+        let tool_result = if result.is_error {
+            CallToolResult::error(result.content)
+        } else {
+            CallToolResult::success(result.content)
+        };
 
-            Ok(tool_result.into())
+        Ok(tool_result.into())
     }
 
     fn list_resources(

@@ -416,7 +416,10 @@ fn list_tags_facet_counts_multi_value_doc() {
     let mgr = build_index(dir.path(), &wiki_root);
     let is = schema();
     let result = list(
-        &ListOptions { facets_top_tags: 10, ..ListOptions::default() },
+        &ListOptions {
+            facets_top_tags: 10,
+            ..ListOptions::default()
+        },
         &mgr.searcher().unwrap(),
         "test",
         &is,

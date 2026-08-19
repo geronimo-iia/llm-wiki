@@ -420,9 +420,8 @@ pub fn list(
 
     let mut multi = MultiCollector::new();
     let count_handle = multi.add_collector(Count);
-    let top_docs_handle = multi.add_collector(
-        TopDocs::with_limit(limit).order_by_string_fast_field("slug", Order::Asc),
-    );
+    let top_docs_handle = multi
+        .add_collector(TopDocs::with_limit(limit).order_by_string_fast_field("slug", Order::Asc));
     let status_handle = multi.add_collector(KeywordFacetCollector {
         field_name: "status".to_string(),
         top_n: 0,
@@ -673,9 +672,11 @@ fn collect_facets(
         })
         .collect();
     let mut fruits = searcher.search(query, &multi)?;
-    Ok(handles.into_iter().map(|h| h.extract(&mut fruits)).collect())
+    Ok(handles
+        .into_iter()
+        .map(|h| h.extract(&mut fruits))
+        .collect())
 }
-
 
 // ── llms renderers ────────────────────────────────────────────────────────────
 
