@@ -258,7 +258,20 @@ pub fn search(
             }
         },
     );
-    let top_docs = searcher.search(&final_query, &collector)?;
+    let mut multi = MultiCollector::new();
+    let top_docs_handle = multi.add_collector(collector);
+    let status_handle = multi.add_collector(KeywordFacetCollector {
+        field_name: "status".to_string(),
+        top_n: 0,
+    });
+    let tags_handle = multi.add_collector(KeywordFacetCollector {
+        field_name: "tags".to_string(),
+        top_n: options.facets_top_tags,
+    });
+    let mut multi_fruit = searcher.search(&final_query, &multi)?;
+    let top_docs = top_docs_handle.extract(&mut multi_fruit);
+    let status_facet = status_handle.extract(&mut multi_fruit);
+    let tags_facet = tags_handle.extract(&mut multi_fruit);
 
     let snippet_gen = if !options.no_excerpt {
         Some(SnippetGenerator::create(searcher, &final_query, f_body)?)
@@ -335,14 +348,7 @@ pub fn search(
     };
 
     let mut type_facets = collect_facets(searcher, &unfiltered_query, &[("type", 0)])?;
-    let mut filtered_facets = collect_facets(
-        searcher,
-        &final_query,
-        &[("status", 0), ("tags", options.facets_top_tags)],
-    )?;
     let type_facet = type_facets.remove(0);
-    let status_facet = filtered_facets.remove(0);
-    let tags_facet = filtered_facets.remove(0);
 
     Ok(SearchResult {
         results,
@@ -404,30 +410,6 @@ pub fn list(
     // Unfiltered query for type facet (no type/status filter)
     let unfiltered_query: Box<dyn tantivy::query::Query> = Box::new(AllQuery);
 
-    // Count total matches
-    let total = searcher.search(&query, &Count)?;
-    if total == 0 {
-        // Still collect facets even with no results in the page window
-        let mut type_facets = collect_facets(searcher, &unfiltered_query, &[("type", 0)])?;
-        let mut filtered_facets = collect_facets(
-            searcher,
-            &query,
-            &[("status", 0), ("tags", options.facets_top_tags)],
-        )?;
-        return Ok(PageList {
-            pages: Vec::new(),
-            total: 0,
-            page: options.page,
-            page_size: options.page_size,
-            facets: FacetCounts {
-                r#type: type_facets.remove(0),
-                status: filtered_facets.remove(0),
-                tags: filtered_facets.remove(0),
-            },
-        });
-    }
-
-    // Fetch sorted by _slug_ord, limited to offset + page_size
     let page = options.page;
     let page_size = options.page_size;
     if page_size == 0 {
@@ -436,10 +418,40 @@ pub fn list(
     let offset = (page - 1) * page_size;
     let limit = offset + page_size;
 
-    let sorted_docs = searcher.search(
-        &query,
-        &TopDocs::with_limit(limit).order_by_string_fast_field("slug", Order::Asc),
-    )?;
+    let mut multi = MultiCollector::new();
+    let count_handle = multi.add_collector(Count);
+    let top_docs_handle = multi.add_collector(
+        TopDocs::with_limit(limit).order_by_string_fast_field("slug", Order::Asc),
+    );
+    let status_handle = multi.add_collector(KeywordFacetCollector {
+        field_name: "status".to_string(),
+        top_n: 0,
+    });
+    let tags_handle = multi.add_collector(KeywordFacetCollector {
+        field_name: "tags".to_string(),
+        top_n: options.facets_top_tags,
+    });
+    let mut multi_fruit = searcher.search(&query, &multi)?;
+    let total = count_handle.extract(&mut multi_fruit);
+    let sorted_docs = top_docs_handle.extract(&mut multi_fruit);
+    let status_facet = status_handle.extract(&mut multi_fruit);
+    let tags_facet = tags_handle.extract(&mut multi_fruit);
+
+    if total == 0 {
+        // Still collect facets even with no results in the page window
+        let mut type_facets = collect_facets(searcher, &unfiltered_query, &[("type", 0)])?;
+        return Ok(PageList {
+            pages: Vec::new(),
+            total: 0,
+            page,
+            page_size,
+            facets: FacetCounts {
+                r#type: type_facets.remove(0),
+                status: status_facet,
+                tags: tags_facet,
+            },
+        });
+    }
 
     // Extract full fields only for the page window
     let window = if offset < sorted_docs.len() {
@@ -513,15 +525,10 @@ pub fn list(
         page_size,
         facets: {
             let mut type_facets = collect_facets(searcher, &unfiltered_query, &[("type", 0)])?;
-            let mut filtered_facets = collect_facets(
-                searcher,
-                &query,
-                &[("status", 0), ("tags", options.facets_top_tags)],
-            )?;
             FacetCounts {
                 r#type: type_facets.remove(0),
-                status: filtered_facets.remove(0),
-                tags: filtered_facets.remove(0),
+                status: status_facet,
+                tags: tags_facet,
             }
         },
     })
