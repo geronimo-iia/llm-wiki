@@ -170,7 +170,17 @@ pub async fn run_watcher(
                         })
                         .collect()
                 }; // read lock dropped here
-                for (wiki_name, path_count, index_manager, wiki_root, repo_root, last_commit, index_schema, type_registry) in tasks {
+                for (
+                    wiki_name,
+                    path_count,
+                    index_manager,
+                    wiki_root,
+                    repo_root,
+                    last_commit,
+                    index_schema,
+                    type_registry,
+                ) in tasks
+                {
                     let start = std::time::Instant::now();
                     match tokio::task::spawn_blocking(move || {
                         index_manager.update(

@@ -39,7 +39,10 @@ impl McpServer {
 
     /// Acquire a read guard on the engine state.
     pub fn engine(&self) -> Result<std::sync::RwLockReadGuard<'_, EngineState>, String> {
-        self.manager.state.read().map_err(|_| "engine lock poisoned".to_string())
+        self.manager
+            .state
+            .read()
+            .map_err(|_| "engine lock poisoned".to_string())
     }
 
     fn list_wiki_resources(&self) -> Vec<rmcp::model::Resource> {
@@ -96,15 +99,13 @@ impl ServerHandler for McpServer {
         }))
     }
 
-    fn call_tool(
+    async fn call_tool(
         &self,
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<CallToolResponse, McpError>> + Send + '_ {
-        async move {
-            let args = request.arguments.unwrap_or_default();
-            let result =
-                tokio::task::block_in_place(|| tools::call(self, &request.name, &args));
+    ) -> Result<CallToolResponse, McpError> {
+        let args = request.arguments.unwrap_or_default();
+            let result = tokio::task::block_in_place(|| tools::call(self, &request.name, &args));
 
             // Send resource update notifications for ingested pages
             if !result.notify_uris.is_empty() {
@@ -143,7 +144,6 @@ impl ServerHandler for McpServer {
             };
 
             Ok(tool_result.into())
-        }
     }
 
     fn list_resources(

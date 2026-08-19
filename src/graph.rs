@@ -1287,8 +1287,14 @@ pub fn get_cached_community_map(
     searcher: &Searcher,
     min_nodes: usize,
 ) -> Result<Option<Arc<HashMap<String, usize>>>> {
-    let community =
-        ensure_community_data(index_schema, type_registry, index_manager, graph_cache, community_cache, searcher)?;
+    let community = ensure_community_data(
+        index_schema,
+        type_registry,
+        index_manager,
+        graph_cache,
+        community_cache,
+        searcher,
+    )?;
     if community.local_count < min_nodes {
         return Ok(None);
     }
@@ -1307,8 +1313,14 @@ pub fn get_cached_community_stats(
     searcher: &Searcher,
     min_nodes: usize,
 ) -> Result<Option<CommunityStats>> {
-    let community =
-        ensure_community_data(index_schema, type_registry, index_manager, graph_cache, community_cache, searcher)?;
+    let community = ensure_community_data(
+        index_schema,
+        type_registry,
+        index_manager,
+        graph_cache,
+        community_cache,
+        searcher,
+    )?;
     if community.local_count < min_nodes {
         return Ok(None);
     }

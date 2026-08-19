@@ -5,8 +5,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use petgraph::graph::{NodeIndex, UnGraph};
 use serde::Serialize;
-use tantivy::schema::Value;
 use tantivy::query::AllQuery;
+use tantivy::schema::Value;
 
 use crate::engine::EngineState;
 use crate::graph::{GraphFilter, WikiGraph, get_or_build_graph};
@@ -301,9 +301,14 @@ fn rule_broken_link(
     let known_slugs: HashSet<String> = all_addrs
         .iter()
         .filter_map(|addr| {
-            searcher.doc(*addr).ok().and_then(|doc: tantivy::TantivyDocument| {
-                doc.get_first(f_slug).and_then(|v| v.as_str()).map(String::from)
-            })
+            searcher
+                .doc(*addr)
+                .ok()
+                .and_then(|doc: tantivy::TantivyDocument| {
+                    doc.get_first(f_slug)
+                        .and_then(|v| v.as_str())
+                        .map(String::from)
+                })
         })
         .collect();
 
