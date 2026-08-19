@@ -97,7 +97,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_spaces_set_default",
-            "Set the default wiki space.",
+            "Set the default wiki space. Once set, tools that accept an optional wiki parameter will target this wiki when wiki is omitted.",
             schema(
                 json!({
                     "name": str_prop("Wiki name to set as default"),
@@ -242,7 +242,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_index_status",
-            "Return detailed health for the search index of one wiki — reports openable, queryable, stale, and degraded_reason. Call this when wiki_info shows index_status: \"degraded\" to identify the specific failure.",
+            "Return detailed health for the search index of one wiki — reports openable, queryable, stale, and degraded_reason. Call this when wiki_info returns a degraded entry for a specific wiki (index_status object with status \"degraded\").",
             schema(
                 json!({
                     "wiki": opt_str("Target wiki name"),

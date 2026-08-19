@@ -1,6 +1,7 @@
 //! Git-backed wiki engine. Full-text search, typed pages, concept graph,
 //! MCP and ACP transports. The CLI is the primary interface; this crate also
 //! exposes the engine internals for embedding or testing.
+//! See [`examples/embed.rs`](../examples/embed.rs) for a minimal embedding example.
 #![warn(unreachable_pub)]
 
 #[doc(inline)]
