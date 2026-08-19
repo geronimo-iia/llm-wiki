@@ -43,13 +43,17 @@ impl McpServer {
     }
 
     fn list_wiki_resources(&self) -> Vec<rmcp::model::Resource> {
-        let engine = match self.manager.state.read() {
-            Ok(e) => e,
+        let roots: Vec<(String, std::path::PathBuf)> = match self.manager.state.read() {
+            Ok(engine) => engine
+                .spaces
+                .iter()
+                .map(|(name, space)| (name.clone(), space.wiki_root.clone()))
+                .collect(),
             Err(_) => return vec![],
         };
         let mut resources = Vec::new();
-        for (wiki_name, space) in &engine.spaces {
-            let walker = walkdir::WalkDir::new(&space.wiki_root)
+        for (wiki_name, wiki_root) in &roots {
+            let walker = walkdir::WalkDir::new(wiki_root)
                 .into_iter()
                 .filter_map(|e| e.ok())
                 .filter(|e| {
@@ -57,7 +61,7 @@ impl McpServer {
                         && e.path().extension().and_then(|x| x.to_str()) == Some("md")
                 });
             for entry in walker {
-                if let Ok(slug) = Slug::from_path(entry.path(), &space.wiki_root) {
+                if let Ok(slug) = Slug::from_path(entry.path(), wiki_root) {
                     let uri = format!("wiki://{wiki_name}/{slug}");
                     resources.push(Resource::new(uri, slug.title()));
                 }
@@ -97,46 +101,49 @@ impl ServerHandler for McpServer {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<CallToolResponse, McpError>> + Send + '_ {
-        let args = request.arguments.unwrap_or_default();
-        let result = tools::call(self, &request.name, &args);
+        async move {
+            let args = request.arguments.unwrap_or_default();
+            let result =
+                tokio::task::block_in_place(|| tools::call(self, &request.name, &args));
 
-        // Send resource update notifications for ingested pages
-        if !result.notify_uris.is_empty() {
-            let peer = context.peer.clone();
-            let uris = result.notify_uris.clone();
-            let tool_name = request.name.clone();
-            tokio::spawn(async move {
-                for uri in uris {
-                    if let Err(e) = peer
-                        .notify_resource_updated(
-                            rmcp::model::ResourceUpdatedNotificationParam::new(uri.clone()),
-                        )
-                        .await
-                    {
-                        tracing::warn!(tool = %tool_name, uri = %uri, error = %e, "resource notification failed");
+            // Send resource update notifications for ingested pages
+            if !result.notify_uris.is_empty() {
+                let peer = context.peer.clone();
+                let uris = result.notify_uris.clone();
+                let tool_name = request.name.clone();
+                tokio::spawn(async move {
+                    for uri in uris {
+                        if let Err(e) = peer
+                            .notify_resource_updated(
+                                rmcp::model::ResourceUpdatedNotificationParam::new(uri.clone()),
+                            )
+                            .await
+                        {
+                            tracing::warn!(tool = %tool_name, uri = %uri, error = %e, "resource notification failed");
+                        }
                     }
-                }
-            });
+                });
+            }
+
+            // Send resource list changed notification for space operations
+            if result.notify_resources_changed {
+                let peer = context.peer.clone();
+                let tool_name = request.name.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = peer.notify_resource_list_changed().await {
+                        tracing::warn!(tool = %tool_name, error = %e, "resource list changed notification failed");
+                    }
+                });
+            }
+
+            let tool_result = if result.is_error {
+                CallToolResult::error(result.content)
+            } else {
+                CallToolResult::success(result.content)
+            };
+
+            Ok(tool_result.into())
         }
-
-        // Send resource list changed notification for space operations
-        if result.notify_resources_changed {
-            let peer = context.peer.clone();
-            let tool_name = request.name.clone();
-            tokio::spawn(async move {
-                if let Err(e) = peer.notify_resource_list_changed().await {
-                    tracing::warn!(tool = %tool_name, error = %e, "resource list changed notification failed");
-                }
-            });
-        }
-
-        let tool_result = if result.is_error {
-            CallToolResult::error(result.content)
-        } else {
-            CallToolResult::success(result.content)
-        };
-
-        std::future::ready(Ok(tool_result.into()))
     }
 
     fn list_resources(

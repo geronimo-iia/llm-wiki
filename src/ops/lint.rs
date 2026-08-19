@@ -6,11 +6,7 @@ use anyhow::Result;
 use petgraph::graph::{NodeIndex, UnGraph};
 use serde::Serialize;
 use tantivy::schema::Value;
-use tantivy::{
-    Term,
-    query::{AllQuery, TermQuery},
-    schema::IndexRecordOption,
-};
+use tantivy::query::AllQuery;
 
 use crate::engine::EngineState;
 use crate::graph::{GraphFilter, WikiGraph, get_or_build_graph};
@@ -283,14 +279,6 @@ fn rule_orphan(
 
 // ── Rule: broken-link ─────────────────────────────────────────────────────────
 
-fn slug_exists(searcher: &tantivy::Searcher, is: &IndexSchema, slug: &str) -> Result<bool> {
-    let f_slug = is.field("slug");
-    let term = Term::from_field_text(f_slug, slug);
-    let query = TermQuery::new(term, IndexRecordOption::Basic);
-    let results = searcher.search(&query, &tantivy::collector::DocSetCollector)?;
-    Ok(!results.is_empty())
-}
-
 fn rule_broken_link(
     searcher: &tantivy::Searcher,
     is: &IndexSchema,
@@ -308,6 +296,16 @@ fn rule_broken_link(
     ];
 
     let all_addrs = searcher.search(&AllQuery, &tantivy::collector::DocSetCollector)?;
+
+    // Build slug set once — O(N) instead of a per-link TermQuery.
+    let known_slugs: HashSet<String> = all_addrs
+        .iter()
+        .filter_map(|addr| {
+            searcher.doc(*addr).ok().and_then(|doc: tantivy::TantivyDocument| {
+                doc.get_first(f_slug).and_then(|v| v.as_str()).map(String::from)
+            })
+        })
+        .collect();
 
     let mut findings = Vec::new();
 
@@ -349,7 +347,7 @@ fn rule_broken_link(
                     }
                     continue;
                 }
-                if !slug_exists(searcher, is, target)? {
+                if !known_slugs.contains(target) {
                     findings.push(LintFinding {
                         path: slug_path(&slug, wiki_root),
                         slug: slug.clone(),

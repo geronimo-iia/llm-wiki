@@ -832,24 +832,27 @@ pub fn render_llms(graph: &WikiGraph) -> String {
     let nodes = graph.node_count();
     let edges = graph.edge_count();
 
-    // Separate external placeholder nodes
-    let external_refs: Vec<String> = graph
-        .node_indices()
-        .filter(|&idx| graph[idx].external)
-        .map(|idx| graph[idx].title.clone())
-        .collect();
-
-    // Group local nodes by type
+    // Single pass: collect external refs, type groups, hub degrees, and isolated nodes.
+    let mut external_refs: Vec<String> = Vec::new();
     let mut by_type: HashMap<String, Vec<String>> = HashMap::new();
+    let mut degree: Vec<(usize, String)> = Vec::new();
+    let mut isolated: Vec<String> = Vec::new();
     for idx in graph.node_indices() {
         let node = &graph[idx];
+        let d = graph.neighbors_directed(idx, Direction::Incoming).count()
+            + graph.neighbors_directed(idx, Direction::Outgoing).count();
         if node.external {
-            continue;
+            external_refs.push(node.title.clone());
+        } else {
+            by_type
+                .entry(node.r#type.clone())
+                .or_default()
+                .push(node.title.clone());
         }
-        by_type
-            .entry(node.r#type.clone())
-            .or_default()
-            .push(node.title.clone());
+        degree.push((d, node.title.clone()));
+        if d == 0 {
+            isolated.push(node.title.clone());
+        }
     }
 
     // Sort type groups by count descending
@@ -866,37 +869,12 @@ pub fn render_llms(graph: &WikiGraph) -> String {
     let mut relations: Vec<(String, usize)> = relation_counts.into_iter().collect();
     relations.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
 
-    // Compute per-node total degree for hub detection
-    let mut degree: Vec<(usize, String)> = graph
-        .node_indices()
-        .map(|idx| {
-            let d = graph.neighbors_directed(idx, Direction::Incoming).count()
-                + graph.neighbors_directed(idx, Direction::Outgoing).count();
-            (d, graph[idx].title.clone())
-        })
-        .collect();
     degree.sort_by_key(|a| Reverse(a.0));
     let top_hubs: Vec<String> = degree
         .iter()
         .take(5)
         .filter(|(d, _)| *d > 0)
         .map(|(d, t)| format!("{t} ({d} edges)"))
-        .collect();
-
-    // Isolated nodes (no edges at all)
-    let isolated: Vec<String> = graph
-        .node_indices()
-        .filter(|&idx| {
-            graph
-                .neighbors_directed(idx, Direction::Incoming)
-                .next()
-                .is_none()
-                && graph
-                    .neighbors_directed(idx, Direction::Outgoing)
-                    .next()
-                    .is_none()
-        })
-        .map(|idx| graph[idx].title.clone())
         .collect();
 
     let cluster_count = type_groups.len();
@@ -1258,25 +1236,19 @@ pub fn get_or_build_graph(
     })
 }
 
-/// Return cached community map, or None if graph is below `min_nodes` threshold.
-///
-/// Hot path (both caches warm): community_cache hits immediately — graph_cache not touched.
-/// Cold path (miss): graph built and cached first, community built and cached inside closure.
-pub fn get_cached_community_map(
+fn ensure_community_data(
     index_schema: &IndexSchema,
     type_registry: &SpaceTypeRegistry,
     index_manager: &SpaceIndexManager,
     graph_cache: &WikiGraphCache,
     community_cache: &petgraph_live::cache::GenerationCache<CommunityData>,
     searcher: &Searcher,
-    min_nodes: usize,
-) -> Result<Option<Arc<HashMap<String, usize>>>> {
+) -> Result<std::sync::Arc<CommunityData>> {
     // generation() increments on every reload_reader() call. last_commit() is NOT used
     // because same-commit schema-triggered rebuilds produce a new index without changing
     // the commit hash — those must also invalidate the graph cache.
     let current_gen = index_manager.generation();
-
-    let community = community_cache.get_or_build(current_gen, || -> Result<CommunityData> {
+    community_cache.get_or_build(current_gen, || -> Result<CommunityData> {
         let graph = graph_cache.get_fresh(current_gen, || {
             build_graph(
                 searcher,
@@ -1299,8 +1271,24 @@ pub fn get_cached_community_map(
             map: Arc::new(map),
             stats,
         })
-    })?;
+    })
+}
 
+/// Return cached community map, or None if graph is below `min_nodes` threshold.
+///
+/// Hot path (both caches warm): community_cache hits immediately — graph_cache not touched.
+/// Cold path (miss): graph built and cached first, community built and cached inside closure.
+pub fn get_cached_community_map(
+    index_schema: &IndexSchema,
+    type_registry: &SpaceTypeRegistry,
+    index_manager: &SpaceIndexManager,
+    graph_cache: &WikiGraphCache,
+    community_cache: &petgraph_live::cache::GenerationCache<CommunityData>,
+    searcher: &Searcher,
+    min_nodes: usize,
+) -> Result<Option<Arc<HashMap<String, usize>>>> {
+    let community =
+        ensure_community_data(index_schema, type_registry, index_manager, graph_cache, community_cache, searcher)?;
     if community.local_count < min_nodes {
         return Ok(None);
     }
@@ -1319,36 +1307,8 @@ pub fn get_cached_community_stats(
     searcher: &Searcher,
     min_nodes: usize,
 ) -> Result<Option<CommunityStats>> {
-    // generation() increments on every reload_reader() call. last_commit() is NOT used
-    // because same-commit schema-triggered rebuilds produce a new index without changing
-    // the commit hash — those must also invalidate the graph cache.
-    let current_gen = index_manager.generation();
-
-    let community = community_cache.get_or_build(current_gen, || -> Result<CommunityData> {
-        let graph = graph_cache.get_fresh(current_gen, || {
-            build_graph(
-                searcher,
-                index_schema,
-                &GraphFilter::default(),
-                type_registry,
-            )
-        })?;
-        let local_count = graph.node_indices().filter(|&i| !graph[i].external).count();
-        let (stats_opt, map_opt) = build_community_data(&graph, 0);
-        let stats = stats_opt.unwrap_or(CommunityStats {
-            count: 0,
-            largest: 0,
-            smallest: 0,
-            isolated: vec![],
-        });
-        let map = map_opt.unwrap_or_default();
-        Ok(CommunityData {
-            local_count,
-            map: Arc::new(map),
-            stats,
-        })
-    })?;
-
+    let community =
+        ensure_community_data(index_schema, type_registry, index_manager, graph_cache, community_cache, searcher)?;
     if community.local_count < min_nodes {
         return Ok(None);
     }

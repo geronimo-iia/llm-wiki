@@ -453,6 +453,54 @@ fn graph_cache_invalidated_after_rebuild() {
     );
 }
 
+/// Invariant 1 regression: a fresh `WikiEngine` (simulating a process restart) always starts with
+/// a cold graph cache. The in-memory `GenerationCache` must not carry over between engine instances.
+#[test]
+fn graph_cache_is_cold_after_engine_restart() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "test");
+    let filter = GraphFilter::default();
+
+    // First engine — prime the cache
+    let arc1 = {
+        let manager = WikiEngine::build(&config_path).unwrap();
+        let engine = manager.state.read().unwrap();
+        let space = engine.spaces.get("test").unwrap();
+        let searcher = space.index_manager.searcher().unwrap();
+        get_or_build_graph(
+            &space.index_schema,
+            &space.type_registry,
+            &space.index_manager,
+            &space.graph_cache,
+            &searcher,
+            &filter,
+        )
+        .unwrap()
+    }; // manager dropped here — simulates process restart
+
+    // Second engine from same config — must not see first engine's in-memory cache
+    let arc2 = {
+        let manager = WikiEngine::build(&config_path).unwrap();
+        let engine = manager.state.read().unwrap();
+        let space = engine.spaces.get("test").unwrap();
+        let searcher = space.index_manager.searcher().unwrap();
+        get_or_build_graph(
+            &space.index_schema,
+            &space.type_registry,
+            &space.index_manager,
+            &space.graph_cache,
+            &searcher,
+            &filter,
+        )
+        .unwrap()
+    };
+
+    assert!(
+        !Arc::ptr_eq(&arc1, &arc2),
+        "fresh engine must start with a cold cache — no cross-restart Arc reuse"
+    );
+}
+
 /// Cache always runs Louvain at threshold=0, so accessors only check local node count vs min_nodes.
 /// Regression: previously the cache was built at threshold=30, causing None for graphs with 5–29 nodes.
 #[test]

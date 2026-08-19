@@ -41,6 +41,11 @@ impl Slug {
     ///
     /// 1. `<wiki_root>/<slug>.md`
     /// 2. `<wiki_root>/<slug>/index.md`
+    ///
+    /// The slug invariants prevent `..` traversal, but symlinks inside `wiki_root` are
+    /// not followed through `canonicalize`. Callers that accept user-supplied slugs and
+    /// perform write operations must canonicalize the resolved path and verify it is still
+    /// under `wiki_root` (see `ingest.rs` for the pattern).
     pub fn resolve(&self, wiki_root: &Path) -> Result<PathBuf> {
         let flat = wiki_root.join(format!("{}.md", self.0));
         if flat.is_file() {
