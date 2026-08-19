@@ -12,6 +12,7 @@
     },
     "type": {
       "type": "string",
+      "x-keyword": true,
       "description": "Page type from registry"
     },
     "summary": {

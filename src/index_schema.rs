@@ -126,8 +126,11 @@ pub(crate) fn classify_field(prop: &serde_json::Value, is_slug_field: bool) -> F
 
     match prop_type {
         "string" => {
-            // enum or const → keyword
-            if prop.get("enum").is_some() || prop.get("const").is_some() {
+            // x-keyword: true, enum, or const → keyword
+            if prop.get("x-keyword").and_then(|v| v.as_bool()) == Some(true)
+                || prop.get("enum").is_some()
+                || prop.get("const").is_some()
+            {
                 FieldClass::Keyword
             } else {
                 FieldClass::Text

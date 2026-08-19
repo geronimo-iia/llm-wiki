@@ -397,6 +397,45 @@ fn list_tags_multiple() {
 }
 
 #[test]
+fn list_tags_facet_counts_multi_value_doc() {
+    // One doc with two tags: "ml" and "nlp". Facet counts must show ml:1, nlp:1.
+    // This catches a collector that reads only the first term ordinal per doc.
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/a.md",
+        "---\ntitle: \"A\"\nstatus: active\ntype: concept\ntags:\n  - ml\n  - nlp\n---\n\nbody\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/b.md",
+        "---\ntitle: \"B\"\nstatus: active\ntype: concept\ntags:\n  - nlp\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions { facets_top_tags: 10, ..ListOptions::default() },
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert_eq!(
+        result.facets.tags.get("ml").copied(),
+        Some(1),
+        "ml must appear in facets with count 1"
+    );
+    assert_eq!(
+        result.facets.tags.get("nlp").copied(),
+        Some(2),
+        "nlp must appear in both docs — count must be 2"
+    );
+}
+
+#[test]
 fn list_tags_empty() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());

@@ -6,7 +6,7 @@ use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use tantivy::{
     DocId, Order, Score, Searcher, Term,
-    collector::{Count, TopDocs},
+    collector::{Collector, Count, MultiCollector, SegmentCollector, TopDocs},
     query::{AllQuery, BooleanQuery, Occur, QueryParser, TermQuery},
     schema::{IndexRecordOption, Value},
     snippet::{Snippet, SnippetGenerator},
@@ -334,9 +334,15 @@ pub fn search(
         Box::new(BooleanQuery::new(clauses))
     };
 
-    let type_facet = collect_facet(searcher, &unfiltered_query, is, "type", 0)?;
-    let status_facet = collect_facet(searcher, &final_query, is, "status", 0)?;
-    let tags_facet = collect_facet(searcher, &final_query, is, "tags", options.facets_top_tags)?;
+    let mut type_facets = collect_facets(searcher, &unfiltered_query, &[("type", 0)])?;
+    let mut filtered_facets = collect_facets(
+        searcher,
+        &final_query,
+        &[("status", 0), ("tags", options.facets_top_tags)],
+    )?;
+    let type_facet = type_facets.remove(0);
+    let status_facet = filtered_facets.remove(0);
+    let tags_facet = filtered_facets.remove(0);
 
     Ok(SearchResult {
         results,
@@ -402,18 +408,21 @@ pub fn list(
     let total = searcher.search(&query, &Count)?;
     if total == 0 {
         // Still collect facets even with no results in the page window
-        let type_facet = collect_facet(searcher, &unfiltered_query, is, "type", 0)?;
-        let status_facet = collect_facet(searcher, &query, is, "status", 0)?;
-        let tags_facet = collect_facet(searcher, &query, is, "tags", options.facets_top_tags)?;
+        let mut type_facets = collect_facets(searcher, &unfiltered_query, &[("type", 0)])?;
+        let mut filtered_facets = collect_facets(
+            searcher,
+            &query,
+            &[("status", 0), ("tags", options.facets_top_tags)],
+        )?;
         return Ok(PageList {
             pages: Vec::new(),
             total: 0,
             page: options.page,
             page_size: options.page_size,
             facets: FacetCounts {
-                r#type: type_facet,
-                status: status_facet,
-                tags: tags_facet,
+                r#type: type_facets.remove(0),
+                status: filtered_facets.remove(0),
+                tags: filtered_facets.remove(0),
             },
         });
     }
@@ -503,13 +512,16 @@ pub fn list(
         page,
         page_size,
         facets: {
-            let type_facet = collect_facet(searcher, &unfiltered_query, is, "type", 0)?;
-            let status_facet = collect_facet(searcher, &query, is, "status", 0)?;
-            let tags_facet = collect_facet(searcher, &query, is, "tags", options.facets_top_tags)?;
+            let mut type_facets = collect_facets(searcher, &unfiltered_query, &[("type", 0)])?;
+            let mut filtered_facets = collect_facets(
+                searcher,
+                &query,
+                &[("status", 0), ("tags", options.facets_top_tags)],
+            )?;
             FacetCounts {
-                r#type: type_facet,
-                status: status_facet,
-                tags: tags_facet,
+                r#type: type_facets.remove(0),
+                status: filtered_facets.remove(0),
+                tags: filtered_facets.remove(0),
             }
         },
     })
@@ -565,43 +577,98 @@ pub fn search_all(
 
 // ── Facet collection ──────────────────────────────────────────────────────────
 
-/// Collect term frequency counts for a keyword FAST field across matching docs.
-/// If `top_n` is 0, return all values. Otherwise return the top N by count.
-fn collect_facet(
-    searcher: &Searcher,
-    query: &dyn tantivy::query::Query,
-    is: &IndexSchema,
-    field_name: &str,
+struct KeywordFacetCollector {
+    field_name: String,
     top_n: usize,
-) -> Result<HashMap<String, u64>> {
-    let field = match is.try_field(field_name) {
-        Some(f) => f,
-        None => return Ok(HashMap::new()),
-    };
+}
 
-    let doc_addrs = searcher.search(query, &tantivy::collector::DocSetCollector)?;
-    let mut counts: HashMap<String, u64> = HashMap::new();
+struct KeywordFacetSegmentCollector {
+    column: Option<tantivy::columnar::StrColumn>,
+    buf: String,
+    counts: HashMap<String, u64>,
+}
 
-    for doc_addr in &doc_addrs {
-        let doc: tantivy::TantivyDocument = searcher.doc(*doc_addr)?;
-        for val in doc.get_all(field) {
-            if let Some(s) = val.as_str()
-                && !s.is_empty()
-            {
-                *counts.entry(s.to_string()).or_insert(0) += 1;
+impl Collector for KeywordFacetCollector {
+    type Fruit = HashMap<String, u64>;
+    type Child = KeywordFacetSegmentCollector;
+
+    fn for_segment(
+        &self,
+        _segment_local_id: u32,
+        reader: &tantivy::SegmentReader,
+    ) -> tantivy::Result<Self::Child> {
+        let column = reader.fast_fields().str(&self.field_name).ok().flatten();
+        Ok(KeywordFacetSegmentCollector {
+            column,
+            buf: String::new(),
+            counts: HashMap::new(),
+        })
+    }
+
+    fn requires_scoring(&self) -> bool {
+        false
+    }
+
+    fn merge_fruits(
+        &self,
+        fruits: Vec<HashMap<String, u64>>,
+    ) -> tantivy::Result<HashMap<String, u64>> {
+        let mut merged: HashMap<String, u64> = HashMap::new();
+        for f in fruits {
+            for (k, v) in f {
+                *merged.entry(k).or_insert(0) += v;
+            }
+        }
+        if self.top_n > 0 && merged.len() > self.top_n {
+            let mut entries: Vec<_> = merged.into_iter().collect();
+            entries.sort_by_key(|e| Reverse(e.1));
+            entries.truncate(self.top_n);
+            return Ok(entries.into_iter().collect());
+        }
+        Ok(merged)
+    }
+}
+
+impl SegmentCollector for KeywordFacetSegmentCollector {
+    type Fruit = HashMap<String, u64>;
+
+    fn collect(&mut self, doc: tantivy::DocId, _score: tantivy::Score) {
+        let Some(col) = &self.column else { return };
+        for ord in col.term_ords(doc) {
+            self.buf.clear();
+            if col.ord_to_str(ord, &mut self.buf).unwrap_or(false) && !self.buf.is_empty() {
+                *self.counts.entry(self.buf.clone()).or_insert(0) += 1;
             }
         }
     }
 
-    if top_n > 0 && counts.len() > top_n {
-        let mut entries: Vec<_> = counts.into_iter().collect();
-        entries.sort_by_key(|e| Reverse(e.1));
-        entries.truncate(top_n);
-        return Ok(entries.into_iter().collect());
+    fn harvest(self) -> HashMap<String, u64> {
+        self.counts
     }
-
-    Ok(counts)
 }
+
+fn collect_facets(
+    searcher: &Searcher,
+    query: &dyn tantivy::query::Query,
+    fields: &[(&str, usize)],
+) -> Result<Vec<HashMap<String, u64>>> {
+    if fields.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut multi = MultiCollector::new();
+    let handles: Vec<_> = fields
+        .iter()
+        .map(|(name, top_n)| {
+            multi.add_collector(KeywordFacetCollector {
+                field_name: name.to_string(),
+                top_n: *top_n,
+            })
+        })
+        .collect();
+    let mut fruits = searcher.search(query, &multi)?;
+    Ok(handles.into_iter().map(|h| h.extract(&mut fruits)).collect())
+}
+
 
 // ── llms renderers ────────────────────────────────────────────────────────────
 
