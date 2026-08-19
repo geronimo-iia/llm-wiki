@@ -130,12 +130,30 @@ pub fn spaces_set_default(
     engine: Option<&WikiEngine>,
 ) -> Result<()> {
     let do_set_default = || {
-        // Validate and update in-memory engine first — if the wiki is not mounted
-        // this returns an error before touching disk, keeping config and engine in sync.
         if let Some(engine) = engine {
+            // Capture previous in-memory default for rollback.
+            let prev = engine
+                .state
+                .read()
+                .map_err(|_| anyhow::anyhow!("lock poisoned"))?
+                .config
+                .global
+                .default_wiki
+                .clone();
+
+            // Validate (wiki not mounted → error before touching disk) and update in-memory.
             engine.set_default(name)?;
+
+            // Persist to disk. On failure, restore the previous in-memory value.
+            if let Err(disk_err) = spaces::set_default_wiki(name, config_path) {
+                let mut eng = engine.state.write().unwrap_or_else(|e| e.into_inner());
+                eng.config.global.default_wiki = prev;
+                return Err(disk_err);
+            }
+        } else {
+            spaces::set_default_wiki(name, config_path)?;
         }
-        spaces::set_default_wiki(name, config_path)
+        Ok(())
     };
     match engine {
         Some(e) => e.with_config_lock(do_set_default),

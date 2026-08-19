@@ -259,6 +259,50 @@ fn set_default_wiki_errors_on_unregistered() {
     );
 }
 
+#[test]
+fn ops_set_default_rolls_back_in_memory_on_disk_failure() {
+    use llm_wiki_engine::engine::WikiEngine;
+    use llm_wiki_engine::ops;
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let cfg = config_path(dir.path());
+
+    // Create two wikis; "alpha" becomes the initial default.
+    let alpha_path = dir.path().join("alpha");
+    let beta_path = dir.path().join("beta");
+    spaces::create(&alpha_path, "alpha", None, false, false, &cfg, None).unwrap();
+    spaces::create(&beta_path, "beta", None, false, false, &cfg, None).unwrap();
+    let manager = WikiEngine::build(&cfg).unwrap();
+    ops::spaces_set_default("alpha", &cfg, Some(&manager)).unwrap();
+    {
+        let engine = manager.state.read().unwrap();
+        assert_eq!(engine.config.global.default_wiki, "alpha");
+    }
+
+    // Make config directory non-writable so atomic_write (tempfile + rename) fails.
+    // The config file itself being read-only is not enough because atomic_write renames
+    // a temp file into place, which succeeds even against a read-only target on macOS.
+    // cfg is dir/dot-wiki/config.toml; lock the dot-wiki dir where the temp file is created.
+    let config_dir = cfg.parent().unwrap().to_path_buf();
+    std::fs::set_permissions(&config_dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+
+    // Attempt to change default to "beta" — disk write fails.
+    let err = ops::spaces_set_default("beta", &cfg, Some(&manager));
+
+    // Restore dir permissions before any assertion (tempdir cleanup needs write access).
+    std::fs::set_permissions(&config_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert!(err.is_err(), "disk failure must propagate");
+
+    // In-memory must be rolled back to "alpha".
+    let engine = manager.state.read().unwrap();
+    assert_eq!(
+        engine.config.global.default_wiki, "alpha",
+        "in-memory default must be rolled back on disk failure"
+    );
+}
+
 // ── load_all ──────────────────────────────────────────────────────────────────
 
 #[test]
