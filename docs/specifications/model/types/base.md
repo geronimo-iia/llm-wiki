@@ -5,7 +5,7 @@ read_when:
   - Understanding the base frontmatter fields
   - Understanding what happens with unrecognized types
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2026-08-19"
 ---
 
 # Base Type
@@ -21,7 +21,7 @@ field (registered as `[types.default]` in `wiki.toml`).
 | Field   | Type   | Description             |
 | ------- | ------ | ----------------------- |
 | `title` | string | Display name            |
-| `type`  | string | Page type from registry |
+| `type`  | string | Page type from registry. Indexed as keyword (`STRING \| STORED \| FAST`) — controlled vocabulary, never free-text. |
 
 ## Optional Fields
 

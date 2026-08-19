@@ -6,7 +6,7 @@ read_when:
   - Understanding staleness detection and auto-recovery
   - Understanding incremental vs full rebuild
 status: ready
-last_updated: "2026-07-24"
+last_updated: "2026-08-19"
 ---
 
 # Index Management
@@ -129,6 +129,11 @@ reload_reader()
 ```
 
 Cost: O(n) where n = total pages.
+
+Concurrent rebuild calls on the same space are serialised by
+`SpaceIndexManager.rebuild_lock: Mutex<()>`. The second caller blocks until the
+first completes, then runs a fresh rebuild on the now-updated index. See
+[lock-patterns.md](../../implementation/lock-patterns.md) for details.
 
 Triggered by:
 - `llm-wiki index rebuild` (explicit)

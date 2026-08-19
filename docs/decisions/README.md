@@ -10,6 +10,8 @@ Architectural decisions and their rationale, grouped by release.
 | -------- | ------- |
 | [acp-sessions-parking-lot-mutex](1.0.0/acp-sessions-parking-lot-mutex.md) | `parking_lot::Mutex` for ACP `Sessions` — `tokio::sync::Mutex` rejected because helper functions are sync; `std::sync::Mutex` rejected due to poison crash vector; `parking_lot` already in transitive tree, zero new packages |
 | [watcher-rebuild-guard-atomic-bool](1.0.0/watcher-rebuild-guard-atomic-bool.md) | `Arc<AtomicBool>` per `SpaceContext` to skip redundant concurrent rebuilds — `JoinHandle` abort rejected (Tantivy non-cancellable); per-wiki watch channel rejected (disproportionate); flag resets on re-mount; stuck-flag edge case on shutdown is benign |
+| [rebuild-lock-mutex-space-index-manager](1.0.0/rebuild-lock-mutex-space-index-manager.md) | `Mutex<()>` on `SpaceIndexManager` serialises concurrent `rebuild()` calls — Tantivy writer lock rejected (different `Index` instances); `state` write-lock rejected (blocks all reads); per-wiki channel rejected (disproportionate); complements `AtomicBool` watcher guard |
+| [spaces-atomic-rollback](1.0.0/spaces-atomic-rollback.md) | Direct `state.write()` for `set_default` rollback — `set_default("")` rejected (fails `contains_key` for empty string); rollback runs inside `with_config_lock` closure to prevent concurrent observers seeing intermediate state |
 
 ### Stable API
 
@@ -25,6 +27,7 @@ Architectural decisions and their rationale, grouped by release.
 | Decision | Summary |
 | -------- | ------- |
 | [louvain-sigma-tot-precompute](1.0.0/louvain-sigma-tot-precompute.md) | Full Louvain ΔQ formula (join gain − leave cost) + `sigma_tot` precomputed per pass — original formula was incomplete (join-only), causing oscillation and wrong partitions; `test_louvain_two_clusters` failed on original code; formula fix is correctness, sigma_tot is performance (O(N³)→O(M)); pass cap retained |
+| [fast-field-facet-collector](1.0.0/fast-field-facet-collector.md) | `KeywordFacetCollector` + `StrColumn` fast fields for facet counting — built-in `FacetCollector` rejected (wrong tantivy type for STRING fields); accumulate-in-TopDocs rejected (top-K only); `MultiCollector` reduces search/list from 4 to 2 segment passes; `type` field schema bug fixed as prerequisite |
 
 ### Dependency hygiene
 

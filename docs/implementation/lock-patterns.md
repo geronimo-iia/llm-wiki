@@ -2,7 +2,7 @@
 title: "Lock Patterns"
 summary: "How RwLock<EngineState> is acquired and released across the codebase — rules, anti-patterns, and call-site examples."
 status: ready
-last_updated: "2026-08-17"
+last_updated: "2026-08-19"
 read_when:
   - Adding a new operation that reads or writes engine state
   - Writing an MCP handler that needs both a read and a write path
@@ -196,6 +196,78 @@ self.state.read().map_err(|_| anyhow::anyhow!("lock poisoned"))?
 `McpServer::engine()` panics directly (`expect("engine lock poisoned")`).
 Both are acceptable — a poisoned lock means the engine is in an inconsistent
 state and the request cannot be served anyway.
+
+## Serialising Concurrent Rebuilds
+
+`SpaceIndexManager` has a `rebuild_lock: Mutex<()>` field. `rebuild()` acquires
+it at entry and releases it on return. This serialises concurrent rebuild
+calls — the second caller blocks until the first completes, then proceeds with
+the now-updated index.
+
+```rust
+// inside SpaceIndexManager::rebuild()
+let _rebuild_guard = self.rebuild_lock.lock()
+    .map_err(|_| anyhow::anyhow!("rebuild lock poisoned"))?;
+// full rebuild runs under this guard
+```
+
+This is separate from `EngineState.state: RwLock<...>`. The `RwLock` is held
+at read level for the duration of rebuild; the `rebuild_lock` is an additional
+mutex specifically for serialising concurrent rebuild callers on the same space.
+
+## with_config_lock and Atomic Rollback
+
+Space-mutating operations (`spaces_create`, `spaces_register`,
+`spaces_set_default`) run inside `WikiEngine::with_config_lock`. The method
+acquires a dedicated `config_write_lock: Mutex<()>` that serialises concurrent
+space mutations.
+
+`with_config_lock` does **not** hold `state: RwLock`. The closure acquires and
+releases `state.write()` internally for each mutation step.
+
+### Atomic rollback for set_default
+
+`spaces_set_default` captures the previous default before mutation so it can
+roll back on disk failure:
+
+```rust
+// capture before mutation
+let prev_default = state.read()?.global.default_wiki.clone();
+// mutate in-memory
+engine.set_default(&wiki_name)?;
+// persist to disk
+if atomic_write(&cfg_path, &new_config).is_err() {
+    // restore in-memory state without going through set_default's validation
+    state.write()?.global.default_wiki = prev_default;
+    return Err(...);
+}
+```
+
+`engine.set_default()` validates that the wiki name exists. Direct
+`state.write()` access is required for rollback because the prev_default may
+be an empty string (no default), which would fail `set_default`'s
+`contains_key` check.
+
+### Atomic rollback for mount_wiki
+
+`spaces_create` / `spaces_register` perform `mount_wiki` (which writes
+`state.write()`) followed by a config persist. The rollback (`spaces::remove`)
+runs inside the same `with_config_lock` closure:
+
+```rust
+with_config_lock(|| {
+    engine.mount_wiki(space)?;          // state.write() internally
+    if atomic_write(cfg_path, cfg).is_err() {
+        spaces::remove(engine, &name);  // rollback — state.write() again
+        return Err(...);
+    }
+    Ok(())
+})
+```
+
+Both `mount_wiki` and `remove` acquire `state.write()` independently; neither
+is nested inside the other. No deadlock risk — `with_config_lock` holds only
+`config_write_lock: Mutex<()>`, not `state`.
 
 ## Fields That Have Their Own Synchronisation
 

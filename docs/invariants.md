@@ -1,7 +1,7 @@
 ---
 title: "Architectural Invariants"
 summary: "Non-obvious constraints that must hold for correctness. Violations produce no compile error."
-last_updated: "2026-08-04"
+last_updated: "2026-08-19"
 ---
 
 # Architectural Invariants
@@ -37,6 +37,42 @@ Duplicating it causes a silent double-rebuild; removing it from ops breaks CLI.
 **Corollary for tests:** tests asserting cache invalidation must call
 `ops::index_rebuild`, not `index_manager.rebuild()` directly. The latter rebuilds
 tantivy but does not refresh the graph cache.
+
+## Concurrent rebuild serialisation
+
+**Invariant:** at most one `rebuild()` call runs per wiki space at any time.
+`SpaceIndexManager.rebuild_lock: Mutex<()>` enforces this.
+
+**Why:** two concurrent full rebuilds on the same space both write to
+`search-index-building/`, then both attempt the three-rename atomic swap.
+The second rename would overwrite the first's committed index, and both
+readers would reload at unpredictable points. Serialising via `rebuild_lock`
+ensures each rebuild sees the outcome of the previous one.
+
+**Corollary:** `rebuild_lock` is separate from `state: RwLock`. `state` is
+held at read level during rebuild; `rebuild_lock` is the concurrency guard.
+Never hold both write guards simultaneously.
+
+## Space mutation atomicity
+
+**Invariant:** in-memory space state and the persisted `wiki.toml` must never
+diverge after a `spaces_create`, `spaces_register`, or `spaces_set_default`
+call returns.
+
+**Why:** if the in-memory mutation succeeds but the disk write fails (and is
+not rolled back), subsequent requests see a default or space that the next
+engine restart will not find — silent divergence between memory and disk.
+
+Rollback rules:
+- `spaces_set_default`: capture `prev_default` before calling `set_default()`;
+  on disk failure restore via `state.write()` directly (bypasses
+  `contains_key` validation, which rejects an empty string).
+- `spaces_create` / `spaces_register`: run `mount_wiki` and
+  `spaces::remove` rollback inside the same `with_config_lock` closure so no
+  other write can observe the intermediate state.
+
+See [lock-patterns.md](implementation/lock-patterns.md) for the rollback
+patterns.
 
 ## Lock ordering
 

@@ -2,7 +2,7 @@
 title: "Tantivy Implementation Notes"
 summary: "Tantivy-specific implementation details — dynamic schema, TopDocs, index writer, tokenizer, and segment management."
 status: ready
-last_updated: "2026-04-28"
+last_updated: "2026-08-19"
 ---
 
 # Tantivy Implementation Notes
@@ -26,6 +26,7 @@ custom meeting-notes type), it becomes a new tantivy field.
 4. Classify each by JSON Schema type:
    - `string` → `TEXT | STORED` (tokenized for BM25)
    - `string` with `enum` or `const` → `STRING | STORED | FAST` (keyword)
+   - `string` with `"x-keyword": true` → `STRING | STORED | FAST` (keyword; values lowercased at index time)
    - `array` with `"x-keyword": true` → `STRING | STORED | FAST` per value (keyword per entry; values lowercased at index time)
    - `array` of `string` items with `enum`/`const` → `STRING | STORED | FAST` per value (keyword per entry)
    - `array` of plain `string` items (no `x-keyword`) → `TEXT | STORED` (joined and tokenized)
@@ -131,6 +132,65 @@ let sorted = searcher.search(
 ```
 
 Native string sort — no encoding, no tie-breaking needed.
+
+## Fast-Field Facet Counting
+
+`wiki_search` and `wiki_list` return facet counts (distributions over `type`,
+`status`, `tags`). These are collected without touching the stored-doc store via
+a custom `KeywordFacetCollector` that reads tantivy columnar fast fields.
+
+### KeywordFacetCollector
+
+Implements `tantivy::Collector`. In `collect()`, retrieves a `StrColumn` fast
+field for the target field name, iterates term ordinals per doc, and resolves
+each ordinal to a string via `ord_to_str`. Counts are accumulated in a
+`HashMap<String, u64>`.
+
+```rust
+struct KeywordFacetCollector {
+    field_name: String,
+    top_n: usize,
+}
+
+// Segment-level state
+struct KeywordFacetSegmentCollector {
+    column: Option<tantivy::columnar::StrColumn>,
+    buf: String,
+    counts: HashMap<String, u64>,
+}
+```
+
+`StrColumn` is available at `tantivy::columnar::StrColumn` (tantivy 0.26
+re-exports the `columnar` crate). Fields must be `STRING | FAST` for
+`fast_fields().str(name)` to return `Some`.
+
+### MultiCollector
+
+Multiple `KeywordFacetCollector` instances are combined with `MultiCollector`
+to run all facet field passes over the same query in a single
+`searcher.search()` call:
+
+```rust
+fn collect_facets(
+    searcher: &Searcher,
+    query: &dyn tantivy::query::Query,
+    fields: &[(&str, usize)],
+) -> Result<Vec<HashMap<String, u64>>>
+```
+
+### Search pass reduction
+
+Using `MultiCollector` and bundling facet collectors with the main `TopDocs`
+collector reduces tantivy segment passes:
+
+| Function   | Before | After |
+|------------|--------|-------|
+| `search()` | 4      | 2     |
+| `list()`   | 4      | 2     |
+
+The `type` facet uses an unfiltered query (all docs in the space); it cannot be
+folded into the main filtered pass and runs as a separate call to
+`collect_facets`.
 
 ## IndexReader and ReloadPolicy
 

@@ -28,6 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **`IndexStatus.path` excluded from serialized output** — `IndexStatus.path` is now
+  `#[serde(skip)]`; the absolute filesystem path to the index directory was previously
+  included in `wiki_index_status` tool output, leaking workspace layout to LLM clients.
+- **`handle_info` degraded error redacted** — the degraded-index error string in
+  `wiki_info` responses is now processed through `redact_error` before being returned;
+  raw index error messages could contain absolute paths.
+- **`config_path` removed from `wiki_info` output** — the absolute path to the global
+  config file was previously included in the `wiki_info` JSON response; removed entirely.
+- **Ingest warnings use relative paths** — validation and redaction warning messages
+  emitted by `ingest()` now strip the wiki root prefix via `strip_prefix(wiki_root)`;
+  absolute paths no longer appear in `IngestReport.warnings`.
+
 - **Path traversal in `type_registry.rs` closed** — `SpaceTypeRegistry::build` and
   `compute_disk_hashes` now validate every `schema` path from `wiki.toml` via
   `validate_schema_path`: absolute paths and `..` components are rejected, and the
@@ -106,6 +118,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Concurrency
 
+- **Concurrent `rebuild()` calls serialized** — `SpaceIndexManager` carries a
+  `rebuild_lock: Mutex<()>` acquired at the top of `rebuild()`; a second concurrent
+  call blocks until the first completes instead of running two simultaneous index
+  rebuilds that would corrupt the write lock sequence.
+- **`rebuild_index()` sets and clears `rebuilding` flag atomically** — the
+  `SpaceContext.rebuilding: Arc<AtomicBool>` flag is now set to `true` before the
+  rebuild begins and cleared to `false` after it completes (or errors); the watcher
+  loop reads this flag to skip redundant events that arrive mid-rebuild. Previously
+  the flag was never set by `rebuild_index()`, so watcher-triggered and API-triggered
+  rebuilds could overlap.
+- **MCP `call_tool` dispatch moved off async thread** — the `call_tool` handler now
+  wraps `tools::call(...)` in `tokio::task::block_in_place`, preventing Tantivy
+  searcher I/O from blocking the Tokio thread pool during tool dispatch.
+
 - **Blocking I/O moved off Tokio thread** — `schema_rebuild` is now dispatched via
   `tokio::task::spawn_blocking` in the watcher loop; file I/O, `git log`, and Tantivy
   fsync no longer block MCP request handling or ACP sessions during schema changes.
@@ -123,6 +149,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   See `docs/decisions/1.0.0/acp-sessions-parking-lot-mutex.md`.
 
 ### Correctness
+
+- **`spaces_set_default` rolls back in-memory state on disk failure** — if the disk
+  write in `spaces::set_default_wiki` fails, the engine's in-memory
+  `config.global.default_wiki` is restored to its previous value. Previously a disk
+  failure left the in-memory default pointing to the new name while on-disk config
+  still held the old name.
+- **`mount_wiki` rollback covered by `with_config_lock`** — in `spaces_create` and
+  `spaces_register`, the `mount_wiki` call and its `spaces::remove` rollback on
+  failure are now inside the `with_config_lock` closure. Previously the rollback
+  happened after the lock was released, leaving a window where a concurrent config
+  mutation could observe a partially-written config.
+- **`list_wiki_resources` releases read lock before filesystem walk** — the MCP
+  `list_wiki_resources` handler now collects `(wiki_name, wiki_root)` pairs under
+  the state read lock, drops the guard, then walks the filesystem. Previously the
+  guard was held across the entire directory traversal, blocking any write that
+  needed `state.write()` for the full duration.
 
 - **`default_wiki_name()` silent empty-string propagation** — `EngineState::default_wiki_name()`
   now returns `Option<&str>` (`None` when `global.default_wiki` is unset) instead of `""`.
@@ -174,6 +216,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
+- **`rule_broken_link` O(N×K) → O(1)** — the broken-link lint previously issued a
+  `TermQuery` against the Tantivy index for every link in every page (O(N×K) where N
+  is pages and K is links per page). All known slugs are now collected into a
+  `HashSet<String>` in a single pre-pass; each link is checked via `contains` in O(1).
+- **`render_llms` single-pass graph walk** — four separate `node_indices()` iterations
+  (external refs, by-type grouping, degree ranking, isolated nodes) merged into one
+  loop.
+- **Facet collection replaced with fast-field collector** — `collect_facet`'s
+  `DocSetCollector` + per-document deserialization loop is replaced by
+  `KeywordFacetCollector`, a custom `tantivy::Collector` that reads `StrColumn` fast
+  fields directly (no stored-doc access). `MultiCollector` bundles same-query fields
+  into a single `searcher.search()` call, and in `search()` and `list()` the filtered
+  facets (status, tags) are folded into the main TopDocs pass. Query pass count:
+  `search()` 4 → 2, `list()` 4 → 2.
+- **`type` field promoted to keyword/FAST storage** — `type` in `schemas/base.json`
+  and all type-specific schemas is now `"x-keyword": true`. It was previously stored
+  as TEXT (full-text tokenized, no fast-field column), so the fast-field facet
+  collector fell back to empty results for type facets. Deploying will trigger an
+  automatic index rebuild via schema-hash mismatch detection.
+
 - **Louvain community detection correctness + O(N³) fix** — `louvain_phase1` previously
   used an incomplete gain formula (join-only, missing the leave cost), allowing
   modularity-decreasing moves and causing oscillation that hit the pass cap without
@@ -221,6 +283,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   under `with_config_lock`.
 
 ### Tests
+
+- **`graph_cache_is_cold_after_engine_restart`** — verifies that a freshly constructed
+  `WikiEngine` always starts with a cold graph cache (Invariant 1 regression guard).
+- **`ops_set_default_rolls_back_in_memory_on_disk_failure`** — makes the config parent
+  directory non-writable, attempts `spaces_set_default`, asserts error propagates and
+  in-memory default is restored.
+- **`ops_create_rolls_back_config_when_mount_fails`** — verifies that a failed
+  `mount_wiki` during `spaces_create` removes the wiki entry from on-disk config
+  (rollback correctness guard; the race window is fixed structurally, not testable
+  deterministically).
+- **`list_tags_facet_counts_multi_value_doc`** — one doc with two tags; verifies both
+  tag ordinals are counted (guards against a collector that reads only the first
+  `term_ord` per document).
 
 - **Colon-query regression test** — Python integration test for `parse_query_lenient`
   fallback path (fixed 0.5.6): `search "Layer 1: Attention"` must exit 0 even though
