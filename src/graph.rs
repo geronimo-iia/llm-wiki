@@ -937,12 +937,12 @@ pub fn render_llms(graph: &WikiGraph) -> String {
     }
 
     if !external_refs.is_empty() {
-        let mut sorted = external_refs.clone();
-        sorted.sort();
+        let mut external_refs = external_refs;
+        external_refs.sort();
         out.push_str(&format!(
             "\n**External references ({}):** {}\n",
-            sorted.len(),
-            sorted.join(", ")
+            external_refs.len(),
+            external_refs.join(", ")
         ));
     }
 

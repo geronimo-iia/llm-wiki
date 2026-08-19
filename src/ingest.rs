@@ -199,8 +199,9 @@ fn validate_file(
                     slug,
                     matches: adjusted,
                 });
-                std::fs::write(path, format!("{front}{redacted_body}"))?;
-                content = normalize_line_endings(&std::fs::read_to_string(path)?);
+                let redacted_full = format!("{front}{redacted_body}");
+                std::fs::write(path, &redacted_full)?;
+                content = normalize_line_endings(&redacted_full);
             }
         } else {
             // No frontmatter — redact the whole file

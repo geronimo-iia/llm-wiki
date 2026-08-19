@@ -34,6 +34,9 @@ pub struct SpaceContext {
     /// Lifecycle manager for the Tantivy search index.
     pub index_manager: Arc<SpaceIndexManager>,
     /// Graph cache — either in-memory only (NoSnapshot) or snapshot-backed (WithSnapshot).
+    /// `petgraph_live::GenerationCache` is internally `Send + Sync`; concurrent readers and
+    /// a rebuilder are safe because `get_fresh` and `rebuild` operate on the cache's own
+    /// internal `RwLock`. No external lock is required around `graph_cache` accesses.
     pub graph_cache: WikiGraphCache,
     /// Generation-keyed community cache. Shares the same generation key as graph_cache.
     pub community_cache: GenerationCache<CommunityData>,

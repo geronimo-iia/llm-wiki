@@ -782,7 +782,10 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "index.auto_rebuild" => global.index.auto_rebuild = value.parse()?,
         "index.auto_recovery" => global.index.auto_recovery = value.parse()?,
         "index.memory_budget_mb" => global.index.memory_budget_mb = value.parse()?,
-        "index.tokenizer" => global.index.tokenizer = value.into(),
+        "index.tokenizer" => {
+            check_enum(key, value, &["en_stem", "raw", "simple", "default"])?;
+            global.index.tokenizer = value.into();
+        }
         "graph.format" => {
             check_enum(key, value, &["mermaid", "dot", "llms", "json"])?;
             global.graph.format = value.into();

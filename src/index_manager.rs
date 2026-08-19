@@ -327,7 +327,7 @@ impl SpaceIndexManager {
             let slug = match Slug::from_path(path, wiki_root) {
                 Ok(s) => s,
                 Err(e) => {
-                    tracing::debug!(path = %path.display(), error = %e, "skipping invalid path");
+                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path");
                     skipped += 1;
                     continue;
                 }
@@ -460,7 +460,7 @@ impl SpaceIndexManager {
             let slug = match Slug::from_path(path, wiki_prefix) {
                 Ok(s) => s,
                 Err(e) => {
-                    tracing::debug!(path = %path.display(), error = %e, "skipping invalid path in update");
+                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path in update");
                     continue;
                 }
             };
@@ -557,7 +557,7 @@ impl SpaceIndexManager {
                     .to_string(),
             )
         } else if stale {
-            Some("index is behind the current HEAD commit or schema — rebuild needed".to_string())
+            Some("index is behind the current HEAD commit or schema — rebuild needed; run wiki_index_rebuild to recover".to_string())
         } else {
             None
         };
@@ -675,7 +675,7 @@ impl SpaceIndexManager {
             let slug = match Slug::from_path(path, wiki_root) {
                 Ok(s) => s,
                 Err(e) => {
-                    tracing::debug!(path = %path.display(), error = %e, "skipping invalid path");
+                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path");
                     skipped += 1;
                     continue;
                 }
