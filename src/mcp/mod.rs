@@ -38,8 +38,8 @@ impl McpServer {
     }
 
     /// Acquire a read guard on the engine state.
-    pub fn engine(&self) -> std::sync::RwLockReadGuard<'_, EngineState> {
-        self.manager.state.read().expect("engine lock poisoned")
+    pub fn engine(&self) -> Result<std::sync::RwLockReadGuard<'_, EngineState>, String> {
+        self.manager.state.read().map_err(|_| "engine lock poisoned".to_string())
     }
 
     fn list_wiki_resources(&self) -> Vec<rmcp::model::Resource> {

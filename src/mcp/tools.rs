@@ -373,7 +373,7 @@ pub fn tool_list() -> Vec<Tool> {
 /// Dispatch a tool call by name to the appropriate handler, catching panics.
 pub fn call(server: &McpServer, name: &str, args: &Map<String, Value>) -> ToolResult {
     let _span = tracing::info_span!("tool_call", tool = name).entered();
-    let max_len = server.engine().config.serve.mcp_max_param_len;
+    let max_len = server.engine().map(|e| e.config.serve.mcp_max_param_len).unwrap_or(8192);
     if let Err(e) = check_param_lengths(args, max_len) {
         return ToolResult {
             content: err_text(e),

@@ -80,7 +80,7 @@ pub fn resolve_wiki_name(
         s.get(&session_id.to_string())
             .and_then(|sess| sess.wiki.clone())
     };
-    let engine = manager.state.read().expect("engine lock poisoned");
+    let engine = manager.state.read().unwrap_or_else(|e| e.into_inner());
     engine
         .resolve_wiki_name(session_wiki.as_deref())
         .map(|s| s.to_string())
@@ -92,7 +92,7 @@ pub fn resolve_wiki_name(
 
 /// Return the working directory for an ACP session (repo root of the default wiki).
 pub fn session_cwd(manager: &WikiEngine) -> PathBuf {
-    let engine = manager.state.read().expect("engine lock poisoned");
+    let engine = manager.state.read().unwrap_or_else(|e| e.into_inner());
     engine
         .default_wiki_name()
         .and_then(|name| engine.space(name).ok())

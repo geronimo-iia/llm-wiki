@@ -138,33 +138,56 @@ pub async fn run_watcher(
                 }
             }
             WatchAction::IngestPages(paths) => {
-                // Group by wiki
-                let state = engine
-                    .state
-                    .read()
-                    .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-                for (wiki_name, space) in &state.spaces {
-                    let wiki_paths: Vec<&PathBuf> = paths
+                // Collect per-space data under the read lock, then drop the lock
+                // before calling spawn_blocking — index writes must not stall the
+                // tokio executor (same pattern as the RebuildIndex branch above).
+                let tasks: Vec<_> = {
+                    let state = engine
+                        .state
+                        .read()
+                        .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+                    state
+                        .spaces
                         .iter()
-                        .filter(|p| p.starts_with(&space.wiki_root))
-                        .collect();
-                    if wiki_paths.is_empty() {
-                        continue;
-                    }
+                        .filter_map(|(wiki_name, space)| {
+                            let path_count = paths
+                                .iter()
+                                .filter(|p| p.starts_with(&space.wiki_root))
+                                .count();
+                            if path_count == 0 {
+                                return None;
+                            }
+                            Some((
+                                wiki_name.clone(),
+                                path_count,
+                                Arc::clone(&space.index_manager),
+                                space.wiki_root.clone(),
+                                space.repo_root.clone(),
+                                space.index_manager.last_commit(),
+                                space.index_schema.clone(),
+                                Arc::clone(&space.type_registry),
+                            ))
+                        })
+                        .collect()
+                }; // read lock dropped here
+                for (wiki_name, path_count, index_manager, wiki_root, repo_root, last_commit, index_schema, type_registry) in tasks {
                     let start = std::time::Instant::now();
-                    let last_commit = space.index_manager.last_commit();
-                    match space.index_manager.update(
-                        &space.wiki_root,
-                        &space.repo_root,
-                        last_commit.as_deref(),
-                        &space.index_schema,
-                        &space.type_registry,
-                    ) {
-                        Ok(report) => {
+                    match tokio::task::spawn_blocking(move || {
+                        index_manager.update(
+                            &wiki_root,
+                            &repo_root,
+                            last_commit.as_deref(),
+                            &index_schema,
+                            &type_registry,
+                        )
+                    })
+                    .await
+                    {
+                        Ok(Ok(report)) => {
                             if report.updated > 0 || report.deleted > 0 {
                                 tracing::info!(
                                     wiki = %wiki_name,
-                                    files = wiki_paths.len(),
+                                    files = path_count,
                                     updated = report.updated,
                                     deleted = report.deleted,
                                     duration_ms = start.elapsed().as_millis() as u64,
@@ -179,11 +202,18 @@ pub async fn run_watcher(
                                 }
                             }
                         }
-                        Err(e) => {
+                        Ok(Err(e)) => {
                             tracing::warn!(
                                 wiki = %wiki_name,
                                 error = %e,
                                 "watch: ingest failed",
+                            );
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                wiki = %wiki_name,
+                                error = %e,
+                                "watch: ingest task panicked",
                             );
                         }
                     }
