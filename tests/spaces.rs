@@ -248,7 +248,9 @@ fn set_default_wiki_errors_on_unregistered() {
     let cfg = dir.path().join("config.toml");
     std::fs::write(&cfg, "[global]\ndefault_wiki = \"\"\n").unwrap();
 
-    assert!(spaces::set_default_wiki("nope", &cfg).is_err());
+    assert!(spaces::set_default_wiki("nope", &cfg).is_err(), "set_default on unregistered wiki must fail");
+    let config = load_global(&cfg).unwrap();
+    assert_eq!(config.global.default_wiki, "", "failed set_default must not modify disk config");
 }
 
 // ── load_all ──────────────────────────────────────────────────────────────────

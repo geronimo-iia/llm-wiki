@@ -29,6 +29,15 @@ def test_spaces_set_default(wiki_env):
     assert "research" in config_result.stdout
 
 
+def test_spaces_set_default_unknown_wiki_does_not_mutate_config(wiki_env):
+    # Regression: set-default on a nonexistent wiki must not modify config.
+    wiki_env.run("spaces", "set-default", "research")
+    result = wiki_env.run("spaces", "set-default", "nonexistent-wiki", check=False)
+    assert result.returncode != 0, "set-default on unknown wiki must fail"
+    config_result = wiki_env.run("config", "get", "global.default_wiki")
+    assert "research" in config_result.stdout, "failed set-default must not change the stored default"
+
+
 def test_spaces_register_creates_entry(wiki_env):
     register_dir = wiki_env.tmp / "wikis" / "register-test"
     (register_dir / "content").mkdir(parents=True)

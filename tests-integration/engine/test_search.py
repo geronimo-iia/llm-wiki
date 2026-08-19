@@ -26,10 +26,11 @@ def test_search_json_has_results(wiki_env):
 def test_search_colon_query(wiki_env):
     # Regression for parse_query_lenient fallback (fixed 0.5.6).
     # "Layer 1: Attention" has a colon that fails Tantivy's strict parser.
-    # This test asserts no crash only — the research fixture has no "Layer 1"
-    # content so result count is not guaranteed. The result-non-empty case is
-    # already covered by tests/search.rs::search_query_with_colon_does_not_error
-    # which writes its own fixture page.
+    # Write a fixture page so we can assert results > 0, not just no-crash.
+    page = wiki_env.research_wiki / "layer-attention.md"
+    page.write_text(
+        '+++\ntitle = "Layer 1: Attention"\ntype = "concept"\n+++\n\nLayer 1: Attention is the first sublayer in a transformer block.\n'
+    )
     wiki_env.run("index", "rebuild", "--wiki", "research")
-    result = wiki_env.run("search", "Layer 1: Attention", check=False)
-    assert result.returncode == 0
+    data = wiki_env.json("search", "Layer 1: Attention")
+    assert len(data["results"]) > 0, "colon query must return results via lenient fallback"
