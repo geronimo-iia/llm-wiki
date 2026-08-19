@@ -54,6 +54,7 @@ pub struct IndexStatus {
     /// Wiki name.
     pub wiki: String,
     /// Absolute path to the search-index directory.
+    #[serde(skip)]
     pub path: String,
     /// ISO-8601 timestamp of the last successful build, or None if never built.
     pub built: Option<String>,
@@ -120,6 +121,9 @@ pub struct SpaceIndexManager {
     wiki_name: String,
     index_path: PathBuf,
     inner: RwLock<IndexInner>,
+    /// Serializes concurrent rebuild() calls. Prevents two rebuild paths (MCP + watcher)
+    /// from racing over the build_dir / live_dir swap.
+    rebuild_lock: std::sync::Mutex<()>,
     /// When `true`, the next `reload_reader()` call returns `Err` and clears the flag.
     /// Never set in production code — only meaningful in tests.
     #[doc(hidden)]
@@ -137,6 +141,7 @@ impl SpaceIndexManager {
                 index_reader: None,
                 generation: AtomicU64::new(0),
             }),
+            rebuild_lock: std::sync::Mutex::new(()),
             fail_next_reload: std::sync::atomic::AtomicBool::new(false),
         }
     }
@@ -281,6 +286,11 @@ impl SpaceIndexManager {
         is: &IndexSchema,
         registry: &SpaceTypeRegistry,
     ) -> Result<IndexReport> {
+        let _rebuild_guard = self
+            .rebuild_lock
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+
         let start = std::time::Instant::now();
 
         let live_dir = self.index_path.join("search-index");

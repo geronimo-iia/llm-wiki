@@ -220,17 +220,19 @@ fn validate_file(
 
     // No frontmatter — warn but count as validated
     if page.frontmatter.is_empty() {
+        let rel = path.strip_prefix(wiki_root).unwrap_or(path);
         report
             .warnings
-            .push(format!("{}: no frontmatter found", path.display()));
+            .push(format!("{}: no frontmatter found", rel.display()));
         report.pages_validated += 1;
         return Ok(());
     }
 
     // Validate base fields via type registry
     let warnings = registry.validate(&page.frontmatter, &validation.type_strictness)?;
+    let rel = path.strip_prefix(wiki_root).unwrap_or(path);
     for w in warnings {
-        report.warnings.push(format!("{}: {}", path.display(), w));
+        report.warnings.push(format!("{}: {}", rel.display(), w));
     }
 
     report.pages_validated += 1;

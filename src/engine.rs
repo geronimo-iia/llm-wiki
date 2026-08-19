@@ -186,19 +186,26 @@ impl WikiEngine {
 
     /// Rebuild the search index from scratch by walking the wiki tree.
     pub fn rebuild_index(&self, wiki_name: &str) -> Result<IndexReport> {
-        let space: Arc<SpaceContext> = {
+        let (space, rebuilding) = {
             let engine = self
                 .state
                 .read()
                 .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-            Arc::clone(engine.space(wiki_name)?)
+            let sp = engine.space(wiki_name)?;
+            (Arc::clone(sp), Arc::clone(&sp.rebuilding))
         };
-        let report = space.index_manager.rebuild(
+        // Signal to the watcher that a rebuild is in progress so it doesn't
+        // dispatch a competing one. rebuild_lock inside SpaceIndexManager serializes
+        // any rebuild that slips through before this store.
+        rebuilding.store(true, std::sync::atomic::Ordering::Release);
+        let result = space.index_manager.rebuild(
             &space.wiki_root,
             &space.repo_root,
             &space.index_schema,
             &space.type_registry,
-        )?;
+        );
+        rebuilding.store(false, std::sync::atomic::Ordering::Release);
+        let report = result?;
         tracing::info!(
             wiki = %wiki_name,
             pages = report.pages_indexed,

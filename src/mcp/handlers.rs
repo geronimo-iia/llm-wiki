@@ -13,6 +13,10 @@ static PATH_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
     // Two alternatives:
     //   /[a-zA-Z0-9_./-]{3,}  — absolute Unix paths starting with /
     //   ~[a-zA-Z0-9_./~-]{2,} — tilde-prefixed paths (~/ or ~user/)
+    // Known limitation: paths containing spaces are not fully redacted.
+    // Expanding the character class to include space greedily absorbs adjacent
+    // English words — a more robust fix requires a parser, not a regex.
+    // Primary protection: all handler call sites already pass errors through this function.
     regex::Regex::new(r"(?:/[a-zA-Z0-9_./-]{3,}|~[a-zA-Z0-9_./~-]{2,})").unwrap()
 });
 
@@ -632,7 +636,6 @@ pub fn handle_export(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
 pub fn handle_info(server: &McpServer, _args: &Map<String, Value>) -> ToolHandlerResult {
     let engine = server.engine()?;
     let version = env!("CARGO_PKG_VERSION");
-    let config_path = engine.config_path.display().to_string();
     let spaces: Vec<String> = engine.config.wikis.iter().map(|w| w.name.clone()).collect();
     let default_wiki = engine.config.global.default_wiki.clone();
     let mut all_ok = true;
@@ -651,7 +654,7 @@ pub fn handle_info(server: &McpServer, _args: &Map<String, Value>) -> ToolHandle
                 }
                 Err(e) => {
                     all_ok = false;
-                    serde_json::json!({"status": "degraded", "reason": format!("{e}")})
+                    serde_json::json!({"status": "degraded", "reason": redact_error(e)})
                 }
             };
             (wiki_name.clone(), entry)
@@ -659,7 +662,6 @@ pub fn handle_info(server: &McpServer, _args: &Map<String, Value>) -> ToolHandle
         .collect();
     let info = serde_json::json!({
         "version": version,
-        "config_path": config_path,
         "spaces": spaces,
         "default_wiki": default_wiki,
         "index_status": if all_ok { Value::String("ok".into()) } else { Value::Object(index_status) },
