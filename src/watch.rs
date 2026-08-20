@@ -286,7 +286,10 @@ fn start_notify_watcher(
         }
         let event = match res {
             Ok(ev) => ev,
-            Err(_) => return,
+            Err(e) => {
+                tracing::warn!(error = %e, "filesystem watcher error");
+                return;
+            }
         };
 
         // Only care about create, modify, rename
