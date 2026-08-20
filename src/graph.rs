@@ -364,7 +364,7 @@ pub struct WikiGraphJson {
 /// Produces a `WikiGraphJson` with all nodes, edges, metrics, and community
 /// assignments. Edges reference nodes by slug. Community assignments are
 /// `null` for very small graphs (Louvain requires ≥ 3 nodes per group).
-pub fn render_json(graph: &WikiGraph) -> String {
+pub fn render_json(graph: &WikiGraph, min_nodes: usize) -> String {
     let nodes: Vec<JsonNode> = graph
         .node_indices()
         .map(|idx| {
@@ -394,7 +394,7 @@ pub fn render_json(graph: &WikiGraph) -> String {
         nodes,
         edges,
         metrics: compute_metrics(graph),
-        communities: node_community_map(graph, 3).unwrap_or_else(|e| {
+        communities: node_community_map(graph, min_nodes).unwrap_or_else(|e| {
             tracing::error!(error = %e, "community map computation failed; omitting from JSON output");
             None
         }),
@@ -1669,7 +1669,7 @@ mod tests {
             },
         );
 
-        let json_str = render_json(&g);
+        let json_str = render_json(&g, 3);
         let v: Value =
             serde_json::from_str(&json_str).expect("render_json must produce valid JSON");
 
@@ -1703,7 +1703,7 @@ mod tests {
     #[test]
     fn render_json_empty_graph() {
         let g = WikiGraph::new();
-        let json_str = render_json(&g);
+        let json_str = render_json(&g, 3);
         let v: serde_json::Value = serde_json::from_str(&json_str).unwrap();
         assert_eq!(v["nodes"].as_array().unwrap().len(), 0);
         assert_eq!(v["edges"].as_array().unwrap().len(), 0);

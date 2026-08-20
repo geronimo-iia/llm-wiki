@@ -114,7 +114,7 @@ pub fn graph_build(
     let rendered = match fmt {
         "dot" => graph::render_dot(&g),
         "llms" => graph::render_llms(&g),
-        "json" => graph::render_json(&g),
+        "json" => graph::render_json(&g, resolved.graph.min_nodes_for_communities),
         "mermaid" => graph::render_mermaid(&g),
         "summary" => graph::render_summary(&g, &render_ctx),
         other => {
