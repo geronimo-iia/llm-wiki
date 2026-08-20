@@ -21,6 +21,7 @@ Architectural decisions and their rationale, grouped by release.
 | [normalized-slug-newtype](1.0.0/normalized-slug-newtype.md) | `NormalizedSlug(String)` newtype — slug normalisation was convention-only; `Slug::normalize()` is the only public constructor; `from_normalized` bypass for internal index reads; `PartialEq<str>` impls keep test assertions unchanged; serializes as plain string |
 | [pub-crate-partial-migration](1.0.0/pub-crate-partial-migration.md) | Only 4 of 22 modules converted to `pub(crate)` (`cli`, `server`, `watch`, `pathutil`) — 18 remain `pub mod` because `tests/*.rs` imports them directly; `#[allow(unreachable_pub)]` per module suppresses noise; full migration deferred to Post-1.0 test-layer refactor |
 | [wiki-graph-json-format](1.0.0/wiki-graph-json-format.md) | `json` format for `wiki_graph` deferred to Post-1.0 — `GraphReport` is already `Serialize` so implementation cost is near-zero, but field names must be stable before exposing as a versioned JSON contract |
+| [wiki-lint-scalability-parameters](1.0.0/wiki-lint-scalability-parameters.md) | Add `summary`, `path_prefix`, `page_size`, `cursor` to `wiki_lint` — full-wiki runs at 1,000+ pages exceed LLM context budgets; four parameters used in combination (summary → rule+prefix scope → paginate) make large wikis workable without server-side state |
 
 ### Performance
 
