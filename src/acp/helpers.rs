@@ -112,3 +112,85 @@ pub fn clear_active_run(sessions: &Sessions, session_id: &str) {
         sess.active_run = None;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use parking_lot::Mutex;
+
+    use crate::acp::{AcpSession, Sessions};
+
+    use super::{clear_active_run, get_cancelled};
+
+    fn make_sessions() -> Sessions {
+        Arc::new(Mutex::new(HashMap::new()))
+    }
+
+    fn insert_session(sessions: &Sessions, id: &str) {
+        sessions.lock().insert(
+            id.to_string(),
+            AcpSession {
+                id: id.to_string(),
+                label: None,
+                wiki: None,
+                created_at: 0,
+                active_run: Some("run-1".to_string()),
+                cancelled: Arc::new(AtomicBool::new(false)),
+            },
+        );
+    }
+
+    #[test]
+    fn get_cancelled_unknown_session_returns_none() {
+        let sessions = make_sessions();
+        assert!(get_cancelled(&sessions, "ghost").is_none());
+    }
+
+    #[test]
+    fn get_cancelled_known_session_returns_flag() {
+        let sessions = make_sessions();
+        insert_session(&sessions, "s1");
+        let flag = get_cancelled(&sessions, "s1").expect("flag must exist");
+        assert!(!flag.load(Ordering::Relaxed), "flag starts false");
+    }
+
+    #[test]
+    fn get_cancelled_flag_is_shared_with_session() {
+        let sessions = make_sessions();
+        insert_session(&sessions, "s2");
+        let flag = get_cancelled(&sessions, "s2").unwrap();
+        sessions
+            .lock()
+            .get("s2")
+            .unwrap()
+            .cancelled
+            .store(true, Ordering::Relaxed);
+        assert!(flag.load(Ordering::Relaxed), "shared Arc — mutation visible");
+    }
+
+    #[test]
+    fn clear_active_run_unknown_session_is_noop() {
+        let sessions = make_sessions();
+        clear_active_run(&sessions, "nobody");
+    }
+
+    #[test]
+    fn clear_active_run_clears_active_run_field() {
+        let sessions = make_sessions();
+        insert_session(&sessions, "s3");
+        assert!(sessions.lock().get("s3").unwrap().active_run.is_some());
+        clear_active_run(&sessions, "s3");
+        assert!(sessions.lock().get("s3").unwrap().active_run.is_none());
+    }
+
+    #[test]
+    fn clear_active_run_does_not_remove_session() {
+        let sessions = make_sessions();
+        insert_session(&sessions, "s4");
+        clear_active_run(&sessions, "s4");
+        assert!(sessions.lock().contains_key("s4"));
+    }
+}
