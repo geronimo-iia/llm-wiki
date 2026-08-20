@@ -359,6 +359,15 @@ pub struct SuggestConfig {
     /// Minimum relevance score for a suggestion to be included (default: 0.1).
     #[serde(default = "default_suggest_min_score")]
     pub min_score: f32,
+    /// Score assigned to 2-hop graph neighbors (default: 0.5).
+    #[serde(default = "default_suggest_graph_neighbor_score")]
+    pub graph_neighbor_score: f32,
+    /// BM25 normalization weight applied to search results (default: 0.7).
+    #[serde(default = "default_suggest_bm25_weight")]
+    pub bm25_weight: f32,
+    /// Score assigned to community peer suggestions (default: 0.4).
+    #[serde(default = "default_suggest_community_peer_score")]
+    pub community_peer_score: f32,
 }
 
 impl Default for SuggestConfig {
@@ -366,6 +375,9 @@ impl Default for SuggestConfig {
         Self {
             default_limit: 5,
             min_score: 0.1,
+            graph_neighbor_score: 0.5,
+            bm25_weight: 0.7,
+            community_peer_score: 0.4,
         }
     }
 }
@@ -666,6 +678,15 @@ fn default_suggest_limit() -> u32 {
 fn default_suggest_min_score() -> f32 {
     0.1
 }
+fn default_suggest_graph_neighbor_score() -> f32 {
+    0.5
+}
+fn default_suggest_bm25_weight() -> f32 {
+    0.7
+}
+fn default_suggest_community_peer_score() -> f32 {
+    0.4
+}
 fn default_stale_days() -> u32 {
     90
 }
@@ -824,6 +845,9 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "history.default_limit" => global.history.default_limit = value.parse()?,
         "suggest.default_limit" => global.suggest.default_limit = value.parse()?,
         "suggest.min_score" => global.suggest.min_score = value.parse()?,
+        "suggest.graph_neighbor_score" => global.suggest.graph_neighbor_score = value.parse()?,
+        "suggest.bm25_weight" => global.suggest.bm25_weight = value.parse()?,
+        "suggest.community_peer_score" => global.suggest.community_peer_score = value.parse()?,
         "validation.type_strictness" => {
             check_enum(key, value, &["strict", "loose"])?;
             global.validation.type_strictness = value.into();
@@ -913,6 +937,9 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "history.default_limit" => resolved.history.default_limit.to_string(),
         "suggest.default_limit" => resolved.suggest.default_limit.to_string(),
         "suggest.min_score" => resolved.suggest.min_score.to_string(),
+        "suggest.graph_neighbor_score" => resolved.suggest.graph_neighbor_score.to_string(),
+        "suggest.bm25_weight" => resolved.suggest.bm25_weight.to_string(),
+        "suggest.community_peer_score" => resolved.suggest.community_peer_score.to_string(),
         _ => match search_status_key(key).and_then(|k| resolved.search.status.get(k)) {
             Some(mult) => mult.to_string(),
             None => format!("unknown key: {key}"),
@@ -1006,6 +1033,24 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
                 .suggest
                 .get_or_insert_with(SuggestConfig::default)
                 .min_score = value.parse()?;
+        }
+        "suggest.graph_neighbor_score" => {
+            wiki_cfg
+                .suggest
+                .get_or_insert_with(SuggestConfig::default)
+                .graph_neighbor_score = value.parse()?;
+        }
+        "suggest.bm25_weight" => {
+            wiki_cfg
+                .suggest
+                .get_or_insert_with(SuggestConfig::default)
+                .bm25_weight = value.parse()?;
+        }
+        "suggest.community_peer_score" => {
+            wiki_cfg
+                .suggest
+                .get_or_insert_with(SuggestConfig::default)
+                .community_peer_score = value.parse()?;
         }
         "graph.format" => {
             check_enum(key, value, &["mermaid", "dot", "llms", "json"])?;

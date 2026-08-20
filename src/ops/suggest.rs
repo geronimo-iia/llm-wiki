@@ -139,7 +139,7 @@ pub fn suggest(
                     continue;
                 }
                 let via = &wiki_graph[n1].slug;
-                let score = 0.5; // 2 hops
+                let score = resolved.suggest.graph_neighbor_score;
                 let reason = format!("2 hops via {via}");
                 candidates
                     .entry(node.slug.clone())
@@ -184,7 +184,7 @@ pub fn suggest(
             if r.slug == slug.as_str() || existing_links.contains(r.slug.as_str()) {
                 continue;
             }
-            let score = r.score / max_score * 0.7; // normalize and weight
+            let score = r.score / max_score * resolved.suggest.bm25_weight;
             let reason = "similar content".to_string();
             candidates
                 .entry(r.slug.to_string())
@@ -241,7 +241,7 @@ pub fn suggest(
                     slug: node_slug.to_string(),
                     title: doc.title.clone(),
                     page_type: doc.page_type.clone(),
-                    score: 0.4,
+                    score: resolved.suggest.community_peer_score,
                     reason: "same knowledge cluster".to_string(),
                 },
             );
