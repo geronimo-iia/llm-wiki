@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] — 2026-08-19
 
+### CI
+
+- **Windows integration test workflow** — `.github/workflows/integration-windows.yml`
+  runs the engine, MCP, and ACP integration suites on `windows-latest` on push/PR to
+  `main` and via `workflow_dispatch`. Uses `uv run pytest` directly (no `make`).
+
+
 ### Added
 
 - **Lib target renamed to `llm_wiki_engine`** — the crate's `[lib]` target name now
