@@ -650,7 +650,7 @@ fn main() -> Result<()> {
             let manager = WikiEngine::build(&config_path)?;
             let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
             let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
-            let result = ops::stats(&engine, &wiki_name)?;
+            let result = ops::stats(&engine, &wiki_name, &ops::StatsOptions::default())?;
 
             if is_json(&format) {
                 println!("{}", serde_json::to_string_pretty(&result)?);

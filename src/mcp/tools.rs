@@ -295,10 +295,15 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_stats",
-            "Wiki health dashboard — page counts, graph metrics, staleness, structural topology (diameter, radius, center).",
+            concat!(
+                "Wiki health dashboard — page counts, graph metrics, staleness, structural topology. ",
+                "Use detail=\"summary\" (default) for compact output: center_count replaces the full center slug list. ",
+                "Use detail=\"full\" to retrieve the complete center slug list.",
+            ),
             schema(
                 json!({
                     "wiki": opt_str("Target wiki name"),
+                    "detail": opt_str("\"summary\" (default) or \"full\" — controls center slug list vs center_count"),
                 }),
                 &[],
             ),

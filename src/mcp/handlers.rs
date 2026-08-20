@@ -493,7 +493,13 @@ pub fn handle_history(server: &McpServer, args: &Map<String, Value>) -> ToolHand
 pub fn handle_stats(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let engine = server.engine()?;
     let wiki_name = resolve_wiki_name(&engine, args)?;
-    let result = ops::stats(&engine, &wiki_name).map_err(redact_error)?;
+    let detail_str = arg_str(args, "detail");
+    let detail = match detail_str.as_deref() {
+        Some("full") => ops::StatsDetail::Full,
+        _ => ops::StatsDetail::Summary,
+    };
+    let result =
+        ops::stats(&engine, &wiki_name, &ops::StatsOptions { detail }).map_err(redact_error)?;
     let s = serde_json::to_string_pretty(&result).map_err(redact_error)?;
     ok_text(s)
 }

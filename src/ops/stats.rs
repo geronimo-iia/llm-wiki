@@ -10,6 +10,22 @@ use crate::graph::{
 use crate::search;
 use tantivy::schema::Value;
 
+/// Controls how much detail `stats()` returns for expensive list fields.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub enum StatsDetail {
+    /// Return `center_count` only — no `center` slug list. Default.
+    #[default]
+    Summary,
+    /// Return the full `center` slug list.
+    Full,
+}
+
+/// Options for a `stats()` call. All fields default to their zero values.
+#[derive(Default)]
+pub struct StatsOptions {
+    pub detail: StatsDetail,
+}
+
 /// Page staleness bucketed by last-updated age.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StalenessBuckets {
@@ -62,14 +78,18 @@ pub struct WikiStats {
     /// `None` under same conditions as `diameter`.
     pub radius: Option<f32>,
     /// Slugs with eccentricity equal to `radius` (central hub pages).
-    /// Empty when `diameter` is `None`.
+    /// Empty when `diameter` is `None` or `detail` is `"summary"`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub center: Vec<String>,
+    /// Number of central hub pages (present only when `detail` is `"summary"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub center_count: Option<usize>,
     /// Non-null when O(n²) algorithms were skipped due to graph size.
     pub structural_note: Option<String>,
 }
 
 /// Compute aggregate stats for a wiki — page counts, graph metrics, staleness, and index health.
-pub fn stats(engine: &EngineState, wiki_name: &str) -> Result<WikiStats> {
+pub fn stats(engine: &EngineState, wiki_name: &str, opts: &StatsOptions) -> Result<WikiStats> {
     let space = engine.space(wiki_name)?;
 
     // Page counts + facets from list
@@ -171,6 +191,14 @@ pub fn stats(engine: &EngineState, wiki_name: &str) -> Result<WikiStats> {
         (None, None, vec![], Some(note))
     };
 
+    let (center_out, center_count_out) = match opts.detail {
+        StatsDetail::Full => (center, None),
+        StatsDetail::Summary => {
+            let n = center.len();
+            (vec![], Some(n))
+        }
+    };
+
     Ok(WikiStats {
         wiki: wiki_name.to_string(),
         pages,
@@ -185,7 +213,8 @@ pub fn stats(engine: &EngineState, wiki_name: &str) -> Result<WikiStats> {
         communities,
         diameter,
         radius,
-        center,
+        center: center_out,
+        center_count: center_count_out,
         structural_note,
     })
 }

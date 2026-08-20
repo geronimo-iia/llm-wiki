@@ -10,7 +10,7 @@ fn stats_returns_metrics() {
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();
 
-    let result = ops::stats(&engine, "test").unwrap();
+    let result = ops::stats(&engine, "test", &ops::StatsOptions::default()).unwrap();
     assert_eq!(result.wiki, "test");
     assert!(result.pages >= 2);
     assert!(result.types.contains_key("concept"));
@@ -23,7 +23,7 @@ fn stats_orphan_count() {
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();
 
-    let result = ops::stats(&engine, "test").unwrap();
+    let result = ops::stats(&engine, "test", &ops::StatsOptions::default()).unwrap();
     // Both pages are concepts with no inbound edges from other types
     // (only a body wikilink from transformer to moe)
     assert!(
@@ -39,7 +39,7 @@ fn stats_staleness_buckets_sum_to_total() {
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();
 
-    let result = ops::stats(&engine, "test").unwrap();
+    let result = ops::stats(&engine, "test", &ops::StatsOptions::default()).unwrap();
     let staleness_total =
         result.staleness.fresh + result.staleness.stale_7d + result.staleness.stale_30d;
     assert_eq!(
@@ -59,7 +59,7 @@ fn stats_on_empty_wiki() {
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();
 
-    let result = ops::stats(&engine, "empty").unwrap();
+    let result = ops::stats(&engine, "empty", &ops::StatsOptions::default()).unwrap();
     assert_eq!(result.pages, 0);
     assert_eq!(result.orphans, 0);
     assert_eq!(result.staleness.fresh, 0);
@@ -103,7 +103,7 @@ fn stats_structural_fields_present_on_connected_graph() {
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();
 
-    let result = ops::stats(&engine, "test").unwrap();
+    let result = ops::stats(&engine, "test", &ops::StatsOptions::default()).unwrap();
     // Structural fields must always be present as keys (Some or None)
     // On a small connected graph with structural_algorithms=true (default),
     // diameter and radius must be Some
@@ -115,9 +115,18 @@ fn stats_structural_fields_present_on_connected_graph() {
         result.radius.is_some(),
         "radius should be Some on a small strongly-connected graph, got None"
     );
+    // Default detail="summary": center slug list replaced by center_count
     assert!(
-        !result.center.is_empty(),
-        "center should be non-empty on a connected graph"
+        result.center_count.is_some(),
+        "center_count should be Some in summary mode"
+    );
+    assert!(
+        result.center_count.unwrap() > 0,
+        "center_count should be > 0 on a connected graph"
+    );
+    assert!(
+        result.center.is_empty(),
+        "center slug list should be empty in summary mode"
     );
     assert!(
         result.structural_note.is_none(),
@@ -153,7 +162,7 @@ fn stats_structural_fields_null_when_disabled() {
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();
 
-    let result = ops::stats(&engine, "test").unwrap();
+    let result = ops::stats(&engine, "test", &ops::StatsOptions::default()).unwrap();
     assert!(
         result.diameter.is_none(),
         "diameter must be None when structural_algorithms=false"
@@ -206,7 +215,7 @@ fn stats_structural_note_set_on_disconnected_graph() {
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state.read().unwrap();
 
-    let result = ops::stats(&engine, "disc").unwrap();
+    let result = ops::stats(&engine, "disc", &ops::StatsOptions::default()).unwrap();
     assert!(
         result.diameter.is_none(),
         "diameter must be None for a disconnected graph"
@@ -223,5 +232,62 @@ fn stats_structural_note_set_on_disconnected_graph() {
             .contains("not strongly connected"),
         "structural_note must explain disconnected graph: {:?}",
         result.structural_note
+    );
+}
+
+#[test]
+fn stats_detail_full_returns_center_list() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki_with_cycle(dir.path(), "test");
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+
+    let result = ops::stats(
+        &engine,
+        "test",
+        &ops::StatsOptions {
+            detail: ops::StatsDetail::Full,
+        },
+    )
+    .unwrap();
+    assert!(
+        !result.center.is_empty(),
+        "center slug list should be populated in full mode"
+    );
+    assert!(
+        result.center_count.is_none(),
+        "center_count should be absent in full mode"
+    );
+}
+
+#[test]
+fn stats_detail_summary_returns_center_count() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki_with_cycle(dir.path(), "test");
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+
+    let result = ops::stats(&engine, "test", &ops::StatsOptions::default()).unwrap();
+    assert!(
+        result.center.is_empty(),
+        "center slug list should be empty in summary mode"
+    );
+    assert!(
+        result.center_count.is_some(),
+        "center_count should be Some in summary mode"
+    );
+    // center_count must equal what full mode would return
+    let full = ops::stats(
+        &engine,
+        "test",
+        &ops::StatsOptions {
+            detail: ops::StatsDetail::Full,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        result.center_count.unwrap(),
+        full.center.len(),
+        "center_count in summary mode must equal center.len() in full mode"
     );
 }
