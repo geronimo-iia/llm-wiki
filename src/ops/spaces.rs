@@ -54,9 +54,10 @@ pub fn spaces_create(
         None => do_create()?,
     };
 
-    // set_default is outside with_config_lock — this mirrors the original code and is a
-    // pre-existing pattern, not a regression introduced by this fix. A future hardening
-    // pass could move it inside the closure; out of scope for D5-3.
+    // set_default is outside with_config_lock. Two concurrent spaces_create calls with
+    // set_default: true will both succeed; the last set_default wins non-deterministically.
+    // No data is corrupted — the result is a valid registered wiki as default. This is
+    // last-writer-wins by design. Moving set_default inside the closure is tracked in D5-1.
     if report.registered
         && set_default
         && let Some(e) = engine
