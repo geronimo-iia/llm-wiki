@@ -130,6 +130,11 @@ pub struct NormalizedSlug(String);
 
 impl NormalizedSlug {
     /// Wrap a string that is already known to be normalized.
+    ///
+    /// Caller guarantees `s` is lowercase ASCII, contains no path separators or
+    /// whitespace, and has already passed `Slug::try_from` validation. Skips
+    /// the normalization pass — use only when re-hydrating a slug that was
+    /// previously stored in a validated context (e.g. the Tantivy index).
     /// For internal crate use only — bypasses the normalization step.
     pub(crate) fn from_normalized(s: String) -> Self {
         debug_assert!(

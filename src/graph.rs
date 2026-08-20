@@ -59,6 +59,7 @@ pub struct WikiGraph {
 }
 
 impl WikiGraph {
+    /// Create an empty graph with no nodes or edges.
     pub fn new() -> Self {
         Self {
             inner: InnerGraph::new(),
@@ -66,10 +67,12 @@ impl WikiGraph {
         }
     }
 
+    /// Return the `NodeIndex` for `slug`, or `None` if not present.
     pub fn node_for_slug(&self, slug: &str) -> Option<NodeIndex> {
         self.slug_to_node.get(slug).copied()
     }
 
+    /// Add a page node and register it in the slug index; return its index.
     pub fn add_node(&mut self, node: PageNode) -> NodeIndex {
         let slug = node.slug.clone();
         let idx = self.inner.add_node(node);
@@ -77,26 +80,32 @@ impl WikiGraph {
         idx
     }
 
+    /// Add a directed edge from `a` to `b` with label `w`; return its index.
     pub fn add_edge(&mut self, a: NodeIndex, b: NodeIndex, w: LabeledEdge) -> EdgeIndex {
         self.inner.add_edge(a, b, w)
     }
 
+    /// Iterate over all node indices in the graph.
     pub fn node_indices(&self) -> impl Iterator<Item = NodeIndex> + '_ {
         self.inner.node_indices()
     }
 
+    /// Iterate over all edge indices in the graph.
     pub fn edge_indices(&self) -> impl Iterator<Item = EdgeIndex> + '_ {
         self.inner.edge_indices()
     }
 
+    /// Return the total number of nodes.
     pub fn node_count(&self) -> usize {
         self.inner.node_count()
     }
 
+    /// Return the total number of edges.
     pub fn edge_count(&self) -> usize {
         self.inner.edge_count()
     }
 
+    /// Iterate over neighbors of `n` in direction `d` (Incoming or Outgoing).
     pub fn neighbors_directed(
         &self,
         n: NodeIndex,
@@ -105,6 +114,7 @@ impl WikiGraph {
         self.inner.neighbors_directed(n, d)
     }
 
+    /// Iterate over edges incident to `n` in direction `d`.
     pub fn edges_directed(
         &self,
         n: NodeIndex,
@@ -113,18 +123,22 @@ impl WikiGraph {
         self.inner.edges_directed(n, d)
     }
 
+    /// Return the source and target node indices for edge `e`, or `None` if removed.
     pub fn edge_endpoints(&self, e: EdgeIndex) -> Option<(NodeIndex, NodeIndex)> {
         self.inner.edge_endpoints(e)
     }
 
+    /// Find the edge index between `a` and `b`, or `None` if no such edge exists.
     pub fn find_edge(&self, a: NodeIndex, b: NodeIndex) -> Option<EdgeIndex> {
         self.inner.find_edge(a, b)
     }
 
+    /// Iterate over neighbors of `n` ignoring edge direction.
     pub fn neighbors_undirected(&self, n: NodeIndex) -> impl Iterator<Item = NodeIndex> + '_ {
         self.inner.neighbors_undirected(n)
     }
 
+    /// Iterate over all outgoing edges from `n`.
     pub fn edges(
         &self,
         n: NodeIndex,

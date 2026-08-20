@@ -513,7 +513,13 @@ fn build_wiki_graph_cache(
     let compression = match graph_cfg.snapshot_format.as_str() {
         "bincode+lz4" => Compression::Lz4,
         "bincode+zstd" => Compression::Zstd { level: 3 },
-        _ => Compression::None,
+        _ => {
+            tracing::warn!(
+                format = %graph_cfg.snapshot_format,
+                "unknown snapshot_format value — falling back to uncompressed; valid: \"bincode+lz4\", \"bincode+zstd\", \"bincode\""
+            );
+            Compression::None
+        }
     };
 
     let snap_cfg = SnapshotConfig {

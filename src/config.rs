@@ -16,6 +16,7 @@ pub struct GlobalSection {
 }
 
 impl GlobalSection {
+    /// Returns `global.default_wiki` as `Some(&str)` when non-empty, or `None` when unset.
     pub fn default_wiki_opt(&self) -> Option<&str> {
         let s = self.default_wiki.as_str();
         if s.is_empty() { None } else { Some(s) }
