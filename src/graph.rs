@@ -241,7 +241,10 @@ impl<'de> Deserialize<'de> for WikiGraph {
             .node_indices()
             .map(|idx| (inner[idx].slug.clone(), idx))
             .collect();
-        Ok(Self { inner, slug_to_node })
+        Ok(Self {
+            inner,
+            slug_to_node,
+        })
     }
 }
 
@@ -1849,12 +1852,16 @@ mod tests {
     fn wiki_graph_node_for_slug_is_o1() {
         let mut g = WikiGraph::new();
         g.add_node(PageNode {
-            slug: "alpha".into(), title: "Alpha".into(),
-            r#type: "page".into(), external: false,
+            slug: "alpha".into(),
+            title: "Alpha".into(),
+            r#type: "page".into(),
+            external: false,
         });
         g.add_node(PageNode {
-            slug: "beta".into(), title: "Beta".into(),
-            r#type: "page".into(), external: false,
+            slug: "beta".into(),
+            title: "Beta".into(),
+            r#type: "page".into(),
+            external: false,
         });
         assert!(g.node_for_slug("alpha").is_some());
         assert!(g.node_for_slug("beta").is_some());
@@ -1873,17 +1880,23 @@ mod tests {
     fn subgraph_single_node_depth_zero() {
         let mut g = WikiGraph::new();
         g.add_node(PageNode {
-            slug: "root".into(), title: "Root".into(),
-            r#type: "page".into(), external: false,
+            slug: "root".into(),
+            title: "Root".into(),
+            r#type: "page".into(),
+            external: false,
         });
         g.add_node(PageNode {
-            slug: "other".into(), title: "Other".into(),
-            r#type: "page".into(), external: false,
+            slug: "other".into(),
+            title: "Other".into(),
+            r#type: "page".into(),
+            external: false,
         });
         g.add_edge(
             g.node_for_slug("root").unwrap(),
             g.node_for_slug("other").unwrap(),
-            LabeledEdge { relation: "links-to".into() },
+            LabeledEdge {
+                relation: "links-to".into(),
+            },
         );
         let sub = subgraph(&g, "root", 0);
         assert_eq!(sub.node_count(), 1);
