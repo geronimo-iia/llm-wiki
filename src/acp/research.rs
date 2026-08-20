@@ -1,6 +1,8 @@
 #![allow(unreachable_pub)]
 use std::sync::atomic::Ordering;
 
+const MAX_DISPLAY_RESULTS: usize = 5;
+
 use agent_client_protocol::schema::v1::{SessionId, ToolCallStatus, ToolKind};
 use agent_client_protocol::{Client, ConnectionTo};
 
@@ -134,7 +136,7 @@ pub fn step_report_results(
     }
     let hits: Vec<String> = results
         .iter()
-        .take(5)
+        .take(MAX_DISPLAY_RESULTS)
         .map(|r| format!("- {} (score: {:.2})", r.uri, r.score))
         .collect();
     send_text(
@@ -163,7 +165,11 @@ pub fn run_research(
 
     send_text(cx, session_id, &format!("Searching for: {query}..."))?;
 
-    let results = step_search(cx, manager, session_id, "research", query, wiki_name, 5)?;
+    let top_k = {
+        let state = manager.state.read().unwrap_or_else(|e| e.into_inner());
+        state.config.defaults.search_top_k as usize
+    };
+    let results = step_search(cx, manager, session_id, "research", query, wiki_name, top_k)?;
 
     if cancelled
         .as_ref()
