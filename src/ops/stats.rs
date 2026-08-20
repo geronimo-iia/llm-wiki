@@ -129,16 +129,41 @@ pub fn stats(engine: &EngineState, wiki_name: &str) -> Result<WikiStats> {
     let max_n = resolved.graph.max_nodes_for_diameter;
 
     let (diameter, radius, center, structural_note) = if !resolved.graph.structural_algorithms {
-        (None, None, vec![], None)
+        (
+            None,
+            None,
+            vec![],
+            Some(
+                "structural algorithms disabled in config (graph.structural_algorithms = false)"
+                    .to_string(),
+            ),
+        )
     } else if local_count <= max_n {
-        let d = petgraph_live::metrics::diameter(&*wiki_graph);
-        let r = petgraph_live::metrics::radius(&*wiki_graph);
-        let c: Vec<String> = petgraph_live::metrics::center(&*wiki_graph)
-            .into_iter()
-            .filter(|&idx| !wiki_graph[idx].external)
-            .map(|idx| wiki_graph[idx].slug.clone())
-            .collect();
-        (d, r, c, None)
+        let d_raw = petgraph_live::metrics::diameter(&*wiki_graph);
+        let r_raw = petgraph_live::metrics::radius(&*wiki_graph);
+        // petgraph_live returns Some(INFINITY) for disconnected graphs; normalise to None.
+        let disconnected = d_raw.is_some_and(|v| v.is_infinite());
+        let d = if disconnected { None } else { d_raw };
+        let r = if disconnected { None } else { r_raw };
+        let c: Vec<String> = if disconnected {
+            vec![]
+        } else {
+            petgraph_live::metrics::center(&*wiki_graph)
+                .into_iter()
+                .filter(|&idx| !wiki_graph[idx].external)
+                .map(|idx| wiki_graph[idx].slug.clone())
+                .collect()
+        };
+        let note = if disconnected {
+            Some(
+                "graph is not strongly connected — diameter undefined; \
+                 use wiki_lint(rules: \"periphery,orphan\") to find disconnected pages"
+                    .to_string(),
+            )
+        } else {
+            None
+        };
+        (d, r, c, note)
     } else {
         let note = format!(
             "graph too large for diameter computation ({local_count} nodes > max_nodes_for_diameter={max_n})"

@@ -167,7 +167,61 @@ fn stats_structural_fields_null_when_disabled() {
         "center must be empty when structural_algorithms=false"
     );
     assert!(
-        result.structural_note.is_none(),
-        "structural_note must be None when disabled (not skipped-due-to-size)"
+        result.structural_note.is_some(),
+        "structural_note must be Some when structural_algorithms=false"
+    );
+    assert!(
+        result
+            .structural_note
+            .as_deref()
+            .unwrap_or("")
+            .contains("structural algorithms disabled"),
+        "structural_note must explain why: {:?}",
+        result.structural_note
+    );
+}
+
+#[test]
+fn stats_structural_note_set_on_disconnected_graph() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = dir.path().join("state").join("config.toml");
+    let wiki_path = dir.path().join("disc");
+    llm_wiki_engine::spaces::create(&wiki_path, "disc", None, false, true, &config_path, None)
+        .unwrap();
+    let wiki_root = wiki_path.join("wiki");
+    fs::create_dir_all(wiki_root.join("concepts")).unwrap();
+    // Two isolated pages with no links between them → disconnected graph
+    fs::write(
+        wiki_root.join("concepts/alpha.md"),
+        "---\ntitle: \"Alpha\"\ntype: concept\nstatus: active\n---\n\nAlpha body.\n",
+    )
+    .unwrap();
+    fs::write(
+        wiki_root.join("concepts/beta.md"),
+        "---\ntitle: \"Beta\"\ntype: concept\nstatus: active\n---\n\nBeta body.\n",
+    )
+    .unwrap();
+    llm_wiki_engine::git::commit(&wiki_path, "add isolated pages").unwrap();
+
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+
+    let result = ops::stats(&engine, "disc").unwrap();
+    assert!(
+        result.diameter.is_none(),
+        "diameter must be None for a disconnected graph"
+    );
+    assert!(
+        result.structural_note.is_some(),
+        "structural_note must be Some for a disconnected graph, got None"
+    );
+    assert!(
+        result
+            .structural_note
+            .as_deref()
+            .unwrap_or("")
+            .contains("not strongly connected"),
+        "structural_note must explain disconnected graph: {:?}",
+        result.structural_note
     );
 }
