@@ -197,3 +197,80 @@ pub fn run_research(
     clear_active_run(sessions, &session_id.to_string());
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use agent_client_protocol::schema::v1::SessionId;
+    use agent_client_protocol::{Agent, Builder, Channel};
+
+    use super::{step_report_results, step_search};
+
+    fn make_engine() -> (crate::engine::WikiEngine, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("llm-wiki.toml");
+        std::fs::write(&config_path, "").unwrap();
+        let engine = crate::engine::WikiEngine::build(&config_path).unwrap();
+        (engine, dir)
+    }
+
+    fn make_page_ref(slug: &str, uri: &str, score: f32) -> crate::search::PageRef {
+        crate::search::PageRef {
+            slug: crate::slug::NormalizedSlug::from_normalized(slug.to_string()),
+            uri: uri.to_string(),
+            title: slug.to_string(),
+            score,
+            confidence: 1.0,
+            excerpt: None,
+            summary: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn step_report_results_empty_is_noop() {
+        let session_id = SessionId::new("sess");
+        let (chan_a, _chan_b) = Channel::duplex();
+        Builder::<Agent>::new(Agent)
+            .connect_with(chan_a, async |cx| {
+                let result = step_report_results(&cx, &session_id, &[], "wiki");
+                assert!(result.is_ok());
+                Ok(())
+            })
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn step_report_results_non_empty_succeeds() {
+        let session_id = SessionId::new("sess");
+        let results = vec![
+            make_page_ref("concepts/a", "wiki/concepts/a", 1.0),
+            make_page_ref("concepts/b", "wiki/concepts/b", 0.8),
+        ];
+        let (chan_a, _chan_b) = Channel::duplex();
+        Builder::<Agent>::new(Agent)
+            .connect_with(chan_a, async |cx| {
+                let result = step_report_results(&cx, &session_id, &results, "wiki");
+                assert!(result.is_ok());
+                Ok(())
+            })
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn step_search_engine_error_returns_empty_vec() {
+        let (engine, _dir) = make_engine();
+        let session_id = SessionId::new("sess");
+        let (chan_a, _chan_b) = Channel::duplex();
+        Builder::<Agent>::new(Agent)
+            .connect_with(chan_a, async |cx| {
+                let result =
+                    step_search(&cx, &engine, &session_id, "research", "rust", "no-such-wiki", 5);
+                assert!(result.is_ok());
+                assert!(result.unwrap().is_empty());
+                Ok(())
+            })
+            .await
+            .unwrap();
+    }
+}
