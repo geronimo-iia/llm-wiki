@@ -364,7 +364,10 @@ pub fn render_json(graph: &WikiGraph) -> String {
         nodes,
         edges,
         metrics: compute_metrics(graph),
-        communities: node_community_map(graph, 3),
+        communities: node_community_map(graph, 3).unwrap_or_else(|e| {
+            tracing::error!(error = %e, "community map computation failed; omitting from JSON output");
+            None
+        }),
     };
 
     serde_json::to_string_pretty(&output).unwrap_or_else(|e| {
@@ -442,6 +445,8 @@ pub struct CommunityStats {
     /// Slugs of pages in communities of size ≤ 2 — weakly connected pages.
     pub isolated: Vec<String>,
 }
+
+type CommunityPair = (Option<CommunityStats>, Option<HashMap<String, usize>>);
 
 /// Cached community detection results for a space.
 pub struct CommunityData {
@@ -528,9 +533,9 @@ fn louvain_phase1(
     community: &mut HashMap<NodeIndex, usize>,
     degrees: &HashMap<NodeIndex, usize>,
     m: usize,
-) -> bool {
+) -> Result<bool> {
     if m == 0 {
-        return false;
+        return Ok(false);
     }
     debug_assert!(
         community.len() == adj.len(),
@@ -566,15 +571,17 @@ fn louvain_phase1(
         }
 
         for &node in &sorted_nodes {
-            let current_c = *community.get(&node).expect("node must be in community map");
+            let current_c = *community.get(&node).ok_or_else(|| {
+                anyhow::anyhow!("Louvain: node {:?} absent from community map", node)
+            })?;
             let k_i = *degrees.get(&node).unwrap_or(&0) as f64;
 
             // Gather neighboring communities and k_i_in for each
             let mut neighbor_c_edges: HashMap<usize, usize> = HashMap::new();
             for &nb in adj.get(&node).into_iter().flatten() {
-                let nb_c = *community
-                    .get(&nb)
-                    .expect("neighbour must be in community map");
+                let nb_c = *community.get(&nb).ok_or_else(|| {
+                    anyhow::anyhow!("Louvain: neighbour {:?} absent from community map", nb)
+                })?;
                 *neighbor_c_edges.entry(nb_c).or_default() += 1;
             }
 
@@ -616,19 +623,22 @@ fn louvain_phase1(
             break;
         }
     }
-    moved
+    Ok(moved)
 }
 
 /// Run Louvain community detection on `graph`. Returns `None` when local node count < `min_nodes`.
 /// Delegates to `build_community_data` — see its doc for algorithm details.
-pub fn compute_communities(graph: &WikiGraph, min_nodes: usize) -> Option<CommunityStats> {
-    build_community_data(graph, min_nodes).0
+pub fn compute_communities(graph: &WikiGraph, min_nodes: usize) -> Result<Option<CommunityStats>> {
+    Ok(build_community_data(graph, min_nodes)?.0)
 }
 
 /// Returns slug → community id map, or `None` when below threshold.
 /// Delegates to `build_community_data` — shares the same Louvain run as `compute_communities`.
-pub fn node_community_map(graph: &WikiGraph, min_nodes: usize) -> Option<HashMap<String, usize>> {
-    build_community_data(graph, min_nodes).1
+pub fn node_community_map(
+    graph: &WikiGraph,
+    min_nodes: usize,
+) -> Result<Option<HashMap<String, usize>>> {
+    Ok(build_community_data(graph, min_nodes)?.1)
 }
 
 // ── build_graph ───────────────────────────────────────────────────────────────
@@ -1312,10 +1322,7 @@ pub fn subgraph(graph: &WikiGraph, root_slug: &str, depth: usize) -> WikiGraph {
 
 /// Run Louvain once and return both community outputs.
 /// Returns `(None, None)` when local node count < `min_nodes` (pass 0 to always run).
-fn build_community_data(
-    graph: &WikiGraph,
-    min_nodes: usize,
-) -> (Option<CommunityStats>, Option<HashMap<String, usize>>) {
+fn build_community_data(graph: &WikiGraph, min_nodes: usize) -> Result<CommunityPair> {
     let local_nodes: Vec<NodeIndex> = {
         let mut v: Vec<NodeIndex> = graph
             .node_indices()
@@ -1326,7 +1333,7 @@ fn build_community_data(
     };
 
     if local_nodes.len() < min_nodes {
-        return (None, None);
+        return Ok((None, None));
     }
 
     let adj = build_adjacency(graph);
@@ -1340,7 +1347,7 @@ fn build_community_data(
         .map(|(i, &n)| (n, i))
         .collect();
 
-    louvain_phase1(&adj, &mut community, &degrees, m);
+    louvain_phase1(&adj, &mut community, &degrees, m)?;
 
     // Normalize community ids to contiguous 0..k
     let mut id_remap: HashMap<usize, usize> = HashMap::new();
@@ -1348,7 +1355,7 @@ fn build_community_data(
     for &n in &local_nodes {
         let c = *community
             .get(&n)
-            .expect("node must be in community map after louvain_phase1");
+            .ok_or_else(|| anyhow::anyhow!("Louvain: node {:?} absent after phase1", n))?;
         id_remap.entry(c).or_insert_with(|| {
             let id = next_id;
             next_id += 1;
@@ -1356,7 +1363,9 @@ fn build_community_data(
         });
     }
     for val in community.values_mut() {
-        *val = *id_remap.get(val).expect("community id must exist in remap");
+        *val = *id_remap
+            .get(val)
+            .ok_or_else(|| anyhow::anyhow!("Louvain: community id {:?} absent from remap", val))?;
     }
 
     // Build community_map
@@ -1376,10 +1385,9 @@ fn build_community_data(
     let mut isolated: Vec<String> = local_nodes
         .iter()
         .filter(|&&n| {
-            let c = *community
+            community
                 .get(&n)
-                .expect("node must be in community map after remap");
-            *sizes.get(&c).unwrap_or(&0) <= 2
+                .is_some_and(|&c| *sizes.get(&c).unwrap_or(&0) <= 2)
         })
         .map(|&n| graph[n].slug.clone())
         .collect();
@@ -1392,7 +1400,7 @@ fn build_community_data(
         isolated,
     };
 
-    (Some(stats), Some(community_map))
+    Ok((Some(stats), Some(community_map)))
 }
 
 // ── Cached graph accessors ───────────────────────────────────────────────────
@@ -1448,7 +1456,7 @@ fn ensure_community_data(
             )
         })?;
         let local_count = graph.node_indices().filter(|&i| !graph[i].external).count();
-        let (stats_opt, map_opt) = build_community_data(&graph, 0);
+        let (stats_opt, map_opt) = build_community_data(&graph, 0)?;
         let stats = stats_opt.unwrap_or(CommunityStats {
             count: 0,
             largest: 0,
@@ -1782,7 +1790,7 @@ mod tests {
         // Each node starts in its own community
         let mut community: HashMap<NodeIndex, usize> = (0..8usize).map(|i| (make(i), i)).collect();
 
-        louvain_phase1(&adj, &mut community, &degrees, m);
+        louvain_phase1(&adj, &mut community, &degrees, m).unwrap();
 
         // All cluster A nodes must share one community id
         let ca: HashSet<usize> = cluster_a.iter().map(|n| community[n]).collect();
@@ -1839,8 +1847,8 @@ mod tests {
         // Run 12 times; each run must converge (second pass makes no moves).
         for run in 0..12 {
             let mut community: HashMap<NodeIndex, usize> = (0..n).map(|i| (make(i), i)).collect();
-            louvain_phase1(&adj, &mut community, &degrees, m);
-            let moved = louvain_phase1(&adj, &mut community, &degrees, m);
+            louvain_phase1(&adj, &mut community, &degrees, m).unwrap();
+            let moved = louvain_phase1(&adj, &mut community, &degrees, m).unwrap();
             assert!(
                 !moved,
                 "run {run}: second louvain_phase1 pass on a converged partition should make no moves — oscillation detected"

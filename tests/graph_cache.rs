@@ -388,8 +388,8 @@ fn community_stats_and_map_are_consistent() {
     .unwrap();
 
     // threshold=1: both wiki's 2 nodes should be >= 1
-    let stats = compute_communities(&graph, 1);
-    let map = node_community_map(&graph, 1);
+    let stats = compute_communities(&graph, 1).unwrap();
+    let map = node_community_map(&graph, 1).unwrap();
 
     assert!(stats.is_some(), "expected Some(CommunityStats)");
     assert!(map.is_some(), "expected Some(community_map)");

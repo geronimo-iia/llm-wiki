@@ -748,7 +748,9 @@ fn compute_communities_three_dense_clusters() {
     )
     .unwrap();
 
-    let stats = compute_communities(&g, 30).expect("should compute at 30 nodes");
+    let stats = compute_communities(&g, 30)
+        .unwrap()
+        .expect("should compute at 30 nodes");
     assert_eq!(stats.count, 3, "should find 3 communities");
     assert!(stats.isolated.is_empty(), "no isolated nodes expected");
 }
@@ -774,7 +776,7 @@ fn compute_communities_below_threshold_returns_none() {
     .unwrap();
 
     assert!(
-        compute_communities(&g, 30).is_none(),
+        compute_communities(&g, 30).unwrap().is_none(),
         "should be None below threshold"
     );
 }
@@ -808,7 +810,9 @@ fn compute_communities_isolated_pair_appears_in_isolated_list() {
     )
     .unwrap();
 
-    let stats = compute_communities(&g, 30).expect("should compute at ≥ 30 nodes");
+    let stats = compute_communities(&g, 30)
+        .unwrap()
+        .expect("should compute at ≥ 30 nodes");
     assert!(
         stats.isolated.contains(&"orphans/alpha".to_string()),
         "orphans/alpha should be isolated"
@@ -837,8 +841,8 @@ fn compute_communities_deterministic() {
     )
     .unwrap();
 
-    let s1 = compute_communities(&g, 30).unwrap();
-    let s2 = compute_communities(&g, 30).unwrap();
+    let s1 = compute_communities(&g, 30).unwrap().unwrap();
+    let s2 = compute_communities(&g, 30).unwrap().unwrap();
 
     assert_eq!(s1.count, s2.count, "count must be deterministic");
     assert_eq!(
