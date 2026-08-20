@@ -329,7 +329,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_resolve",
-            "Resolve a slug or wiki:// URI to its local filesystem path. Use before writing content directly to disk.",
+            "Resolve a slug or wiki:// URI to its local filesystem path. Use before writing content directly to disk. If you receive 'wiki X is not registered', call wiki_info to list registered wiki names.",
             schema(
                 json!({
                     "uri": str_prop("Slug or wiki:// URI"),
