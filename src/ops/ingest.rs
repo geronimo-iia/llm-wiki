@@ -49,7 +49,10 @@ pub fn ingest_with_redact(
                     .collect();
                 Some(set)
             }
-            Err(_) => None,
+            Err(e) => {
+                tracing::warn!(error = %e, "git diff failed; falling back to full re-index");
+                None
+            }
         }
     };
 
