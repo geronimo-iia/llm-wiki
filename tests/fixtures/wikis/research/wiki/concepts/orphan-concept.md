@@ -13,5 +13,4 @@ read_when:
 ## Purpose
 
 This page has no inbound or outbound links to the main knowledge graph.
-It should appear in `wiki_lint(rules: "orphan")` findings and in
-`wiki_stats` communities `isolated` list.
+Use `wiki_lint(rules: "orphan,periphery")` to find pages with no incoming links.

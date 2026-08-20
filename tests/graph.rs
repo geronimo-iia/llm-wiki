@@ -752,7 +752,6 @@ fn compute_communities_three_dense_clusters() {
         .unwrap()
         .expect("should compute at 30 nodes");
     assert_eq!(stats.count, 3, "should find 3 communities");
-    assert!(stats.isolated.is_empty(), "no isolated nodes expected");
 }
 
 #[test]
@@ -782,7 +781,7 @@ fn compute_communities_below_threshold_returns_none() {
 }
 
 #[test]
-fn compute_communities_isolated_pair_appears_in_isolated_list() {
+fn compute_communities_weakly_connected_pair_reflected_in_smallest() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
 
@@ -813,13 +812,12 @@ fn compute_communities_isolated_pair_appears_in_isolated_list() {
     let stats = compute_communities(&g, 30)
         .unwrap()
         .expect("should compute at ≥ 30 nodes");
+    // The orphan pair forms its own community of size 2 — the smallest.
+    assert!(stats.count >= 2, "expected at least 2 communities");
     assert!(
-        stats.isolated.contains(&"orphans/alpha".to_string()),
-        "orphans/alpha should be isolated"
-    );
-    assert!(
-        stats.isolated.contains(&"orphans/beta".to_string()),
-        "orphans/beta should be isolated"
+        stats.smallest <= 2,
+        "orphan pair should produce a community of size ≤ 2, got smallest={}",
+        stats.smallest
     );
 }
 
@@ -845,10 +843,6 @@ fn compute_communities_deterministic() {
     let s2 = compute_communities(&g, 30).unwrap().unwrap();
 
     assert_eq!(s1.count, s2.count, "count must be deterministic");
-    assert_eq!(
-        s1.isolated, s2.isolated,
-        "isolated list must be deterministic"
-    );
 }
 
 // ── generation counter ────────────────────────────────────────────────────────

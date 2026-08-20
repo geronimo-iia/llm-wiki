@@ -472,8 +472,6 @@ pub struct CommunityStats {
     pub largest: usize,
     /// Size (node count) of the smallest cluster.
     pub smallest: usize,
-    /// Slugs of pages in communities of size ≤ 2 — weakly connected pages.
-    pub isolated: Vec<String>,
 }
 
 type CommunityPair = (Option<CommunityStats>, Option<HashMap<String, usize>>);
@@ -1417,22 +1415,10 @@ fn build_community_data(graph: &WikiGraph, min_nodes: usize) -> Result<Community
     }
     let largest = sizes.values().copied().max().unwrap_or(0);
     let smallest = sizes.values().copied().min().unwrap_or(0);
-    let mut isolated: Vec<String> = local_nodes
-        .iter()
-        .filter(|&&n| {
-            community
-                .get(&n)
-                .is_some_and(|&c| *sizes.get(&c).unwrap_or(&0) <= 2)
-        })
-        .map(|&n| graph[n].slug.clone())
-        .collect();
-    isolated.sort();
-
     let stats = CommunityStats {
         count,
         largest,
         smallest,
-        isolated,
     };
 
     Ok((Some(stats), Some(community_map)))
@@ -1496,7 +1482,6 @@ fn ensure_community_data(
             count: 0,
             largest: 0,
             smallest: 0,
-            isolated: vec![],
         });
         let map = map_opt.unwrap_or_default();
         Ok(CommunityData {
@@ -1650,7 +1635,6 @@ mod tests {
                 count: 1,
                 largest: 1,
                 smallest: 1,
-                isolated: vec![],
             },
         };
         assert_eq!(data.local_count, 3);
