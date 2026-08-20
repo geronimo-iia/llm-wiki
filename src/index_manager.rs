@@ -8,8 +8,11 @@ use chrono::Utc;
 use git2::Delta;
 use serde::{Deserialize, Serialize};
 use tantivy::{
-    Index, IndexReader, IndexWriter, Searcher, Term, collector::TopDocs, directory::MmapDirectory,
-    query::AllQuery,
+    Index, IndexReader, IndexWriter, Searcher, Term,
+    collector::{Count, TopDocs},
+    directory::MmapDirectory,
+    query::{AllQuery, TermQuery},
+    schema::IndexRecordOption,
 };
 use walkdir::WalkDir;
 
@@ -716,7 +719,15 @@ impl SpaceIndexManager {
 
         writer.commit()?;
         self.reload_reader()?;
-        let total_pages = self.searcher()?.num_docs() as usize;
+        let searcher = self.searcher()?;
+        let total_pages = searcher.num_docs() as usize;
+        let total_sections = searcher.search(
+            &TermQuery::new(
+                Term::from_field_text(f_type, "section"),
+                IndexRecordOption::Basic,
+            ),
+            &Count,
+        )?;
 
         // Update state.toml
         let commit = git::current_head(repo_root).unwrap_or_default();
@@ -724,9 +735,7 @@ impl SpaceIndexManager {
             schema_hash: registry.schema_hash().to_string(),
             built: Utc::now().to_rfc3339(),
             pages: total_pages,
-            // rebuild() counts sections via page_type filter; update() does not —
-            // a type-filtered tantivy query would be needed, out of P3.4 scope.
-            sections: 0,
+            sections: total_sections,
             commit,
             types: registry.type_hashes().clone(),
         };
