@@ -22,6 +22,8 @@ Architectural decisions and their rationale, grouped by release.
 | [pub-crate-partial-migration](1.0.0/pub-crate-partial-migration.md) | Only 4 of 22 modules converted to `pub(crate)` (`cli`, `server`, `watch`, `pathutil`) — 18 remain `pub mod` because `tests/*.rs` imports them directly; `#[allow(unreachable_pub)]` per module suppresses noise; full migration deferred to Post-1.0 test-layer refactor |
 | [wiki-graph-json-format](1.0.0/wiki-graph-json-format.md) | `json` format for `wiki_graph` deferred to Post-1.0 — `GraphReport` is already `Serialize` so implementation cost is near-zero, but field names must be stable before exposing as a versioned JSON contract |
 | [wiki-lint-scalability-parameters](1.0.0/wiki-lint-scalability-parameters.md) | Add `summary`, `path_prefix`, `page_size`, `cursor` to `wiki_lint` — full-wiki runs at 1,000+ pages exceed LLM context budgets; four parameters used in combination (summary → rule+prefix scope → paginate) make large wikis workable without server-side state |
+| [wiki-graph-scale-summary-format](1.0.0/wiki-graph-scale-summary-format.md) | Add `format: "summary"` to `wiki_graph` — unfiltered `mermaid`/`dot`/`json` on 1,315 nodes is 270–450KB; summary returns aggregate metrics only (<2KB); also cap isolated titles in `format: "llms"` at 20; document scoped-first call sequence |
+| [wiki-stats-detail-parameter](1.0.0/wiki-stats-detail-parameter.md) | Remove `communities.isolated: Vec<String>` from `CommunityStats` permanently — redundant with `wiki_lint rules: "periphery,orphan"` and a divergent second source of truth; add `detail: "summary" \| "full"` gating `center` slug list; fixes 275KB response at 1,315 pages; also fix `structural_note` silent null when `structural_algorithms: false` |
 
 ### Performance
 
