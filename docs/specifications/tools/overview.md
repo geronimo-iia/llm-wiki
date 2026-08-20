@@ -81,7 +81,7 @@ References:
 | `wiki_stats` | Wiki health dashboard |
 | `wiki_suggest` | Suggest related pages to link |
 | `wiki_resolve` | Resolve a slug or `wiki://` URI to a canonical path |
-| `wiki_lint` | Lint pages for broken links, orphans, and schema violations |
+| `wiki_lint` | Lint pages for broken links, orphans, and schema violations; scalable via summary/prefix/pagination |
 | `wiki_export` | Export wiki content as a single document |
 | `wiki_index_rebuild` | Rebuild tantivy index from committed files |
 | `wiki_index_status` | Check index health |

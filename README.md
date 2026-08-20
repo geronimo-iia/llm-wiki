@@ -156,7 +156,7 @@ llm-wiki serve --acp --http :18765
 | `wiki_graph` | Typed concept graph — Mermaid, DOT, or natural-language `llms` format |
 | `wiki_suggest` | Find pages worth linking by tag overlap, graph distance, BM25 similarity |
 | `wiki_stats` | Wiki health: page counts, type distribution, staleness, graph density |
-| `wiki_lint` | Deterministic quality rules: orphans, broken links, missing fields, stale pages |
+| `wiki_lint` | Deterministic quality rules: orphans, broken links, missing fields, stale pages; scalable via `summary`, `path_prefix`, `page_size`, `cursor` |
 | `wiki_export` | Write full wiki to `llms.txt`, `llms-full`, or JSON — JSON includes custom frontmatter fields per page |
 | `wiki_history` | Git commit history for a page, with rename following |
 | `wiki_schema` | Show, validate, or template a type schema |
@@ -178,7 +178,7 @@ Claude Code plugin that ships ready-to-use workflows:
 | `crystallize` | Distil a session into durable wiki pages — decisions, findings, open questions |
 | `ingest` | Process source files from `inbox/` into synthesized, cross-referenced pages |
 | `research` | Search the wiki and synthesize an answer from existing knowledge |
-| `lint` | Structural audit — orphans, broken links, schema issues, under-linked pages |
+| `lint` | Structural audit — orphans, broken links, schema issues; uses `summary: true` first for large wikis |
 | `graph` | Explore and interpret the concept graph |
 
 Skills are plain Markdown files — readable by the LLM, replaceable, forkable.
