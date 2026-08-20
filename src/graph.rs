@@ -1143,11 +1143,17 @@ pub fn render_llms(graph: &WikiGraph) -> String {
     }
 
     if !isolated.is_empty() {
-        out.push_str(&format!(
-            "\n**Isolated nodes ({}):** {}\n",
-            isolated.len(),
+        let total = isolated.len();
+        let listed = if total > 20 {
+            format!(
+                "{}, … and {} more (use wiki_lint(rules: \"orphan,periphery\") for the full list)",
+                isolated[..20].join(", "),
+                total - 20
+            )
+        } else {
             isolated.join(", ")
-        ));
+        };
+        out.push_str(&format!("\n**Isolated nodes ({total}):** {listed}\n"));
     }
 
     if !external_refs.is_empty() {

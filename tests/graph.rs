@@ -562,6 +562,42 @@ fn render_llms_shows_hubs_and_isolated() {
     assert!(output.contains("Isolated"));
 }
 
+#[test]
+fn render_llms_isolated_titles_capped_at_20() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    // 23 isolated nodes — hub links to iso0/iso1, leaving 21 isolated (> 20 cap)
+    for i in 0..23u32 {
+        write_page(
+            &wiki_root,
+            &format!("concepts/iso{i}.md"),
+            &simple_page(&format!("Iso{i}"), "concept"),
+        );
+    }
+    // one hub to keep the graph non-trivial
+    write_page(
+        &wiki_root,
+        "concepts/hub.md",
+        &page_with_body_links("Hub", "See [[concepts/iso0]] and [[concepts/iso1]]."),
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
+
+    let output = render_llms(&g);
+    assert!(output.contains("**Isolated nodes ("));
+    assert!(output.contains("and"));
+    assert!(output.contains("more"));
+    assert!(output.contains("wiki_lint"));
+}
+
 // ── cross-wiki graph ──────────────────────────────────────────────────────────
 
 fn page_with_cross_wiki_link(title: &str, target: &str) -> String {
