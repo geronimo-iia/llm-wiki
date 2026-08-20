@@ -147,6 +147,12 @@ impl std::ops::Index<EdgeIndex> for WikiGraph {
     }
 }
 
+impl Default for WikiGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GraphBase for WikiGraph {
     type NodeId = NodeIndex;
     type EdgeId = EdgeIndex;
@@ -218,7 +224,7 @@ impl<'a> IntoEdgeReferences for &'a WikiGraph {
     type EdgeReferences = <&'a InnerGraph as IntoEdgeReferences>::EdgeReferences;
 
     fn edge_references(self) -> Self::EdgeReferences {
-        (&self.inner).edge_references()
+        self.inner.edge_references()
     }
 }
 
@@ -648,7 +654,6 @@ pub fn build_graph(
     }
 
     let mut graph = WikiGraph::new();
-    let mut slug_to_idx: HashMap<String, NodeIndex> = HashMap::new();
 
     struct DocInfo {
         slug: String,
@@ -688,8 +693,7 @@ pub fn build_graph(
             r#type: page_type.clone(),
             external: false,
         };
-        let idx = graph.add_node(node);
-        slug_to_idx.insert(slug.clone(), idx);
+        graph.add_node(node);
 
         // Read body wiki-links
         let body_links: Vec<String> = doc
@@ -721,8 +725,8 @@ pub fn build_graph(
 
     // Second pass: add edges
     for doc_info in &all_docs {
-        let from_idx = match slug_to_idx.get(&doc_info.slug) {
-            Some(idx) => *idx,
+        let from_idx = match graph.node_for_slug(&doc_info.slug) {
+            Some(idx) => idx,
             None => continue,
         };
 
@@ -740,7 +744,7 @@ pub fn build_graph(
             }
 
             for target in targets {
-                let to_idx = resolve_or_external(target, &mut graph, &mut slug_to_idx);
+                let to_idx = resolve_or_external(target, &mut graph);
                 if let Some(to_idx) = to_idx
                     && from_idx != to_idx
                 {
@@ -758,7 +762,7 @@ pub fn build_graph(
         // Body wiki-links → "links-to"
         if filter.relation.is_none() || filter.relation.as_deref() == Some("links-to") {
             for target in &doc_info.body_links {
-                let to_idx = resolve_or_external(target, &mut graph, &mut slug_to_idx);
+                let to_idx = resolve_or_external(target, &mut graph);
                 if let Some(to_idx) = to_idx
                     && from_idx != to_idx
                 {
@@ -787,28 +791,23 @@ pub fn build_graph(
 /// Resolve a target slug to a node index. If the target is a `wiki://` URI,
 /// insert an external placeholder node on demand. Returns `None` only for
 /// plain local slugs that don't exist in the index.
-fn resolve_or_external(
-    target: &str,
-    graph: &mut WikiGraph,
-    slug_to_idx: &mut HashMap<String, NodeIndex>,
-) -> Option<NodeIndex> {
+fn resolve_or_external(target: &str, graph: &mut WikiGraph) -> Option<NodeIndex> {
     if target.starts_with("wiki://") {
-        let key = target.to_string();
-        let idx = *slug_to_idx.entry(key.clone()).or_insert_with(|| {
-            let (_wiki, slug) = match ParsedLink::parse(target) {
-                ParsedLink::CrossWiki { wiki, slug } => (wiki, slug),
-                ParsedLink::Local(_) => ("external".to_string(), target.to_string()),
-            };
-            graph.add_node(PageNode {
-                slug: slug.clone(),
-                title: key.clone(),
-                r#type: "external".to_string(),
-                external: true,
-            })
+        if let Some(idx) = graph.node_for_slug(target) {
+            return Some(idx);
+        }
+        // slug = full URI so slug_to_node key matches node_for_slug(target) above.
+        // build_graph_cross_wiki uses node.title (not node.slug) for external resolution,
+        // so changing slug from the parsed short form to the full URI is safe.
+        let idx = graph.add_node(PageNode {
+            slug: target.to_string(),
+            title: target.to_string(),
+            r#type: "external".to_string(),
+            external: true,
         });
         Some(idx)
     } else {
-        slug_to_idx.get(target).copied()
+        graph.node_for_slug(target)
     }
 }
 
@@ -1258,10 +1257,7 @@ pub fn wrap_graph_md(rendered: &str, format: &str, filter: &GraphFilter) -> Stri
 
 /// Extract a BFS subgraph rooted at `root_slug` up to `depth` hops in both directions.
 pub fn subgraph(graph: &WikiGraph, root_slug: &str, depth: usize) -> WikiGraph {
-    let root_idx = match graph
-        .node_indices()
-        .find(|&idx| graph[idx].slug == root_slug)
-    {
+    let root_idx = match graph.node_for_slug(root_slug) {
         Some(idx) => idx,
         None => return WikiGraph::new(),
     };
@@ -1863,5 +1859,33 @@ mod tests {
         assert!(g.node_for_slug("alpha").is_some());
         assert!(g.node_for_slug("beta").is_some());
         assert!(g.node_for_slug("missing").is_none());
+    }
+
+    #[test]
+    fn subgraph_root_not_found_returns_empty() {
+        let g = WikiGraph::new();
+        let sub = subgraph(&g, "no-such-slug", 2);
+        assert_eq!(sub.node_count(), 0);
+        assert_eq!(sub.edge_count(), 0);
+    }
+
+    #[test]
+    fn subgraph_single_node_depth_zero() {
+        let mut g = WikiGraph::new();
+        g.add_node(PageNode {
+            slug: "root".into(), title: "Root".into(),
+            r#type: "page".into(), external: false,
+        });
+        g.add_node(PageNode {
+            slug: "other".into(), title: "Other".into(),
+            r#type: "page".into(), external: false,
+        });
+        g.add_edge(
+            g.node_for_slug("root").unwrap(),
+            g.node_for_slug("other").unwrap(),
+            LabeledEdge { relation: "links-to".into() },
+        );
+        let sub = subgraph(&g, "root", 0);
+        assert_eq!(sub.node_count(), 1);
     }
 }
