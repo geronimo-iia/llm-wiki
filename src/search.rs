@@ -557,7 +557,10 @@ pub fn search_all(
                     *merged_facets.tags.entry(k).or_insert(0) += v;
                 }
             }
-            Err(_) => continue,
+            Err(e) => {
+                tracing::warn!(wiki = %name, error = %e, "cross-wiki search failed for wiki; skipping");
+                continue;
+            }
         }
     }
     all_results.sort_by(|a, b| {
