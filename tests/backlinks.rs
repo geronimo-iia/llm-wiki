@@ -40,7 +40,7 @@ fn write_page(wiki_root: &Path, rel_path: &str, content: &str) {
 fn build_index(dir: &Path, wiki_root: &Path) -> SpaceIndexManager {
     let index_path = dir.join("index-store");
     git::commit(dir, "index pages").unwrap();
-    let mgr = SpaceIndexManager::new("test", &index_path);
+    let mgr = SpaceIndexManager::new("test", &index_path, 50_000_000);
     mgr.rebuild(wiki_root, dir, &schema(), &registry()).unwrap();
     mgr.open(&schema(), None).unwrap();
     mgr

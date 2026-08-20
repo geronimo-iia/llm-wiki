@@ -120,6 +120,7 @@ struct IndexInner {
 pub struct SpaceIndexManager {
     wiki_name: String,
     index_path: PathBuf,
+    memory_budget_bytes: usize,
     inner: RwLock<IndexInner>,
     /// Serializes concurrent rebuild() calls. Prevents two rebuild paths (MCP + watcher)
     /// from racing over the build_dir / live_dir swap.
@@ -132,10 +133,15 @@ pub struct SpaceIndexManager {
 
 impl SpaceIndexManager {
     /// Create a new `SpaceIndexManager` for `wiki_name` with its index stored at `index_path`.
-    pub fn new(wiki_name: impl Into<String>, index_path: impl Into<PathBuf>) -> Self {
+    pub fn new(
+        wiki_name: impl Into<String>,
+        index_path: impl Into<PathBuf>,
+        memory_budget_bytes: usize,
+    ) -> Self {
         Self {
             wiki_name: wiki_name.into(),
             index_path: index_path.into(),
+            memory_budget_bytes,
             inner: RwLock::new(IndexInner {
                 tantivy_index: None,
                 index_reader: None,
@@ -255,14 +261,14 @@ impl SpaceIndexManager {
             .read()
             .map_err(|_| anyhow::anyhow!("index lock poisoned"))?;
         if let Some(ref idx) = inner.tantivy_index {
-            Ok(idx.writer(50_000_000)?)
+            Ok(idx.writer(self.memory_budget_bytes)?)
         } else {
             drop(inner);
             let search_dir = self.index_path.join("search-index");
             let dir = MmapDirectory::open(&search_dir)
                 .with_context(|| format!("failed to open index dir: {}", search_dir.display()))?;
             let index = Index::open(dir).context("failed to open index")?;
-            Ok(index.writer(50_000_000)?)
+            Ok(index.writer(self.memory_budget_bytes)?)
         }
     }
 
@@ -310,7 +316,7 @@ impl SpaceIndexManager {
         let dir = MmapDirectory::open(&build_dir)
             .with_context(|| format!("failed to open build dir: {}", build_dir.display()))?;
         let index = Index::open_or_create(dir, is.schema.clone())?;
-        let mut writer: IndexWriter = index.writer(50_000_000)?;
+        let mut writer: IndexWriter = index.writer(self.memory_budget_bytes)?;
 
         let mut pages = 0usize;
         let mut sections = 0usize;

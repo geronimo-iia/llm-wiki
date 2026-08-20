@@ -369,7 +369,11 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
             )
         })?;
 
-    let index_manager = Arc::new(SpaceIndexManager::new(&entry.name, &index_path));
+    let index_manager = Arc::new(SpaceIndexManager::new(
+        &entry.name,
+        &index_path,
+        (config.index.memory_budget_mb as usize) * 1_000_000,
+    ));
 
     let search_dir = index_path.join("search-index");
     std::fs::create_dir_all(&search_dir)?;

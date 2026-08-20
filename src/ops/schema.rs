@@ -146,7 +146,11 @@ pub fn schema_add(
             }
             // Fresh manager: the mounted one still holds a reader opened on
             // the old schema, which must not be reused for the new index.
-            let manager = crate::index_manager::SpaceIndexManager::new(&space.name, &index_path);
+            let manager = crate::index_manager::SpaceIndexManager::new(
+                &space.name,
+                &index_path,
+                (engine.config.index.memory_budget_mb as usize) * 1_000_000,
+            );
             match manager.rebuild(
                 &space.wiki_root,
                 &space.repo_root,

@@ -49,7 +49,7 @@ fn concept_page(title: &str, body: &str) -> String {
 
 fn make_manager(dir: &Path) -> SpaceIndexManager {
     let index_path = dir.join("index-store");
-    SpaceIndexManager::new("test", index_path)
+    SpaceIndexManager::new("test", index_path, 50_000_000)
 }
 
 fn build_index(dir: &Path, wiki_root: &Path) -> SpaceIndexManager {
@@ -141,7 +141,7 @@ fn status_when_no_index() {
     let dir = tempfile::tempdir().unwrap();
     setup_repo(dir.path());
 
-    let mgr = SpaceIndexManager::new("test", dir.path().join("nonexistent"));
+    let mgr = SpaceIndexManager::new("test", dir.path().join("nonexistent"), 50_000_000);
     let status = mgr.status(dir.path()).unwrap();
 
     assert!(status.stale);

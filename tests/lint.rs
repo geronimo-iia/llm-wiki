@@ -44,7 +44,7 @@ fn write_page(wiki_root: &Path, rel_path: &str, content: &str) {
 fn build_engine(dir: &Path, wiki_root: &Path) -> EngineState {
     let index_path = dir.join("index-store");
     git::commit(dir, "index pages").unwrap();
-    let mgr = SpaceIndexManager::new("test", &index_path);
+    let mgr = SpaceIndexManager::new("test", &index_path, 50_000_000);
     mgr.rebuild(wiki_root, dir, &schema(), &registry()).unwrap();
     mgr.open(&schema(), None).unwrap();
 
@@ -527,7 +527,7 @@ fn integration_known_bad_wiki() {
 fn build_engine_with_name(dir: &Path, wiki_root: &Path, name: &str) -> EngineState {
     let index_path = dir.join("index-store");
     git::commit(dir, "index pages").unwrap();
-    let mgr = SpaceIndexManager::new(name, &index_path);
+    let mgr = SpaceIndexManager::new(name, &index_path, 50_000_000);
     mgr.rebuild(wiki_root, dir, &schema(), &registry()).unwrap();
     mgr.open(&schema(), None).unwrap();
 

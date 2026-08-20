@@ -44,7 +44,7 @@ fn write_page(wiki_root: &Path, rel_path: &str, content: &str) {
 fn build_index(dir: &Path, wiki_root: &Path) -> SpaceIndexManager {
     let index_path = dir.join("index-store");
     git::commit(dir, "index pages").unwrap();
-    let mgr = SpaceIndexManager::new("test", &index_path);
+    let mgr = SpaceIndexManager::new("test", &index_path, 50_000_000);
     mgr.rebuild(wiki_root, dir, &schema(), &registry()).unwrap();
     mgr.open(&schema(), None).unwrap();
     mgr
@@ -666,13 +666,13 @@ fn build_graph_cross_wiki_resolves_cross_wiki_edge() {
     git::commit(dir_a.path(), "pages").unwrap();
     git::commit(dir_b.path(), "pages").unwrap();
 
-    let mgr_a = SpaceIndexManager::new("wiki-a", &index_a);
+    let mgr_a = SpaceIndexManager::new("wiki-a", &index_a, 50_000_000);
     mgr_a
         .rebuild(&wiki_root_a, dir_a.path(), &is, &reg)
         .unwrap();
     mgr_a.open(&is, None).unwrap();
 
-    let mgr_b = SpaceIndexManager::new("wiki-b", &index_b);
+    let mgr_b = SpaceIndexManager::new("wiki-b", &index_b, 50_000_000);
     mgr_b
         .rebuild(&wiki_root_b, dir_b.path(), &is, &reg)
         .unwrap();
@@ -886,7 +886,7 @@ fn compute_communities_deterministic() {
 #[test]
 fn index_manager_generation_starts_at_zero() {
     let dir = tempfile::tempdir().unwrap();
-    let mgr = SpaceIndexManager::new("test", dir.path().join("idx"));
+    let mgr = SpaceIndexManager::new("test", dir.path().join("idx"), 50_000_000);
     assert_eq!(mgr.generation(), 0);
 }
 
