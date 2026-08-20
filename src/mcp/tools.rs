@@ -317,12 +317,22 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_lint",
-            "Run deterministic lint checks on wiki pages — validates frontmatter fields, detects broken links, and reports structural issues.",
+            concat!(
+                "Run deterministic lint checks on wiki pages — validates frontmatter fields, ",
+                "detects broken links, and reports structural issues. ",
+                "For large wikis: call with `summary: true` first to see counts per rule. ",
+                "Then narrow with `rules` (single rule) and optionally `path_prefix`. ",
+                "Use `page_size` / `cursor` only when the scoped result is still large."
+            ),
             schema(
                 json!({
                     "rules": opt_str("Comma-separated rule names: orphan, broken-link, broken-cross-wiki-link, missing-fields, stale, unknown-type, articulation-point, bridge, periphery (omit for all)"),
                     "severity": opt_str("Filter output: error | warning (omit for all)"),
                     "wiki": opt_str("Target wiki name"),
+                    "summary": opt_bool("Return counts only (total, errors, warnings, by_rule) — no findings array. Use first on large wikis to identify which rules have findings."),
+                    "path_prefix": opt_str("Restrict findings to slugs starting with this prefix, e.g. \"nrg-architecture/studies\". Applied after rules run."),
+                    "page_size": opt_int("Maximum number of findings per response. When set, response includes has_more and next_cursor for pagination."),
+                    "cursor": opt_int("Zero-based offset into the sorted findings list. Use the next_cursor value from the previous response."),
                 }),
                 &[],
             ),
