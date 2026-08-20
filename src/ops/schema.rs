@@ -331,7 +331,7 @@ pub fn schema_validate(
     }
 
     // Index resolution check
-    match space_builder::build_space(&space.repo_root, "en_stem") {
+    match space_builder::build_space(&space.repo_root, &engine.config.index.tokenizer) {
         Ok(_) => {}
         Err(e) => issues.push(format!("index resolution failed: {e}")),
     }
