@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -52,23 +52,36 @@ pub struct LintFinding {
 pub struct LintReport {
     /// Name of the wiki that was linted.
     pub wiki: String,
-    /// Total number of findings (errors + warnings).
+    /// Total number of findings after prefix/severity filters, before pagination.
     pub total: usize,
-    /// Number of error-severity findings.
+    /// Number of error-severity findings (after filters, before pagination).
     pub errors: usize,
-    /// Number of warning-severity findings.
+    /// Number of warning-severity findings (after filters, before pagination).
     pub warnings: usize,
-    /// Individual lint findings, sorted by slug then rule.
+    /// Individual lint findings (empty when `summary: true`).
     pub findings: Vec<LintFinding>,
+    /// Whether more pages exist beyond the current window.
+    pub has_more: bool,
+    /// Offset for the next page; absent when `has_more` is false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<usize>,
+    /// Finding count per rule; present only when `summary: true`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub by_rule: Option<HashMap<&'static str, usize>>,
 }
 
 /// Run lint rules against a wiki. `rules` is a comma-separated list; `None` runs all rules.
 /// `severity_filter` restricts output to `"error"` or `"warning"`.
+#[allow(clippy::too_many_arguments)]
 pub fn run_lint(
     engine: &EngineState,
     wiki_name: &str,
     rules: Option<&str>,
     severity_filter: Option<&str>,
+    summary: bool,
+    path_prefix: Option<&str>,
+    page_size: Option<usize>,
+    cursor: Option<usize>,
 ) -> Result<LintReport> {
     let active_rules: HashSet<&str> = match rules {
         None | Some("") => [
@@ -164,6 +177,11 @@ pub fn run_lint(
         }
     }
 
+    // Apply path_prefix filter before severity
+    if let Some(prefix) = path_prefix {
+        findings.retain(|f| f.slug.starts_with(prefix));
+    }
+
     // Apply severity filter
     if let Some(sev) = severity_filter {
         let sev = sev.trim().to_lowercase();
@@ -172,6 +190,7 @@ pub fn run_lint(
 
     findings.sort_by(|a, b| a.slug.cmp(&b.slug).then(a.rule.cmp(b.rule)));
 
+    // Counts are over the full filtered list, before pagination.
     let errors = findings
         .iter()
         .filter(|f| f.severity == Severity::Error)
@@ -182,12 +201,41 @@ pub fn run_lint(
         .count();
     let total = findings.len();
 
+    // Build by_rule before any pagination (summary mode only).
+    let by_rule: Option<HashMap<&'static str, usize>> = if summary {
+        let mut map: HashMap<&'static str, usize> = HashMap::new();
+        for f in &findings {
+            *map.entry(f.rule).or_insert(0) += 1;
+        }
+        Some(map)
+    } else {
+        None
+    };
+
+    // Apply pagination. When summary: true, page_findings is built then discarded below —
+    // wasteful but harmless. has_more and next_cursor remain correct in all cases.
+    let (page_findings, has_more, next_cursor) = if let Some(size) = page_size {
+        let start = cursor.unwrap_or(0);
+        let end = (start + size).min(findings.len());
+        let more = end < findings.len();
+        let next = if more { Some(end) } else { None };
+        (findings[start..end].to_vec(), more, next)
+    } else {
+        (findings, false, None)
+    };
+
+    // summary mode: drop the findings array (by_rule carries the information instead).
+    let final_findings = if summary { vec![] } else { page_findings };
+
     Ok(LintReport {
         wiki: wiki_name.to_string(),
         total,
         errors,
         warnings,
-        findings,
+        findings: final_findings,
+        has_more,
+        next_cursor,
+        by_rule,
     })
 }
 

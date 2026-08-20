@@ -105,7 +105,17 @@ fn orphan_detects_unlinked_page() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("orphan"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("orphan"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let slugs = slugs_for_rule(&report.findings, "orphan");
 
     assert!(
@@ -130,7 +140,17 @@ fn orphan_ignores_section_pages() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("orphan"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("orphan"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let slugs = slugs_for_rule(&report.findings, "orphan");
 
     assert!(
@@ -157,7 +177,17 @@ fn broken_link_detects_missing_slug_in_body_links() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("broken-link"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("broken-link"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let findings = findings_for_rule(&report.findings, "broken-link");
 
     assert!(!findings.is_empty(), "should detect broken link");
@@ -187,7 +217,17 @@ fn broken_link_clean_when_all_slugs_exist() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("broken-link"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("broken-link"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let findings = findings_for_rule(&report.findings, "broken-link");
 
     assert!(
@@ -210,7 +250,17 @@ fn unknown_type_flags_unregistered_type() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("unknown-type"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("unknown-type"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let findings = findings_for_rule(&report.findings, "unknown-type");
 
     assert!(!findings.is_empty(), "unknown type should be flagged");
@@ -230,7 +280,17 @@ fn unknown_type_clean_for_known_types() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("unknown-type"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("unknown-type"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let findings = findings_for_rule(&report.findings, "unknown-type");
 
     assert!(
@@ -253,7 +313,17 @@ fn stale_old_page_low_confidence_is_flagged() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("stale"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("stale"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let findings = findings_for_rule(&report.findings, "stale");
 
     assert!(!findings.is_empty(), "old + low confidence should be stale");
@@ -274,7 +344,17 @@ fn stale_old_page_without_confidence_not_flagged() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("stale"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("stale"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let findings = findings_for_rule(&report.findings, "stale");
 
     assert!(
@@ -295,7 +375,17 @@ fn stale_old_page_explicit_low_confidence_is_flagged() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("stale"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("stale"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let findings = findings_for_rule(&report.findings, "stale");
 
     assert!(
@@ -317,7 +407,17 @@ fn stale_old_page_high_confidence_not_flagged() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("stale"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("stale"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let findings = findings_for_rule(&report.findings, "stale");
 
     assert!(
@@ -341,7 +441,17 @@ fn stale_recent_page_not_flagged_regardless_of_confidence() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("stale"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("stale"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let findings = findings_for_rule(&report.findings, "stale");
 
     // Both conditions (old AND low confidence) must hold — recent date means not stale
@@ -365,7 +475,17 @@ fn severity_filter_returns_only_errors() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", None, Some("error")).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        None,
+        Some("error"),
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
 
     for f in &report.findings {
         assert_eq!(
@@ -403,7 +523,7 @@ fn integration_known_bad_wiki() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", None, None).unwrap();
+    let report = run_lint(&engine, "test", None, None, false, None, None, None).unwrap();
 
     let broken_link_slugs = slugs_for_rule(&report.findings, "broken-link");
     let unknown_type_slugs = slugs_for_rule(&report.findings, "unknown-type");
@@ -464,7 +584,17 @@ fn broken_cross_wiki_link_to_unmounted_wiki_is_warning() {
     );
 
     let engine = build_engine_with_name(dir.path(), &wiki_root, "mywiki");
-    let report = run_lint(&engine, "mywiki", Some("broken-cross-wiki-link"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "mywiki",
+        Some("broken-cross-wiki-link"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
 
     let cross_wiki_findings = slugs_for_rule(&report.findings, "broken-cross-wiki-link");
     assert!(
@@ -498,7 +628,17 @@ fn broken_cross_wiki_link_to_mounted_wiki_no_finding() {
 
     // Engine named "mywiki" — the wiki:// link targets "mywiki" which IS mounted
     let engine = build_engine_with_name(dir.path(), &wiki_root, "mywiki");
-    let report = run_lint(&engine, "mywiki", Some("broken-cross-wiki-link"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "mywiki",
+        Some("broken-cross-wiki-link"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
 
     let cross_wiki_findings = slugs_for_rule(&report.findings, "broken-cross-wiki-link");
     assert!(
@@ -524,7 +664,17 @@ fn broken_link_body_cross_wiki_to_mounted_wiki_no_finding() {
     // After the fix, "wiki://mywiki/cognition/design/target" is stored in body_links
     // and the lint rule routes it to the mounted-wiki check, not the local slug check.
     let engine = build_engine_with_name(dir.path(), &wiki_root, "mywiki");
-    let report = run_lint(&engine, "mywiki", Some("broken-link"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "mywiki",
+        Some("broken-link"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
 
     let broken_findings: Vec<_> = report
         .findings
@@ -556,6 +706,10 @@ fn broken_link_body_cross_wiki_to_unmounted_wiki_is_warning() {
         &engine,
         "mywiki",
         Some("broken-link,broken-cross-wiki-link"),
+        None,
+        false,
+        None,
+        None,
         None,
     )
     .unwrap();
@@ -608,7 +762,17 @@ fn articulation_point_rule_finds_connector_page() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("articulation-point"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("articulation-point"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let findings = findings_for_rule(&report.findings, "articulation-point");
 
     assert!(
@@ -660,7 +824,17 @@ fn bridge_rule_finds_load_bearing_link() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("bridge"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("bridge"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let findings = findings_for_rule(&report.findings, "bridge");
 
     assert!(
@@ -713,7 +887,17 @@ fn periphery_rule_finds_isolated_pages() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("periphery"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("periphery"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let findings = findings_for_rule(&report.findings, "periphery");
 
     assert!(
@@ -751,7 +935,17 @@ fn lint_finding_path_is_populated() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("orphan"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("orphan"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
 
     let findings = findings_for_rule(&report.findings, "orphan");
     assert!(!findings.is_empty(), "expected at least one orphan finding");
@@ -791,7 +985,17 @@ fn lint_stale_rule_no_false_positive_on_draft() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("stale"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("stale"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let findings = findings_for_rule(&report.findings, "stale");
 
     assert!(
@@ -821,11 +1025,167 @@ fn lint_broken_link_cross_section_page_not_flagged() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", Some("broken-link"), None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("broken-link"),
+        None,
+        false,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let findings = findings_for_rule(&report.findings, "broken-link");
 
     assert!(
         findings.is_empty(),
         "link to existing section slug must not be flagged: {findings:?}"
     );
+}
+
+#[test]
+fn lint_summary_mode_returns_counts_no_findings() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    // orphan: page with no incoming links
+    write_page(
+        &wiki_root,
+        "isolated.md",
+        "---\ntitle: Isolated\ntype: concept\nstatus: active\n---\n\nBody.\n",
+    );
+    let engine = build_engine(dir.path(), &wiki_root);
+
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("orphan"),
+        None,
+        true,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
+    assert!(
+        report.findings.is_empty(),
+        "summary mode must have empty findings"
+    );
+    let by_rule = report.by_rule.expect("by_rule present in summary mode");
+    assert!(
+        by_rule.get("orphan").copied().unwrap_or(0) >= 1,
+        "orphan count >= 1"
+    );
+}
+
+#[test]
+fn lint_path_prefix_filters_to_subtree() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    // Two orphan pages under different prefixes
+    write_page(
+        &wiki_root,
+        "alpha/page-a.md",
+        "---\ntitle: A\ntype: concept\nstatus: active\n---\n\nBody.\n",
+    );
+    write_page(
+        &wiki_root,
+        "beta/page-b.md",
+        "---\ntitle: B\ntype: concept\nstatus: active\n---\n\nBody.\n",
+    );
+    let engine = build_engine(dir.path(), &wiki_root);
+
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("orphan"),
+        None,
+        false,
+        Some("alpha"),
+        None,
+        None,
+    )
+    .unwrap();
+    assert!(
+        report.findings.iter().all(|f| f.slug.starts_with("alpha")),
+        "all findings must be under alpha/",
+    );
+    assert!(
+        report.findings.iter().all(|f| !f.slug.starts_with("beta")),
+        "beta findings must be excluded",
+    );
+}
+
+#[test]
+fn lint_pagination_has_more_and_next_cursor() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    // Create 5 orphan pages
+    for i in 0..5u8 {
+        write_page(
+            &wiki_root,
+            &format!("page-{i}.md"),
+            &format!("---\ntitle: Page {i}\ntype: concept\nstatus: active\n---\n\nBody.\n"),
+        );
+    }
+    let engine = build_engine(dir.path(), &wiki_root);
+
+    let page1 = run_lint(
+        &engine,
+        "test",
+        Some("orphan"),
+        None,
+        false,
+        None,
+        Some(3),
+        None,
+    )
+    .unwrap();
+    assert_eq!(page1.findings.len(), 3);
+    assert!(page1.has_more, "has_more must be true");
+    let cursor = page1
+        .next_cursor
+        .expect("next_cursor present when has_more");
+    assert_eq!(cursor, 3);
+
+    let page2 = run_lint(
+        &engine,
+        "test",
+        Some("orphan"),
+        None,
+        false,
+        None,
+        Some(3),
+        Some(cursor),
+    )
+    .unwrap();
+    assert!(page2.findings.len() <= 2);
+    assert!(!page2.has_more, "last page has_more must be false");
+    assert_eq!(page2.next_cursor, None);
+}
+
+#[test]
+fn lint_pagination_last_page_no_next_cursor() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "solo.md",
+        "---\ntitle: Solo\ntype: concept\nstatus: active\n---\n\nBody.\n",
+    );
+    let engine = build_engine(dir.path(), &wiki_root);
+
+    let report = run_lint(
+        &engine,
+        "test",
+        Some("orphan"),
+        None,
+        false,
+        None,
+        Some(100),
+        None,
+    )
+    .unwrap();
+    assert!(!report.has_more);
+    assert_eq!(report.next_cursor, None);
 }

@@ -697,7 +697,16 @@ fn main() -> Result<()> {
             let manager = WikiEngine::build(&config_path)?;
             let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
             let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
-            let report = ops::run_lint(&engine, &wiki_name, rules.as_deref(), severity.as_deref())?;
+            let report = ops::run_lint(
+                &engine,
+                &wiki_name,
+                rules.as_deref(),
+                severity.as_deref(),
+                false,
+                None,
+                None,
+                None,
+            )?;
 
             if is_json(&format) {
                 println!("{}", serde_json::to_string_pretty(&report)?);

@@ -504,8 +504,17 @@ pub fn handle_lint(server: &McpServer, args: &Map<String, Value>) -> ToolHandler
     let wiki_name = resolve_wiki_name(&engine, args)?;
     let rules = arg_str(args, "rules");
     let severity = arg_str(args, "severity");
-    let result = ops::run_lint(&engine, &wiki_name, rules.as_deref(), severity.as_deref())
-        .map_err(redact_error)?;
+    let result = ops::run_lint(
+        &engine,
+        &wiki_name,
+        rules.as_deref(),
+        severity.as_deref(),
+        false,
+        None,
+        None,
+        None,
+    )
+    .map_err(redact_error)?;
     let s = serde_json::to_string_pretty(&result).map_err(redact_error)?;
     ok_text(s)
 }
