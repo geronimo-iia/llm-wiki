@@ -1,14 +1,15 @@
 ---
 title: "Type System"
-summary: "What a type is, how types are discovered from schemas, field aliasing, and graph edges."
+summary: "What a type is, how types are discovered from schemas, field aliasing, keyword indexing, and graph edges."
 read_when:
   - Understanding how per-type validation works
   - Adding a custom type to a wiki
   - Understanding field aliasing
+  - Understanding keyword vs full-text indexing
   - Understanding typed graph edges
   - Understanding type discovery from schemas
 status: ready
-last_updated: "2025-07-18"
+last_updated: "2026-08-20"
 ---
 
 # Type System
@@ -110,6 +111,36 @@ Schema:
 Fields not aliased to a canonical field are indexed as generic text.
 For the full list of canonical index fields, see
 [index-management.md](../engine/index-management.md).
+
+## Keyword Indexing — `x-keyword`
+
+String scalar properties default to full-text analyzed indexing (BM25,
+tokenized). Mark a property `"x-keyword": true` to index it as an
+exact-match keyword field instead:
+
+```json
+{
+  "properties": {
+    "domain": {
+      "type": "string",
+      "x-keyword": true
+    }
+  }
+}
+```
+
+Keyword fields are indexed as `STRING | STORED | FAST`:
+
+- **Exact match only** — no tokenization, case-sensitive
+- **FAST storage** — facet counts are computed from columnar data
+  with no per-document stored-field fetch
+- **Appear in facet distributions** — show up in `wiki_stats` facet
+  output alongside `type`, `status`, and `tags`
+
+The built-in `type`, `status`, and `tags` fields all use keyword
+indexing. Use `x-keyword: true` for controlled-vocabulary fields
+(states, categories, enums). Leave plain `"type": "string"` for
+free-text prose fields.
 
 ## Typed Graph Edges — `x-graph-edges`
 
