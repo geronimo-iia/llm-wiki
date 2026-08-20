@@ -63,6 +63,9 @@ pub struct Defaults {
     /// Maximum number of tag facet values to return (default: 10).
     #[serde(default = "default_facets_top_tags")]
     pub facets_top_tags: u32,
+    /// Maximum byte length accepted by `wiki_content_write` (default: 10 MiB).
+    #[serde(default = "default_max_content_bytes")]
+    pub max_content_bytes: usize,
 }
 
 impl Default for Defaults {
@@ -75,6 +78,7 @@ impl Default for Defaults {
             list_page_size: 20,
             output_format: "text".into(),
             facets_top_tags: 10,
+            max_content_bytes: 10 * 1024 * 1024,
         }
     }
 }
@@ -616,6 +620,9 @@ fn default_output_format() -> String {
 fn default_facets_top_tags() -> u32 {
     10
 }
+fn default_max_content_bytes() -> usize {
+    10 * 1024 * 1024
+}
 fn default_memory_budget_mb() -> u32 {
     50
 }
@@ -809,6 +816,7 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "defaults.list_page_size" => global.defaults.list_page_size = value.parse()?,
         "defaults.output_format" => global.defaults.output_format = value.into(),
         "defaults.facets_top_tags" => global.defaults.facets_top_tags = value.parse()?,
+        "defaults.max_content_bytes" => global.defaults.max_content_bytes = value.parse()?,
         "read.no_frontmatter" => global.read.no_frontmatter = value.parse()?,
         "index.auto_rebuild" => global.index.auto_rebuild = value.parse()?,
         "index.auto_recovery" => global.index.auto_recovery = value.parse()?,
@@ -904,6 +912,7 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "defaults.list_page_size" => resolved.defaults.list_page_size.to_string(),
         "defaults.output_format" => resolved.defaults.output_format.clone(),
         "defaults.facets_top_tags" => resolved.defaults.facets_top_tags.to_string(),
+        "defaults.max_content_bytes" => resolved.defaults.max_content_bytes.to_string(),
         "read.no_frontmatter" => resolved.read.no_frontmatter.to_string(),
         "index.auto_rebuild" => global.index.auto_rebuild.to_string(),
         "index.auto_recovery" => global.index.auto_recovery.to_string(),
@@ -991,6 +1000,12 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
                 .defaults
                 .get_or_insert_with(Defaults::default)
                 .facets_top_tags = value.parse()?;
+        }
+        "defaults.max_content_bytes" => {
+            wiki_cfg
+                .defaults
+                .get_or_insert_with(Defaults::default)
+                .max_content_bytes = value.parse()?;
         }
         "read.no_frontmatter" => {
             wiki_cfg

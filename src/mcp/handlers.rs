@@ -215,15 +215,15 @@ pub fn handle_content_read(server: &McpServer, args: &Map<String, Value>) -> Too
 pub fn handle_content_write(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let uri = arg_str_req(args, "uri")?;
     let content = arg_str_req(args, "content")?;
-    const MAX_CONTENT_BYTES: usize = 10 * 1024 * 1024;
-    if content.len() > MAX_CONTENT_BYTES {
+    let engine = server.engine()?;
+    let max_content_bytes = engine.config.defaults.max_content_bytes;
+    if content.len() > max_content_bytes {
         return Err(format!(
             "content exceeds maximum allowed size of {} bytes (got {})",
-            MAX_CONTENT_BYTES,
+            max_content_bytes,
             content.len()
         ));
     }
-    let engine = server.engine()?;
     let wiki_flag = arg_str(args, "wiki");
 
     let result =
