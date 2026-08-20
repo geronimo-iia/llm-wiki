@@ -514,6 +514,11 @@ impl SpaceIndexManager {
 
         writer.commit()?;
         self.reload_reader()?;
+        // state.toml is intentionally not updated here. It reflects the last full rebuild only.
+        // Updating it after every incremental update would require re-querying pages + sections
+        // on each watcher event, and raises partial-failure questions (what if the loop above
+        // partially fails?). The only consumer of state.toml is `wiki index status`, which is
+        // informational. `wiki_stats` reads the live index directly and is unaffected.
         Ok(UpdateReport { updated, deleted })
     }
 
