@@ -28,22 +28,20 @@ pub fn spaces_create(
             config_path,
             wiki_root,
         )?;
-        if report.registered {
-            if let Some(e) = engine {
-                let entry = WikiEntry {
-                    name: name.to_string(),
-                    path: std::path::PathBuf::from(&report.path),
-                    description: description.map(|s| s.to_string()),
-                    remote: None,
-                };
-                // Roll back config entry if mount fails — inside the lock so no
-                // concurrent config mutation can interleave with the rollback.
-                if let Err(mount_err) = e.mount_wiki(&entry) {
-                    let _ = spaces::remove(name, false, config_path).inspect_err(
-                        |e| tracing::error!(error = %e, "rollback failed; wiki may be stranded in config"),
-                    );
-                    return Err(mount_err);
-                }
+        if report.registered && let Some(e) = engine {
+            let entry = WikiEntry {
+                name: name.to_string(),
+                path: std::path::PathBuf::from(&report.path),
+                description: description.map(|s| s.to_string()),
+                remote: None,
+            };
+            // Roll back config entry if mount fails — inside the lock so no
+            // concurrent config mutation can interleave with the rollback.
+            if let Err(mount_err) = e.mount_wiki(&entry) {
+                let _ = spaces::remove(name, false, config_path).inspect_err(
+                    |e| tracing::error!(error = %e, "rollback failed; wiki may be stranded in config"),
+                );
+                return Err(mount_err);
             }
         }
         Ok(report)
@@ -57,10 +55,8 @@ pub fn spaces_create(
     // set_default is outside with_config_lock — this mirrors the original code and is a
     // pre-existing pattern, not a regression introduced by this fix. A future hardening
     // pass could move it inside the closure; out of scope for D5-3.
-    if report.registered && set_default {
-        if let Some(e) = engine {
-            e.set_default(name)?;
-        }
+    if report.registered && set_default && let Some(e) = engine {
+        e.set_default(name)?;
     }
 
     Ok(report)
@@ -77,20 +73,18 @@ pub fn spaces_register(
 ) -> Result<spaces::RegisterReport> {
     let do_register = || {
         let report = spaces::register_existing(path, name, description, wiki_root, config_path)?;
-        if report.registered {
-            if let Some(e) = engine {
-                let entry = WikiEntry {
-                    name: name.to_string(),
-                    path: std::path::PathBuf::from(&report.path),
-                    description: description.map(|s| s.to_string()),
-                    remote: None,
-                };
-                if let Err(mount_err) = e.mount_wiki(&entry) {
-                    let _ = spaces::remove(name, false, config_path).inspect_err(
-                        |e| tracing::error!(error = %e, "rollback failed; wiki may be stranded in config"),
-                    );
-                    return Err(mount_err);
-                }
+        if report.registered && let Some(e) = engine {
+            let entry = WikiEntry {
+                name: name.to_string(),
+                path: std::path::PathBuf::from(&report.path),
+                description: description.map(|s| s.to_string()),
+                remote: None,
+            };
+            if let Err(mount_err) = e.mount_wiki(&entry) {
+                let _ = spaces::remove(name, false, config_path).inspect_err(
+                    |e| tracing::error!(error = %e, "rollback failed; wiki may be stranded in config"),
+                );
+                return Err(mount_err);
             }
         }
         Ok(report)
