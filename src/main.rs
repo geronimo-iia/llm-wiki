@@ -410,6 +410,7 @@ fn main() -> Result<()> {
                     relation,
                     output: output.as_deref(),
                     cross_wiki,
+                    limit: None,
                 },
             )?;
 

@@ -464,6 +464,7 @@ pub fn handle_graph(server: &McpServer, args: &Map<String, Value>) -> ToolHandle
             relation: arg_str(args, "relation"),
             output: arg_str(args, "output").as_deref(),
             cross_wiki: arg_bool(args, "cross_wiki"),
+            limit: arg_usize(args, "limit"),
         },
     )
     .map_err(redact_error)?;

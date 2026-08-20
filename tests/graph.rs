@@ -1081,3 +1081,50 @@ fn render_llms_empty_graph_no_panic() {
     // Should not panic; output may be empty or contain header text
     let _ = out;
 }
+
+// ── render_summary ───────────────────────────────────────────────────────────
+
+#[test]
+fn render_summary_returns_json_with_expected_fields() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/a.md",
+        &page_with_body_links("Alpha", "See [[concepts/b]]."),
+    );
+    write_page(&wiki_root, "concepts/b.md", &simple_page("Beta", "concept"));
+    write_page(&wiki_root, "sources/s.md", &simple_page("Source", "paper"));
+    // isolated node
+    write_page(
+        &wiki_root,
+        "concepts/z.md",
+        &simple_page("Orphan", "concept"),
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
+
+    let output = render_summary(
+        &g,
+        &RenderContext {
+            top_n: 10,
+            communities: None,
+        },
+    );
+    let v: serde_json::Value =
+        serde_json::from_str(&output).expect("render_summary must produce valid JSON");
+    assert!(v["nodes"].as_u64().unwrap() >= 4);
+    assert!(v["edges"].as_u64().is_some());
+    assert!(v["isolated_count"].as_u64().unwrap() >= 1);
+    assert!(v["by_type"].is_object());
+    assert!(v["relation_counts"].is_object());
+    assert!(v["top_hubs"].is_array());
+}

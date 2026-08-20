@@ -252,10 +252,11 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_graph",
-            "Generate concept graph, returns GraphReport.",
+            "Generate concept graph. For large wikis: call with format: \"summary\" first to understand topology, then scope with type/root/relation filters. Use format: \"llms\" for interpretation of scoped subgraphs. Use mermaid/dot only for scoped visualization — unfiltered on large wikis these exceed context limits.",
             schema(
                 json!({
-                    "format": opt_str("Output format: mermaid | dot | llms | json (default: mermaid)"),
+                    "format": opt_str("Output format: mermaid | dot | llms | json | summary (default: from config, mermaid if unset). summary returns aggregate metrics under 2KB."),
+                    "limit": opt_int("Top-hub count for format: \"summary\" (default: 10)"),
                     "root": opt_str("Subgraph from this node (slug)"),
                     "depth": opt_int("Hop limit from root"),
                     "type": opt_str("Comma-separated page types to include"),

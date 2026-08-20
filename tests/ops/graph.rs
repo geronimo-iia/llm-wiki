@@ -22,6 +22,7 @@ fn graph_build_returns_nodes() {
             relation: None,
             output: None,
             cross_wiki: false,
+            limit: None,
         },
     )
     .unwrap();
@@ -47,8 +48,37 @@ fn graph_build_dot_format() {
             relation: None,
             output: None,
             cross_wiki: false,
+            limit: None,
         },
     )
     .unwrap();
     assert!(result.rendered.contains("digraph wiki"));
+}
+
+#[test]
+fn graph_build_summary_format() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "test");
+    let manager = WikiEngine::build(&config_path).unwrap();
+    let engine = manager.state.read().unwrap();
+
+    let result = ops::graph_build(
+        &engine,
+        "test",
+        &ops::GraphParams {
+            format: Some("summary"),
+            root: None,
+            depth: None,
+            type_filter: None,
+            relation: None,
+            output: None,
+            cross_wiki: false,
+            limit: None,
+        },
+    )
+    .unwrap();
+    let v: serde_json::Value =
+        serde_json::from_str(&result.rendered).expect("summary format must produce valid JSON");
+    assert!(v["nodes"].as_u64().is_some());
+    assert!(v["isolated_count"].as_u64().is_some());
 }

@@ -15,7 +15,7 @@ pub struct GraphResult {
 
 /// Parameters for `graph_build`.
 pub struct GraphParams<'a> {
-    /// Output format: `"mermaid"`, `"dot"`, `"llms"`, or `"json"`.
+    /// Output format: `"mermaid"`, `"dot"`, `"llms"`, `"json"`, or `"summary"`.
     pub format: Option<&'a str>,
     /// Slug of the root node for a subgraph traversal.
     pub root: Option<String>,
@@ -29,6 +29,8 @@ pub struct GraphParams<'a> {
     pub output: Option<&'a str>,
     /// If true, merge all mounted wikis into a single graph.
     pub cross_wiki: bool,
+    /// Top-hub count for `format: "summary"` (default 10).
+    pub limit: Option<usize>,
 }
 
 /// Build and render the concept graph according to `params`.
@@ -53,7 +55,9 @@ pub fn graph_build(
         relation: params.relation.clone(),
         max_pages: resolved.graph.max_pages,
     };
-    let g: Arc<graph::WikiGraph> = if params.cross_wiki {
+    let top_n = params.limit.unwrap_or(10);
+
+    let (g, render_ctx) = if params.cross_wiki {
         // Build each space graph through its cache, then merge
         let mut per_space: Vec<(&str, Arc<graph::WikiGraph>)> = Vec::new();
         for (name, sp) in engine.spaces.iter() {
@@ -69,17 +73,42 @@ pub fn graph_build(
                 per_space.push((name.as_str(), g));
             }
         }
-        Arc::new(graph::merge_cached_graphs(&per_space, &filter)?)
+        let merged = Arc::new(graph::merge_cached_graphs(&per_space, &filter)?);
+        let ctx = graph::RenderContext {
+            top_n,
+            communities: None,
+        };
+        (merged, ctx)
     } else {
         let searcher = space.index_manager.searcher()?;
-        graph::get_or_build_graph(
+        let g = graph::get_or_build_graph(
             &space.index_schema,
             &space.type_registry,
             &space.index_manager,
             &space.graph_cache,
             &searcher,
             &filter,
-        )?
+        )?;
+        let communities = if fmt == "summary" {
+            let min_nodes = resolved.graph.min_nodes_for_communities;
+            graph::get_cached_community_stats(
+                &space.index_schema,
+                &space.type_registry,
+                &space.index_manager,
+                &space.graph_cache,
+                &space.community_cache,
+                &searcher,
+                min_nodes,
+            )
+            .unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "community stats unavailable for summary; omitting");
+                None
+            })
+        } else {
+            None
+        };
+        let ctx = graph::RenderContext { top_n, communities };
+        (g, ctx)
     };
 
     let rendered = match fmt {
@@ -87,8 +116,11 @@ pub fn graph_build(
         "llms" => graph::render_llms(&g),
         "json" => graph::render_json(&g),
         "mermaid" => graph::render_mermaid(&g),
+        "summary" => graph::render_summary(&g, &render_ctx),
         other => {
-            anyhow::bail!("unknown graph format {other:?}: expected mermaid, dot, llms, or json")
+            anyhow::bail!(
+                "unknown graph format {other:?}: expected mermaid, dot, llms, json, or summary"
+            )
         }
     };
 

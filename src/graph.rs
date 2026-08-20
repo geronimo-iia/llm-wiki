@@ -1169,6 +1169,95 @@ pub fn render_llms(graph: &WikiGraph) -> String {
     out
 }
 
+// ── render_summary ────────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct HubEntry {
+    slug: String,
+    degree: usize,
+}
+
+#[derive(Serialize)]
+struct GraphSummary {
+    nodes: usize,
+    edges: usize,
+    external_refs: usize,
+    by_type: HashMap<String, usize>,
+    top_hubs: Vec<HubEntry>,
+    relation_counts: HashMap<String, usize>,
+    isolated_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    communities: Option<CommunityStats>,
+}
+
+/// Render context for `render_summary` — passed by the ops layer, which owns the cache.
+pub struct RenderContext {
+    /// Top-hub count (capped).
+    pub top_n: usize,
+    /// Pre-fetched from the community cache; `None` for cross-wiki or below threshold.
+    pub communities: Option<CommunityStats>,
+}
+
+/// Aggregate topology metrics — under 2KB at any scale. No node or edge enumeration.
+pub fn render_summary(graph: &WikiGraph, ctx: &RenderContext) -> String {
+    let nodes = graph.node_count();
+    let edges = graph.edge_count();
+
+    let mut external_refs = 0usize;
+    let mut by_type: HashMap<String, usize> = HashMap::new();
+    let mut degree: Vec<(usize, String)> = Vec::new();
+    let mut isolated_count = 0usize;
+
+    for idx in graph.node_indices() {
+        let node = &graph[idx];
+        let d = graph.neighbors_directed(idx, Direction::Incoming).count()
+            + graph.neighbors_directed(idx, Direction::Outgoing).count();
+        if node.external {
+            external_refs += 1;
+        } else {
+            *by_type.entry(node.r#type.clone()).or_default() += 1;
+        }
+        degree.push((d, node.slug.clone()));
+        if d == 0 {
+            isolated_count += 1;
+        }
+    }
+
+    degree.sort_by_key(|a| Reverse(a.0));
+    let top_hubs: Vec<HubEntry> = degree
+        .iter()
+        .take(ctx.top_n)
+        .filter(|(d, _)| *d > 0)
+        .map(|(d, s)| HubEntry {
+            slug: s.clone(),
+            degree: *d,
+        })
+        .collect();
+
+    let mut relation_counts: HashMap<String, usize> = HashMap::new();
+    for eidx in graph.edge_indices() {
+        *relation_counts
+            .entry(graph[eidx].relation.clone())
+            .or_default() += 1;
+    }
+
+    let summary = GraphSummary {
+        nodes,
+        edges,
+        external_refs,
+        by_type,
+        top_hubs,
+        relation_counts,
+        isolated_count,
+        communities: ctx.communities.clone(),
+    };
+
+    serde_json::to_string_pretty(&summary).unwrap_or_else(|e| {
+        tracing::error!(error = %e, "render_summary serialization failed");
+        "{}".to_string()
+    })
+}
+
 // ── render_mermaid ────────────────────────────────────────────────────────────
 
 /// Render the wiki graph as a Mermaid `graph LR` diagram.
