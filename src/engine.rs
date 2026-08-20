@@ -256,7 +256,16 @@ impl WikiEngine {
                     )?;
                 }
             }
-            Ok(StalenessKind::FullRebuildNeeded) | Err(_) => {
+            Ok(StalenessKind::FullRebuildNeeded) => {
+                space.index_manager.rebuild(
+                    &space.wiki_root,
+                    &space.repo_root,
+                    &space.index_schema,
+                    &space.type_registry,
+                )?;
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "staleness check failed; falling back to full rebuild");
                 space.index_manager.rebuild(
                     &space.wiki_root,
                     &space.repo_root,
