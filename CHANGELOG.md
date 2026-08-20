@@ -85,6 +85,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   types (`WikiEngine`, `GlobalConfig`, `SearchResult`, `IngestReport`, `WikiGraph`) at
   the crate root. Internal helpers are `pub(crate)`. `#![warn(unreachable_pub)]` enabled
   crate-wide to keep the boundary stable going forward.
+- **`WikiGraph` changed from type alias to struct** — `WikiGraph` was
+  `pub type WikiGraph = StableDiGraph<PageNode, EdgeData>`; it is now a
+  struct wrapping `inner: StableDiGraph<PageNode, EdgeData>` with explicit
+  delegate methods for all public operations. The change closes the API surface:
+  raw `petgraph` methods that were previously accessible through the type alias
+  are no longer reachable directly. Callers who used `WikiGraph` through
+  `lib.rs` re-exports are unaffected; callers who reached `petgraph` internals
+  directly must migrate to the provided delegate methods.
 - **`WikiEntry.path` and `WikiConfig.wiki_root` changed from `String` to `PathBuf`** —
   eliminates manual `PathBuf::from(&entry.path)` conversions throughout the codebase.
   TOML round-trips via `crate::pathutil::path_as_string` (UTF-8 string on disk,
@@ -252,6 +260,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pages: 0` to `state.toml` after every watcher-triggered incremental update;
   `wiki_index_status` always showed 0 pages. Now reads the actual total via
   `searcher.num_docs()` after `reload_reader()`.
+- **`WikiGraph.node_for_slug` O(1)** — the graph struct holds a
+  `slug_to_node: HashMap<String, NodeIndex>` maintained in sync with the inner
+  `DiGraph`. `node_for_slug` is now a direct map lookup; previously it was a
+  linear scan over all nodes (`O(N)` per call). `subgraph()` uses this map
+  instead of the removed `slug_to_idx` lookup helper.
 - **`subgraph` edge scan O(E_subgraph)** — previously iterated over every edge in the
   full graph (`E_total`) to find edges within the subgraph; now uses
   `graph.edges_directed(node, Outgoing)` to walk only edges reachable from visited
@@ -320,6 +333,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   required-param validation for all 17 handlers with required parameters, 10 MB content
   cap rejection and within-limit acceptance for `wiki_content_write`, and a search
   error smoke test for the rebuild-hint path.
+- **ACP unit tests** — 13 inline `#[cfg(test)]` tests added to `src/acp/`:
+  `helpers.rs` (6 tests: `get_cancelled` None/Some/shared-flag, `clear_active_run`
+  noop/clears-field/session-retained), `lint.rs` (4 tests: `step_lint` with/without
+  rules, `run_lint` empty/non-empty query), `research.rs` (3 tests:
+  `step_report_results` empty/non-empty, `step_search` engine-error returns empty vec).
+  Tests are inline because `src/acp/` submodules are private; `tests/*.rs` cannot
+  reach them.
 
 
 ## [0.5.9] — 2026-08-17
