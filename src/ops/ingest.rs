@@ -97,6 +97,12 @@ fn validate_edge_targets(space: &crate::engine::SpaceContext) -> Result<Vec<Stri
         &tantivy::query::AllQuery,
         &tantivy::collector::TopDocs::with_limit(100_000).order_by_score(),
     )?;
+    if top_docs.len() >= 100_000 {
+        tracing::warn!(
+            count = top_docs.len(),
+            "ingest dedup query hit 100 000 page limit — existing pages beyond limit may be re-indexed"
+        );
+    }
     let mut slug_types: std::collections::HashMap<String, String> =
         std::collections::HashMap::new();
     for (_score, doc_addr) in &top_docs {

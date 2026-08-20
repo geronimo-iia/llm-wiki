@@ -153,6 +153,10 @@ pub struct GraphConfig {
     /// Maximum local node count before O(n²) diameter/radius/center/periphery algorithms are skipped (default: 2000).
     #[serde(default = "default_max_nodes_for_diameter")]
     pub max_nodes_for_diameter: usize,
+    /// Maximum pages fetched per wiki in graph builds, exports, and ingest dedup (default: 100 000).
+    /// Raise for wikis exceeding this size; a warning is emitted when the limit is hit.
+    #[serde(default = "default_max_pages")]
+    pub max_pages: usize,
 }
 
 impl Default for GraphConfig {
@@ -169,6 +173,7 @@ impl Default for GraphConfig {
             snapshot_format: "bincode+lz4".into(),
             structural_algorithms: true,
             max_nodes_for_diameter: default_max_nodes_for_diameter(),
+            max_pages: default_max_pages(),
         }
     }
 }
@@ -190,6 +195,10 @@ fn default_snapshot_format() -> String {
 }
 fn default_max_nodes_for_diameter() -> usize {
     2000
+}
+
+fn default_max_pages() -> usize {
+    100_000
 }
 
 fn default_acp_max_sessions() -> usize {

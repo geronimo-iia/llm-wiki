@@ -51,6 +51,7 @@ pub fn graph_build(
         depth: params.depth.or(Some(resolved.graph.depth as usize)),
         types,
         relation: params.relation.clone(),
+        max_pages: resolved.graph.max_pages,
     };
     let g: Arc<graph::WikiGraph> = if params.cross_wiki {
         // Build each space graph through its cache, then merge

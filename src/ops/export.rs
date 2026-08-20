@@ -113,7 +113,13 @@ pub fn export(engine: &EngineState, options: &ExportOptions) -> Result<ExportRep
     let searcher = space.index_manager.searcher()?;
     let is = &space.index_schema;
 
-    let pages = collect_pages(&searcher, is, &options.wiki, options.include_archived)?;
+    let pages = collect_pages(
+        &searcher,
+        is,
+        &options.wiki,
+        options.include_archived,
+        100_000,
+    )?;
 
     let need_bodies = matches!(options.format, ExportFormat::LlmsFull | ExportFormat::Json);
     let pages = if need_bodies {
@@ -165,6 +171,7 @@ fn collect_pages(
     is: &IndexSchema,
     wiki_name: &str,
     include_archived: bool,
+    max_pages: usize,
 ) -> Result<Vec<PageEntry>> {
     let f_slug = is.field("slug");
     let f_title = is.field("title");
@@ -173,10 +180,10 @@ fn collect_pages(
     let f_confidence = is.try_field("confidence");
     let f_summary = is.try_field("summary");
 
-    let top_docs = searcher.search(&AllQuery, &TopDocs::with_limit(100_000).order_by_score())?;
-    if top_docs.len() == 100_000 {
+    let top_docs = searcher.search(&AllQuery, &TopDocs::with_limit(max_pages).order_by_score())?;
+    if top_docs.len() == max_pages {
         tracing::warn!(
-            limit = 100_000,
+            limit = max_pages,
             "export hit page limit — output may be truncated; use a smaller export or split by type"
         );
     }

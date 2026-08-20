@@ -257,7 +257,7 @@ fn endpoints(g: &WikiGraph, e: EdgeIndex) -> (NodeIndex, NodeIndex) {
 }
 
 /// Filtering parameters for graph construction and subgraph extraction.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct GraphFilter {
     /// Root slug for subgraph extraction (None = full graph).
     pub root: Option<String>,
@@ -267,6 +267,20 @@ pub struct GraphFilter {
     pub types: Vec<String>,
     /// Edge relation label to filter on (None = all relations).
     pub relation: Option<String>,
+    /// Maximum pages to fetch from the index in one pass (default: 100_000).
+    pub max_pages: usize,
+}
+
+impl Default for GraphFilter {
+    fn default() -> Self {
+        Self {
+            root: None,
+            depth: None,
+            types: Vec::new(),
+            relation: None,
+            max_pages: 100_000,
+        }
+    }
 }
 
 impl GraphFilter {
@@ -274,6 +288,8 @@ impl GraphFilter {
     /// `depth` is intentionally excluded: a depth-limited full graph still loads from the full
     /// snapshot cache and applies the hop limit at render time, so the cache key must not vary
     /// by depth.
+    /// `max_pages` intentionally excluded — fetch limit, not a graph structure filter;
+    /// must not affect snapshot cache key (same as depth).
     pub fn is_default(&self) -> bool {
         self.root.is_none() && self.types.is_empty() && self.relation.is_none()
     }
@@ -657,12 +673,17 @@ pub fn build_graph(
     let f_type = is.field("type");
     let f_body_links = is.field("body_links");
 
-    let top_docs = searcher.search(&AllQuery, &TopDocs::with_limit(100_000).order_by_score())?;
+    let top_docs = searcher.search(
+        &AllQuery,
+        &TopDocs::with_limit(filter.max_pages).order_by_score(),
+    )?;
 
-    if top_docs.len() >= 100_000 {
+    if top_docs.len() >= filter.max_pages {
         tracing::warn!(
             count = top_docs.len(),
-            "graph: TopDocs limit reached — index has ≥100 000 pages; graph may be silently truncated"
+            limit = filter.max_pages,
+            "graph: TopDocs limit reached — index has ≥{} pages; graph may be silently truncated",
+            filter.max_pages
         );
     }
 
