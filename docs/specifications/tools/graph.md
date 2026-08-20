@@ -15,7 +15,8 @@ MCP tool: `wiki_graph`
 
 ```
 llm-wiki graph
-          [--format <fmt>]          # mermaid | dot | llms (default: from config)
+          [--format <fmt>]          # mermaid | dot | llms | json | summary (default: from config)
+          [--limit <n>]             # top-hub count for summary format (default: 10)
           [--root <slug|uri>]       # subgraph from this node
           [--depth <n>]             # hop limit
           [--type <types>]          # comma-separated page types
@@ -90,6 +91,35 @@ Key hubs: Mixture of Experts (12 edges), Scaling Laws (9 edges), Agent (7 edges)
 
 Use `format: "llms"` when the goal is interpretation or analysis.
 Use `format: "mermaid"` or `format: "dot"` when a renderable diagram is needed.
+
+Summary (`--format summary`):
+
+Aggregate topology metrics only — no node or edge enumeration. Under 2KB at any scale.
+
+```json
+{
+  "nodes": 1315,
+  "edges": 3742,
+  "external_refs": 48,
+  "by_type": { "concept": 412, "source": 287, "doc": 198 },
+  "top_hubs": [
+    { "slug": "concepts/transformer", "degree": 24 },
+    { "slug": "concepts/moe", "degree": 18 }
+  ],
+  "relation_counts": { "links-to": 2841, "fed-by": 612 },
+  "isolated_count": 71,
+  "communities": { "count": 74, "largest": 42, "smallest": 1 }
+}
+```
+
+Use `format: "summary"` as the first call on any unfamiliar wiki to understand topology before applying filters.
+
+### Call sequence for large wikis
+
+1. `wiki_graph(format: "summary")` — topology overview under 2KB; identify dominant types, isolated count, top hubs
+2. `wiki_graph(type: "<type>", format: "llms")` — scoped interpretation; isolated titles capped at 20 in llms output
+3. `wiki_graph(root: "<slug>", depth: 2)` — subgraph around a specific node
+4. `wiki_graph(format: "mermaid", root: "<slug>", depth: 2)` — renderable diagram of a scoped subgraph only
 
 A summary line is printed to stderr:
 
