@@ -681,10 +681,9 @@ fn rule_periphery(
 mod tests {
     use super::*;
     use crate::graph::{LabeledEdge, PageNode};
-    use petgraph::graph::DiGraph;
 
     fn make_graph(slugs: &[&str], edges: &[(&str, &str)]) -> WikiGraph {
-        let mut g = DiGraph::new();
+        let mut g = WikiGraph::new();
         let indices: std::collections::HashMap<&str, petgraph::graph::NodeIndex> = slugs
             .iter()
             .map(|&s| {
@@ -713,7 +712,7 @@ mod tests {
 
     #[test]
     fn build_undirected_excludes_external() {
-        let mut g = DiGraph::new();
+        let mut g = WikiGraph::new();
         let local = g.add_node(PageNode {
             slug: "a".into(),
             title: "a".into(),

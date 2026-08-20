@@ -7,7 +7,10 @@ use anyhow::Result;
 use chrono::Utc;
 use petgraph::Direction;
 use petgraph::graph::{DiGraph, EdgeIndex, NodeIndex};
-use petgraph::visit::EdgeRef as _;
+use petgraph::visit::{
+    Data, EdgeRef as _, GraphBase, IntoEdgeReferences, IntoEdges, IntoNeighbors,
+    IntoNodeIdentifiers, NodeCount, NodeIndexable, Visitable,
+};
 use serde::{Deserialize, Serialize};
 use tantivy::Searcher;
 use tantivy::collector::TopDocs;
@@ -45,8 +48,196 @@ pub struct LabeledEdge {
     pub relation: String,
 }
 
+type InnerGraph = DiGraph<PageNode, LabeledEdge>;
+
 /// Directed graph type used for the wiki concept graph.
-pub type WikiGraph = DiGraph<PageNode, LabeledEdge>;
+/// Wraps petgraph `DiGraph` and maintains `slug_to_node` for O(1) slug lookup.
+#[derive(Clone)]
+pub struct WikiGraph {
+    inner: InnerGraph,
+    slug_to_node: HashMap<String, NodeIndex>,
+}
+
+impl WikiGraph {
+    pub fn new() -> Self {
+        Self {
+            inner: InnerGraph::new(),
+            slug_to_node: HashMap::new(),
+        }
+    }
+
+    pub fn node_for_slug(&self, slug: &str) -> Option<NodeIndex> {
+        self.slug_to_node.get(slug).copied()
+    }
+
+    pub fn add_node(&mut self, node: PageNode) -> NodeIndex {
+        let slug = node.slug.clone();
+        let idx = self.inner.add_node(node);
+        self.slug_to_node.insert(slug, idx);
+        idx
+    }
+
+    pub fn add_edge(&mut self, a: NodeIndex, b: NodeIndex, w: LabeledEdge) -> EdgeIndex {
+        self.inner.add_edge(a, b, w)
+    }
+
+    pub fn node_indices(&self) -> impl Iterator<Item = NodeIndex> + '_ {
+        self.inner.node_indices()
+    }
+
+    pub fn edge_indices(&self) -> impl Iterator<Item = EdgeIndex> + '_ {
+        self.inner.edge_indices()
+    }
+
+    pub fn node_count(&self) -> usize {
+        self.inner.node_count()
+    }
+
+    pub fn edge_count(&self) -> usize {
+        self.inner.edge_count()
+    }
+
+    pub fn neighbors_directed(
+        &self,
+        n: NodeIndex,
+        d: petgraph::Direction,
+    ) -> impl Iterator<Item = NodeIndex> + '_ {
+        self.inner.neighbors_directed(n, d)
+    }
+
+    pub fn edges_directed(
+        &self,
+        n: NodeIndex,
+        d: petgraph::Direction,
+    ) -> petgraph::graph::Edges<'_, LabeledEdge, petgraph::Directed> {
+        self.inner.edges_directed(n, d)
+    }
+
+    pub fn edge_endpoints(&self, e: EdgeIndex) -> Option<(NodeIndex, NodeIndex)> {
+        self.inner.edge_endpoints(e)
+    }
+
+    pub fn find_edge(&self, a: NodeIndex, b: NodeIndex) -> Option<EdgeIndex> {
+        self.inner.find_edge(a, b)
+    }
+
+    pub fn neighbors_undirected(&self, n: NodeIndex) -> impl Iterator<Item = NodeIndex> + '_ {
+        self.inner.neighbors_undirected(n)
+    }
+
+    pub fn edges(
+        &self,
+        n: NodeIndex,
+    ) -> petgraph::graph::Edges<'_, LabeledEdge, petgraph::Directed> {
+        self.inner.edges(n)
+    }
+}
+
+impl std::ops::Index<NodeIndex> for WikiGraph {
+    type Output = PageNode;
+    fn index(&self, idx: NodeIndex) -> &PageNode {
+        &self.inner[idx]
+    }
+}
+
+impl std::ops::Index<EdgeIndex> for WikiGraph {
+    type Output = LabeledEdge;
+    fn index(&self, idx: EdgeIndex) -> &LabeledEdge {
+        &self.inner[idx]
+    }
+}
+
+impl GraphBase for WikiGraph {
+    type NodeId = NodeIndex;
+    type EdgeId = EdgeIndex;
+}
+
+impl Data for WikiGraph {
+    type NodeWeight = PageNode;
+    type EdgeWeight = LabeledEdge;
+}
+
+impl NodeCount for WikiGraph {
+    fn node_count(&self) -> usize {
+        self.inner.node_count()
+    }
+}
+
+impl NodeIndexable for WikiGraph {
+    fn node_bound(&self) -> usize {
+        self.inner.node_bound()
+    }
+
+    fn to_index(&self, ix: NodeIndex) -> usize {
+        self.inner.to_index(ix)
+    }
+
+    fn from_index(&self, ix: usize) -> NodeIndex {
+        self.inner.from_index(ix)
+    }
+}
+
+impl Visitable for WikiGraph {
+    type Map = <InnerGraph as Visitable>::Map;
+
+    fn visit_map(&self) -> Self::Map {
+        self.inner.visit_map()
+    }
+
+    fn reset_map(&self, map: &mut Self::Map) {
+        self.inner.reset_map(map);
+    }
+}
+
+impl<'a> IntoNodeIdentifiers for &'a WikiGraph {
+    type NodeIdentifiers = <&'a InnerGraph as IntoNodeIdentifiers>::NodeIdentifiers;
+
+    fn node_identifiers(self) -> Self::NodeIdentifiers {
+        (&self.inner).node_identifiers()
+    }
+}
+
+impl<'a> IntoNeighbors for &'a WikiGraph {
+    type Neighbors = <&'a InnerGraph as IntoNeighbors>::Neighbors;
+
+    fn neighbors(self, n: NodeIndex) -> Self::Neighbors {
+        self.inner.neighbors(n)
+    }
+}
+
+impl<'a> IntoEdges for &'a WikiGraph {
+    type Edges = <&'a InnerGraph as IntoEdges>::Edges;
+
+    fn edges(self, a: NodeIndex) -> Self::Edges {
+        self.inner.edges(a)
+    }
+}
+
+impl<'a> IntoEdgeReferences for &'a WikiGraph {
+    type EdgeRef = <&'a InnerGraph as IntoEdgeReferences>::EdgeRef;
+    type EdgeReferences = <&'a InnerGraph as IntoEdgeReferences>::EdgeReferences;
+
+    fn edge_references(self) -> Self::EdgeReferences {
+        (&self.inner).edge_references()
+    }
+}
+
+impl Serialize for WikiGraph {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.inner.serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for WikiGraph {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let inner = InnerGraph::deserialize(d)?;
+        let slug_to_node = inner
+            .node_indices()
+            .map(|idx| (inner[idx].slug.clone(), idx))
+            .collect();
+        Ok(Self { inner, slug_to_node })
+    }
+}
 
 /// DiGraph never returns None for edges that exist in the graph.
 /// All call sites hold an EdgeIndex obtained from the same graph iteration,
@@ -1436,7 +1627,7 @@ mod tests {
 
     #[test]
     fn render_mermaid_node_ids_are_valid_and_unique() {
-        let mut g: WikiGraph = DiGraph::new();
+        let mut g = WikiGraph::new();
         // Titles with spaces, special chars, angle brackets — all would break old mermaid_id
         let a = g.add_node(make_node(
             "concepts/arc-str",
@@ -1507,7 +1698,7 @@ mod tests {
 
     #[test]
     fn render_mermaid_external_node_id_valid() {
-        let mut g: WikiGraph = DiGraph::new();
+        let mut g = WikiGraph::new();
         let local = g.add_node(make_node("concepts/foo", "Foo Concept", "concept", false));
         let ext = g.add_node(make_node("bar", "wiki://otherwiki/bar", "external", true));
         g.add_edge(
@@ -1656,5 +1847,21 @@ mod tests {
                 "run {run}: second louvain_phase1 pass on a converged partition should make no moves — oscillation detected"
             );
         }
+    }
+
+    #[test]
+    fn wiki_graph_node_for_slug_is_o1() {
+        let mut g = WikiGraph::new();
+        g.add_node(PageNode {
+            slug: "alpha".into(), title: "Alpha".into(),
+            r#type: "page".into(), external: false,
+        });
+        g.add_node(PageNode {
+            slug: "beta".into(), title: "Beta".into(),
+            r#type: "page".into(), external: false,
+        });
+        assert!(g.node_for_slug("alpha").is_some());
+        assert!(g.node_for_slug("beta").is_some());
+        assert!(g.node_for_slug("missing").is_none());
     }
 }
