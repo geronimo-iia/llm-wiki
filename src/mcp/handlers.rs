@@ -504,19 +504,18 @@ pub fn handle_lint(server: &McpServer, args: &Map<String, Value>) -> ToolHandler
     let wiki_name = resolve_wiki_name(&engine, args)?;
     let rules = arg_str(args, "rules");
     let severity = arg_str(args, "severity");
-    let summary = arg_bool(args, "summary");
     let path_prefix = arg_str(args, "path_prefix");
-    let page_size = arg_usize(args, "page_size");
-    let cursor = arg_usize(args, "cursor");
     let result = ops::run_lint(
         &engine,
         &wiki_name,
-        rules.as_deref(),
-        severity.as_deref(),
-        summary,
-        path_prefix.as_deref(),
-        page_size,
-        cursor,
+        &ops::LintOptions {
+            rules: rules.as_deref(),
+            severity: severity.as_deref(),
+            summary: arg_bool(args, "summary"),
+            path_prefix: path_prefix.as_deref(),
+            page_size: arg_usize(args, "page_size"),
+            cursor: arg_usize(args, "cursor"),
+        },
     )
     .map_err(redact_error)?;
     let s = serde_json::to_string_pretty(&result).map_err(redact_error)?;

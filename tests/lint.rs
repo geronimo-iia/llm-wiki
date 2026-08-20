@@ -8,7 +8,7 @@ use llm_wiki_engine::engine::{EngineState, SpaceContext};
 use llm_wiki_engine::git;
 use llm_wiki_engine::index_manager::SpaceIndexManager;
 use llm_wiki_engine::index_schema::IndexSchema;
-use llm_wiki_engine::ops::{LintFinding, Severity, run_lint};
+use llm_wiki_engine::ops::{LintFinding, LintOptions, Severity, run_lint};
 use llm_wiki_engine::space_builder;
 use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 
@@ -108,12 +108,10 @@ fn orphan_detects_unlinked_page() {
     let report = run_lint(
         &engine,
         "test",
-        Some("orphan"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("orphan"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let slugs = slugs_for_rule(&report.findings, "orphan");
@@ -143,12 +141,10 @@ fn orphan_ignores_section_pages() {
     let report = run_lint(
         &engine,
         "test",
-        Some("orphan"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("orphan"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let slugs = slugs_for_rule(&report.findings, "orphan");
@@ -180,12 +176,10 @@ fn broken_link_detects_missing_slug_in_body_links() {
     let report = run_lint(
         &engine,
         "test",
-        Some("broken-link"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("broken-link"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let findings = findings_for_rule(&report.findings, "broken-link");
@@ -220,12 +214,10 @@ fn broken_link_clean_when_all_slugs_exist() {
     let report = run_lint(
         &engine,
         "test",
-        Some("broken-link"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("broken-link"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let findings = findings_for_rule(&report.findings, "broken-link");
@@ -253,12 +245,10 @@ fn unknown_type_flags_unregistered_type() {
     let report = run_lint(
         &engine,
         "test",
-        Some("unknown-type"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("unknown-type"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let findings = findings_for_rule(&report.findings, "unknown-type");
@@ -283,12 +273,10 @@ fn unknown_type_clean_for_known_types() {
     let report = run_lint(
         &engine,
         "test",
-        Some("unknown-type"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("unknown-type"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let findings = findings_for_rule(&report.findings, "unknown-type");
@@ -316,12 +304,10 @@ fn stale_old_page_low_confidence_is_flagged() {
     let report = run_lint(
         &engine,
         "test",
-        Some("stale"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("stale"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let findings = findings_for_rule(&report.findings, "stale");
@@ -347,12 +333,10 @@ fn stale_old_page_without_confidence_not_flagged() {
     let report = run_lint(
         &engine,
         "test",
-        Some("stale"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("stale"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let findings = findings_for_rule(&report.findings, "stale");
@@ -378,12 +362,10 @@ fn stale_old_page_explicit_low_confidence_is_flagged() {
     let report = run_lint(
         &engine,
         "test",
-        Some("stale"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("stale"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let findings = findings_for_rule(&report.findings, "stale");
@@ -410,12 +392,10 @@ fn stale_old_page_high_confidence_not_flagged() {
     let report = run_lint(
         &engine,
         "test",
-        Some("stale"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("stale"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let findings = findings_for_rule(&report.findings, "stale");
@@ -444,12 +424,10 @@ fn stale_recent_page_not_flagged_regardless_of_confidence() {
     let report = run_lint(
         &engine,
         "test",
-        Some("stale"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("stale"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let findings = findings_for_rule(&report.findings, "stale");
@@ -478,12 +456,10 @@ fn severity_filter_returns_only_errors() {
     let report = run_lint(
         &engine,
         "test",
-        None,
-        Some("error"),
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            severity: Some("error"),
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -523,7 +499,14 @@ fn integration_known_bad_wiki() {
     );
 
     let engine = build_engine(dir.path(), &wiki_root);
-    let report = run_lint(&engine, "test", None, None, false, None, None, None).unwrap();
+    let report = run_lint(
+        &engine,
+        "test",
+        &LintOptions {
+            ..Default::default()
+        },
+    )
+    .unwrap();
 
     let broken_link_slugs = slugs_for_rule(&report.findings, "broken-link");
     let unknown_type_slugs = slugs_for_rule(&report.findings, "unknown-type");
@@ -587,12 +570,10 @@ fn broken_cross_wiki_link_to_unmounted_wiki_is_warning() {
     let report = run_lint(
         &engine,
         "mywiki",
-        Some("broken-cross-wiki-link"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("broken-cross-wiki-link"),
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -631,12 +612,10 @@ fn broken_cross_wiki_link_to_mounted_wiki_no_finding() {
     let report = run_lint(
         &engine,
         "mywiki",
-        Some("broken-cross-wiki-link"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("broken-cross-wiki-link"),
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -667,12 +646,10 @@ fn broken_link_body_cross_wiki_to_mounted_wiki_no_finding() {
     let report = run_lint(
         &engine,
         "mywiki",
-        Some("broken-link"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("broken-link"),
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -705,12 +682,10 @@ fn broken_link_body_cross_wiki_to_unmounted_wiki_is_warning() {
     let report = run_lint(
         &engine,
         "mywiki",
-        Some("broken-link,broken-cross-wiki-link"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("broken-link,broken-cross-wiki-link"),
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -765,12 +740,10 @@ fn articulation_point_rule_finds_connector_page() {
     let report = run_lint(
         &engine,
         "test",
-        Some("articulation-point"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("articulation-point"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let findings = findings_for_rule(&report.findings, "articulation-point");
@@ -827,12 +800,10 @@ fn bridge_rule_finds_load_bearing_link() {
     let report = run_lint(
         &engine,
         "test",
-        Some("bridge"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("bridge"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let findings = findings_for_rule(&report.findings, "bridge");
@@ -890,12 +861,10 @@ fn periphery_rule_finds_isolated_pages() {
     let report = run_lint(
         &engine,
         "test",
-        Some("periphery"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("periphery"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let findings = findings_for_rule(&report.findings, "periphery");
@@ -938,12 +907,10 @@ fn lint_finding_path_is_populated() {
     let report = run_lint(
         &engine,
         "test",
-        Some("orphan"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("orphan"),
+            ..Default::default()
+        },
     )
     .unwrap();
 
@@ -988,12 +955,10 @@ fn lint_stale_rule_no_false_positive_on_draft() {
     let report = run_lint(
         &engine,
         "test",
-        Some("stale"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("stale"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let findings = findings_for_rule(&report.findings, "stale");
@@ -1028,12 +993,10 @@ fn lint_broken_link_cross_section_page_not_flagged() {
     let report = run_lint(
         &engine,
         "test",
-        Some("broken-link"),
-        None,
-        false,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("broken-link"),
+            ..Default::default()
+        },
     )
     .unwrap();
     let findings = findings_for_rule(&report.findings, "broken-link");
@@ -1059,12 +1022,11 @@ fn lint_summary_mode_returns_counts_no_findings() {
     let report = run_lint(
         &engine,
         "test",
-        Some("orphan"),
-        None,
-        true,
-        None,
-        None,
-        None,
+        &LintOptions {
+            rules: Some("orphan"),
+            summary: true,
+            ..Default::default()
+        },
     )
     .unwrap();
     assert!(
@@ -1098,12 +1060,11 @@ fn lint_path_prefix_filters_to_subtree() {
     let report = run_lint(
         &engine,
         "test",
-        Some("orphan"),
-        None,
-        false,
-        Some("alpha"),
-        None,
-        None,
+        &LintOptions {
+            rules: Some("orphan"),
+            path_prefix: Some("alpha"),
+            ..Default::default()
+        },
     )
     .unwrap();
     assert!(
@@ -1133,12 +1094,11 @@ fn lint_pagination_has_more_and_next_cursor() {
     let page1 = run_lint(
         &engine,
         "test",
-        Some("orphan"),
-        None,
-        false,
-        None,
-        Some(3),
-        None,
+        &LintOptions {
+            rules: Some("orphan"),
+            page_size: Some(3),
+            ..Default::default()
+        },
     )
     .unwrap();
     assert_eq!(page1.findings.len(), 3);
@@ -1151,12 +1111,12 @@ fn lint_pagination_has_more_and_next_cursor() {
     let page2 = run_lint(
         &engine,
         "test",
-        Some("orphan"),
-        None,
-        false,
-        None,
-        Some(3),
-        Some(cursor),
+        &LintOptions {
+            rules: Some("orphan"),
+            page_size: Some(3),
+            cursor: Some(cursor),
+            ..Default::default()
+        },
     )
     .unwrap();
     assert!(page2.findings.len() <= 2);
@@ -1178,12 +1138,11 @@ fn lint_pagination_last_page_no_next_cursor() {
     let report = run_lint(
         &engine,
         "test",
-        Some("orphan"),
-        None,
-        false,
-        None,
-        Some(100),
-        None,
+        &LintOptions {
+            rules: Some("orphan"),
+            page_size: Some(100),
+            ..Default::default()
+        },
     )
     .unwrap();
     assert!(!report.has_more);

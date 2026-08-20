@@ -700,12 +700,11 @@ fn main() -> Result<()> {
             let report = ops::run_lint(
                 &engine,
                 &wiki_name,
-                rules.as_deref(),
-                severity.as_deref(),
-                false,
-                None,
-                None,
-                None,
+                &ops::LintOptions {
+                    rules: rules.as_deref(),
+                    severity: severity.as_deref(),
+                    ..Default::default()
+                },
             )?;
 
             if is_json(&format) {

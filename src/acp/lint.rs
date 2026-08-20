@@ -35,7 +35,14 @@ pub fn step_lint(
             .state
             .read()
             .map_err(|_| agent_client_protocol::schema::v1::Error::internal_error())?;
-        ops::run_lint(&engine, wiki_name, rules, None, false, None, None, None)
+        ops::run_lint(
+            &engine,
+            wiki_name,
+            &ops::LintOptions {
+                rules,
+                ..Default::default()
+            },
+        )
     };
 
     match result {

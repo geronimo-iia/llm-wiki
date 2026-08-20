@@ -70,20 +70,31 @@ pub struct LintReport {
     pub by_rule: Option<HashMap<&'static str, usize>>,
 }
 
-/// Run lint rules against a wiki. `rules` is a comma-separated list; `None` runs all rules.
-/// `severity_filter` restricts output to `"error"` or `"warning"`.
-#[allow(clippy::too_many_arguments)]
+/// Options for a `run_lint` call. All fields default to their zero/None values.
+#[derive(Default)]
+pub struct LintOptions<'a> {
+    /// Comma-separated rule names; `None` runs all rules.
+    pub rules: Option<&'a str>,
+    /// Restrict to `"error"` or `"warning"`; `None` returns all severities.
+    pub severity: Option<&'a str>,
+    /// Return counts only — no `findings` array.
+    pub summary: bool,
+    /// Restrict findings to slugs starting with this prefix.
+    pub path_prefix: Option<&'a str>,
+    /// Maximum findings per response; `None` returns all.
+    pub page_size: Option<usize>,
+    /// Zero-based offset into the sorted findings list.
+    pub cursor: Option<usize>,
+}
+
+/// Run lint rules against a wiki. `opts.rules` is a comma-separated list; `None` runs all rules.
+/// `opts.severity` restricts output to `"error"` or `"warning"`.
 pub fn run_lint(
     engine: &EngineState,
     wiki_name: &str,
-    rules: Option<&str>,
-    severity_filter: Option<&str>,
-    summary: bool,
-    path_prefix: Option<&str>,
-    page_size: Option<usize>,
-    cursor: Option<usize>,
+    opts: &LintOptions<'_>,
 ) -> Result<LintReport> {
-    let active_rules: HashSet<&str> = match rules {
+    let active_rules: HashSet<&str> = match opts.rules {
         None | Some("") => [
             "orphan",
             "broken-link",
@@ -178,12 +189,12 @@ pub fn run_lint(
     }
 
     // Apply path_prefix filter before severity
-    if let Some(prefix) = path_prefix {
+    if let Some(prefix) = opts.path_prefix {
         findings.retain(|f| f.slug.starts_with(prefix));
     }
 
     // Apply severity filter
-    if let Some(sev) = severity_filter {
+    if let Some(sev) = opts.severity {
         let sev = sev.trim().to_lowercase();
         findings.retain(|f| f.severity.to_string() == sev);
     }
@@ -202,7 +213,7 @@ pub fn run_lint(
     let total = findings.len();
 
     // Build by_rule before any pagination (summary mode only).
-    let by_rule: Option<HashMap<&'static str, usize>> = if summary {
+    let by_rule: Option<HashMap<&'static str, usize>> = if opts.summary {
         let mut map: HashMap<&'static str, usize> = HashMap::new();
         for f in &findings {
             *map.entry(f.rule).or_insert(0) += 1;
@@ -214,8 +225,8 @@ pub fn run_lint(
 
     // Apply pagination. When summary: true, page_findings is built then discarded below —
     // wasteful but harmless. has_more and next_cursor remain correct in all cases.
-    let (page_findings, has_more, next_cursor) = if let Some(size) = page_size {
-        let start = cursor.unwrap_or(0);
+    let (page_findings, has_more, next_cursor) = if let Some(size) = opts.page_size {
+        let start = opts.cursor.unwrap_or(0);
         let end = (start + size).min(findings.len());
         let more = end < findings.len();
         let next = if more { Some(end) } else { None };
@@ -225,7 +236,7 @@ pub fn run_lint(
     };
 
     // summary mode: drop the findings array (by_rule carries the information instead).
-    let final_findings = if summary { vec![] } else { page_findings };
+    let final_findings = if opts.summary { vec![] } else { page_findings };
 
     Ok(LintReport {
         wiki: wiki_name.to_string(),
