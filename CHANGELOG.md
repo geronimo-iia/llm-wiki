@@ -65,6 +65,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   matched only absolute paths starting with `/`; `~/wikis/foo` and `~user/repo` would
   pass through unredacted. Extended to also match `~[…]{2,}`, so tilde-expanded paths
   are fully replaced with `<path>`.
+- **`resolve_read_target` existence oracle closed** — `resolve_read_target` now calls
+  `Slug::try_from(parent_slug)?` before constructing and probing the assembled path with
+  `is_file()`. Previously an attacker-controlled `parent_slug` value (e.g. `"../etc"`)
+  could probe file existence outside the wiki root without reading content. Test added
+  in `tests/ops/content.rs` asserting `"../etc/passwd.pub"` returns an error.
 
 ### Dependencies
 
@@ -85,6 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compiled into the binary on any supported target. Will be resolved when `postcard`
   relaxes its `heapless` constraint to `^0.8` or later.
   See `docs/decisions/1.0.0/suppress-atomic-polyfill-rustsec-2023-0089.md`.
+- `rmcp` updated from 3.1.2 to 3.1.4.
 
 ### Changed
 
@@ -130,6 +136,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `serve.mcp_max_param_len` added to `ServeConfig` (default: 8192 bytes). Accessible
   via `wiki_config get/set serve.mcp_max_param_len` (global-only key).
+- **Unknown `snapshot_format` value warns** — an unrecognised `graph.snapshot_format`
+  value in config now emits `tracing::warn!` instead of silently falling back to
+  `Compression::None`.
+- **`wiki_resolve` description includes recovery hint** — the tool description now
+  instructs clients to call `wiki_info` to list registered wiki names when they receive
+  a "wiki X is not registered" error.
 
 ### Concurrency
 
@@ -194,6 +206,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `id_remap.get()` in `louvain_phase1` and `build_community_data` replaced with
   `.expect("...")` carrying an invariant message. A `debug_assert!` at
   `louvain_phase1` entry verifies the community map covers all adjacency nodes.
+- **Louvain `.expect()` panics replaced with propagated errors** — five
+  `.expect("node must be in community map")` calls in `louvain_phase1` and
+  `build_community_data` replaced with `.ok_or_else(|| anyhow!("Louvain: node {:?}
+  absent from community map", node))?`. Errors propagate through
+  `build_community_data` → `ensure_community_data` → `build_graph`. With
+  `[profile.release] panic = "abort"`, a previous invariant violation would have
+  terminated the server with no captured context; errors now surface through the normal
+  error chain.
 - **Rollback errors logged** — `spaces_create` and `spaces_register` previously called
   `let _ = spaces::remove(...)` on mount failure, silently discarding any error from
   the rollback itself. The error is now logged via `tracing::error!` so a stranded
@@ -260,6 +280,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pass). Combined fix: correctness restored, complexity reduced from O(N³) to O(M)
   per pass. Regression test `test_louvain_two_clusters` added.
   See `docs/decisions/1.0.0/louvain-sigma-tot-precompute.md`.
+- **`GraphConfig.max_pages` configurable** — the `TopDocs::with_limit` cap is now
+  exposed as `graph.max_pages` in `config.toml` (default: 100 000). The truncation
+  warning emitted by `build_graph` and `export.rs` is now also present in `ingest.rs`;
+  previously `ingest.rs` silently truncated at 100 000 pages without logging.
 - **Graph truncation warning** — `build_graph` now emits `tracing::warn!` when
   `TopDocs::with_limit(100_000)` is reached, making silent graph truncation visible
   to operators on wikis with >100 000 pages.
