@@ -168,7 +168,10 @@ mod tests {
             .unwrap()
             .cancelled
             .store(true, Ordering::Relaxed);
-        assert!(flag.load(Ordering::Relaxed), "shared Arc — mutation visible");
+        assert!(
+            flag.load(Ordering::Relaxed),
+            "shared Arc — mutation visible"
+        );
     }
 
     #[test]

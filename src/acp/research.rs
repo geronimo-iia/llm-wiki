@@ -264,8 +264,15 @@ mod tests {
         let (chan_a, _chan_b) = Channel::duplex();
         Builder::<Agent>::new(Agent)
             .connect_with(chan_a, async |cx| {
-                let result =
-                    step_search(&cx, &engine, &session_id, "research", "rust", "no-such-wiki", 5);
+                let result = step_search(
+                    &cx,
+                    &engine,
+                    &session_id,
+                    "research",
+                    "rust",
+                    "no-such-wiki",
+                    5,
+                );
                 assert!(result.is_ok());
                 assert!(result.unwrap().is_empty());
                 Ok(())

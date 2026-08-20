@@ -159,8 +159,14 @@ mod tests {
         let (chan_a, _chan_b) = Channel::duplex();
         Builder::<Agent>::new(Agent)
             .connect_with(chan_a, async |cx| {
-                let result =
-                    step_lint(&cx, &engine, &session_id, "no-such-wiki", Some("orphan"), None);
+                let result = step_lint(
+                    &cx,
+                    &engine,
+                    &session_id,
+                    "no-such-wiki",
+                    Some("orphan"),
+                    None,
+                );
                 assert!(result.is_ok());
                 Ok(())
             })
@@ -195,8 +201,14 @@ mod tests {
         let (chan_a, _chan_b) = Channel::duplex();
         Builder::<Agent>::new(Agent)
             .connect_with(chan_a, async |cx| {
-                let result =
-                    run_lint(&cx, &engine, &sessions, &session_id, "stale,orphan", "no-such-wiki");
+                let result = run_lint(
+                    &cx,
+                    &engine,
+                    &sessions,
+                    &session_id,
+                    "stale,orphan",
+                    "no-such-wiki",
+                );
                 assert!(result.is_ok());
                 Ok(())
             })
