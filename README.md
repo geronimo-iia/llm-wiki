@@ -110,7 +110,7 @@ llm-wiki serve
 ```
 
 Connect your agent or editor — VS Code, Cursor, Windsurf, Zed, Claude Code —
-via the MCP config. The 23 tools are immediately available.
+via the MCP config. The 24 tools are immediately available.
 
 → [Getting started guide](docs/guides/getting-started.md) · [IDE integration](docs/guides/ide-integration.md)
 
