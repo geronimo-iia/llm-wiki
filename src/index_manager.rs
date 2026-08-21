@@ -805,6 +805,9 @@ fn index_page(
         );
     }
 
+    // body_links: multi-value keyword field storing every wiki:// URI found in the
+    // markdown body. Separate from frontmatter edge fields so graph and lint can
+    // distinguish inline prose links from structured relationship declarations.
     for link in links::extract_body_wikilinks(&page.body, source_dir) {
         doc.add_text(is.field("body_links"), &link);
     }
