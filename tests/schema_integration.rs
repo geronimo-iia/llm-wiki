@@ -386,17 +386,19 @@ fn schema_change_makes_index_stale() {
         assert!(!status.stale, "index should not be stale after build");
     }
 
-    // Modify a schema file
+    // Place a custom concept.json on disk (overlay override) then modify it
     {
         let eng = mgr.state.read().unwrap();
         let space = eng.space("test").unwrap();
         let schema_path = space.repo_root.join("schemas/concept.json");
-        let mut content = fs::read_to_string(&schema_path).unwrap();
-        content = content.replace(
+        // Write the embedded content to disk as a starting point
+        let embedded = llm_wiki_engine::default_schemas::default_schemas();
+        let base_content = embedded["concept.json"];
+        let modified = base_content.replace(
             "\"Synthesized knowledge",
             "\"MODIFIED Synthesized knowledge",
         );
-        fs::write(&schema_path, content).unwrap();
+        fs::write(&schema_path, modified).unwrap();
     }
 
     // Rebuild engine — new schema_hash should differ

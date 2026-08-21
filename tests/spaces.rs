@@ -389,7 +389,7 @@ fn resolve_name_errors_on_missing() {
 // ── schemas and wiki.toml types ──────────────────────────────────────────────
 
 #[test]
-fn create_writes_default_schema_files() {
+fn create_schemas_dir_is_empty_of_stock_files() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_path = dir.path().join("research");
     let cfg = config_path(dir.path());
@@ -397,34 +397,36 @@ fn create_writes_default_schema_files() {
     spaces::create(&wiki_path, "research", None, false, false, &cfg, None).unwrap();
 
     let schemas_dir = wiki_path.join("schemas");
-    for name in &[
-        "base.json",
-        "concept.json",
-        "paper.json",
-        "skill.json",
-        "doc.json",
-        "section.json",
-    ] {
-        let path = schemas_dir.join(name);
-        assert!(path.is_file(), "missing schema: {name}");
-        let content = std::fs::read_to_string(&path).unwrap();
-        assert!(content.contains("\"$schema\""), "{name} missing $schema");
-    }
+    assert!(schemas_dir.exists(), "schemas/ must exist");
+    let json_count = std::fs::read_dir(&schemas_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("json"))
+        .count();
+    assert_eq!(json_count, 0, "create must not write stock .json files");
 }
 
 #[test]
-fn create_schema_files_match_embedded() {
+fn create_does_not_copy_stock_schemas() {
     let dir = tempfile::tempdir().unwrap();
-    let wiki_path = dir.path().join("research");
+    let wiki_path = dir.path().join("mywiki");
     let cfg = config_path(dir.path());
 
-    spaces::create(&wiki_path, "research", None, false, false, &cfg, None).unwrap();
+    spaces::create(&wiki_path, "mywiki", None, false, false, &cfg, None).unwrap();
 
-    let embedded = llm_wiki_engine::default_schemas::default_schemas();
-    for (filename, expected) in &embedded {
-        let on_disk = std::fs::read_to_string(wiki_path.join("schemas").join(filename)).unwrap();
-        assert_eq!(&on_disk, *expected, "mismatch for {filename}");
-    }
+    let schemas_dir = wiki_path.join("schemas");
+    assert!(schemas_dir.exists(), "schemas/ dir must exist");
+
+    let json_files: Vec<_> = std::fs::read_dir(&schemas_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("json"))
+        .collect();
+    assert!(
+        json_files.is_empty(),
+        "create must not copy stock schema files; found: {:?}",
+        json_files.iter().map(|e| e.file_name()).collect::<Vec<_>>()
+    );
 }
 
 #[test]
@@ -452,23 +454,22 @@ fn create_generates_wiki_toml_without_types() {
 }
 
 #[test]
-fn create_does_not_overwrite_existing_schemas() {
+fn create_does_not_delete_existing_custom_schemas() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_path = dir.path().join("research");
     let cfg = config_path(dir.path());
 
     spaces::create(&wiki_path, "research", None, false, false, &cfg, None).unwrap();
 
-    // Modify a schema on disk
-    let custom = wiki_path.join("schemas/base.json");
+    // Place a custom schema in schemas/
+    let custom = wiki_path.join("schemas/custom.json");
     std::fs::write(&custom, r#"{"custom": true}"#).unwrap();
 
-    // Re-run create (same name = skip path)
-    // Simulate by calling ensure_structure indirectly via a new wiki
+    // Create a second wiki to exercise ensure_structure again
     let wiki_path2 = dir.path().join("other");
     spaces::create(&wiki_path2, "other", None, false, false, &cfg, None).unwrap();
 
-    // Original wiki's custom schema untouched (create skipped it)
+    // First wiki's custom schema is untouched
     let content = std::fs::read_to_string(&custom).unwrap();
     assert!(content.contains("custom"));
 }
@@ -778,7 +779,7 @@ fn register_existing_no_prior_toml_creates_wiki_toml() {
         "content/ dir must exist"
     );
 
-    // default schemas written
+    // schemas/ contains .gitkeep so git tracks it as an extension point
     assert!(
         wiki_path
             .join("schemas")
@@ -786,6 +787,6 @@ fn register_existing_no_prior_toml_creates_wiki_toml() {
             .unwrap()
             .next()
             .is_some(),
-        "schemas/ must contain default schema files"
+        "schemas/ must not be completely empty (.gitkeep expected)"
     );
 }

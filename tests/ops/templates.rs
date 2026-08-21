@@ -118,7 +118,7 @@ fn missing_template_falls_back_to_empty_body() {
 }
 
 #[test]
-fn spaces_create_writes_template_files() {
+fn spaces_create_does_not_write_template_files() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = dir.path().join("state").join("config.toml");
     let wiki_path = dir.path().join("wiki");
@@ -126,9 +126,10 @@ fn spaces_create_writes_template_files() {
     llm_wiki_engine::spaces::create(&wiki_path, "test", None, false, true, &config_path, None)
         .unwrap();
 
-    assert!(wiki_path.join("schemas/concept.md").exists());
-    assert!(wiki_path.join("schemas/paper.md").exists());
-    assert!(wiki_path.join("schemas/doc.md").exists());
-    assert!(wiki_path.join("schemas/section.md").exists());
-    assert!(wiki_path.join("schemas/query-result.md").exists());
+    // Templates are embedded — not written to disk at creation time
+    assert!(!wiki_path.join("schemas/concept.md").exists());
+    assert!(!wiki_path.join("schemas/paper.md").exists());
+    assert!(!wiki_path.join("schemas/doc.md").exists());
+    assert!(!wiki_path.join("schemas/section.md").exists());
+    assert!(!wiki_path.join("schemas/query-result.md").exists());
 }

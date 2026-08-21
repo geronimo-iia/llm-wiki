@@ -494,19 +494,37 @@ fn hash_type_entries(
 /// Returns (global_hash, per_type_hashes).
 ///
 /// Algorithm:
-/// 1. Scan `schemas/*.json` (sorted) — compute content hash per file
-/// 2. Read `x-wiki-types` to map type_name → content_hash
+/// 1. Start from embedded defaults
+/// 2. Overlay `schemas/*.json` (sorted) — disk file replaces or adds to embedded
 /// 3. Apply `wiki.toml` `[types.*]` overrides
 /// 4. Per-type hash = SHA-256(schema_path + sorted_aliases + content_hash)
 /// 5. Global hash = SHA-256(all per-type hashes sorted by name)
 ///
-/// Falls back to embedded schemas if `schemas/` dir is absent.
+/// Mirrors the overlay model in `build_space`.
 pub fn compute_disk_hashes(repo_root: &Path) -> Result<(String, HashMap<String, String>)> {
     let schemas_dir = repo_root.join("schemas");
 
-    // Collect (type_name -> (schema_path, aliases, content_hash))
+    // Collect (type_name -> (schema_path, aliases, content_hash)) — start from embedded
     let mut type_data: HashMap<String, (String, HashMap<String, String>, String)> = HashMap::new();
 
+    // Seed from embedded defaults
+    for (filename, content) in default_schemas::default_schemas() {
+        let content_hash = sha256_hex(content.as_bytes());
+        let schema_rel = format!("schemas/{filename}");
+        let schema_value: serde_json::Value = serde_json::from_str(content)?;
+
+        if let Some(wiki_types) = schema_value.get("x-wiki-types").and_then(|v| v.as_object()) {
+            let aliases = extract_aliases(&schema_value);
+            for (type_name, _) in wiki_types {
+                type_data.insert(
+                    type_name.clone(),
+                    (schema_rel.clone(), aliases.clone(), content_hash.clone()),
+                );
+            }
+        }
+    }
+
+    // Overlay on-disk overrides
     if schemas_dir.is_dir() {
         let mut entries: Vec<_> = std::fs::read_dir(&schemas_dir)?
             .filter_map(|e| e.ok())
@@ -525,23 +543,6 @@ pub fn compute_disk_hashes(repo_root: &Path) -> Result<(String, HashMap<String, 
             let content_hash = sha256_hex(content.as_bytes());
             let schema_rel = format!("schemas/{filename}");
             let schema_value: serde_json::Value = serde_json::from_str(&content)?;
-
-            if let Some(wiki_types) = schema_value.get("x-wiki-types").and_then(|v| v.as_object()) {
-                let aliases = extract_aliases(&schema_value);
-                for (type_name, _) in wiki_types {
-                    type_data.insert(
-                        type_name.clone(),
-                        (schema_rel.clone(), aliases.clone(), content_hash.clone()),
-                    );
-                }
-            }
-        }
-    } else {
-        // Embedded fallback
-        for (filename, content) in default_schemas::default_schemas() {
-            let content_hash = sha256_hex(content.as_bytes());
-            let schema_rel = format!("schemas/{filename}");
-            let schema_value: serde_json::Value = serde_json::from_str(content)?;
 
             if let Some(wiki_types) = schema_value.get("x-wiki-types").and_then(|v| v.as_object()) {
                 let aliases = extract_aliases(&schema_value);

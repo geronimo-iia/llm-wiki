@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use toml;
 
 use crate::config::{GlobalConfig, WikiEntry, load_global, save_global};
-use crate::default_schemas::default_schemas;
 use crate::git;
 use crate::pathutil::strip_verbatim_prefix;
 
@@ -255,23 +254,6 @@ fn ensure_structure(
     let gitkeep = wiki_dir.join(".gitkeep");
     if !gitkeep.exists() {
         std::fs::write(&gitkeep, "")?;
-    }
-
-    // Write embedded default schemas
-    let schemas_dir = path.join("schemas");
-    for (filename, content) in default_schemas() {
-        let dest = schemas_dir.join(filename);
-        if !dest.exists() {
-            std::fs::write(&dest, content)?;
-        }
-    }
-
-    // Write embedded default body templates
-    for (filename, content) in crate::default_schemas::default_templates() {
-        let dest = schemas_dir.join(filename);
-        if !dest.exists() {
-            std::fs::write(&dest, content)?;
-        }
     }
 
     let readme = path.join("README.md");
