@@ -54,3 +54,18 @@ async def test_stats_center_is_array(mcp_env):
     assert isinstance(data["center"], list)
     for slug in data["center"]:
         assert isinstance(slug, str)
+
+
+async def test_stats_staleness_shape(mcp_env):
+    await mcp_env.rebuild()
+    data = await mcp_env.json("wiki_stats", {"format": "json"})
+    assert "staleness" in data, f"expected 'staleness' key in stats output, got keys: {list(data)}"
+    s = data["staleness"]
+    for bucket in ("fresh", "stale_7d", "stale_30d"):
+        assert bucket in s, f"expected '{bucket}' in staleness, got: {list(s)}"
+        assert isinstance(s[bucket], int), f"staleness.{bucket} should be int, got {type(s[bucket])}"
+        assert s[bucket] >= 0, f"staleness.{bucket} should be >= 0"
+    total = s["fresh"] + s["stale_7d"] + s["stale_30d"]
+    assert total == data["pages"], (
+        f"staleness buckets must sum to page count: {total} != {data['pages']}"
+    )

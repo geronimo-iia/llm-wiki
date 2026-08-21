@@ -111,3 +111,36 @@ async def test_lint_cross_wiki_no_false_positive(mcp_env):
         "wiki://notes/concepts/attention-mechanism is a valid cross-wiki link to a mounted wiki "
         "and must not appear as a broken-link finding"
     )
+
+
+async def test_lint_stale_rule_fires(mutable_mcp_env):
+    new_data = await mutable_mcp_env.json(
+        "wiki_content_new",
+        {"uri": "concepts/stale-active-page", "wiki": SPACE_NAME},
+    )
+    slug = new_data["slug"]
+    content = (
+        "---\n"
+        "title: Stale Active Page\n"
+        "type: concept\n"
+        "status: active\n"
+        "confidence: 0.1\n"
+        'last_updated: "2020-01-01"\n'
+        "---\n\n"
+        "This page is intentionally stale.\n"
+    )
+    await mutable_mcp_env.call(
+        "wiki_content_write",
+        {"uri": slug, "content": content, "wiki": SPACE_NAME},
+    )
+    await mutable_mcp_env.call(
+        "wiki_content_commit",
+        {"slugs": [slug], "message": "test: add stale active page", "wiki": SPACE_NAME},
+    )
+    await mutable_mcp_env.rebuild()
+    data = await mutable_mcp_env.json("wiki_lint", {"rules": ["stale"], "format": "json", "wiki": SPACE_NAME})
+    stale_findings = [f for f in data["findings"] if f["rule"] == "stale"]
+    assert stale_findings, "stale rule should produce at least one finding"
+    assert any(
+        "stale-active-page" in f["slug"] for f in stale_findings
+    ), f"expected finding for stale-active-page, got: {stale_findings}"
