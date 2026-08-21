@@ -222,8 +222,9 @@ fn engine_mounts_wiki_with_custom_wiki_root() {
     let engine = manager.state.read().unwrap();
     let space = engine.space("skills").unwrap();
 
+    // canonicalize both sides: macOS resolves /var→/private/var, Windows adds \\?\
     let expected_wiki_root = wiki_path.canonicalize().unwrap().join("skills");
-    assert_eq!(space.wiki_root, expected_wiki_root);
+    assert_eq!(space.wiki_root.canonicalize().unwrap(), expected_wiki_root);
 }
 
 #[test]
