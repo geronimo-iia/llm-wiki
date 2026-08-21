@@ -928,4 +928,30 @@ mod tests {
         assert_eq!(findings[0].severity, Severity::Error);
         assert!(findings[0].message.contains("ghost"));
     }
+
+    #[test]
+    fn rule_broken_link_flags_missing_slug() {
+        let root = std::path::Path::new("/wiki");
+        let mut a = make_record("a", "note");
+        a.body_links = vec!["nonexistent".to_string()];
+        let b = make_record("b", "note");
+        let findings = rule_broken_link(&[a, b], root, false, &std::collections::HashSet::new());
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].slug, "a");
+        assert_eq!(findings[0].rule, "broken-link");
+        assert_eq!(findings[0].severity, Severity::Error);
+        assert!(findings[0].message.contains("nonexistent"));
+    }
+
+    #[test]
+    fn rule_broken_link_cross_wiki_flagged_when_unmounted() {
+        let root = std::path::Path::new("/wiki");
+        let mut a = make_record("a", "note");
+        a.body_links = vec!["wiki://other-wiki/some-page".to_string()];
+        let mounted: std::collections::HashSet<String> = ["my-wiki".to_string()].into();
+        let findings = rule_broken_link(&[a], root, true, &mounted);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].rule, "broken-cross-wiki-link");
+        assert_eq!(findings[0].severity, Severity::Warning);
+    }
 }
