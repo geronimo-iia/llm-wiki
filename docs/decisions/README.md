@@ -44,7 +44,7 @@ Architectural decisions and their rationale, grouped by release.
 
 | Decision | Summary |
 | -------- | ------- |
-| [schema-overlay-model](1.0.0/schema-overlay-model.md) | Embedded defaults + on-disk overrides replace copy-on-create — `spaces::create` stops copying schemas; `space_builder` merges embedded + on-disk on every mount; `wiki migrate` backed by SHA manifest (`schemas/manifest.json`) cleans up stock copies from existing wikis without touching user customizations |
+| [schema-overlay-model](1.0.0/schema-overlay-model.md) | Embedded defaults + on-disk overrides replace copy-on-create — `spaces::create` stops copying schemas; `space_builder` merges embedded + on-disk on every mount; `wiki migrate` backed by SHA manifest (`schemas/manifest.json`) cleans up stock copies from existing wikis without touching user customizations — implementation spec: [design-schema-overlay-migration](../improvements/design-schema-overlay-migration.md) |
 
 ### Windows compatibility
 
