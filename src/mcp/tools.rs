@@ -148,7 +148,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_content_write",
-            "Write content to a page in the wiki tree.",
+            "Write content to a page in the wiki tree. Content size is limited by defaults.max_content_bytes (default 10 MB); larger payloads are rejected with an error.",
             schema(
                 json!({
                     "uri": str_prop("Slug (e.g. \"concepts/attention\") or wiki:// URI (e.g. \"wiki://my-wiki/concepts/attention\")"),

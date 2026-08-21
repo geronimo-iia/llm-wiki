@@ -54,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MCP error messages redact filesystem paths** — all tool errors processed by `redact_error`; tilde paths also covered.
 - **`defaults.max_content_bytes` configurable** — `[defaults] max_content_bytes` in `config.toml` (default 10 MB); replaces hardcoded constant in content write handler.
 - **Index writer heap configurable** — `index.memory_budget_mb` in `config.toml` now used by `SpaceIndexManager`; replaces hardcoded 50 MB at all `index.writer()` call sites.
-- **Suggest strategy scores configurable** — `suggest.tag_overlap_score`, `suggest.graph_neighbor_score`, `suggest.community_peer_score`, `suggest.bm25_weight` in `config.toml`; replaces magic numbers.
+- **Suggest strategy scores configurable** — `suggest.graph_neighbor_score`, `suggest.community_peer_score`, `suggest.bm25_weight` in `config.toml`; replaces magic numbers. Tag overlap score remains computed (`shared_tags / total_tags`).
 - **`render_json` community min-nodes from config** — `graph.min_nodes_for_communities` threaded through to `render_json`; replaces hardcoded `3`.
 - **`schema_validate` uses configured tokenizer** — uses `index.tokenizer` from config instead of hardcoded `"en_stem"`; validation no longer silently uses wrong schema for non-default tokenizers.
 - **`rebuild_types` reports live section count** — `TermQuery` on `type = "section"` after reload replaces hardcoded `sections: 0` in `state.toml`.
