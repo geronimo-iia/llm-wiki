@@ -14,7 +14,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-addopts =" --basetemp=/tmp/llm-wiki-tests"
+addopts = ""
 testpaths = ["."]
 asyncio_mode = "auto"
 tmp_path_retention_count = 1
