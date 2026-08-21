@@ -944,6 +944,55 @@ mod tests {
     }
 
     #[test]
+    fn rule_missing_fields_flags_absent_required_field() {
+        use crate::type_registry::SpaceTypeRegistry;
+        let registry = SpaceTypeRegistry::default();
+        let root = std::path::Path::new("/wiki");
+        let type_name = registry
+            .list_types()
+            .into_iter()
+            .find(|(t, _)| !registry.required_fields(t).is_empty())
+            .expect("at least one type with required fields in embedded schemas")
+            .0
+            .to_string();
+        let required = registry.required_fields(&type_name).to_vec();
+
+        let mut r = make_record("test-page", &type_name);
+        r.fields_present = required
+            .iter()
+            .map(|f| (f.clone(), false))
+            .collect();
+
+        let findings = rule_missing_fields(&[r], root, &registry);
+        assert!(!findings.is_empty(), "expected findings for absent required fields");
+        for f in &findings {
+            assert_eq!(f.rule, "missing-fields");
+            assert_eq!(f.severity, Severity::Error);
+        }
+    }
+
+    #[test]
+    fn rule_missing_fields_no_findings_when_all_present() {
+        use crate::type_registry::SpaceTypeRegistry;
+        let registry = SpaceTypeRegistry::default();
+        let root = std::path::Path::new("/wiki");
+        let type_name = registry
+            .list_types()
+            .into_iter()
+            .find(|(t, _)| !registry.required_fields(t).is_empty())
+            .expect("at least one type with required fields")
+            .0
+            .to_string();
+        let required = registry.required_fields(&type_name).to_vec();
+
+        let mut r = make_record("test-page", &type_name);
+        r.fields_present = required.iter().map(|f| (f.clone(), true)).collect();
+
+        let findings = rule_missing_fields(&[r], root, &registry);
+        assert!(findings.is_empty(), "expected no findings: {findings:?}");
+    }
+
+    #[test]
     fn rule_broken_link_cross_wiki_flagged_when_unmounted() {
         let root = std::path::Path::new("/wiki");
         let mut a = make_record("a", "note");
