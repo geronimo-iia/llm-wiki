@@ -584,6 +584,7 @@ fn louvain_phase1(
 
     loop {
         if pass >= max_passes {
+            tracing::warn!(passes = pass, nodes = sorted_nodes.len(), "Louvain phase1 hit max_passes limit — possible oscillation on large graph");
             break;
         }
         pass += 1;
