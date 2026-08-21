@@ -424,7 +424,7 @@ fn index_config_defaults() {
 #[test]
 fn logging_config_defaults() {
     let cfg = LoggingConfig::default();
-    assert!(cfg.log_path.ends_with(".llm-wiki/logs"));
+    assert!(std::path::Path::new(&cfg.log_path).ends_with(std::path::Path::new(".llm-wiki/logs")));
     assert_eq!(cfg.log_rotation, "daily");
     assert_eq!(cfg.log_max_files, 7);
     assert_eq!(cfg.log_format, "text");
