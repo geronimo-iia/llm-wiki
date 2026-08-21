@@ -8,7 +8,8 @@ use crate::graph::{
     self, CommunityStats, GraphFilter, get_cached_community_stats, get_or_build_graph,
 };
 use crate::search;
-use tantivy::schema::Value;
+use tantivy::SegmentReader;
+use tantivy::collector::{Collector, SegmentCollector};
 
 /// Controls how much detail `stats()` returns for expensive list fields.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -219,12 +220,107 @@ pub fn stats(engine: &EngineState, wiki_name: &str, opts: &StatsOptions) -> Resu
     })
 }
 
+struct StalenessCollector {
+    seven_days_ago: chrono::NaiveDate,
+    thirty_days_ago: chrono::NaiveDate,
+    field_name: String,
+}
+
+struct StalenessSegmentCollector {
+    column: tantivy::columnar::StrColumn,
+    seven_days_ago: chrono::NaiveDate,
+    thirty_days_ago: chrono::NaiveDate,
+    fresh: usize,
+    stale_7d: usize,
+    stale_30d: usize,
+}
+
+impl Collector for StalenessCollector {
+    type Fruit = StalenessBuckets;
+    type Child = StalenessSegmentCollector;
+
+    fn for_segment(
+        &self,
+        _segment_ord: u32,
+        reader: &SegmentReader,
+    ) -> tantivy::Result<Self::Child> {
+        let column = reader
+            .fast_fields()
+            .str(&self.field_name)?
+            .ok_or_else(|| tantivy::TantivyError::FieldNotFound(self.field_name.clone()))?;
+        Ok(StalenessSegmentCollector {
+            column,
+            seven_days_ago: self.seven_days_ago,
+            thirty_days_ago: self.thirty_days_ago,
+            fresh: 0,
+            stale_7d: 0,
+            stale_30d: 0,
+        })
+    }
+
+    fn requires_scoring(&self) -> bool {
+        false
+    }
+
+    fn merge_fruits(
+        &self,
+        segment_fruits: Vec<StalenessBuckets>,
+    ) -> tantivy::Result<StalenessBuckets> {
+        Ok(segment_fruits.into_iter().fold(
+            StalenessBuckets {
+                fresh: 0,
+                stale_7d: 0,
+                stale_30d: 0,
+            },
+            |mut acc, b| {
+                acc.fresh += b.fresh;
+                acc.stale_7d += b.stale_7d;
+                acc.stale_30d += b.stale_30d;
+                acc
+            },
+        ))
+    }
+}
+
+impl SegmentCollector for StalenessSegmentCollector {
+    type Fruit = StalenessBuckets;
+
+    fn collect(&mut self, doc: u32, _score: tantivy::Score) {
+        let mut date_str = String::new();
+        if let Some(ord) = self.column.term_ords(doc).next() {
+            let _ = self.column.ord_to_str(ord, &mut date_str);
+        } else {
+            self.stale_30d += 1;
+            return;
+        }
+        if let Ok(date) = chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d") {
+            if date >= self.seven_days_ago {
+                self.fresh += 1;
+            } else if date >= self.thirty_days_ago {
+                self.stale_7d += 1;
+            } else {
+                self.stale_30d += 1;
+            }
+        } else {
+            self.stale_30d += 1;
+        }
+    }
+
+    fn harvest(self) -> StalenessBuckets {
+        StalenessBuckets {
+            fresh: self.fresh,
+            stale_7d: self.stale_7d,
+            stale_30d: self.stale_30d,
+        }
+    }
+}
+
 fn compute_staleness(
     searcher: &tantivy::Searcher,
     is: &crate::index_schema::IndexSchema,
 ) -> Result<StalenessBuckets> {
-    let f_last_updated = match is.try_field("last_updated") {
-        Some(f) => f,
+    let f_name = match is.try_field("last_updated") {
+        Some(_) => "last_updated",
         None => {
             return Ok(StalenessBuckets {
                 fresh: 0,
@@ -235,42 +331,10 @@ fn compute_staleness(
     };
 
     let today = chrono::Utc::now().date_naive();
-    let seven_days_ago = today - chrono::Duration::days(7);
-    let thirty_days_ago = today - chrono::Duration::days(30);
-
-    let all_docs = searcher.search(
-        &tantivy::query::AllQuery,
-        &tantivy::collector::DocSetCollector,
-    )?;
-
-    let mut fresh = 0usize;
-    let mut stale_7d = 0usize;
-    let mut stale_30d = 0usize;
-
-    for doc_addr in &all_docs {
-        let doc: tantivy::TantivyDocument = searcher.doc(*doc_addr)?;
-        let date_str = doc
-            .get_first(f_last_updated)
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-
-        if let Ok(date) = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
-            if date >= seven_days_ago {
-                fresh += 1;
-            } else if date >= thirty_days_ago {
-                stale_7d += 1;
-            } else {
-                stale_30d += 1;
-            }
-        } else {
-            // No valid date — count as stale
-            stale_30d += 1;
-        }
-    }
-
-    Ok(StalenessBuckets {
-        fresh,
-        stale_7d,
-        stale_30d,
-    })
+    let collector = StalenessCollector {
+        seven_days_ago: today - chrono::Duration::days(7),
+        thirty_days_ago: today - chrono::Duration::days(30),
+        field_name: f_name.to_string(),
+    };
+    Ok(searcher.search(&tantivy::query::AllQuery, &collector)?)
 }

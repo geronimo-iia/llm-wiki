@@ -26,6 +26,7 @@
     },
     "last_updated": {
       "type": "string",
+      "x-keyword": true,
       "description": "ISO 8601 date"
     },
     "tags": {
