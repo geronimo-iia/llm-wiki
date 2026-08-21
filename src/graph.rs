@@ -584,7 +584,11 @@ fn louvain_phase1(
 
     loop {
         if pass >= max_passes {
-            tracing::warn!(passes = pass, nodes = sorted_nodes.len(), "Louvain phase1 hit max_passes limit — possible oscillation on large graph");
+            tracing::warn!(
+                passes = pass,
+                nodes = sorted_nodes.len(),
+                "Louvain phase1 hit max_passes limit — possible oscillation on large graph"
+            );
             break;
         }
         pass += 1;
@@ -2043,7 +2047,9 @@ mod tests {
         let a = g.add_node(make_node("a", "A", "note", false));
         let b = g.add_node(make_node("b", "B", "note", false));
         let c = g.add_node(make_node("c", "C", "note", false));
-        let edge = || LabeledEdge { relation: "links-to".to_string() };
+        let edge = || LabeledEdge {
+            relation: "links-to".to_string(),
+        };
         g.add_edge(a, b, edge());
         g.add_edge(b, c, edge());
         g.add_edge(c, a, edge());

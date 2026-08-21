@@ -296,7 +296,9 @@ impl SpaceIndexManager {
         registry: &SpaceTypeRegistry,
     ) -> Result<IndexReport> {
         let _rebuild_guard = self.rebuild_lock.lock().unwrap_or_else(|e| {
-            tracing::warn!("rebuild lock poisoned — previous rebuild may have panicked; recovering");
+            tracing::warn!(
+                "rebuild lock poisoned — previous rebuild may have panicked; recovering"
+            );
             e.into_inner()
         });
 
@@ -955,10 +957,18 @@ mod tests {
 
         mgr.reload_reader().expect("first reload");
         assert_eq!(mgr.generation(), 1);
-        assert_eq!(mgr.last_commit().as_deref(), Some("abc123"), "last_commit unchanged after first reload");
+        assert_eq!(
+            mgr.last_commit().as_deref(),
+            Some("abc123"),
+            "last_commit unchanged after first reload"
+        );
 
         mgr.reload_reader().expect("second reload");
         assert_eq!(mgr.generation(), 2);
-        assert_eq!(mgr.last_commit().as_deref(), Some("abc123"), "last_commit unchanged after second reload");
+        assert_eq!(
+            mgr.last_commit().as_deref(),
+            Some("abc123"),
+            "last_commit unchanged after second reload"
+        );
     }
 }
