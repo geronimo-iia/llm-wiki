@@ -50,7 +50,10 @@ pub struct SpaceContext {
 impl SpaceContext {
     /// Load and resolve the per-wiki config merged with `global`.
     pub fn resolved_config(&self, global: &GlobalConfig) -> ResolvedConfig {
-        let wiki_cfg = config::load_wiki(&self.repo_root).unwrap_or_default();
+        let wiki_cfg = config::load_wiki(&self.repo_root).unwrap_or_else(|e| {
+            tracing::warn!(path = %self.repo_root.display(), error = %e, "failed to load wiki config, using defaults");
+            Default::default()
+        });
         config::resolve(global, &wiki_cfg)
     }
 }
