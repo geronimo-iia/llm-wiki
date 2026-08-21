@@ -315,6 +315,46 @@ impl SegmentCollector for StalenessSegmentCollector {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn staleness_merge_fruits_accumulates_all_buckets() {
+        let collector = StalenessCollector {
+            seven_days_ago: chrono::NaiveDate::from_ymd_opt(2026, 8, 14).unwrap(),
+            thirty_days_ago: chrono::NaiveDate::from_ymd_opt(2026, 7, 22).unwrap(),
+            field_name: "last_updated".into(),
+        };
+        let fruits = vec![
+            StalenessBuckets { fresh: 3, stale_7d: 2, stale_30d: 1 },
+            StalenessBuckets { fresh: 1, stale_7d: 0, stale_30d: 4 },
+        ];
+        let merged = Collector::merge_fruits(&collector, fruits).unwrap();
+        assert_eq!(merged.fresh, 4);
+        assert_eq!(merged.stale_7d, 2);
+        assert_eq!(merged.stale_30d, 5);
+    }
+
+    #[test]
+    fn staleness_merge_fruits_empty_input_yields_zeros() {
+        let collector = StalenessCollector {
+            seven_days_ago: chrono::NaiveDate::from_ymd_opt(2026, 8, 14).unwrap(),
+            thirty_days_ago: chrono::NaiveDate::from_ymd_opt(2026, 7, 22).unwrap(),
+            field_name: "last_updated".into(),
+        };
+        let merged = Collector::merge_fruits(&collector, vec![]).unwrap();
+        assert_eq!(merged.fresh, 0);
+        assert_eq!(merged.stale_7d, 0);
+        assert_eq!(merged.stale_30d, 0);
+    }
+
+    #[test]
+    fn stats_detail_default_is_summary() {
+        assert_eq!(StatsDetail::default(), StatsDetail::Summary);
+    }
+}
+
 fn compute_staleness(
     searcher: &tantivy::Searcher,
     is: &crate::index_schema::IndexSchema,

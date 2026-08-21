@@ -14,6 +14,20 @@ pub struct HistoryResult {
     pub entries: Vec<git::HistoryEntry>,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn history_result_serde_round_trip() {
+        let original = HistoryResult { slug: "concepts/foo".into(), entries: vec![] };
+        let json = serde_json::to_string(&original).unwrap();
+        let decoded: HistoryResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.slug, original.slug);
+        assert!(decoded.entries.is_empty());
+    }
+}
+
 /// Return git commit history for a page slug or `wiki://` URI.
 pub fn history(
     engine: &EngineState,
