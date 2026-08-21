@@ -87,6 +87,12 @@ pub fn ingest_with_redact(
     Ok(report)
 }
 
+struct PageEdgeData {
+    slug: String,
+    page_type: String,
+    edge_targets: Vec<(String, Vec<String>)>,
+}
+
 fn validate_edge_targets(space: &crate::engine::SpaceContext) -> Result<Vec<String>> {
     use tantivy::schema::Value;
 
@@ -106,20 +112,12 @@ fn validate_edge_targets(space: &crate::engine::SpaceContext) -> Result<Vec<Stri
             "ingest dedup query hit 100 000 page limit — existing pages beyond limit may be re-indexed"
         );
     }
+
     let mut slug_types: std::collections::HashMap<String, String> =
-        std::collections::HashMap::new();
-    for (_score, doc_addr) in &top_docs {
-        let doc: tantivy::TantivyDocument = searcher.doc(*doc_addr)?;
-        let slug = doc.get_first(f_slug).and_then(|v| v.as_str()).unwrap_or("");
-        let page_type = doc.get_first(f_type).and_then(|v| v.as_str()).unwrap_or("");
-        if !slug.is_empty() {
-            slug_types.insert(slug.to_string(), page_type.to_string());
-        }
-    }
+        std::collections::HashMap::with_capacity(top_docs.len());
+    let mut pages: Vec<PageEdgeData> = Vec::with_capacity(top_docs.len());
 
-    let mut warnings = Vec::new();
-
-    // For each page, check edge targets
+    // Single pass: build slug_types and collect edge targets simultaneously
     for (_score, doc_addr) in &top_docs {
         let doc: tantivy::TantivyDocument = searcher.doc(*doc_addr)?;
         let slug = doc
@@ -132,22 +130,55 @@ fn validate_edge_targets(space: &crate::engine::SpaceContext) -> Result<Vec<Stri
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
+        if slug.is_empty() {
+            continue;
+        }
+        slug_types.insert(slug.clone(), page_type.clone());
 
-        for decl in space.type_registry.edges(&page_type) {
-            if decl.target_types.is_empty() {
-                continue;
-            }
-            if let Some(field_handle) = is.try_field(&decl.field) {
-                for val in doc.get_all(field_handle) {
-                    if let Some(target) = val.as_str()
-                        && let Some(target_type) = slug_types.get(target)
-                        && !decl.target_types.contains(target_type)
-                    {
-                        warnings.push(format!(
-                            "{}: edge '{}' target '{}' has type '{}', expected one of {:?}",
-                            slug, decl.relation, target, target_type, decl.target_types
-                        ));
-                    }
+        let edge_targets: Vec<(String, Vec<String>)> = space
+            .type_registry
+            .edges(&page_type)
+            .iter()
+            .filter(|decl| !decl.target_types.is_empty())
+            .filter_map(|decl| {
+                let field_handle = is.try_field(&decl.field)?;
+                let targets: Vec<String> = doc
+                    .get_all(field_handle)
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect();
+                if targets.is_empty() {
+                    None
+                } else {
+                    Some((decl.field.clone(), targets))
+                }
+            })
+            .collect();
+
+        pages.push(PageEdgeData {
+            slug,
+            page_type,
+            edge_targets,
+        });
+    }
+
+    // In-memory pass: check edges against the now-complete slug_types map
+    let mut warnings = Vec::new();
+    for page in &pages {
+        for (field_name, targets) in &page.edge_targets {
+            let decl = space
+                .type_registry
+                .edges(&page.page_type)
+                .iter()
+                .find(|d| &d.field == field_name);
+            let Some(decl) = decl else { continue };
+            for target in targets {
+                if let Some(target_type) = slug_types.get(target.as_str())
+                    && !decl.target_types.contains(target_type)
+                {
+                    warnings.push(format!(
+                        "{}: edge '{}' target '{}' has type '{}', expected one of {:?}",
+                        page.slug, decl.relation, target, target_type, decl.target_types
+                    ));
                 }
             }
         }
