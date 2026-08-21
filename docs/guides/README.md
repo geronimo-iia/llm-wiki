@@ -36,6 +36,12 @@ llm-wiki.
 | [llms-format.md](llms-format.md)           | LLM-optimized output: when and how to use `format: "llms"` and `wiki_export` |
 | [graph.md](graph.md)                       | Community detection, cross-cluster suggestions, threshold tuning             |
 
+## Embedding and integration
+
+| Guide                          | Description                                                          |
+| ------------------------------ | -------------------------------------------------------------------- |
+| [embedding.md](embedding.md)   | Use `llm-wiki-engine` as a library crate in your own Rust binary     |
+
 ## Operations
 
 | Guide                  | Description                                              |

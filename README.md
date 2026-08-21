@@ -1,6 +1,6 @@
 # llm-wiki
 
-A headless wiki engine for agents. 23 MCP tools. One Rust binary. No LLM inside.
+A headless wiki engine for agents. 24 MCP tools. One Rust binary. No LLM inside.
 
 **Build knowledge that compounds — not answers that evaporate.**
 
@@ -153,13 +153,18 @@ llm-wiki serve --acp --http :18765
 | `wiki_content_new` | Scaffold a new page; returns local `path` for direct writes |
 | `wiki_resolve` | Resolve a slug or `wiki://` URI to its local filesystem path |
 | `wiki_ingest` | Validate a path, update the index, commit to git |
-| `wiki_graph` | Typed concept graph — Mermaid, DOT, or natural-language `llms` format |
+| `wiki_graph` | Typed concept graph — Mermaid, DOT, LLM-readable, or `json` (nodes/edges/metrics/communities) |
 | `wiki_suggest` | Find pages worth linking by tag overlap, graph distance, BM25 similarity |
 | `wiki_stats` | Wiki health: page counts, type distribution, staleness, graph density |
 | `wiki_lint` | Deterministic quality rules: orphans, broken links, missing fields, stale pages; scalable via `summary`, `path_prefix`, `page_size`, `cursor` |
 | `wiki_export` | Write full wiki to `llms.txt`, `llms-full`, or JSON — JSON includes custom frontmatter fields per page |
 | `wiki_history` | Git commit history for a page, with rename following |
 | `wiki_schema` | Show, validate, or template a type schema |
+| `wiki_info` | Server metadata: version, config path, registered spaces, default wiki, index status |
+| `wiki_config` | Read or update config values without editing `config.toml` directly |
+| `wiki_content_commit` | Stage and commit specific pages or all pending changes to git |
+| `wiki_index_rebuild` | Rebuild the tantivy index for a wiki space |
+| `wiki_index_status` | Check whether the index is up to date |
 | `wiki_spaces_*` | Create, register, list, remove wiki spaces; supports custom `wiki_root` |
 
 Full tool reference: [`docs/specifications/tools/`](docs/specifications/tools/)
