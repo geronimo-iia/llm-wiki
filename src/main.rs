@@ -770,6 +770,41 @@ fn main() -> Result<()> {
             let _ = wiki; // reserved for future single-wiki watch
         }
 
+        Commands::Migrate {
+            wiki,
+            all,
+            dry_run,
+            format,
+        } => {
+            if wiki.is_none() && !all {
+                anyhow::bail!(
+                    "specify --wiki <name> to migrate one wiki, or --all to migrate all registered wikis"
+                );
+            }
+            let global = config::load_global(&config_path)?;
+            let report = ops::wiki_migrate(&global, wiki.as_deref(), dry_run)?;
+
+            if is_json(&format) {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                for w in &report.wikis {
+                    if w.already_clean {
+                        println!("{}: already clean", w.name);
+                    } else {
+                        for f in &w.deleted {
+                            let action = if dry_run { "would delete" } else { "deleted" };
+                            println!("{}: {action} {f}", w.name);
+                        }
+                        for f in &w.kept_custom {
+                            println!("{}: kept (custom override) {f}", w.name);
+                        }
+                    }
+                }
+                if dry_run {
+                    println!("(dry-run — no files modified)");
+                }
+            }
+        }
         Commands::Logs { action } => match action {
             LogsAction::Tail { lines } => {
                 let output = ops::logs_tail(&config_path, lines)?;

@@ -215,6 +215,21 @@ pub enum Commands {
         #[arg(long)]
         wiki: Option<String>,
     },
+    /// Remove redundant stock schema copies from wiki directories
+    Migrate {
+        /// Target a specific wiki (required unless --all is given)
+        #[arg(long)]
+        wiki: Option<String>,
+        /// Run against all registered wikis
+        #[arg(long)]
+        all: bool,
+        /// Report what would be deleted without modifying anything
+        #[arg(long)]
+        dry_run: bool,
+        /// Output format: text | json
+        #[arg(long)]
+        format: Option<String>,
+    },
     /// Inspect and manage server logs
     Logs {
         /// The logs subcommand.
