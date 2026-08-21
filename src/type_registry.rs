@@ -263,20 +263,41 @@ fn discover_from_dir(
             let required_fields = extract_required(&schema_value);
             let edges = extract_edges(&schema_value);
 
-            for (type_name, desc) in wiki_types {
-                let description = desc.as_str().unwrap_or("").to_string();
+            // Collect into a Vec so we can move (not clone) the shared vecs into the last entry.
+            let mut type_entries: Vec<(String, String)> = wiki_types
+                .iter()
+                .map(|(k, v)| (k.clone(), v.as_str().unwrap_or("").to_string()))
+                .collect();
+
+            if let Some((last_name, last_desc)) = type_entries.pop() {
+                for (type_name, description) in type_entries {
+                    let validator = Validator::new(&schema_value)
+                        .map_err(|e| anyhow::anyhow!("invalid schema {filename}: {e}"))?;
+                    types.insert(
+                        type_name,
+                        RegisteredType {
+                            schema_path: schema_rel.clone(),
+                            description,
+                            validator,
+                            aliases: aliases.clone(),
+                            required_fields: required_fields.clone(),
+                            content_hash: content_hash.clone(),
+                            edges: edges.clone(),
+                        },
+                    );
+                }
                 let validator = Validator::new(&schema_value)
                     .map_err(|e| anyhow::anyhow!("invalid schema {filename}: {e}"))?;
                 types.insert(
-                    type_name.clone(),
+                    last_name,
                     RegisteredType {
-                        schema_path: schema_rel.clone(),
-                        description,
+                        schema_path: schema_rel,
+                        description: last_desc,
                         validator,
-                        aliases: aliases.clone(),
-                        required_fields: required_fields.clone(),
-                        content_hash: content_hash.clone(),
-                        edges: edges.clone(),
+                        aliases,
+                        required_fields,
+                        content_hash,
+                        edges,
                     },
                 );
             }
