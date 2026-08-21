@@ -156,11 +156,11 @@ impl SpaceTypeRegistry {
     }
 
     /// Get required field names for a type.
-    pub fn required_fields(&self, type_name: &str) -> Vec<String> {
+    pub fn required_fields(&self, type_name: &str) -> &[String] {
         self.types
             .get(type_name)
-            .map(|rt| rt.required_fields.clone())
-            .unwrap_or_default()
+            .map(|rt| rt.required_fields.as_slice())
+            .unwrap_or(&[])
     }
 
     /// Get edge declarations for a type.

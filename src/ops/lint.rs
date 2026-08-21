@@ -148,7 +148,7 @@ pub fn run_lint(
         .type_registry
         .list_types()
         .into_iter()
-        .flat_map(|(t, _)| space.type_registry.required_fields(t))
+        .flat_map(|(t, _)| space.type_registry.required_fields(t).iter().cloned())
         .collect();
 
     let f_slug = is.field("slug");
@@ -483,7 +483,8 @@ fn rule_missing_fields(
         .flat_map(|r| {
             registry
                 .required_fields(&r.page_type)
-                .into_iter()
+                .iter()
+                .cloned()
                 .filter(|field| {
                     !r.fields_present
                         .get(field.as_str())
