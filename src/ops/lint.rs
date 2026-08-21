@@ -870,4 +870,62 @@ mod tests {
         ));
         assert!(rule_periphery(&g, Path::new("/wiki"), 2).is_empty());
     }
+
+    fn make_record(slug: &str, page_type: &str) -> DocRecord {
+        DocRecord {
+            slug: slug.to_string(),
+            page_type: page_type.to_string(),
+            status: String::new(),
+            last_updated: String::new(),
+            confidence: None,
+            confidence_field_absent: false,
+            body_links: vec![],
+            sources: vec![],
+            concepts: vec![],
+            document_refs: vec![],
+            superseded_by: vec![],
+            fields_present: std::collections::HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn rule_orphan_flags_unlinked_page() {
+        let root = std::path::Path::new("/wiki");
+        // a↔b form a mutually-linked pair; "c" has no incoming links → only orphan
+        let mut a = make_record("a", "note");
+        a.body_links = vec!["b".to_string()];
+        let mut b = make_record("b", "note");
+        b.body_links = vec!["a".to_string()];
+        let c = make_record("c", "note");
+        let findings = rule_orphan(&[a, b, c], root);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].slug, "c");
+        assert_eq!(findings[0].rule, "orphan");
+        assert_eq!(findings[0].severity, Severity::Warning);
+    }
+
+    #[test]
+    fn rule_orphan_skips_section_and_index_slugs() {
+        let root = std::path::Path::new("/wiki");
+        // section pages and slugs ending in /index are exempt
+        let sec = make_record("intro", "section");
+        let idx = make_record("projects/index", "note");
+        let bare_idx = make_record("index", "note");
+        let findings = rule_orphan(&[sec, idx, bare_idx], root);
+        assert!(findings.is_empty(), "got findings: {findings:?}");
+    }
+
+    #[test]
+    fn rule_unknown_type_flags_unrecognised_type() {
+        use crate::type_registry::SpaceTypeRegistry;
+        let registry = SpaceTypeRegistry::default();
+        let root = std::path::Path::new("/wiki");
+        // "ghost" is not in any embedded schema
+        let r = make_record("some-page", "ghost");
+        let findings = rule_unknown_type(&[r], root, &registry);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].rule, "unknown-type");
+        assert_eq!(findings[0].severity, Severity::Error);
+        assert!(findings[0].message.contains("ghost"));
+    }
 }
