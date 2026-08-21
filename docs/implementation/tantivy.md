@@ -192,6 +192,80 @@ The `type` facet uses an unfiltered query (all docs in the space); it cannot be
 folded into the main filtered pass and runs as a separate call to
 `collect_facets`.
 
+## FAST-Field Segment Collectors
+
+Beyond facet counting, the `Collector`+`SegmentCollector` pattern is used
+wherever stored-doc reads can be eliminated by reading FAST fields directly
+during traversal.
+
+### StalenessCollector
+
+`compute_staleness` in `src/ops/stats.rs` uses a custom `StalenessCollector`
+that reads the `last_updated` FAST field during the single `AllQuery` sweep —
+zero `searcher.doc()` calls.
+
+`last_updated` is `STRING | STORED | FAST` (`"x-keyword": true` in `base.json`).
+In the segment collector, `fast_fields().str("last_updated")` returns
+`Result<Option<StrColumn>>`; `term_ords(doc)` gives the ordinal iterator;
+`ord_to_str(ord, &mut buf)` resolves each ordinal to the ISO 8601 string.
+
+```rust
+struct StalenessSegmentCollector {
+    col: Option<tantivy::columnar::StrColumn>,
+    buf: String,
+    counts: StalenessCounters,
+}
+
+impl SegmentCollector for StalenessSegmentCollector {
+    type Fruit = StalenessCounters;
+
+    fn collect(&mut self, doc: tantivy::DocId, _score: tantivy::Score) {
+        let Some(col) = &self.col else {
+            self.counts.no_date += 1;
+            return;
+        };
+        self.buf.clear();
+        if let Some(ord) = col.term_ords(doc).next() {
+            let _ = col.ord_to_str(ord, &mut self.buf);
+        }
+        // parse self.buf as NaiveDate and bucket into counts
+    }
+
+    fn harvest(self) -> StalenessCounters { self.counts }
+}
+```
+
+`let _ = col.ord_to_str(...)` — the return value must be explicitly discarded
+to satisfy `-D warnings`.
+
+Fields must be `STRING | FAST`; TEXT fields return `None` from
+`fast_fields().str()` silently.
+
+### DocRecord shared pass in run_lint
+
+`run_lint` in `src/ops/lint.rs` performs a single `AllQuery + DocSetCollector`
+pass at the top of the function, reading all needed stored fields into a
+`Vec<DocRecord>`. Each lint rule then iterates this vec with zero additional
+tantivy calls.
+
+```rust
+struct DocRecord {
+    slug: String,
+    doc_type: String,
+    last_updated: Option<String>,
+    confidence: Option<f64>,
+    confidence_field_absent: bool,
+    fields_present: HashMap<String, bool>,
+    body_links: Vec<String>,
+}
+```
+
+`confidence_field_absent: bool` distinguishes "field not in schema" (→
+`is_low_confidence = true`) from "field in schema, no value" (→
+`is_low_confidence = false`). Without this distinction, pages in a wiki with no
+`confidence` field in the schema would all be incorrectly flagged as
+low-confidence.
+
 ## IndexReader and ReloadPolicy
 
 The `IndexReader` is held in `SpaceIndexManager::inner.index_reader` for the

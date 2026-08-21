@@ -35,6 +35,8 @@ index:     ok, built 2025-07-21T14:32:01Z
 
 JSON (`--format json`):
 
+JSON (`--format json`, `detail: "summary"` default):
+
 ```json
 {
   "wiki": "research",
@@ -57,21 +59,23 @@ JSON (`--format json`):
   "communities": {
     "count": 7,
     "largest": 34,
-    "smallest": 3,
-    "isolated": ["tangent-thought-xyz", "draft-stub-abc"]
+    "smallest": 3
   },
   "diameter": 4.0,
   "radius": 2.0,
-  "center": ["concepts/core-concept"],
+  "center_count": 1,
   "structural_note": null
 }
 ```
 
+With `detail: "full"`, `center_count` is replaced by `center: Vec<String>` (the full slug list).
+
 `communities` is `null` when the wiki has fewer pages than `graph.min_nodes_for_communities` (default 30).
 
-`diameter`, `radius`, `center` are `null`/empty and `structural_note` is set when:
+`diameter`, `radius`, and `center`/`center_count` are `null`/`0`/empty and `structural_note` is set when:
 - `graph.structural_algorithms = false` — disabled in config
 - `local_count > graph.max_nodes_for_diameter` (default 2000) — graph too large
+- graph is not strongly connected — `diameter` returns `None` (no path between some node pairs)
 
 ```json
 {
@@ -85,8 +89,19 @@ When structural algorithms are skipped due to graph size:
 {
   "diameter": null,
   "radius": null,
-  "center": [],
+  "center_count": 0,
   "structural_note": "graph too large for diameter computation (2500 nodes > max_nodes_for_diameter=2000)"
+}
+```
+
+When graph is not strongly connected (common when isolated pages exist):
+
+```json
+{
+  "diameter": null,
+  "radius": null,
+  "center_count": 0,
+  "structural_note": "graph is not strongly connected — diameter undefined; use wiki_lint(rules: \"periphery,orphan\") to find disconnected pages"
 }
 ```
 
@@ -106,8 +121,8 @@ When structural algorithms are skipped due to graph size:
 | `communities` | Louvain (graph) | Cluster stats; `null` when pages < `min_nodes_for_communities` (default 30) |
 | `diameter` | petgraph-live metrics | Longest shortest directed path; `null` when disabled or graph too large |
 | `radius` | petgraph-live metrics | Minimum eccentricity; `null` under same conditions as `diameter` |
-| `center` | petgraph-live metrics | Slugs with eccentricity equal to `radius`; empty when `diameter` is `null` |
-| `structural_note` | computed | Explanation when O(n²) algorithms were skipped; `null` otherwise |
+| `center` / `center_count` | petgraph-live metrics | Full slug list (`detail: "full"`) or count (`detail: "summary"`); `0`/empty when `diameter` is `null` |
+| `structural_note` | computed | Explanation when `diameter` is `null` for any reason; `null` when diameter was computed |
 
 ### communities
 
@@ -119,29 +134,30 @@ Louvain community detection run on the undirected wiki graph. Present only when
 | `count` | Number of distinct knowledge clusters found |
 | `largest` | Size of the biggest cluster (node count) |
 | `smallest` | Size of the smallest cluster |
-| `isolated` | Slugs in communities of size ≤ 2 — weakly connected pages; sorted alphabetically |
 
-`isolated` pages are the highest-priority candidates for new links. Run
-`wiki_suggest(slug: "<isolated-slug>")` to find the best connections.
+To find weakly connected pages, use `wiki_lint(rules: "periphery,orphan")` — it
+returns slugs with richer output (path, message) and is not subject to a size cap.
 
 ### structural topology
 
-`diameter`, `radius`, `center`, and `structural_note` are computed via BFS from
-every local node on the directed `WikiGraph` — O(n·(n+e)).
+`diameter`, `radius`, `center`/`center_count`, and `structural_note` are
+computed via BFS from every local node on the directed `WikiGraph` — O(n·(n+e)).
 
-Two gates must both pass:
+`diameter` is `null` (with `structural_note` set) in three cases:
 
-1. `graph.structural_algorithms = true` (default) — if `false`, all four fields
-   are `null`/empty with no note
-2. `local_count <= graph.max_nodes_for_diameter` (default 2000) — if exceeded,
-   fields are `null`/empty and `structural_note` explains why
+1. `graph.structural_algorithms = false` — disabled in config; note: `"structural algorithms disabled in config"`
+2. `local_count > graph.max_nodes_for_diameter` (default 2000) — graph too large; note explains the threshold
+3. Graph is not strongly connected — `petgraph` BFS returns `None` when no directed path exists between
+   some node pair (common when isolated pages exist); note recommends `wiki_lint(rules: "periphery,orphan")`
+
+When `diameter` is successfully computed, `structural_note` is `null`.
 
 | Field | Description |
 |-------|-------------|
 | `diameter` | Longest shortest path between any two pages |
 | `radius` | Minimum eccentricity — distance from the most central page to all others |
-| `center` | Slugs whose eccentricity equals `radius` — hub pages |
-| `structural_note` | Non-null only when algorithms were skipped due to graph size |
+| `center` / `center_count` | Hub slugs (eccentricity = radius); full list in `detail: "full"`, count in `detail: "summary"` |
+| `structural_note` | Non-null whenever `diameter` is `null`; explains the reason |
 
 ## MCP Tool Definition
 
@@ -150,7 +166,8 @@ Two gates must both pass:
   "name": "wiki_stats",
   "description": "Wiki health dashboard — page counts, graph metrics, staleness, structural topology (diameter, radius, center)",
   "parameters": {
-    "wiki": "target wiki name (default: default wiki)"
+    "wiki": "target wiki name (default: default wiki)",
+    "detail": "\"summary\" (default) — returns center_count instead of slug list, response under 2KB; \"full\" — returns full center slug list"
   }
 }
 ```

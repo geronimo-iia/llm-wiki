@@ -31,6 +31,7 @@ Architectural decisions and their rationale, grouped by release.
 | -------- | ------- |
 | [louvain-sigma-tot-precompute](1.0.0/louvain-sigma-tot-precompute.md) | Full Louvain ΔQ formula (join gain − leave cost) + `sigma_tot` precomputed per pass — original formula was incomplete (join-only), causing oscillation and wrong partitions; `test_louvain_two_clusters` failed on original code; formula fix is correctness, sigma_tot is performance (O(N³)→O(M)); pass cap retained |
 | [fast-field-facet-collector](1.0.0/fast-field-facet-collector.md) | `KeywordFacetCollector` + `StrColumn` fast fields for facet counting — built-in `FacetCollector` rejected (wrong tantivy type for STRING fields); accumulate-in-TopDocs rejected (top-K only); `MultiCollector` reduces search/list from 4 to 2 segment passes; `type` field schema bug fixed as prerequisite |
+| [last-updated-keyword-fast-column](1.0.0/last-updated-keyword-fast-column.md) | `last_updated` promoted from TEXT to `STRING\|STORED\|FAST` — enables `StalenessCollector` to read ISO 8601 dates via `StrColumn` with zero `searcher.doc()` calls; `title` evaluated for same promotion but rejected (in `QueryParser` field list, keyword would break word-level title search) |
 
 ### Dependency hygiene
 

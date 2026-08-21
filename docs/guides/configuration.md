@@ -112,6 +112,31 @@ is 500ms. Lower for faster feedback, higher for busy editors:
 llm-wiki config set watch.debounce_ms 300 --global
 ```
 
+### Tune content write size limit
+
+By default `wiki_content_write` rejects content larger than 10 MB. Raise or
+lower the limit per wiki or globally:
+
+```bash
+llm-wiki config set defaults.max_content_bytes 20971520 --wiki research  # 20 MB
+llm-wiki config set defaults.max_content_bytes 5242880 --global           # 5 MB
+```
+
+### Tune suggest strategy weights
+
+`wiki_suggest` combines four strategies (tag overlap, graph neighbors, BM25,
+community peers). The scores for three of them are configurable:
+
+```toml
+# wiki.toml
+[suggest]
+graph_neighbor_score = 0.5   # 2-hop graph neighbors (default 0.5)
+community_peer_score = 0.4   # same Louvain community (default 0.4)
+bm25_weight          = 0.7   # weight on normalized BM25 score (default 0.7)
+```
+
+Tag overlap score is always `shared_tags / total_tags` (not configurable).
+
 ### Tune lint rules
 
 The `stale` rule fires when a page is both old and low-confidence. Adjust

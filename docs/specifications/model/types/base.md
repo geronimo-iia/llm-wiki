@@ -29,7 +29,7 @@ field (registered as `[types.default]` in `wiki.toml`).
 | --------------- | ------------ | ------------------------------------------------ |
 | `summary`       | string       | One-line scope                                   |
 | `status`        | string       | Lifecycle state (e.g. `active`, `draft`, `stub`) |
-| `last_updated`  | string       | ISO 8601 date                                    |
+| `last_updated`  | string       | ISO 8601 date. Indexed as keyword (`STRING \| STORED \| FAST`) — enables zero-doc-fetch staleness collection via `StrColumn`. |
 | `tags`          | list[string] | Lowercase hyphenated search terms. Indexed as one keyword value per tag (`x-keyword: true`); values lowercased at index time. Multi-word tags (e.g. `machine learning`) are stored verbatim as a single term. |
 | `owner`         | string       | Person, team, or agent responsible               |
 | `superseded_by` | string       | Slug of replacement page                         |
