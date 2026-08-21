@@ -16,7 +16,9 @@ def test_stats_json_fields(wiki_env):
     assert "communities" in data
     assert "diameter" in data
     assert "radius" in data
-    assert isinstance(data["center"], list)
+    assert "center_count" in data, "summary mode must include center_count"
+    assert isinstance(data["center_count"], int)
+    assert data["center_count"] >= 0
 
 
 def test_stats_staleness_shape(wiki_env):
