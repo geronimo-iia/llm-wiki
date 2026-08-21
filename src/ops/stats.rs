@@ -1,3 +1,5 @@
+//! Aggregate statistics for a wiki — page counts, graph metrics, staleness buckets, and index health.
+
 use std::collections::HashMap;
 
 use anyhow::Result;

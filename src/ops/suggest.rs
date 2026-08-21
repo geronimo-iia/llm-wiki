@@ -1,3 +1,5 @@
+//! Related-page suggestions using tag overlap, graph neighbourhood, BM25 similarity, and community membership.
+
 use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
