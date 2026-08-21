@@ -898,7 +898,9 @@ fn yaml_to_text(value: &serde_yaml::Value) -> String {
             })
             .collect::<Vec<_>>()
             .join(" "),
-        serde_yaml::Value::Mapping(_) => serde_json::to_string(value).unwrap_or_default(),
+        serde_yaml::Value::Mapping(_) => serde_json::to_string(value)
+            .inspect_err(|e| tracing::warn!(error = %e, "YAML mapping not JSON-serializable; skipped from index"))
+            .unwrap_or_default(),
         serde_yaml::Value::Null => String::new(),
         _ => String::new(),
     }
