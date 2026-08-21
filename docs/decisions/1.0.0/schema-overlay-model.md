@@ -8,10 +8,10 @@ loads embedded defaults first, then merges any files found in `<wiki>/schemas/`
 on top. On-disk files are user overrides only; their absence means "use the
 engine default".
 
-Add a `wiki migrate` command backed by a SHA manifest (`schemas/manifest.json`,
-embedded in the binary) to clean up stock schema copies from existing wikis
-without touching user customizations.
-
+Add a `wiki migrate` command that detects and removes stock schema copies from
+existing wikis using parsed JSON equality, leaving genuine user customizations
+untouched. `wiki migrate` requires `--wiki <name>` or `--all` explicitly — no
+silent all-wikis default.
 
 ## Context
 
@@ -39,18 +39,36 @@ undiscoverable, and does not scale to a skill-based workflow.
 Rejected: disproportionate; the overlay model eliminates the problem class
 rather than managing it.
 
-## Why overlay + SHA manifest
+**SHA manifest (`schemas/manifest.json`)** — embed a JSON file mapping each
+stock schema filename to its SHA-256 digest per release version; migration
+checks on-disk bytes against the manifest. Rejected: SHA-256 of raw bytes is
+sensitive to CRLF line endings and trailing whitespace, producing false
+"customized" classifications on Windows. Requires a `make update-schema-manifest`
+step whenever schemas change, adding friction to the schema-change workflow.
+
+## Why overlay + JSON equality archive
 
 **Overlay** eliminates the problem permanently for new wikis and future schema
 updates: embedded schemas are always the engine's current defaults; on-disk
-files are always the user's choice. No migration is ever needed for a wiki that
-was created under this model.
+files are always the user's choice. No migration is ever needed for a wiki
+created under this model.
 
-**SHA manifest** solves the one-time transition for existing wikis. It encodes
-which on-disk content is "stock" (safe to delete) vs "customized" (must keep)
-without requiring a separate install-time database or version metadata in the
-files themselves. The manifest is committed alongside the schema files and
-embedded in the binary — no runtime I/O, no deployment artifact.
+**JSON equality** (`serde_json::Value` comparison) detects stock copies without
+byte-level fragility. Whitespace, key ordering, and line endings are all
+normalized by parsing. A file is stock if its parsed content matches any known
+stock version — current or historical.
+
+**Source archive** (`schemas/archive/<version>/`) embeds historical schema
+content directly in the binary via `include_str!`. When schemas change in a
+future release, the current files are copied to `schemas/archive/<version>/`
+before being updated. No manifest file, no CI target, no version metadata in
+the schema files themselves. `is_stock_schema(content)` checks against
+`all_stock_schema_contents()`, which combines current embedded schemas and all
+archived versions.
+
+The archive currently covers one historical set: `schemas/archive/pre-1.0.0/`
+(five files: base, concept, doc, paper, section — retrieved from git tag
+`v0.5.9`; skill.json was unchanged and is not archived).
 
 The combination mirrors how package managers handle user-modified config files
 (e.g. dpkg conffile handling): known-stock → replace; diverged → warn and skip.
@@ -59,19 +77,23 @@ The combination mirrors how package managers handle user-modified config files
 
 - JSON schema files (`.json`) only.
 - Template files (`.md` body templates) are out of scope; deferred.
-- `wiki migrate` without `--wiki` runs against all registered wikis.
+- `wiki migrate` requires `--wiki <name>` or `--all` (no silent all-wikis
+  default — running against all wikis without explicit opt-in is a footgun).
 - The migration skill auto-commits deleted files per wiki after a successful
   non-dry-run migration.
 
 ## Consequences
 
 - `spaces::create` stops copying schema and template files; `<wiki>/schemas/`
-  is created as an empty extension-point directory.
+  is created as an empty extension-point directory (`.gitkeep` only).
 - `space_builder::build_space` merges embedded defaults with on-disk overrides
   on every mount; the branch that chose one or the other is removed.
-- `schemas/manifest.json` is added to the repository and must be updated
-  (via `make update-schema-manifest` or equivalent) whenever embedded schemas
-  change. This becomes part of the schema-change checklist.
+- `compute_disk_hashes` in `type_registry.rs` applies the same overlay logic to
+  stay in sync with `build_space` (discovered during implementation: empty
+  `schemas/` dir produced a different hash with the old disk-only path).
+- When schemas change in a future release: copy current schema files to
+  `schemas/archive/<version>/`, add `include_str!` constants and push them onto
+  `all_stock_schema_contents()` in `src/default_schemas.rs`.
 - `wiki migrate` / `wiki_migrate` MCP tool are new public surface; their
   JSON output shape is part of the stable 1.0 API contract.
 - Tests for `spaces::create` are updated: a newly created wiki has an empty
