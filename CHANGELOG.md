@@ -8,104 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+### Security
 
-- **`wiki_content_commit` slug validation** — comma-split slugs are now validated via `Slug::try_from` before reaching the ops layer; invalid slugs (path traversal, hidden components, etc.) return an early error.
-
-## [1.0.0] — 2026-08-19
+Path traversal, info-disclosure, and oversized-input vectors closed across the MCP surface. Absolute filesystem paths (index path, config path, error strings) no longer leak to LLM clients — all tool errors are redacted before dispatch. MCP string parameters are bounded at 8 192 bytes by default (`serve.mcp_max_param_len`); content writes are capped at 10 MB. Slug inputs in `wiki_history`, `wiki_suggest`, `wiki_content_commit`, and `resolve_read_target` validated before any filesystem access. Three CVEs resolved in dependencies (`memmap2`, `event-listener`, `h2`).
 
 ### Added
 
-- **Lib target renamed to `llm_wiki_engine`** — embedders can now write `use llm_wiki_engine::…`; tracing filter updated accordingly.
-- **`examples/embed.rs`** — minimal library usage example; run with `WIKI=<name> cargo run --example embed -- "<query>"`.
-- **`wiki_graph` JSON format** — `format: "json"` emits nodes, edges, metrics, and community map as structured JSON.
-
-### Security
-
-- **Path traversal in `type_registry.rs` closed** — `schema` paths in `wiki.toml` validated; absolute paths and `..` components rejected.
-- **MCP parameter length limit** — string arguments exceeding `serve.mcp_max_param_len` bytes (default 8192) rejected before dispatch; configurable via `wiki_config set serve.mcp_max_param_len`.
-- **MCP slug validation** — `slug` arguments in `wiki_history` and `wiki_suggest` validated through `Slug::try_from`.
-- **`wiki_content_write` content size cap** — requests exceeding 10 MB rejected with a clear error including actual byte count.
-- **`resolve_read_target` existence oracle closed** — `parent_slug` validated via `Slug::try_from` before any filesystem probe.
-- **`IndexStatus.path` excluded from serialized output** — absolute index path no longer leaks to LLM clients via `wiki_index_status`.
-- **`config_path` removed from `wiki_info` output** — absolute config file path no longer returned.
-- **Ingest warnings use relative paths** — wiki root prefix stripped from validation warning messages in `IngestReport`.
-- **`handle_info` degraded error redacted** — raw index error strings processed through `redact_error` before returning.
-- **`redact_error` covers tilde-prefixed paths** — `~/wikis/foo` and `~user/repo` now replaced with `<path>`.
-
-### Dependencies
-
-- `memmap2` updated — resolves RUSTSEC-2026-0186 (unchecked pointer offset).
-- `event-listener` updated — resolves RUSTSEC-2026-0221 (`!Send` tags crossing thread boundaries).
-- `h2` updated to 0.4.16 — resolves RUSTSEC-2026-0258 (HTTP/2 request smuggling).
-- `boxfnonce` RUSTSEC-2019-0040 suppression dropped — `agent-client-protocol` v2.0.0 no longer pulls in `boxfnonce`.
-- `lru` RUSTSEC-2026-0253 suppressed (upstream-blocked via `tantivy 0.26.1`); see `docs/decisions/1.0.0/suppress-lru-rustsec-2026-0253.md`.
-- `atomic-polyfill` RUSTSEC-2023-0089 suppressed (upstream-blocked via `postcard → heapless`; not compiled into binary on supported targets); see `docs/decisions/1.0.0/suppress-atomic-polyfill-rustsec-2023-0089.md`.
-- `rmcp` updated from 3.1.2 to 3.1.4.
+- **`wiki_graph` JSON format** — `format: "json"` returns nodes, edges, metrics, and community map as structured JSON; machine-readable alternative to Mermaid/DOT.
+- **Library crate renamed to `llm_wiki_engine`** — embed the engine in your own binary with `use llm_wiki_engine::…`; a minimal `examples/embed.rs` shows the pattern.
 
 ### Changed
 
-- **Stable public API surface** — `WikiEngine`, `GlobalConfig`, `SearchResult`, `IngestReport`, `WikiGraph` re-exported at crate root; `#![warn(unreachable_pub)]` enabled.
-- **`WikiGraph` changed from type alias to struct** — raw `petgraph` methods no longer accessible directly; use the provided delegate methods.
-- **`WikiEntry.path` and `WikiConfig.wiki_root` changed from `String` to `PathBuf`** — callers must use `.display()` or `.to_string_lossy()`.
-- **`PageRef.slug` and `PageSummary.slug` changed from `String` to `NormalizedSlug`** — use `.as_str()` / `.to_string()` to extract; serializes as plain JSON string.
-- **`IndexStatus.degraded_reason`** — new optional field in `wiki_index_status` output; present only when the index is unhealthy.
-- **`wiki_info` degraded detail** — per-wiki degraded map returned instead of flat `"degraded"` string; includes `"; run wiki_index_rebuild to recover"` hint.
-- **`serve.mcp_max_param_len`** — new global config key (default 8192 bytes).
-- **Unknown `snapshot_format` warns** — unrecognised value emits `tracing::warn!` instead of silently falling back.
-- **`wiki_resolve` description includes recovery hint** — instructs clients to call `wiki_info` when wiki name is not registered.
-- **MCP error messages redact filesystem paths** — all tool errors processed by `redact_error`; tilde paths also covered.
-- **`defaults.max_content_bytes` configurable** — `[defaults] max_content_bytes` in `config.toml` (default 10 MB); replaces hardcoded constant in content write handler.
-- **Index writer heap configurable** — `index.memory_budget_mb` in `config.toml` now used by `SpaceIndexManager`; replaces hardcoded 50 MB at all `index.writer()` call sites.
-- **Suggest strategy scores configurable** — `suggest.graph_neighbor_score`, `suggest.community_peer_score`, `suggest.bm25_weight` in `config.toml`; replaces magic numbers. Tag overlap score remains computed (`shared_tags / total_tags`).
-- **`render_json` community min-nodes from config** — `graph.min_nodes_for_communities` threaded through to `render_json`; replaces hardcoded `3`.
-- **`schema_validate` uses configured tokenizer** — uses `index.tokenizer` from config instead of hardcoded `"en_stem"`; validation no longer silently uses wrong schema for non-default tokenizers.
-- **`rebuild_types` reports live section count** — `TermQuery` on `type = "section"` after reload replaces hardcoded `sections: 0` in `state.toml`.
-- **`graph.depth` default from config** — `filter.depth` falls back to `resolved.graph.depth` when not explicitly set; replaces hardcoded `3` in subgraph traversal.
-- **ACP research `top_k` from config** — `step_search` and `step_report_results` use `resolved.defaults.search_top_k`; replaces hardcoded `5`.
+- **Actionable error messages** — `wiki_search` on a closed index, `wiki_content_commit` with nothing staged, and ACP session-limit rejections now include the exact command to run to recover.
+- **`wiki_index_status` degraded detail** — per-wiki degraded map with a `"; run wiki_index_rebuild to recover"` hint replaces the flat `"degraded"` string.
+- **More configurable, fewer magic numbers** — content size limit, index memory budget, suggest strategy weights, graph depth default, community min-nodes, and ACP `top_k` are all now tunable in `config.toml`; previous hardcoded values become the documented defaults.
 
 ### Fixed
 
-- **`spaces_set_default` rolls back in-memory state on disk failure** — in-memory default restored if disk write fails.
-- **`mount_wiki` rollback covered by `with_config_lock`** — rollback on failure now atomic with config write.
-- **`list_wiki_resources` releases read lock before filesystem walk** — state lock no longer held across directory traversal.
-- **`default_wiki_name()` silent empty-string** — returns `Option<&str>`; surfaces clear error when no default configured.
-- **`is_wiki_md` hardcoded path check removed** — watcher correctly handles wikis with non-default `wiki_root` names.
-- **Louvain `.expect()` panics replaced with propagated errors** — invariant violations surface through the error chain instead of aborting the server.
-- **Concurrent `rebuild()` calls serialized** — second concurrent rebuild blocks instead of corrupting the write lock sequence.
-- **`rebuild_index()` sets and clears `rebuilding` flag atomically** — watcher-triggered and API-triggered rebuilds no longer overlap.
-- **Blocking I/O moved off Tokio thread** — `schema_rebuild` and Tantivy I/O dispatched via `spawn_blocking`/`block_in_place`.
-- **ACP session mutex hardened** — `parking_lot::Mutex` replaces `std::sync::Mutex`; mutex poisoning on panic no longer crashes the ACP server.
-- **Rollback errors logged** — `spaces_create`/`spaces_register` mount-failure rollbacks logged via `tracing::error!` instead of silently discarded.
-- **Startup index failures promoted to `error`** — permanent degradation at startup no longer logged as `warn`.
-- **`wiki_search` "index not open" error includes rebuild hint** — appends `"; run wiki_index_rebuild to recover"`.
-- **`wiki_content_commit` "nothing to commit" includes ingest hint** — message now suggests running `wiki_ingest` first.
-- **ACP session-limit error includes config key** — rejection message includes the `wiki_config set serve.acp_max_sessions` command.
-- **`search_all` cross-wiki failure warns** — per-wiki error in cross-wiki search emits `tracing::warn!` before `continue`; partial results no longer silently dropped.
-- **Ingest git diff failure warns** — `git::collect_changed_files` error emits `tracing::warn!` before full re-index fallback; operators can now diagnose unexpected full rebuilds.
-- **Watch notify errors warn** — filesystem watcher errors emit `tracing::warn!` instead of silently returning; inotify limit exhaustion now visible in logs.
-- **Staleness check error warns before rebuild** — `Err` arm in engine staleness check emits `tracing::warn!` before triggering full rebuild; previously silent.
+- **Concurrent index rebuilds no longer corrupt state** — overlapping watcher-triggered and API-triggered rebuilds are serialized; the `rebuilding` flag is set and cleared atomically.
+- **`spaces_set_default` rollback on disk failure** — in-memory default is restored if the config write fails; previously the in-memory and on-disk states could diverge.
+- **Watcher silently swallowing errors** — filesystem watcher errors, ingest git-diff failures, cross-wiki search errors, and staleness-check failures all now emit `tracing::warn!`; operators can diagnose unexpected full rebuilds and inotify exhaustion.
+- **ACP server no longer crashes on mutex poison** — `parking_lot::Mutex` replaces `std::sync::Mutex`; a panicking session no longer takes down the whole server.
+- **Blocking Tantivy I/O off the async thread** — `schema_rebuild` and index writes dispatched via `spawn_blocking`/`block_in_place`; no longer risks stalling the Tokio runtime.
 
 ### Performance
 
-- **`rule_broken_link` O(N×K) → O(1)** — broken-link rule uses a pre-built `HashSet` instead of per-link Tantivy queries.
-- **Louvain community detection O(N³) → O(M) fix** — full ΔQ formula implemented; `sigma_tot` updated incrementally; correctness restored.
-- **`GraphConfig.max_pages` configurable** — `graph.max_pages` in `config.toml` (default 100 000); truncation warning added to `ingest.rs`.
-- **`WikiGraph.node_for_slug` O(1)** — direct HashMap lookup replaces O(N) linear scan.
-- **Facet collection replaced with fast-field collector** — `search()` and `list()` query pass count reduced 4 → 2.
-- **`type` field promoted to keyword/FAST storage** — enables fast-field facet collection; triggers automatic index rebuild on deploy.
-- **`render_llms` single-pass graph walk** — four graph iterations merged into one.
-- **`build_graph_cross_wiki` builds each wiki graph once** — moved out of per-page loop.
-- **`redact_error` regex compiled once** — hoisted to `LazyLock<Regex>`.
-- **`suggest` bulk-fetch via `TermSetQuery`** — per-candidate `find_doc_by_slug` calls replaced with one `TermSetQuery` per strategy; ~70 queries → ~5 per `suggest` call on a 1 000-page wiki.
-- **`last_updated` promoted to keyword/FAST storage** — `STRING|STORED|FAST` enables `StalenessCollector` to read dates via `StrColumn`; triggers automatic index rebuild on deploy.
-- **`compute_staleness` zero doc reads** — custom `StalenessCollector` reads `last_updated` via FAST column during single `AllQuery` sweep; eliminates 1 315 `searcher.doc()` calls per `wiki_stats` call.
-- **`wiki_lint` shared `DocRecord` pass** — five tantivy-backed rules share one `AllQuery + N doc reads`; reduced from 5 AllQuery + 8×N doc reads to 1 + N.
-- **`validate_edge_targets` single tantivy pass** — `slug_types` and edge targets collected in one loop; halves `searcher.doc()` calls in `wiki_ingest`.
-
-### CI
-
-- **Windows integration test workflow** — `.github/workflows/integration-windows.yml` runs engine, MCP, and ACP suites on `windows-latest` on push/PR and via `workflow_dispatch`.
+- **`wiki_suggest` ~70 → ~5 queries per call** on a 1 000-page wiki — per-candidate doc fetches replaced with bulk `TermSetQuery` per strategy.
+- **`wiki_lint` 5× fewer Tantivy passes** — five lint rules share one `AllQuery + N doc reads` instead of 5 AllQuery + 8×N reads.
+- **`wiki_stats` staleness with zero doc reads** — `StalenessCollector` reads `last_updated` via FAST column; eliminates ~1 300 `searcher.doc()` calls per call.
+- **Search and list: 4 → 2 Tantivy query passes** — facet collection ported to fast-field collector.
+- **Louvain community detection correctness and speed restored** — full ΔQ formula with incremental `sigma_tot`; was O(N³), now O(M).
+- **Index rebuild triggers** — `type` and `last_updated` fields promoted to FAST storage; automatic rebuild on deploy picks up both changes.
 
 ## [0.5.9] — 2026-08-17
 
