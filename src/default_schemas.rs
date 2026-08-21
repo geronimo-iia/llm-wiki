@@ -12,11 +12,11 @@ const SECTION: &str = include_str!("../schemas/section.json");
 // Add new archive sections here when schemas change in future releases.
 // Retrieve old content from the relevant git tag before updating current files.
 
-const ARCHIVE_PRE100_BASE: &str = include_str!("../schemas/archive/pre-1.0.0/base.json");
-const ARCHIVE_PRE100_CONCEPT: &str = include_str!("../schemas/archive/pre-1.0.0/concept.json");
-const ARCHIVE_PRE100_DOC: &str = include_str!("../schemas/archive/pre-1.0.0/doc.json");
-const ARCHIVE_PRE100_PAPER: &str = include_str!("../schemas/archive/pre-1.0.0/paper.json");
-const ARCHIVE_PRE100_SECTION: &str = include_str!("../schemas/archive/pre-1.0.0/section.json");
+pub const ARCHIVE_PRE100_BASE: &str = include_str!("../schemas/archive/pre-1.0.0/base.json");
+pub const ARCHIVE_PRE100_CONCEPT: &str = include_str!("../schemas/archive/pre-1.0.0/concept.json");
+pub const ARCHIVE_PRE100_DOC: &str = include_str!("../schemas/archive/pre-1.0.0/doc.json");
+pub const ARCHIVE_PRE100_PAPER: &str = include_str!("../schemas/archive/pre-1.0.0/paper.json");
+pub const ARCHIVE_PRE100_SECTION: &str = include_str!("../schemas/archive/pre-1.0.0/section.json");
 
 const TMPL_CONCEPT: &str = include_str!("../schemas/concept.md");
 const TMPL_PAPER: &str = include_str!("../schemas/paper.md");
