@@ -33,11 +33,7 @@ This creates:
 ~/wikis/research/
 ├── README.md
 ├── wiki.toml
-├── schemas/
-│   ├── base.json
-│   ├── concept.json
-│   ├── paper.json
-│   └── ...
+├── schemas/          # empty — stock schemas are embedded; add custom ones here
 ├── inbox/
 ├── raw/
 └── wiki/

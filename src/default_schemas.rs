@@ -146,7 +146,9 @@ mod tests {
     fn whitespace_variant_is_still_stock() {
         let val: serde_json::Value =
             serde_json::from_str(default_schemas()["concept.json"]).unwrap();
-        assert!(is_stock_schema(&serde_json::to_string_pretty(&val).unwrap()));
+        assert!(is_stock_schema(
+            &serde_json::to_string_pretty(&val).unwrap()
+        ));
     }
 
     #[test]

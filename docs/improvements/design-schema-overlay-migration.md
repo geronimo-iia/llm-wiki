@@ -7,7 +7,7 @@ read_when:
   - Implementing the schema SHA manifest and update tooling
   - Updating spaces::create to stop copying schemas
   - Writing a migration skill
-status: proposal
+status: implemented
 last_updated: "2026-08-21"
 ---
 

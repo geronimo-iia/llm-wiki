@@ -14,6 +14,8 @@ Path traversal, info-disclosure, and oversized-input vectors closed across the M
 
 ### Added
 
+- **Schema overlay model** — schemas are no longer copied into `schemas/` at wiki creation time; the engine always starts from embedded defaults, overlays any on-disk `schemas/*.json` files (same filename replaces, new filename adds), then applies `wiki.toml` type overrides. Existing custom schemas in `schemas/` continue to work without changes.
+- **`wiki migrate` CLI / `wiki_migrate` MCP tool** — scans `schemas/` for stock schema files (current and all pre-1.0.0 versions, compared by JSON value equality), deletes them, and reports kept custom schemas; `--dry-run` / `dry_run` previews without modifying anything; `--all` runs across every registered wiki.
 - **`wiki_graph` JSON format** — `format: "json"` returns nodes, edges, metrics, and community map as structured JSON; machine-readable alternative to Mermaid/DOT.
 - **Library crate renamed to `llm_wiki_engine`** — embed the engine in your own binary with `use llm_wiki_engine::…`; a minimal `examples/embed.rs` shows the pattern.
 

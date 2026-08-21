@@ -1,6 +1,6 @@
-use tempfile::tempdir;
-use llm_wiki_engine::{config, default_schemas, ops};
 use llm_wiki_engine::config::WikiEntry;
+use llm_wiki_engine::{config, default_schemas, ops};
+use tempfile::tempdir;
 
 fn setup_wiki_with_schemas(stock: bool, custom: bool) -> (tempfile::TempDir, std::path::PathBuf) {
     let dir = tempdir().unwrap();
@@ -67,7 +67,10 @@ fn migrate_keeps_custom_schema() {
     assert!(w.deleted.is_empty());
     assert!(w.kept_custom.contains(&"mytype.json".to_string()));
     assert!(wiki_path.join("schemas").join("mytype.json").exists());
-    assert!(w.already_clean, "wiki with only custom schemas must be already_clean");
+    assert!(
+        w.already_clean,
+        "wiki with only custom schemas must be already_clean"
+    );
 }
 
 #[test]

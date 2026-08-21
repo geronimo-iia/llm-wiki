@@ -2,7 +2,6 @@ mod helpers;
 
 mod config;
 mod content;
-mod migrate;
 mod export;
 mod graph;
 mod history;
@@ -10,6 +9,7 @@ mod hot_reload;
 mod index;
 mod ingest;
 mod logs;
+mod migrate;
 mod schema;
 mod search;
 mod spaces;
