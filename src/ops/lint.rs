@@ -944,6 +944,41 @@ mod tests {
     }
 
     #[test]
+    fn rule_stale_flags_old_page_with_no_confidence_field() {
+        let root = std::path::Path::new("/wiki");
+        let mut r = make_record("old-page", "note");
+        r.last_updated = "2000-01-01".to_string();
+        r.confidence_field_absent = true;
+        let findings = rule_stale(&[r], root, 1, 0.7);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].rule, "stale");
+        assert_eq!(findings[0].severity, Severity::Warning);
+        assert!(findings[0].message.contains("2000-01-01"));
+    }
+
+    #[test]
+    fn rule_stale_skips_non_active_status() {
+        let root = std::path::Path::new("/wiki");
+        let mut r = make_record("archived-page", "note");
+        r.last_updated = "2000-01-01".to_string();
+        r.status = "archived".to_string();
+        r.confidence_field_absent = true;
+        let findings = rule_stale(&[r], root, 1, 0.7);
+        assert!(findings.is_empty(), "archived pages must not be flagged");
+    }
+
+    #[test]
+    fn rule_stale_skips_high_confidence_page() {
+        let root = std::path::Path::new("/wiki");
+        let mut r = make_record("solid-page", "note");
+        r.last_updated = "2000-01-01".to_string();
+        r.confidence = Some(0.9);
+        r.confidence_field_absent = false;
+        let findings = rule_stale(&[r], root, 1, 0.7);
+        assert!(findings.is_empty(), "high-confidence page must not be flagged");
+    }
+
+    #[test]
     fn rule_missing_fields_flags_absent_required_field() {
         use crate::type_registry::SpaceTypeRegistry;
         let registry = SpaceTypeRegistry::default();
