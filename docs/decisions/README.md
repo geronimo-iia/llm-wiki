@@ -40,6 +40,12 @@ Architectural decisions and their rationale, grouped by release.
 | [suppress-lru-rustsec-2026-0253](1.0.0/suppress-lru-rustsec-2026-0253.md) | Suppress `lru` use-after-free advisory — upstream-blocked via `tantivy ^0.16.3` pin; no fixed version in range; risk low (trigger requires panic inside tantivy LRU internals); re-evaluate on each `tantivy` release |
 | [suppress-atomic-polyfill-rustsec-2023-0089](1.0.0/suppress-atomic-polyfill-rustsec-2023-0089.md) | Suppress `atomic-polyfill` unmaintained advisory — upstream-blocked via `postcard → heapless ^0.7.0` chain; crate not compiled into binary on any supported target; risk negligible; re-evaluate on each `postcard` release |
 
+### Schema management
+
+| Decision | Summary |
+| -------- | ------- |
+| [schema-overlay-model](1.0.0/schema-overlay-model.md) | Embedded defaults + on-disk overrides replace copy-on-create — `spaces::create` stops copying schemas; `space_builder` merges embedded + on-disk on every mount; `wiki migrate` backed by SHA manifest (`schemas/manifest.json`) cleans up stock copies from existing wikis without touching user customizations |
+
 ### Windows compatibility
 
 | Decision | Summary |
