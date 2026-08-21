@@ -240,7 +240,8 @@ A dedicated skill (`wiki-migrate`) wraps the command for guided execution:
    those files will remain as overrides.
 3. If `deleted` is non-empty, confirm before running for real.
 4. Run `wiki migrate --format json`.
-5. Optionally commit the result (`git add schemas/ && git commit -m "chore: remove redundant stock schema copies"`).
+5. For each wiki with deleted files, commit the result:
+   `git add schemas/ && git commit -m "chore: remove redundant stock schema copies"`.
 
 ### Embedded manifest (`src/default_schemas.rs`)
 
@@ -295,13 +296,12 @@ Migration code computes `sha256hex(file_bytes)` and checks
 | `tests/space_builder.rs` | Add overlay tests |
 | `tests/migrate.rs` | New — stock detection, dry-run, delete, keep-custom |
 
-## Open questions
+## Decisions
 
-- **`--all-wikis` default**: should `wiki migrate` without `--wiki` default to
-  all registered wikis or require an explicit flag? Defaulting to all is
-  convenient for one-shot upgrades; requiring explicit opt-in is safer.
-- **Template files** (`.md`): apply the same SHA-manifest and overlay logic as
-  JSON schemas, or treat them separately? They are less likely to be customized
-  but the same problem exists.
-- **Git commit step**: should the migration skill commit the deleted files
-  automatically, or always leave that to the user?
+- **`--all-wikis` default**: `wiki migrate` without `--wiki` runs against all
+  registered wikis. Explicit `--wiki <name>` scopes to one.
+- **Template files** (`.md`): out of scope. Template overlay and migration are
+  deferred; `.md` files in `<wiki>/schemas/` are not touched by `wiki migrate`.
+- **Git commit step**: the migration skill automatically commits deleted files
+  in each affected wiki repo after a successful (non-dry-run) migration:
+  `git add schemas/ && git commit -m "chore: remove redundant stock schema copies"`.
