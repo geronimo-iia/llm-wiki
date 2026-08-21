@@ -176,6 +176,16 @@ impl SpaceIndexManager {
             .unwrap_or(0)
     }
 
+    /// Drop all held index handles. Tests use this before overwriting index files on
+    /// Windows, where writing to a memory-mapped file returns ERROR_USER_MAPPED_FILE.
+    #[doc(hidden)]
+    pub fn close(&self) {
+        if let Ok(mut inner) = self.inner.write() {
+            inner.tantivy_index = None;
+            inner.index_reader = None;
+        }
+    }
+
     /// Open the index from disk and hold the reader.
     /// Call after rebuild/staleness check. Recovery: if open fails and
     /// wiki_root/repo_root/registry are provided, rebuild and retry.

@@ -358,6 +358,10 @@ fn open_recovers_from_corruption() {
     let reg = registry();
     mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
 
+    // Close held mmap handles before overwriting files — Windows blocks writes to
+    // memory-mapped files with ERROR_USER_MAPPED_FILE (os error 1224).
+    mgr.close();
+
     // Corrupt the index files
     let search_dir = mgr.index_path().join("search-index");
     for entry in fs::read_dir(&search_dir).unwrap() {
@@ -383,6 +387,10 @@ fn open_fails_without_recovery_on_corruption() {
     git::commit(dir.path(), "pages").unwrap();
     mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry())
         .unwrap();
+
+    // Close held mmap handles before overwriting files — Windows blocks writes to
+    // memory-mapped files with ERROR_USER_MAPPED_FILE (os error 1224).
+    mgr.close();
 
     // Corrupt the index files
     let search_dir = mgr.index_path().join("search-index");
