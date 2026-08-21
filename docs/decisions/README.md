@@ -40,6 +40,13 @@ Architectural decisions and their rationale, grouped by release.
 | [suppress-lru-rustsec-2026-0253](1.0.0/suppress-lru-rustsec-2026-0253.md) | Suppress `lru` use-after-free advisory — upstream-blocked via `tantivy ^0.16.3` pin; no fixed version in range; risk low (trigger requires panic inside tantivy LRU internals); re-evaluate on each `tantivy` release |
 | [suppress-atomic-polyfill-rustsec-2023-0089](1.0.0/suppress-atomic-polyfill-rustsec-2023-0089.md) | Suppress `atomic-polyfill` unmaintained advisory — upstream-blocked via `postcard → heapless ^0.7.0` chain; crate not compiled into binary on any supported target; risk negligible; re-evaluate on each `postcard` release |
 
+### Windows compatibility
+
+| Decision | Summary |
+| -------- | ------- |
+| [rebuild-close-handles-before-rename](1.0.0/rebuild-close-handles-before-rename.md) | Drop `tantivy_index`/`index_reader` from `inner` before live→backup rename — Windows denies rename on directories with open mmap handles (os error 5); reopen fresh after rename instead of `reload_reader()`; `close()` escape hatch for tests that corrupt mmap'd files (os error 1224) |
+| [windows-compat-test-hygiene](1.0.0/windows-compat-test-hygiene.md) | Six cross-platform rules for tests: `#[cfg(unix)]` gating, `USERPROFILE` fallback, `Path::ends_with` for path suffix checks, canonicalize both sides for path equality, `encoding="utf-8"` on all subprocess/file I/O, no hardcoded `/tmp` in pytest config |
+
 ### Known gaps
 
 | Decision | Summary |
