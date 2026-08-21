@@ -381,10 +381,21 @@ impl SpaceIndexManager {
         }
 
         writer.commit()?;
-        // Drop writer and index before the rename — Windows refuses to rename a
-        // directory while file handles inside it are still open.
+        // Drop writer and local build index — Windows refuses to rename a directory
+        // while file handles inside it are still open.
         drop(writer);
         drop(index);
+
+        // Also close any live reader/index held in self.inner: it points at live_dir
+        // and would block the live→backup rename on Windows (os error 5).
+        {
+            let mut inner = self
+                .inner
+                .write()
+                .map_err(|_| anyhow::anyhow!("index lock poisoned"))?;
+            inner.tantivy_index = None;
+            inner.index_reader = None;
+        }
 
         // Atomic swap: live → prev, building → live.
         // Both dirs are under self.index_path — same filesystem, rename is atomic.
@@ -401,33 +412,59 @@ impl SpaceIndexManager {
         }
         std::fs::rename(&build_dir, &live_dir).context("failed to promote build dir to live")?;
 
-        // Activate new reader. On failure: roll back all renames and return error.
-        if let Err(e) = self.reload_reader() {
-            tracing::error!(
-                index_path = %self.index_path.display(),
-                error = %e,
-                "reload_reader failed after index swap — rolling back"
-            );
-            // Step 1: move broken new index out of live_dir back to build_dir.
-            // If this fails, live_dir still holds the broken index; in-process
-            // reader keeps serving the old data via its open file descriptors.
-            // On next process start, open() with recovery=Some(...) will auto-rebuild.
-            let r1 = std::fs::rename(&live_dir, &build_dir);
-            if let Err(e2) = &r1 {
-                tracing::error!(error = %e2, "rollback step 1 failed — live index broken on disk; restart will auto-rebuild");
+        // Reopen from the new live_dir. The old handles were dropped above, so
+        // reload_reader() would be a no-op; open fresh instead.
+        // Honor fail_next_reload so test-injected failures still trigger rollback.
+        let open_result = (|| -> Result<(Index, IndexReader)> {
+            if self
+                .fail_next_reload
+                .swap(false, std::sync::atomic::Ordering::AcqRel)
+            {
+                return Err(anyhow::anyhow!("injected reload_reader failure"));
             }
-            // Step 2: restore old index from backup. Only exists when there was a prior
-            // live_dir (not first build). If step 1 failed, live_dir is non-empty so
-            // this rename will also fail with ENOTEMPTY — both errors are logged.
-            if backup_dir.exists() {
-                let r2 = std::fs::rename(&backup_dir, &live_dir);
-                if let Err(e2) = &r2 {
-                    tracing::error!(error = %e2, "rollback step 2 failed — live index broken on disk; restart will auto-rebuild");
+            let dir = MmapDirectory::open(&live_dir)
+                .with_context(|| format!("failed to open new live dir: {}", live_dir.display()))?;
+            let idx = Index::open(dir).context("failed to open new live index")?;
+            let reader = idx
+                .reader_builder()
+                .reload_policy(tantivy::ReloadPolicy::Manual)
+                .try_into()
+                .context("failed to create reader for new live index")?;
+            Ok((idx, reader))
+        })();
+
+        match open_result {
+            Ok((idx, reader)) => {
+                let mut inner = self
+                    .inner
+                    .write()
+                    .map_err(|_| anyhow::anyhow!("index lock poisoned"))?;
+                inner.tantivy_index = Some(idx);
+                inner.index_reader = Some(reader);
+                inner.generation.fetch_add(1, Ordering::AcqRel);
+            }
+            Err(e) => {
+                tracing::error!(
+                    index_path = %self.index_path.display(),
+                    error = %e,
+                    "reopen failed after index swap — rolling back"
+                );
+                // Step 1: move broken new index out of live_dir back to build_dir.
+                let r1 = std::fs::rename(&live_dir, &build_dir);
+                if let Err(e2) = &r1 {
+                    tracing::error!(error = %e2, "rollback step 1 failed — live index broken on disk; restart will auto-rebuild");
                 }
+                // Step 2: restore old index from backup.
+                if backup_dir.exists() {
+                    let r2 = std::fs::rename(&backup_dir, &live_dir);
+                    if let Err(e2) = &r2 {
+                        tracing::error!(error = %e2, "rollback step 2 failed — live index broken on disk; restart will auto-rebuild");
+                    }
+                }
+                let _ = std::fs::remove_dir_all(&build_dir);
+                return Err(e)
+                    .context("reopen failed after index rebuild; index may be unavailable");
             }
-            let _ = std::fs::remove_dir_all(&build_dir);
-            return Err(e)
-                .context("reload_reader failed after index rebuild; index may be unavailable");
         }
 
         let _ = std::fs::remove_dir_all(&backup_dir);
