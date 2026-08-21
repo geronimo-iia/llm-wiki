@@ -260,6 +260,7 @@ fn set_default_wiki_errors_on_unregistered() {
 }
 
 #[test]
+#[cfg(unix)]
 fn ops_set_default_rolls_back_in_memory_on_disk_failure() {
     use llm_wiki_engine::engine::WikiEngine;
     use llm_wiki_engine::ops;
