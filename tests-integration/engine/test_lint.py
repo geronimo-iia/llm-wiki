@@ -108,3 +108,26 @@ def test_lint_cross_wiki_body_link_no_false_positive(wiki_env):
     assert not any("wiki://notes" in m for m in bl_msgs), (
         "cross-wiki body link to a mounted wiki must not trigger broken-link"
     )
+
+
+def test_lint_stale_rule_fires(wiki_env):
+    page = wiki_env.research_wiki / "concepts" / "stale-active-page.md"
+    page.parent.mkdir(parents=True, exist_ok=True)
+    page.write_text(
+        "---\n"
+        "title: Stale Active Page\n"
+        "type: concept\n"
+        "status: active\n"
+        "confidence: 0.1\n"
+        'last_updated: "2020-01-01"\n'
+        "---\n\n"
+        "This page is intentionally stale.\n"
+    )
+    wiki_env.run("index", "rebuild", "--wiki", "research")
+    result = wiki_env.run("lint", "--rules", "stale", "--format", "json", check=False)
+    data = json.loads(result.stdout)
+    stale_findings = [f for f in data["findings"] if f["rule"] == "stale"]
+    assert stale_findings, "stale rule should produce at least one finding"
+    assert any(
+        "stale-active-page" in f["slug"] for f in stale_findings
+    ), f"expected finding for stale-active-page, got: {stale_findings}"
