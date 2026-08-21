@@ -45,6 +45,31 @@ community_suggestions_limit = 3   # more cross-cluster suggestions per call
 The Louvain phase-1 pass is capped at `n × 10` iterations to prevent oscillation
 on small or cyclic graphs. This has no effect on convergence for normal wikis.
 
+## Machine-readable output (format: json)
+
+`wiki_graph(format: "json")` returns the full graph as structured JSON — all nodes, edges, aggregate
+metrics, and Louvain community assignments. Use it when Mermaid/DOT rendering is not the goal
+and downstream processing, custom visualisers, or `jq` pipelines are needed.
+
+```bash
+# Dump full graph as JSON and extract hub slugs
+llm-wiki graph --format json | jq '[.nodes[] | select(.type == "concept") | .slug]'
+
+# Count edges per relation type
+llm-wiki graph --format json | jq '.edges | group_by(.relation) | map({relation: .[0].relation, count: length})'
+
+# Find all external cross-wiki placeholder nodes
+llm-wiki graph --format json | jq '[.nodes[] | select(.external == true) | .slug]'
+```
+
+The `communities` field maps each slug to a Louvain community id (integer). It is `null` when the
+graph is below `min_nodes_for_communities`. Use it to identify which pages cluster together without
+running a separate stats call:
+
+```bash
+llm-wiki graph --format json | jq '.communities | to_entries | group_by(.value) | map({community: .[0].value, members: map(.key)})'
+```
+
 ## Structural health
 
 Three `wiki_lint` rules report structural fragility:

@@ -66,6 +66,55 @@ digraph wiki {
 }
 ```
 
+JSON (`--format json`):
+
+Structured output with all nodes, edges, aggregate metrics, and Louvain community assignments.
+Use when programmatic processing is needed — `jq` pipelines, custom visualisers, or downstream analysis.
+
+```json
+{
+  "nodes": [
+    { "slug": "concepts/moe",         "title": "MoE",               "type": "concept", "external": false },
+    { "slug": "sources/switch",       "title": "Switch Transformer", "type": "paper",   "external": false },
+    { "slug": "concepts/scaling",     "title": "Scaling Laws",       "type": "concept", "external": false }
+  ],
+  "edges": [
+    { "from": "sources/switch",   "to": "concepts/moe",     "relation": "informs"    },
+    { "from": "concepts/moe",     "to": "concepts/scaling", "relation": "depends-on" }
+  ],
+  "metrics": {
+    "nodes": 3,
+    "edges": 2,
+    "orphans": 0,
+    "avg_connections": 1.33,
+    "density": 0.33
+  },
+  "communities": {
+    "concepts/moe":     0,
+    "sources/switch":   0,
+    "concepts/scaling": 1
+  }
+}
+```
+
+Field reference:
+
+| Field | Type | Description |
+|---|---|---|
+| `nodes[].slug` | string | Page slug |
+| `nodes[].title` | string | Display title |
+| `nodes[].type` | string | Frontmatter type |
+| `nodes[].external` | bool | `true` for cross-wiki placeholder nodes not in the local index |
+| `edges[].from` | string | Source slug |
+| `edges[].to` | string | Target slug |
+| `edges[].relation` | string | Relation label |
+| `metrics.nodes` | int | Total node count |
+| `metrics.edges` | int | Total edge count |
+| `metrics.orphans` | int | Nodes with no edges |
+| `metrics.avg_connections` | float | Mean edge count per node (edges × 2 / nodes) |
+| `metrics.density` | float | edges / (nodes × (nodes − 1)) |
+| `communities` | object\|null | slug → Louvain community id; `null` when graph is too small |
+
 LLM (`--format llms`):
 
 Natural language description of graph structure — directly readable
