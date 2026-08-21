@@ -161,14 +161,26 @@ fn migrate_recognises_all_pre100_archived_files_as_stock() {
     let schemas_dir = wiki_path.join("schemas");
     std::fs::create_dir_all(&schemas_dir).unwrap();
 
-    std::fs::write(schemas_dir.join("base.json"), default_schemas::ARCHIVE_PRE100_BASE).unwrap();
+    std::fs::write(
+        schemas_dir.join("base.json"),
+        default_schemas::ARCHIVE_PRE100_BASE,
+    )
+    .unwrap();
     std::fs::write(
         schemas_dir.join("concept.json"),
         default_schemas::ARCHIVE_PRE100_CONCEPT,
     )
     .unwrap();
-    std::fs::write(schemas_dir.join("doc.json"), default_schemas::ARCHIVE_PRE100_DOC).unwrap();
-    std::fs::write(schemas_dir.join("paper.json"), default_schemas::ARCHIVE_PRE100_PAPER).unwrap();
+    std::fs::write(
+        schemas_dir.join("doc.json"),
+        default_schemas::ARCHIVE_PRE100_DOC,
+    )
+    .unwrap();
+    std::fs::write(
+        schemas_dir.join("paper.json"),
+        default_schemas::ARCHIVE_PRE100_PAPER,
+    )
+    .unwrap();
     std::fs::write(
         schemas_dir.join("section.json"),
         default_schemas::ARCHIVE_PRE100_SECTION,
@@ -188,9 +200,16 @@ fn migrate_recognises_all_pre100_archived_files_as_stock() {
     let report = ops::wiki_migrate(&global, Some("mywiki"), false).unwrap();
 
     let w = &report.wikis[0];
-    assert_eq!(w.deleted.len(), 5, "all 5 pre-1.0.0 archived files must be deleted");
+    assert_eq!(
+        w.deleted.len(),
+        5,
+        "all 5 pre-1.0.0 archived files must be deleted"
+    );
     assert!(w.kept_custom.is_empty());
-    assert!(!w.already_clean, "wiki had 5 stock files — was not already clean before migration");
+    assert!(
+        !w.already_clean,
+        "wiki had 5 stock files — was not already clean before migration"
+    );
 }
 
 #[test]
