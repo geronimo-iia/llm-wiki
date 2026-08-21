@@ -68,7 +68,7 @@ def test_spaces_register_creates_wiki_toml(wiki_env):
         "content",
         str(register_dir),
     )
-    toml_text = (register_dir / "wiki.toml").read_text()
+    toml_text = (register_dir / "wiki.toml").read_text(encoding="utf-8")
     assert "register-test2" in toml_text
     assert "wiki_root" in toml_text
 
