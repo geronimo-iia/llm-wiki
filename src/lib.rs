@@ -11,9 +11,15 @@ pub use engine::WikiEngine;
 #[doc(inline)]
 pub use graph::WikiGraph;
 #[doc(inline)]
+pub use index_manager::IndexReport;
+#[doc(inline)]
 pub use ingest::IngestReport;
 #[doc(inline)]
 pub use search::SearchResult;
+// IndexStatus and SpaceTypeRegistry are NOT re-exported here: IndexStatus is only
+// returned by SpaceIndexManager::status() (not a WikiEngine method), and
+// SpaceTypeRegistry is only reachable via EngineState::spaces deep path. Both are
+// accessible via their module paths for embedders who need them.
 
 /// ACP (Agent Client Protocol) transport and session handling.
 pub mod acp;
