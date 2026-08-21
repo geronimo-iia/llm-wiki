@@ -553,10 +553,10 @@ fn validate_wiki_root_rejects_missing_directory() {
 #[test]
 fn validate_wiki_root_rejects_traversal_via_symlink() {
     let outer = tempfile::tempdir().unwrap();
-    let inner = tempfile::tempdir().unwrap();
-    let link = outer.path().join("escape");
+    let _inner = tempfile::tempdir().unwrap();
+    let _link = outer.path().join("escape");
     #[cfg(unix)]
-    std::os::unix::fs::symlink(inner.path(), &link).unwrap();
+    std::os::unix::fs::symlink(_inner.path(), &_link).unwrap();
     #[cfg(unix)]
     {
         let err = llm_wiki_engine::spaces::validate_wiki_root(outer.path(), "escape").unwrap_err();
