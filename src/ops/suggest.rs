@@ -73,11 +73,18 @@ pub fn suggest(
             &wiki_name,
             is,
         )?;
+        let result_slugs: Vec<&str> = results
+            .results
+            .iter()
+            .filter(|r| r.slug != slug.as_str() && !existing_links.contains(r.slug.as_str()))
+            .map(|r| r.slug.as_str())
+            .collect();
+        let docs = bulk_fetch_docs(&searcher, is, &result_slugs)?;
         for r in &results.results {
             if r.slug == slug.as_str() || existing_links.contains(r.slug.as_str()) {
                 continue;
             }
-            let doc = find_doc_by_slug(&searcher, is, r.slug.as_str())?;
+            let doc = docs.get(r.slug.as_str()).cloned().unwrap_or_default();
             let shared: usize = doc.tags.iter().filter(|t| input_tags.contains(*t)).count();
             if shared == 0 {
                 continue;
@@ -180,6 +187,13 @@ pub fn suggest(
             .map(|r| r.score)
             .unwrap_or(1.0)
             .max(0.001);
+        let bm25_slugs: Vec<&str> = results
+            .results
+            .iter()
+            .filter(|r| r.slug != slug.as_str() && !existing_links.contains(r.slug.as_str()))
+            .map(|r| r.slug.as_str())
+            .collect();
+        let bm25_docs = bulk_fetch_docs(&searcher, is, &bm25_slugs)?;
         for r in &results.results {
             if r.slug == slug.as_str() || existing_links.contains(r.slug.as_str()) {
                 continue;
@@ -195,11 +209,17 @@ pub fn suggest(
                     }
                 })
                 .or_insert_with(|| {
-                    let doc = find_doc_by_slug(&searcher, is, r.slug.as_str()).unwrap_or_default();
+                    let page_type = bm25_docs
+                        .get(r.slug.as_str())
+                        .map(|d| d.page_type.clone())
+                        .unwrap_or_else(|| {
+                            tracing::warn!(slug = %r.slug, "suggest BM25: doc not found in bulk fetch");
+                            String::new()
+                        });
                     CandidateScore {
                         slug: r.slug.to_string(),
                         title: r.title.clone(),
-                        page_type: doc.page_type,
+                        page_type,
                         score,
                         reason,
                     }
@@ -230,17 +250,19 @@ pub fn suggest(
             .map(|s| s.as_str())
             .collect();
         peers.sort_unstable();
-        for (added, node_slug) in peers.into_iter().enumerate() {
-            if added >= resolved.graph.community_suggestions_limit {
-                break;
-            }
-            let doc = find_doc_by_slug(&searcher, is, node_slug)?;
+        let capped_peers: Vec<&str> = peers
+            .into_iter()
+            .take(resolved.graph.community_suggestions_limit)
+            .collect();
+        let peer_docs = bulk_fetch_docs(&searcher, is, &capped_peers)?;
+        for node_slug in &capped_peers {
+            let doc = peer_docs.get(*node_slug).cloned().unwrap_or_default();
             candidates.insert(
                 node_slug.to_string(),
                 CandidateScore {
                     slug: node_slug.to_string(),
-                    title: doc.title.clone(),
-                    page_type: doc.page_type.clone(),
+                    title: doc.title,
+                    page_type: doc.page_type,
                     score: resolved.suggest.community_peer_score,
                     reason: "same knowledge cluster".to_string(),
                 },
@@ -280,7 +302,7 @@ pub fn suggest(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct DocInfo {
     title: String,
     summary: String,
@@ -297,26 +319,35 @@ struct CandidateScore {
     reason: String,
 }
 
-fn find_doc_by_slug(
+fn bulk_fetch_docs(
     searcher: &tantivy::Searcher,
     is: &crate::index_schema::IndexSchema,
-    slug: &str,
-) -> Result<DocInfo> {
+    slugs: &[&str],
+) -> Result<HashMap<String, DocInfo>> {
+    if slugs.is_empty() {
+        return Ok(HashMap::new());
+    }
     let f_slug = is.field("slug");
     let f_title = is.field("title");
     let f_type = is.field("type");
+    let terms: Vec<tantivy::Term> = slugs
+        .iter()
+        .map(|s| tantivy::Term::from_field_text(f_slug, s))
+        .collect();
+    let query = tantivy::query::TermSetQuery::new(terms);
+    let addrs = searcher.search(&query, &tantivy::collector::DocSetCollector)?;
 
-    let query = tantivy::query::TermQuery::new(
-        tantivy::Term::from_field_text(f_slug, slug),
-        tantivy::schema::IndexRecordOption::Basic,
-    );
-    let results = searcher.search(
-        &query,
-        &tantivy::collector::TopDocs::with_limit(1).order_by_score(),
-    )?;
-
-    if let Some((_score, addr)) = results.first() {
-        let doc: tantivy::TantivyDocument = searcher.doc(*addr)?;
+    let mut map = HashMap::with_capacity(addrs.len());
+    for addr in addrs {
+        let doc: tantivy::TantivyDocument = searcher.doc(addr)?;
+        let slug_val = doc
+            .get_first(f_slug)
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        if slug_val.is_empty() {
+            continue;
+        }
         let title = doc
             .get_first(f_title)
             .and_then(|v| v.as_str())
@@ -341,8 +372,6 @@ fn find_doc_by_slug(
                     .collect()
             })
             .unwrap_or_default();
-
-        // Collect existing links from sources, concepts, body_links
         let mut links = Vec::new();
         for field_name in &["sources", "concepts", "body_links", "document_refs"] {
             if let Some(f) = is.try_field(field_name) {
@@ -353,17 +382,28 @@ fn find_doc_by_slug(
                 }
             }
         }
-
-        Ok(DocInfo {
-            title,
-            summary,
-            page_type,
-            tags,
-            links,
-        })
-    } else {
-        Ok(DocInfo::default())
+        map.insert(
+            slug_val,
+            DocInfo {
+                title,
+                summary,
+                page_type,
+                tags,
+                links,
+            },
+        );
     }
+    Ok(map)
+}
+
+fn find_doc_by_slug(
+    searcher: &tantivy::Searcher,
+    is: &crate::index_schema::IndexSchema,
+    slug: &str,
+) -> Result<DocInfo> {
+    Ok(bulk_fetch_docs(searcher, is, &[slug])?
+        .remove(slug)
+        .unwrap_or_default())
 }
 
 fn suggest_field(
