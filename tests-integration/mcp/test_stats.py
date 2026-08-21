@@ -10,7 +10,7 @@ async def test_stats_returns_wiki_name(mcp_env):
 
 async def test_stats_json_required_keys(mcp_env):
     await mcp_env.rebuild()
-    data = await mcp_env.json("wiki_stats", {"format": "json"})
+    data = await mcp_env.json("wiki_stats", {"detail": "full"})
     assert isinstance(data, dict)
     for key in ("pages", "orphans"):
         assert key in data, f"missing key: {key}"
@@ -20,19 +20,19 @@ async def test_stats_json_required_keys(mcp_env):
 
 async def test_stats_json_pages_gt_0(mcp_env):
     await mcp_env.rebuild()
-    data = await mcp_env.json("wiki_stats", {"format": "json"})
+    data = await mcp_env.json("wiki_stats", {"detail": "full"})
     assert data["pages"] > 0
 
 
 async def test_stats_json_orphans_gte_0(mcp_env):
     await mcp_env.rebuild()
-    data = await mcp_env.json("wiki_stats", {"format": "json"})
+    data = await mcp_env.json("wiki_stats", {"detail": "full"})
     assert data["orphans"] >= 0
 
 
 async def test_stats_communities_present(mcp_env):
     await mcp_env.rebuild()
-    data = await mcp_env.json("wiki_stats", {"format": "json"})
+    data = await mcp_env.json("wiki_stats", {"detail": "full"})
     assert "communities" in data
     comm = data["communities"]
     assert isinstance(comm, dict)
@@ -42,23 +42,22 @@ async def test_stats_communities_present(mcp_env):
 
 async def test_stats_diameter_field(mcp_env):
     await mcp_env.rebuild()
-    data = await mcp_env.json("wiki_stats", {"format": "json"})
+    data = await mcp_env.json("wiki_stats", {"detail": "full"})
     assert "diameter" in data
     assert data["diameter"] is None or isinstance(data["diameter"], (int, float))
 
 
-async def test_stats_center_is_array(mcp_env):
+async def test_stats_center_count_in_summary(mcp_env):
     await mcp_env.rebuild()
-    data = await mcp_env.json("wiki_stats", {"format": "json"})
-    assert "center" in data
-    assert isinstance(data["center"], list)
-    for slug in data["center"]:
-        assert isinstance(slug, str)
+    data = await mcp_env.json("wiki_stats")
+    assert "center_count" in data, "summary mode must include center_count"
+    assert isinstance(data["center_count"], int)
+    assert data["center_count"] >= 0
 
 
 async def test_stats_staleness_shape(mcp_env):
     await mcp_env.rebuild()
-    data = await mcp_env.json("wiki_stats", {"format": "json"})
+    data = await mcp_env.json("wiki_stats", {"detail": "full"})
     assert "staleness" in data, f"expected 'staleness' key in stats output, got keys: {list(data)}"
     s = data["staleness"]
     for bucket in ("fresh", "stale_7d", "stale_30d"):
