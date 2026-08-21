@@ -295,7 +295,10 @@ impl SpaceIndexManager {
         is: &IndexSchema,
         registry: &SpaceTypeRegistry,
     ) -> Result<IndexReport> {
-        let _rebuild_guard = self.rebuild_lock.lock().unwrap_or_else(|e| e.into_inner());
+        let _rebuild_guard = self.rebuild_lock.lock().unwrap_or_else(|e| {
+            tracing::warn!("rebuild lock poisoned — previous rebuild may have panicked; recovering");
+            e.into_inner()
+        });
 
         let start = std::time::Instant::now();
 
