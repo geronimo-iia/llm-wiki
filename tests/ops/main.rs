@@ -2,6 +2,7 @@ mod helpers;
 
 mod config;
 mod content;
+mod migrate;
 mod export;
 mod graph;
 mod history;

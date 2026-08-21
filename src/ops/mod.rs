@@ -1,6 +1,7 @@
 #![allow(unreachable_pub)]
 mod config;
 mod content;
+mod migrate;
 /// Wiki export operations — llms.txt, llms-full, and JSON export formats.
 pub mod export;
 mod graph;
@@ -19,6 +20,7 @@ mod suggest;
 
 pub use config::*;
 pub use content::*;
+pub use migrate::*;
 pub use export::*;
 pub use graph::*;
 pub use history::*;
