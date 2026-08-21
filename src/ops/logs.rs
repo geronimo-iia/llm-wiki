@@ -59,6 +59,19 @@ pub fn logs_list(config_path: &Path) -> Result<Vec<String>> {
     Ok(files)
 }
 
+fn latest_log_file(log_dir: &Path) -> Result<PathBuf> {
+    let mut entries: Vec<_> = fs::read_dir(log_dir)?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
+        .collect();
+
+    entries.sort_by_key(|e| e.file_name());
+    let entry = entries
+        .last()
+        .ok_or_else(|| anyhow::anyhow!("no log files in {}", log_dir.display()))?;
+    Ok(entry.path())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -121,17 +134,4 @@ mod tests {
         let tail = logs_tail(&cfg, 3).unwrap();
         assert_eq!(tail, "line 8\nline 9\nline 10");
     }
-}
-
-fn latest_log_file(log_dir: &Path) -> Result<PathBuf> {
-    let mut entries: Vec<_> = fs::read_dir(log_dir)?
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
-        .collect();
-
-    entries.sort_by_key(|e| e.file_name());
-    let entry = entries
-        .last()
-        .ok_or_else(|| anyhow::anyhow!("no log files in {}", log_dir.display()))?;
-    Ok(entry.path())
 }

@@ -408,20 +408,6 @@ fn find_doc_by_slug(
         .unwrap_or_default())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::type_registry::SpaceTypeRegistry;
-
-    #[test]
-    fn suggest_field_falls_back_to_wikilink_for_unknown_types() {
-        let registry = SpaceTypeRegistry::default();
-        // Types not present in any embedded schema have no edges → fallback
-        assert_eq!(suggest_field("ghost", "phantom", &registry), "[[wikilink]]");
-        assert_eq!(suggest_field("", "", &registry), "[[wikilink]]");
-    }
-}
-
 fn suggest_field(
     page_type: &str,
     candidate_type: &str,
@@ -451,4 +437,18 @@ fn suggest_field(
     }
 
     "[[wikilink]]".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::type_registry::SpaceTypeRegistry;
+
+    #[test]
+    fn suggest_field_falls_back_to_wikilink_for_unknown_types() {
+        let registry = SpaceTypeRegistry::default();
+        // Types not present in any embedded schema have no edges → fallback
+        assert_eq!(suggest_field("ghost", "phantom", &registry), "[[wikilink]]");
+        assert_eq!(suggest_field("", "", &registry), "[[wikilink]]");
+    }
 }

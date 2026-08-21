@@ -317,6 +317,30 @@ impl SegmentCollector for StalenessSegmentCollector {
     }
 }
 
+fn compute_staleness(
+    searcher: &tantivy::Searcher,
+    is: &crate::index_schema::IndexSchema,
+) -> Result<StalenessBuckets> {
+    let f_name = match is.try_field("last_updated") {
+        Some(_) => "last_updated",
+        None => {
+            return Ok(StalenessBuckets {
+                fresh: 0,
+                stale_7d: 0,
+                stale_30d: 0,
+            });
+        }
+    };
+
+    let today = chrono::Utc::now().date_naive();
+    let collector = StalenessCollector {
+        seven_days_ago: today - chrono::Duration::days(7),
+        thirty_days_ago: today - chrono::Duration::days(30),
+        field_name: f_name.to_string(),
+    };
+    Ok(searcher.search(&tantivy::query::AllQuery, &collector)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -406,28 +430,4 @@ mod tests {
         assert_eq!(merged.stale_7d, 0);
         assert_eq!(merged.stale_30d, 8);
     }
-}
-
-fn compute_staleness(
-    searcher: &tantivy::Searcher,
-    is: &crate::index_schema::IndexSchema,
-) -> Result<StalenessBuckets> {
-    let f_name = match is.try_field("last_updated") {
-        Some(_) => "last_updated",
-        None => {
-            return Ok(StalenessBuckets {
-                fresh: 0,
-                stale_7d: 0,
-                stale_30d: 0,
-            });
-        }
-    };
-
-    let today = chrono::Utc::now().date_naive();
-    let collector = StalenessCollector {
-        seven_days_ago: today - chrono::Duration::days(7),
-        thirty_days_ago: today - chrono::Duration::days(30),
-        field_name: f_name.to_string(),
-    };
-    Ok(searcher.search(&tantivy::query::AllQuery, &collector)?)
 }

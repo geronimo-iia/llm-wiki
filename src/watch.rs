@@ -256,6 +256,89 @@ fn is_schema_path(path: &Path) -> bool {
     s.contains("/schemas/") && path.extension().and_then(|e| e.to_str()) == Some("json")
 }
 
+fn start_notify_watcher(
+    engine: &WikiEngine,
+    tx: mpsc::Sender<(String, PathBuf)>,
+    cancel: CancellationToken,
+) -> Result<RecommendedWatcher> {
+    let state = engine
+        .state
+        .read()
+        .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+
+    // Build a map of watched paths to wiki names
+    let mut watch_dirs: Vec<(String, PathBuf, PathBuf)> = Vec::new();
+    for (name, space) in &state.spaces {
+        watch_dirs.push((
+            name.clone(),
+            space.wiki_root.clone(),
+            space.repo_root.clone(),
+        ));
+    }
+    drop(state);
+
+    let tx_clone = tx.clone();
+    let watch_dirs_clone = watch_dirs.clone();
+
+    let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
+        if cancel.is_cancelled() {
+            return;
+        }
+        let event = match res {
+            Ok(ev) => ev,
+            Err(e) => {
+                tracing::warn!(error = %e, "filesystem watcher error");
+                return;
+            }
+        };
+
+        // Only care about create, modify, rename
+        match event.kind {
+            EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {}
+            _ => return,
+        }
+
+        for path in &event.paths {
+            // Find which wiki this path belongs to
+            for (wiki_name, wiki_root, repo_root) in &watch_dirs_clone {
+                if path.starts_with(wiki_root)
+                    && path.extension().and_then(|e| e.to_str()) == Some("md")
+                {
+                    if tx_clone
+                        .try_send((wiki_name.clone(), path.clone()))
+                        .is_err()
+                    {
+                        tracing::warn!(wiki = %wiki_name, "watcher update channel full; event dropped");
+                    }
+                    break;
+                }
+                if path.starts_with(repo_root.join("schemas")) && is_schema_path(path) {
+                    if tx_clone
+                        .try_send((wiki_name.clone(), path.clone()))
+                        .is_err()
+                    {
+                        tracing::warn!(wiki = %wiki_name, "watcher update channel full; event dropped");
+                    }
+                    break;
+                }
+            }
+        }
+    })?;
+
+    // Watch wiki/ and schemas/ for each mounted wiki
+    for (_, wiki_root, repo_root) in &watch_dirs {
+        if wiki_root.exists() {
+            watcher.watch(wiki_root, RecursiveMode::Recursive)?;
+        }
+        let schemas_dir = repo_root.join("schemas");
+        if schemas_dir.exists() {
+            watcher.watch(&schemas_dir, RecursiveMode::NonRecursive)?;
+        }
+    }
+
+    Ok(watcher)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -338,87 +421,4 @@ mod tests {
             "second swap must return true — rebuild should be skipped"
         );
     }
-}
-
-fn start_notify_watcher(
-    engine: &WikiEngine,
-    tx: mpsc::Sender<(String, PathBuf)>,
-    cancel: CancellationToken,
-) -> Result<RecommendedWatcher> {
-    let state = engine
-        .state
-        .read()
-        .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-
-    // Build a map of watched paths to wiki names
-    let mut watch_dirs: Vec<(String, PathBuf, PathBuf)> = Vec::new();
-    for (name, space) in &state.spaces {
-        watch_dirs.push((
-            name.clone(),
-            space.wiki_root.clone(),
-            space.repo_root.clone(),
-        ));
-    }
-    drop(state);
-
-    let tx_clone = tx.clone();
-    let watch_dirs_clone = watch_dirs.clone();
-
-    let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
-        if cancel.is_cancelled() {
-            return;
-        }
-        let event = match res {
-            Ok(ev) => ev,
-            Err(e) => {
-                tracing::warn!(error = %e, "filesystem watcher error");
-                return;
-            }
-        };
-
-        // Only care about create, modify, rename
-        match event.kind {
-            EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {}
-            _ => return,
-        }
-
-        for path in &event.paths {
-            // Find which wiki this path belongs to
-            for (wiki_name, wiki_root, repo_root) in &watch_dirs_clone {
-                if path.starts_with(wiki_root)
-                    && path.extension().and_then(|e| e.to_str()) == Some("md")
-                {
-                    if tx_clone
-                        .try_send((wiki_name.clone(), path.clone()))
-                        .is_err()
-                    {
-                        tracing::warn!(wiki = %wiki_name, "watcher update channel full; event dropped");
-                    }
-                    break;
-                }
-                if path.starts_with(repo_root.join("schemas")) && is_schema_path(path) {
-                    if tx_clone
-                        .try_send((wiki_name.clone(), path.clone()))
-                        .is_err()
-                    {
-                        tracing::warn!(wiki = %wiki_name, "watcher update channel full; event dropped");
-                    }
-                    break;
-                }
-            }
-        }
-    })?;
-
-    // Watch wiki/ and schemas/ for each mounted wiki
-    for (_, wiki_root, repo_root) in &watch_dirs {
-        if wiki_root.exists() {
-            watcher.watch(wiki_root, RecursiveMode::Recursive)?;
-        }
-        let schemas_dir = repo_root.join("schemas");
-        if schemas_dir.exists() {
-            watcher.watch(&schemas_dir, RecursiveMode::NonRecursive)?;
-        }
-    }
-
-    Ok(watcher)
 }
