@@ -484,12 +484,7 @@ fn rule_missing_fields(
             registry
                 .required_fields(&r.page_type)
                 .iter()
-                .filter(|field| {
-                    !r.fields_present
-                        .get(*field)
-                        .copied()
-                        .unwrap_or(true)
-                })
+                .filter(|field| !r.fields_present.get(*field).copied().unwrap_or(true))
                 .map(|field| LintFinding {
                     path: slug_path(&r.slug, wiki_root),
                     slug: r.slug.clone(),
