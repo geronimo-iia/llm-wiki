@@ -136,6 +136,12 @@ impl NormalizedSlug {
     /// the normalization pass — use only when re-hydrating a slug that was
     /// previously stored in a validated context (e.g. the Tantivy index).
     /// For internal crate use only — bypasses the normalization step.
+    ///
+    /// The `debug_assert!` below is intentionally elided in release builds.
+    /// All three call sites read from the Tantivy index, which only ever stores
+    /// values written via `Slug::normalize()`. Promoting to a hard `assert!`
+    /// would panic on every search result for any index field that legitimately
+    /// stores mixed-case text, so the check is debug-only.
     pub(crate) fn from_normalized(s: String) -> Self {
         debug_assert!(
             s == s.to_lowercase(),
