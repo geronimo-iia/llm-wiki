@@ -80,7 +80,10 @@ pub fn create(
         std::fs::create_dir_all(path)?;
         created = true;
     }
-    let path = strip_verbatim_prefix(path.canonicalize().unwrap_or_else(|_| path.to_path_buf()));
+    let path = strip_verbatim_prefix(path.canonicalize().unwrap_or_else(|e| {
+        tracing::warn!(path = %path.display(), error = %e, "canonicalize failed, using raw path");
+        path.to_path_buf()
+    }));
     let wiki_root = wiki_root.unwrap_or("wiki");
     let mut committed = false;
 
@@ -165,7 +168,10 @@ pub fn register_existing(
     if !path.exists() {
         bail!("path \"{}\" does not exist", path.display());
     }
-    let path = strip_verbatim_prefix(path.canonicalize().unwrap_or_else(|_| path.to_path_buf()));
+    let path = strip_verbatim_prefix(path.canonicalize().unwrap_or_else(|e| {
+        tracing::warn!(path = %path.display(), error = %e, "canonicalize failed, using raw path");
+        path.to_path_buf()
+    }));
 
     // Read existing wiki.toml wiki_root if present
     let existing_toml_root: Option<String> = {
