@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`wiki_content_commit` slug validation** — comma-split slugs are now validated via `Slug::try_from` before reaching the ops layer; invalid slugs (path traversal, hidden components, etc.) return an early error.
 
 ## [1.0.0] — 2026-08-19
 
