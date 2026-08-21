@@ -657,7 +657,9 @@ fn default_log_path() -> String {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_else(|_| {
-            tracing::warn!("HOME/USERPROFILE not set; falling back to current directory for log path");
+            tracing::warn!(
+                "HOME/USERPROFILE not set; falling back to current directory for log path"
+            );
             ".".into()
         });
     std::path::PathBuf::from(home)
