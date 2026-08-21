@@ -12,8 +12,6 @@ Add a `wiki migrate` command backed by a SHA manifest (`schemas/manifest.json`,
 embedded in the binary) to clean up stock schema copies from existing wikis
 without touching user customizations.
 
-Full implementation spec:
-[docs/improvements/design-schema-overlay-migration.md](../../improvements/design-schema-overlay-migration.md).
 
 ## Context
 
