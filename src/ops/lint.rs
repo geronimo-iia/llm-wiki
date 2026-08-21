@@ -484,10 +484,9 @@ fn rule_missing_fields(
             registry
                 .required_fields(&r.page_type)
                 .iter()
-                .cloned()
                 .filter(|field| {
                     !r.fields_present
-                        .get(field.as_str())
+                        .get(*field)
                         .copied()
                         .unwrap_or(true)
                 })
