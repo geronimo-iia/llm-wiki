@@ -381,6 +381,10 @@ impl SpaceIndexManager {
         }
 
         writer.commit()?;
+        // Drop writer and index before the rename — Windows refuses to rename a
+        // directory while file handles inside it are still open.
+        drop(writer);
+        drop(index);
 
         // Atomic swap: live → prev, building → live.
         // Both dirs are under self.index_path — same filesystem, rename is atomic.
