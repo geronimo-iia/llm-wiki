@@ -263,3 +263,16 @@ fn content_write_accepts_content_within_limit() {
         );
     }
 }
+
+#[test]
+fn content_commit_rejects_invalid_slugs() {
+    let (server, _dir) = make_server();
+    let args = str_arg("slugs", "../evil,foo");
+    let result = handlers::handle_content_commit(&server, &args);
+    assert!(result.is_err());
+    let msg = result.unwrap_err();
+    assert!(
+        msg.contains("path traversal") || msg.contains("cannot contain"),
+        "expected slug validation error, got: {msg}"
+    );
+}

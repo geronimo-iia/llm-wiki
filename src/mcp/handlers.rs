@@ -4,7 +4,7 @@ use rmcp::model::ContentBlock as Content;
 use serde_json::{Map, Value};
 
 use crate::ops;
-use crate::slug::{ReadTarget, WikiUri, resolve_read_target};
+use crate::slug::{ReadTarget, Slug, WikiUri, resolve_read_target};
 
 use super::McpServer;
 use super::helpers::*;
@@ -299,13 +299,19 @@ pub fn handle_resolve(server: &McpServer, args: &Map<String, Value>) -> ToolHand
 
 /// Handle `wiki_content_commit` — commit pending changes to git.
 pub fn handle_content_commit(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
+    let slugs: Vec<String> = match arg_str(args, "slugs") {
+        None => Vec::new(),
+        Some(s) => s
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| Slug::try_from(s).map(|_| s.to_string()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(redact_error)?,
+    };
     let engine = server.engine()?;
     let wiki_name = resolve_wiki_name(&engine, args)?;
     let message = arg_str(args, "message");
-
-    let slugs: Vec<String> = arg_str(args, "slugs")
-        .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
-        .unwrap_or_default();
     let all = slugs.is_empty();
 
     let hash = ops::content_commit(&engine, &wiki_name, &slugs, all, message.as_deref())
