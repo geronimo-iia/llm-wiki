@@ -2024,4 +2024,36 @@ mod tests {
         let sub = subgraph(&g, "root", 0);
         assert_eq!(sub.node_count(), 1);
     }
+
+    #[test]
+    fn compute_metrics_empty_graph_all_zeros() {
+        let g = WikiGraph::new();
+        let m = compute_metrics(&g);
+        assert_eq!(m.nodes, 0);
+        assert_eq!(m.edges, 0);
+        assert_eq!(m.orphans, 0);
+        assert_eq!(m.avg_connections, 0.0);
+        assert_eq!(m.density, 0.0);
+    }
+
+    #[test]
+    fn compute_metrics_triangle_has_correct_values() {
+        // 3 nodes, 3 directed edges a→b, b→c, c→a — no orphans
+        let mut g = WikiGraph::new();
+        let a = g.add_node(make_node("a", "A", "note", false));
+        let b = g.add_node(make_node("b", "B", "note", false));
+        let c = g.add_node(make_node("c", "C", "note", false));
+        let edge = || LabeledEdge { relation: "links-to".to_string() };
+        g.add_edge(a, b, edge());
+        g.add_edge(b, c, edge());
+        g.add_edge(c, a, edge());
+        let m = compute_metrics(&g);
+        assert_eq!(m.nodes, 3);
+        assert_eq!(m.edges, 3);
+        assert_eq!(m.orphans, 0);
+        // avg_connections = edges*2 / nodes = 6/3 = 2.0
+        assert!((m.avg_connections - 2.0).abs() < 1e-9);
+        // density = edges / (nodes*(nodes-1)) = 3/6 = 0.5
+        assert!((m.density - 0.5).abs() < 1e-9);
+    }
 }
