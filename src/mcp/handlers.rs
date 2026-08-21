@@ -694,6 +694,16 @@ pub fn handle_info(server: &McpServer, _args: &Map<String, Value>) -> ToolHandle
     ok_text(serde_json::to_string_pretty(&info).map_err(redact_error)?)
 }
 
+pub fn handle_wiki_migrate(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
+    let wiki = arg_str(args, "wiki");
+    let dry_run = arg_bool(args, "dry_run");
+    let engine = server.engine()?;
+    let report = ops::wiki_migrate(&engine.config, wiki.as_deref(), dry_run)
+        .map_err(redact_error)?;
+    let s = serde_json::to_string_pretty(&report).map_err(redact_error)?;
+    ok_text(s)
+}
+
 #[cfg(test)]
 mod tests {
     use super::redact_error;

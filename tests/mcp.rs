@@ -15,9 +15,9 @@ fn make_server() -> (McpServer, tempfile::TempDir) {
 }
 
 #[test]
-fn tool_list_returns_24_tools() {
+fn tool_list_returns_25_tools() {
     let tools = tools::tool_list();
-    assert_eq!(tools.len(), 24);
+    assert_eq!(tools.len(), 25);
 }
 
 #[test]
@@ -48,6 +48,7 @@ fn tool_list_contains_expected_names() {
         "wiki_suggest",
         "wiki_export",
         "wiki_info",
+        "wiki_migrate",
     ];
     for name in &expected {
         assert!(names.contains(name), "missing tool: {name}");

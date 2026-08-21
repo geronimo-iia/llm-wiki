@@ -381,6 +381,20 @@ pub fn tool_list() -> Vec<Tool> {
             ),
             schema(json!({}), &[]),
         ),
+        Tool::new(
+            "wiki_migrate",
+            "Remove redundant stock schema copies from wiki directories. \
+             Stock schemas are detected by JSON equality against embedded defaults — \
+             customised files are never touched. Pass dry_run=true to preview. \
+             Pass wiki to target one space; omit to run against all registered wikis.",
+            schema(
+                json!({
+                    "wiki":    opt_str("Target wiki name (omit to run against all wikis)"),
+                    "dry_run": opt_bool("Report what would be deleted without modifying anything"),
+                }),
+                &[],
+            ),
+        ),
     ]
 }
 
@@ -426,6 +440,7 @@ pub fn call(server: &McpServer, name: &str, args: &Map<String, Value>) -> ToolRe
         "wiki_schema" => handlers::handle_schema(server, args),
         "wiki_export" => handlers::handle_export(server, args),
         "wiki_info" => handlers::handle_info(server, args),
+        "wiki_migrate" => handlers::handle_wiki_migrate(server, args),
         _ => Err(format!("unknown tool: {name}")),
     }));
     match result {
