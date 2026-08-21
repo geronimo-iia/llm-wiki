@@ -20,7 +20,10 @@ mod tests {
 
     #[test]
     fn history_result_serde_round_trip() {
-        let original = HistoryResult { slug: "concepts/foo".into(), entries: vec![] };
+        let original = HistoryResult {
+            slug: "concepts/foo".into(),
+            entries: vec![],
+        };
         let json = serde_json::to_string(&original).unwrap();
         let decoded: HistoryResult = serde_json::from_str(&json).unwrap();
         assert_eq!(decoded.slug, original.slug);

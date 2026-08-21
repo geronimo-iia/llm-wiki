@@ -266,7 +266,12 @@ mod tests {
     fn classify_event_markdown_goes_to_md_changes() {
         let mut md: HashSet<(String, PathBuf)> = HashSet::new();
         let mut schema: HashSet<String> = HashSet::new();
-        classify_event("mywiki", Path::new("/repo/wiki/concepts/foo.md"), &mut md, &mut schema);
+        classify_event(
+            "mywiki",
+            Path::new("/repo/wiki/concepts/foo.md"),
+            &mut md,
+            &mut schema,
+        );
         assert_eq!(md.len(), 1);
         assert!(schema.is_empty());
     }
@@ -275,7 +280,12 @@ mod tests {
     fn classify_event_schema_json_goes_to_schema_wikis() {
         let mut md: HashSet<(String, PathBuf)> = HashSet::new();
         let mut schema: HashSet<String> = HashSet::new();
-        classify_event("mywiki", Path::new("/repo/schemas/concept.json"), &mut md, &mut schema);
+        classify_event(
+            "mywiki",
+            Path::new("/repo/schemas/concept.json"),
+            &mut md,
+            &mut schema,
+        );
         assert!(md.is_empty());
         assert!(schema.contains("mywiki"));
     }
@@ -285,7 +295,12 @@ mod tests {
         let mut md: HashSet<(String, PathBuf)> = HashSet::new();
         let mut schema: HashSet<String> = HashSet::new();
         // .yaml inside /schemas/ is NOT a schema trigger — only .json
-        classify_event("mywiki", Path::new("/repo/schemas/types.yaml"), &mut md, &mut schema);
+        classify_event(
+            "mywiki",
+            Path::new("/repo/schemas/types.yaml"),
+            &mut md,
+            &mut schema,
+        );
         assert_eq!(md.len(), 1);
         assert!(schema.is_empty());
     }
@@ -297,7 +312,11 @@ mod tests {
         let path = Path::new("/repo/wiki/foo.md");
         classify_event("mywiki", path, &mut md, &mut schema);
         classify_event("mywiki", path, &mut md, &mut schema);
-        assert_eq!(md.len(), 1, "duplicate events for same path must be deduplicated");
+        assert_eq!(
+            md.len(),
+            1,
+            "duplicate events for same path must be deduplicated"
+        );
     }
 
     // ── rebuilding flag contract ────────────────────────────────────────────────
@@ -309,9 +328,15 @@ mod tests {
     fn rebuilding_flag_skip_contract() {
         let flag = AtomicBool::new(false);
         let already_running = flag.swap(true, Ordering::AcqRel);
-        assert!(!already_running, "first swap must return false — rebuild should proceed");
+        assert!(
+            !already_running,
+            "first swap must return false — rebuild should proceed"
+        );
         let already_running = flag.swap(true, Ordering::AcqRel);
-        assert!(already_running, "second swap must return true — rebuild should be skipped");
+        assert!(
+            already_running,
+            "second swap must return true — rebuild should be skipped"
+        );
     }
 }
 

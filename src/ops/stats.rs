@@ -329,8 +329,16 @@ mod tests {
             field_name: "last_updated".into(),
         };
         let fruits = vec![
-            StalenessBuckets { fresh: 3, stale_7d: 2, stale_30d: 1 },
-            StalenessBuckets { fresh: 1, stale_7d: 0, stale_30d: 4 },
+            StalenessBuckets {
+                fresh: 3,
+                stale_7d: 2,
+                stale_30d: 1,
+            },
+            StalenessBuckets {
+                fresh: 1,
+                stale_7d: 0,
+                stale_30d: 4,
+            },
         ];
         let merged = Collector::merge_fruits(&collector, fruits).unwrap();
         assert_eq!(merged.fresh, 4);
@@ -363,7 +371,11 @@ mod tests {
             thirty_days_ago: chrono::NaiveDate::from_ymd_opt(2026, 7, 22).unwrap(),
             field_name: "last_updated".into(),
         };
-        let fruit = StalenessBuckets { fresh: 7, stale_7d: 3, stale_30d: 11 };
+        let fruit = StalenessBuckets {
+            fresh: 7,
+            stale_7d: 3,
+            stale_30d: 11,
+        };
         let merged = Collector::merge_fruits(&collector, vec![fruit]).unwrap();
         assert_eq!(merged.fresh, 7);
         assert_eq!(merged.stale_7d, 3);
@@ -378,8 +390,16 @@ mod tests {
             field_name: "last_updated".into(),
         };
         let fruits = vec![
-            StalenessBuckets { fresh: 5, stale_7d: 0, stale_30d: 0 },
-            StalenessBuckets { fresh: 0, stale_7d: 0, stale_30d: 8 },
+            StalenessBuckets {
+                fresh: 5,
+                stale_7d: 0,
+                stale_30d: 0,
+            },
+            StalenessBuckets {
+                fresh: 0,
+                stale_7d: 0,
+                stale_30d: 8,
+            },
         ];
         let merged = Collector::merge_fruits(&collector, fruits).unwrap();
         assert_eq!(merged.fresh, 5);

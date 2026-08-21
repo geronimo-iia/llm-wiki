@@ -975,7 +975,10 @@ mod tests {
         r.confidence = Some(0.9);
         r.confidence_field_absent = false;
         let findings = rule_stale(&[r], root, 1, 0.7);
-        assert!(findings.is_empty(), "high-confidence page must not be flagged");
+        assert!(
+            findings.is_empty(),
+            "high-confidence page must not be flagged"
+        );
     }
 
     #[test]
@@ -993,13 +996,13 @@ mod tests {
         let required = registry.required_fields(&type_name).to_vec();
 
         let mut r = make_record("test-page", &type_name);
-        r.fields_present = required
-            .iter()
-            .map(|f| (f.clone(), false))
-            .collect();
+        r.fields_present = required.iter().map(|f| (f.clone(), false)).collect();
 
         let findings = rule_missing_fields(&[r], root, &registry);
-        assert!(!findings.is_empty(), "expected findings for absent required fields");
+        assert!(
+            !findings.is_empty(),
+            "expected findings for absent required fields"
+        );
         for f in &findings {
             assert_eq!(f.rule, "missing-fields");
             assert_eq!(f.severity, Severity::Error);

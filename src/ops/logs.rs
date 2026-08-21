@@ -88,7 +88,10 @@ mod tests {
         let cfg = dir.path().join("config.toml");
         let mut names = logs_list(&cfg).unwrap();
         names.sort();
-        assert_eq!(names, vec!["2026-08-19.log", "2026-08-20.log", "2026-08-21.log"]);
+        assert_eq!(
+            names,
+            vec!["2026-08-19.log", "2026-08-20.log", "2026-08-21.log"]
+        );
     }
 
     #[test]
@@ -109,7 +112,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let log_dir = dir.path().join("logs");
         fs::create_dir_all(&log_dir).unwrap();
-        let content = (1..=10).map(|i| format!("line {i}")).collect::<Vec<_>>().join("\n");
+        let content = (1..=10)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
         fs::write(log_dir.join("run.log"), content).unwrap();
         let cfg = dir.path().join("config.toml");
         let tail = logs_tail(&cfg, 3).unwrap();
