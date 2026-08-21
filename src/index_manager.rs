@@ -922,3 +922,40 @@ fn yaml_to_strings(value: &serde_yaml::Value) -> Vec<String> {
         _ => vec![yaml_to_text(value)],
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Two reload_reader() calls on the same commit must yield different generation() values
+    /// but an identical last_commit(). This pins the cache-key contract: generation is the
+    /// correct cache key for graph/community caches, not last_commit.
+    #[test]
+    fn generation_advances_independently_of_last_commit() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mgr = SpaceIndexManager::new("test-wiki", dir.path(), 50_000_000);
+
+        // Write a state.toml so last_commit() returns a known value.
+        let state = IndexState {
+            schema_hash: String::new(),
+            built: "2026-01-01T00:00:00Z".into(),
+            pages: 0,
+            sections: 0,
+            commit: "abc123".into(),
+            types: Default::default(),
+        };
+        let toml_str = toml::to_string(&state).expect("serialize state");
+        std::fs::write(dir.path().join("state.toml"), toml_str).expect("write state.toml");
+
+        assert_eq!(mgr.generation(), 0);
+        assert_eq!(mgr.last_commit().as_deref(), Some("abc123"));
+
+        mgr.reload_reader().expect("first reload");
+        assert_eq!(mgr.generation(), 1);
+        assert_eq!(mgr.last_commit().as_deref(), Some("abc123"), "last_commit unchanged after first reload");
+
+        mgr.reload_reader().expect("second reload");
+        assert_eq!(mgr.generation(), 2);
+        assert_eq!(mgr.last_commit().as_deref(), Some("abc123"), "last_commit unchanged after second reload");
+    }
+}
