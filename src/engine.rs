@@ -10,7 +10,7 @@ use petgraph_live::cache::GenerationCache;
 use petgraph_live::live::{GraphState, GraphStateConfig};
 use petgraph_live::snapshot::{Compression, SnapshotConfig, SnapshotFormat};
 
-use crate::config::{self, GlobalConfig, ResolvedConfig, WikiEntry};
+use crate::config::{self, GlobalConfig, IngestConfig, ResolvedConfig, WikiEntry};
 use crate::graph::{CommunityData, WikiGraph, WikiGraphCache};
 use crate::index_manager::{IndexReport, SpaceIndexManager, StalenessKind, UpdateReport};
 use crate::index_schema::IndexSchema;
@@ -45,6 +45,8 @@ pub struct SpaceContext {
     /// If run_watcher is cancelled between setting and clearing this flag,
     /// the engine is shutting down and SpaceContext will be dropped anyway.
     pub rebuilding: Arc<AtomicBool>,
+    /// Resolved ingest configuration for this wiki — used by rebuild and update calls.
+    pub ingest_config: IngestConfig,
 }
 
 impl SpaceContext {
@@ -356,6 +358,7 @@ impl WikiEngine {
 fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Result<SpaceContext> {
     let repo_root = crate::pathutil::strip_verbatim_prefix(entry.path.clone());
     let wiki_cfg = config::load_wiki(&repo_root).unwrap_or_default();
+    let resolved_cfg = config::resolve(config, &wiki_cfg);
     let wiki_root = repo_root.join(&wiki_cfg.wiki_root);
     let index_path = state_dir.join("indexes").join(&entry.name);
 
@@ -466,7 +469,6 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
         tracing::error!(wiki = %entry.name, error = %e, "failed to open index; wiki will serve no results");
     }
 
-    let resolved_cfg = config::resolve(config, &wiki_cfg);
     let type_registry = Arc::new(type_registry);
     let graph_cache = {
         let im_key = index_manager.clone();
@@ -509,6 +511,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
         graph_cache,
         community_cache: GenerationCache::new(),
         rebuilding: Arc::new(AtomicBool::new(false)),
+        ingest_config: resolved_cfg.ingest.clone(),
     })
 }
 
