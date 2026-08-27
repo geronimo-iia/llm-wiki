@@ -24,7 +24,12 @@ use crate::links;
 use crate::slug::Slug;
 use crate::type_registry::SpaceTypeRegistry;
 
-fn should_index(slug: &str, content: &str, config: &IngestConfig, exclude: &globset::GlobSet) -> bool {
+fn should_index(
+    slug: &str,
+    content: &str,
+    config: &IngestConfig,
+    exclude: &globset::GlobSet,
+) -> bool {
     if exclude.is_match(slug) {
         tracing::debug!(slug, "skipping excluded file");
         return false;
@@ -40,11 +45,15 @@ fn build_exclude_set(config: &IngestConfig) -> globset::GlobSet {
     let mut builder = globset::GlobSetBuilder::new();
     for pattern in &config.exclude {
         match globset::Glob::new(pattern) {
-            Ok(g) => { builder.add(g); }
+            Ok(g) => {
+                builder.add(g);
+            }
             Err(e) => tracing::warn!(pattern, error = %e, "invalid exclude glob; skipping"),
         }
     }
-    builder.build().unwrap_or_else(|_| globset::GlobSetBuilder::new().build().unwrap())
+    builder
+        .build()
+        .unwrap_or_else(|_| globset::GlobSetBuilder::new().build().unwrap())
 }
 
 // ── Return types ──────────────────────────────────────────────────────────────
@@ -1069,7 +1078,12 @@ mod tests {
     fn should_index_no_exclusions() {
         let cfg = IngestConfig::default();
         let gs = build_exclude_set(&cfg);
-        assert!(should_index("concepts/foo", "---\ntype: concept\n---\nbody", &cfg, &gs));
+        assert!(should_index(
+            "concepts/foo",
+            "---\ntype: concept\n---\nbody",
+            &cfg,
+            &gs
+        ));
         assert!(!should_index("readme", "# bare", &cfg, &gs));
     }
 

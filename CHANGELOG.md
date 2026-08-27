@@ -14,6 +14,7 @@ Path traversal, info-disclosure, and oversized-input vectors closed across the M
 
 ### Added
 
+- **`[ingest]` — `exclude`** — gitignore-style glob patterns (e.g. `drafts/**`) matched against the slug. Matching files are excluded from the search index; they remain on disk and accessible via `wiki_content_read`.
 - **Schema overlay model** — schemas are no longer copied into `schemas/` at wiki creation time; the engine always starts from embedded defaults, overlays any on-disk `schemas/*.json` files (same filename replaces, new filename adds), then applies `wiki.toml` type overrides. Existing custom schemas in `schemas/` continue to work without changes.
 - **`wiki migrate` CLI / `wiki_migrate` MCP tool** — scans `schemas/` for stock schema files (current and all pre-1.0.0 versions, compared by JSON value equality), deletes them, and reports kept custom schemas; `--dry-run` / `dry_run` previews without modifying anything; `--all` runs across every registered wiki.
 - **`wiki_graph` JSON format** — `format: "json"` returns nodes, edges, metrics, and community map as structured JSON; machine-readable alternative to Mermaid/DOT.
@@ -21,12 +22,14 @@ Path traversal, info-disclosure, and oversized-input vectors closed across the M
 
 ### Changed
 
+- **`[ingest]` — `skip_no_frontmatter`** (default: `true`) — files without a `---` YAML frontmatter block are now skipped during indexing and emitted as `tracing::debug`. Operators who intentionally store bare markdown under `wiki_root` must set `skip_no_frontmatter = false` in `[ingest]`. This also applies to the automatic index recovery path (`auto_recovery = true`) — a wiki with bare `.md` files that triggers corrupt-index recovery will index them only if `skip_no_frontmatter = false` is set.
 - **Actionable error messages** — `wiki_search` on a closed index, `wiki_content_commit` with nothing staged, and ACP session-limit rejections now include the exact command to run to recover.
 - **`wiki_index_status` degraded detail** — per-wiki degraded map with a `"; run wiki_index_rebuild to recover"` hint replaces the flat `"degraded"` string.
 - **More configurable, fewer magic numbers** — content size limit, index memory budget, suggest strategy weights, graph depth default, community min-nodes, and ACP `top_k` are all now tunable in `config.toml`; previous hardcoded values become the documented defaults.
 
 ### Fixed
 
+- **0.5.9 regression: `state.toml` written with incomplete `[types]` map on wikis with a `schemas/` directory** — `build_space` used either disk schemas or embedded schemas, never both; a wiki whose `schemas/` directory contained only a subset of the stock files produced a registry with only those types, causing subsequent commands to panic when querying fields that were never indexed. The overlay loader (`ff467e0`) fixes this by always starting from embedded defaults and layering disk overrides on top. **Action required for 0.5.9 users:** run `llm-wiki index rebuild --wiki <name>` once after upgrading on any wiki that had a `schemas/` directory at 0.5.9 index time.
 - **Concurrent index rebuilds no longer corrupt state** — overlapping watcher-triggered and API-triggered rebuilds are serialized; the `rebuilding` flag is set and cleared atomically.
 - **`spaces_set_default` rollback on disk failure** — in-memory default is restored if the config write fails; previously the in-memory and on-disk states could diverge.
 - **Watcher silently swallowing errors** — filesystem watcher errors, ingest git-diff failures, cross-wiki search errors, and staleness-check failures all now emit `tracing::warn!`; operators can diagnose unexpected full rebuilds and inotify exhaustion.

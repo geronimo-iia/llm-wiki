@@ -164,11 +164,17 @@ fn resolve_global_only_sections_always_from_global() {
 #[test]
 fn resolve_per_wiki_overrides_ingest() {
     let global = GlobalConfig {
-        ingest: IngestConfig { auto_commit: true, ..Default::default() },
+        ingest: IngestConfig {
+            auto_commit: true,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let per_wiki = WikiConfig {
-        ingest: Some(IngestConfig { auto_commit: false, ..Default::default() }),
+        ingest: Some(IngestConfig {
+            auto_commit: false,
+            ..Default::default()
+        }),
         ..Default::default()
     };
     let resolved = resolve(&global, &per_wiki);
@@ -808,7 +814,13 @@ fn config_invalid_tokenizer_name_no_panic() {
     let index_path = dir.path().join("idx");
     let mgr = SpaceIndexManager::new("test", &index_path, 50_000_000);
     // Empty wiki — no documents to tokenize, so rebuild succeeds
-    let result = mgr.rebuild(&wiki_root, dir.path(), &schema, &registry);
+    let result = mgr.rebuild(
+        &wiki_root,
+        dir.path(),
+        &schema,
+        &registry,
+        &IngestConfig::default(),
+    );
     assert!(
         result.is_ok(),
         "rebuild with unknown tokenizer on empty wiki should not fail: {result:?}"

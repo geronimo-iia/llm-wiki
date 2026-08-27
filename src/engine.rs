@@ -397,8 +397,13 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
 
     if needs_first_build {
         tracing::info!(wiki = %entry.name, "building index for the first time");
-        if let Err(e) = index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry, &resolved_cfg.ingest)
-        {
+        if let Err(e) = index_manager.rebuild(
+            &wiki_root,
+            &repo_root,
+            &index_schema,
+            &type_registry,
+            &resolved_cfg.ingest,
+        ) {
             tracing::error!(wiki = %entry.name, error = %e, "initial index build failed; wiki will serve no results");
         }
     } else if config.index.auto_rebuild {
@@ -430,26 +435,38 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
                     &resolved_cfg.ingest,
                 ) {
                     tracing::warn!(wiki = %entry.name, error = %e, "partial rebuild failed, attempting full rebuild");
-                    if let Err(e) =
-                        index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry, &resolved_cfg.ingest)
-                    {
+                    if let Err(e) = index_manager.rebuild(
+                        &wiki_root,
+                        &repo_root,
+                        &index_schema,
+                        &type_registry,
+                        &resolved_cfg.ingest,
+                    ) {
                         tracing::error!(wiki = %entry.name, error = %e, "full rebuild after partial failure also failed; wiki will serve stale results");
                     }
                 }
             }
             Ok(StalenessKind::FullRebuildNeeded) => {
                 tracing::info!(wiki = %entry.name, "index stale, rebuilding");
-                if let Err(e) =
-                    index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry, &resolved_cfg.ingest)
-                {
+                if let Err(e) = index_manager.rebuild(
+                    &wiki_root,
+                    &repo_root,
+                    &index_schema,
+                    &type_registry,
+                    &resolved_cfg.ingest,
+                ) {
                     tracing::error!(wiki = %entry.name, error = %e, "index rebuild failed; wiki will serve stale results");
                 }
             }
             Err(e) => {
                 tracing::warn!(wiki = %entry.name, error = %e, "staleness check failed, attempting rebuild");
-                if let Err(e) =
-                    index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry, &resolved_cfg.ingest)
-                {
+                if let Err(e) = index_manager.rebuild(
+                    &wiki_root,
+                    &repo_root,
+                    &index_schema,
+                    &type_registry,
+                    &resolved_cfg.ingest,
+                ) {
                     tracing::error!(wiki = %entry.name, error = %e, "rebuild after staleness check failure also failed; wiki will serve stale results");
                 }
             }
