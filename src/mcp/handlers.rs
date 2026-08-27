@@ -1,5 +1,3 @@
-use std::sync::LazyLock;
-
 use rmcp::model::ContentBlock as Content;
 use serde_json::{Map, Value};
 
@@ -8,27 +6,6 @@ use crate::slug::{ReadTarget, Slug, WikiUri, resolve_read_target};
 
 use super::McpServer;
 use super::helpers::*;
-
-static PATH_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
-    // Two alternatives:
-    //   /[a-zA-Z0-9_./-]{3,}  — absolute Unix paths starting with /
-    //   ~[a-zA-Z0-9_./~-]{2,} — tilde-prefixed paths (~/ or ~user/)
-    // Known limitation: paths containing spaces are not fully redacted.
-    // Expanding the character class to include space greedily absorbs adjacent
-    // English words — a more robust fix requires a parser, not a regex.
-    // Primary protection: all handler call sites already pass errors through this function.
-    regex::Regex::new(r"(?:/[a-zA-Z0-9_./-]{3,}|~[a-zA-Z0-9_./~-]{2,})").unwrap()
-});
-
-/// Redact filesystem paths from an error message before sending to LLM clients.
-///
-/// Strips absolute and tilde-prefixed Unix paths so that
-/// `failed to open /home/user/wikis/my-wiki/search-index/state.toml: No such file`
-/// becomes `failed to open <path>: No such file`, and
-/// `config at ~/wikis/foo` becomes `config at <path>`.
-fn redact_error(e: impl std::fmt::Display) -> String {
-    PATH_RE.replace_all(&format!("{e}"), "<path>").into_owned()
-}
 
 // ── Spaces ────────────────────────────────────────────────────────────────────
 

@@ -42,7 +42,7 @@ impl McpServer {
         self.manager
             .state
             .read()
-            .map_err(|_| "engine lock poisoned".to_string())
+            .map_err(|_| helpers::redact_error("engine lock poisoned"))
     }
 
     fn list_wiki_resources(&self) -> Vec<rmcp::model::Resource> {
