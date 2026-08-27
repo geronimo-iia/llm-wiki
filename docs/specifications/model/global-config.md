@@ -155,6 +155,8 @@ These keys can appear in both `config.toml` (global) and `wiki.toml`
 | `search.status`              | `{ active=1.0, draft=0.8, archived=0.3, unknown=0.9 }` | Status multiplier map. `unknown` is the reserved fallback for absent or unmapped statuses. Add custom entries (`stub`, `verified`, …) alongside built-ins. Per-wiki resolution merges key-by-key — a `wiki.toml` only needs to declare what differs. Accessible via CLI: `config set search.status.<key> <value>`. |
 | `read.no_frontmatter`        | `false`   | Strip frontmatter from `wiki_content_read` output         |
 | `ingest.auto_commit`         | `true`    | Commit after ingest                               |
+| `ingest.exclude`             | `[]`      | Gitignore-style glob patterns matched against slugs (relative to `wiki_root`). Matching files are excluded from the search index. |
+| `ingest.skip_no_frontmatter` | `true`    | Skip `.md` files that have no `---` YAML frontmatter block. Set to `false` if you intentionally store bare markdown under `wiki_root`. |
 | `validation.type_strictness` | `loose`   | `strict`: unknown type is error; `loose`: warning |
 | `graph.format`               | `mermaid` | Default output format: `mermaid` or `dot`         |
 | `graph.depth`                | `3`       | Default hop limit when `--root` is set            |

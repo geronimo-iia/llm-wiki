@@ -92,7 +92,7 @@ Commonly overridden per-wiki:
 | `[search.status]` | Status multiplier map. Only declare keys that differ from the global baseline. Built-ins (`active`, `draft`, `archived`, `unknown`) are inherited automatically. |
 | `[suggest]`      | `default_limit`, `min_score`                                                 |
 | `[lint]`         | `stale_days`, `stale_confidence_threshold` — replaces global value entirely  |
-| `[ingest]`       | `auto_commit`                                                                |
+| `[ingest]`       | `auto_commit`, `exclude`, `skip_no_frontmatter`                              |
 | `[graph]`        | `format`, `depth`, `min_nodes_for_communities`, `community_suggestions_limit` |
 | `[redact]`       | `disable` (list of built-in pattern names to skip), `[[redact.patterns]]` (custom patterns) |
 

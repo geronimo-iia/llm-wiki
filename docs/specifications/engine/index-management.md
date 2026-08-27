@@ -263,6 +263,19 @@ the reader is refreshed internally by `writer.commit()`.
 This applies to every reader in the codebase — both the long-lived reader in
 `open()` and the temporary reader in `status()`.
 
+## Ingest Config in Rebuild and Update
+
+`rebuild`, `update`, and `rebuild_types` each accept `ingest_config: &IngestConfig` as a final parameter. The config is threaded into every WalkDir pass so exclusion and frontmatter filters are applied uniformly.
+
+A `should_index(slug, content, config, exclude)` helper encapsulates both filters:
+
+1. **Glob exclusion** — slug is matched against each pattern in `ingest.exclude`; a match skips the file.
+2. **No-frontmatter** — when `ingest.skip_no_frontmatter` is `true` (default), any `.md` file whose content has no `---` YAML frontmatter block is skipped.
+
+`should_index` is called at every WalkDir entry before parsing. Files that do not pass are silently skipped (not counted as errors).
+
+The `open()` recovery tuple is `Option<(&Path, &Path, &SpaceTypeRegistry, &IngestConfig)>` — `IngestConfig` is the fourth element, forwarded to the rebuild triggered on corruption.
+
 ## Auto-Recovery
 
 ### Staleness (`index.auto_rebuild`)

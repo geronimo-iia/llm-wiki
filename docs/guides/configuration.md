@@ -94,6 +94,32 @@ llm-wiki config set ingest.auto_commit false --wiki research
 
 Then commit manually with `llm-wiki content commit --all`.
 
+### Exclude files from the search index
+
+Use `ingest.exclude` to keep certain slugs out of the index. Patterns are gitignore-style globs matched against slugs (relative to `wiki_root`), not absolute paths:
+
+```toml
+# wiki.toml
+[ingest]
+exclude = ["drafts/**", "generated/**"]
+```
+
+Or via CLI:
+
+```bash
+llm-wiki config set ingest.exclude '["drafts/**","generated/**"]' --wiki research
+```
+
+### Index bare markdown files
+
+By default (`skip_no_frontmatter = true`), any `.md` file without a `---` YAML frontmatter block is skipped at ingest time. Set to `false` if you intentionally store bare markdown under `wiki_root`:
+
+```toml
+# wiki.toml
+[ingest]
+skip_no_frontmatter = false
+```
+
 ### Enable strict type validation
 
 By default, unknown types produce a warning. Switch to strict mode
