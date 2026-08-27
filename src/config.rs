@@ -71,14 +71,14 @@ pub struct Defaults {
 impl Default for Defaults {
     fn default() -> Self {
         Self {
-            search_top_k: 10,
-            search_excerpt: true,
+            search_top_k: default_search_top_k(),
+            search_excerpt: default_true(),
             search_sections: false,
-            page_mode: "flat".into(),
-            list_page_size: 20,
-            output_format: "text".into(),
-            facets_top_tags: 10,
-            max_content_bytes: 10 * 1024 * 1024,
+            page_mode: default_page_mode(),
+            list_page_size: default_list_page_size(),
+            output_format: default_output_format(),
+            facets_top_tags: default_facets_top_tags(),
+            max_content_bytes: default_max_content_bytes(),
         }
     }
 }
@@ -112,9 +112,9 @@ impl Default for IndexConfig {
     fn default() -> Self {
         Self {
             auto_rebuild: false,
-            auto_recovery: true,
-            memory_budget_mb: 50,
-            tokenizer: "en_stem".into(),
+            auto_recovery: default_true(),
+            memory_budget_mb: default_memory_budget_mb(),
+            tokenizer: default_tokenizer(),
         }
     }
 }
@@ -167,16 +167,16 @@ pub struct GraphConfig {
 impl Default for GraphConfig {
     fn default() -> Self {
         Self {
-            format: "mermaid".into(),
-            depth: 3,
+            format: default_graph_format(),
+            depth: default_graph_depth(),
             r#type: Vec::new(),
             output: String::new(),
             min_nodes_for_communities: default_min_nodes_for_communities(),
             community_suggestions_limit: default_community_suggestions_limit(),
-            snapshot: true,
-            snapshot_keep: 3,
-            snapshot_format: "bincode+lz4".into(),
-            structural_algorithms: true,
+            snapshot: default_true(),
+            snapshot_keep: default_snapshot_keep(),
+            snapshot_format: default_snapshot_format(),
+            structural_algorithms: default_true(),
             max_nodes_for_diameter: default_max_nodes_for_diameter(),
             max_pages: default_max_pages(),
         }
@@ -250,12 +250,12 @@ impl Default for ServeConfig {
     fn default() -> Self {
         Self {
             http: false,
-            http_port: 8080,
+            http_port: default_http_port(),
             http_allowed_hosts: default_http_allowed_hosts(),
             acp: false,
-            max_restarts: 10,
-            restart_backoff: 1,
-            heartbeat_secs: 60,
+            max_restarts: default_max_restarts(),
+            restart_backoff: default_restart_backoff(),
+            heartbeat_secs: default_heartbeat_secs(),
             acp_max_sessions: default_acp_max_sessions(),
             mcp_max_param_len: default_mcp_max_param_len(),
         }
@@ -273,7 +273,7 @@ pub struct ValidationConfig {
 impl Default for ValidationConfig {
     fn default() -> Self {
         Self {
-            type_strictness: "loose".into(),
+            type_strictness: default_type_strictness(),
         }
     }
 }
@@ -299,9 +299,9 @@ impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
             log_path: default_log_path(),
-            log_rotation: "daily".into(),
-            log_max_files: 7,
-            log_format: "text".into(),
+            log_rotation: default_log_rotation(),
+            log_max_files: default_log_max_files(),
+            log_format: default_log_format(),
         }
     }
 }
@@ -325,9 +325,9 @@ pub struct IngestConfig {
 impl Default for IngestConfig {
     fn default() -> Self {
         Self {
-            auto_commit: true,
+            auto_commit: default_true(),
             exclude: vec![],
-            skip_no_frontmatter: true,
+            skip_no_frontmatter: default_true(),
         }
     }
 }
@@ -346,8 +346,8 @@ pub struct HistoryConfig {
 impl Default for HistoryConfig {
     fn default() -> Self {
         Self {
-            follow: true,
-            default_limit: 10,
+            follow: default_true(),
+            default_limit: default_history_limit(),
         }
     }
 }
@@ -362,7 +362,9 @@ pub struct WatchConfig {
 
 impl Default for WatchConfig {
     fn default() -> Self {
-        Self { debounce_ms: 500 }
+        Self {
+            debounce_ms: default_debounce_ms(),
+        }
     }
 }
 
@@ -389,11 +391,11 @@ pub struct SuggestConfig {
 impl Default for SuggestConfig {
     fn default() -> Self {
         Self {
-            default_limit: 5,
-            min_score: 0.1,
-            graph_neighbor_score: 0.5,
-            bm25_weight: 0.7,
-            community_peer_score: 0.4,
+            default_limit: default_suggest_limit(),
+            min_score: default_suggest_min_score(),
+            graph_neighbor_score: default_suggest_graph_neighbor_score(),
+            bm25_weight: default_suggest_bm25_weight(),
+            community_peer_score: default_suggest_community_peer_score(),
         }
     }
 }
@@ -1206,5 +1208,81 @@ mod tests {
             default_wiki: "research".to_string(),
         };
         assert_eq!(s.default_wiki_opt(), Some("research"));
+    }
+
+    #[test]
+    fn config_defaults_match_serde_helpers() {
+        let d = Defaults::default();
+        assert_eq!(d.search_top_k, default_search_top_k());
+        assert_eq!(d.search_excerpt, default_true());
+        assert_eq!(d.page_mode, default_page_mode());
+        assert_eq!(d.list_page_size, default_list_page_size());
+        assert_eq!(d.output_format, default_output_format());
+        assert_eq!(d.facets_top_tags, default_facets_top_tags());
+        assert_eq!(d.max_content_bytes, default_max_content_bytes());
+
+        let idx = IndexConfig::default();
+        assert_eq!(idx.auto_recovery, default_true());
+        assert_eq!(idx.memory_budget_mb, default_memory_budget_mb());
+        assert_eq!(idx.tokenizer, default_tokenizer());
+
+        let g = GraphConfig::default();
+        assert_eq!(g.format, default_graph_format());
+        assert_eq!(g.depth, default_graph_depth());
+        assert_eq!(g.snapshot, default_true());
+        assert_eq!(g.snapshot_keep, default_snapshot_keep());
+        assert_eq!(g.snapshot_format, default_snapshot_format());
+        assert_eq!(g.structural_algorithms, default_true());
+        assert_eq!(
+            g.min_nodes_for_communities,
+            default_min_nodes_for_communities()
+        );
+        assert_eq!(
+            g.community_suggestions_limit,
+            default_community_suggestions_limit()
+        );
+        assert_eq!(g.max_nodes_for_diameter, default_max_nodes_for_diameter());
+        assert_eq!(g.max_pages, default_max_pages());
+
+        let srv = ServeConfig::default();
+        assert_eq!(srv.http_port, default_http_port());
+        assert_eq!(srv.http_allowed_hosts, default_http_allowed_hosts());
+        assert_eq!(srv.max_restarts, default_max_restarts());
+        assert_eq!(srv.restart_backoff, default_restart_backoff());
+        assert_eq!(srv.heartbeat_secs, default_heartbeat_secs());
+        assert_eq!(srv.acp_max_sessions, default_acp_max_sessions());
+        assert_eq!(srv.mcp_max_param_len, default_mcp_max_param_len());
+
+        let v = ValidationConfig::default();
+        assert_eq!(v.type_strictness, default_type_strictness());
+
+        let l = LoggingConfig::default();
+        assert_eq!(l.log_rotation, default_log_rotation());
+        assert_eq!(l.log_max_files, default_log_max_files());
+        assert_eq!(l.log_format, default_log_format());
+
+        let i = IngestConfig::default();
+        assert_eq!(i.auto_commit, default_true());
+        assert_eq!(i.skip_no_frontmatter, default_true());
+
+        let h = HistoryConfig::default();
+        assert_eq!(h.follow, default_true());
+        assert_eq!(h.default_limit, default_history_limit());
+
+        let w = WatchConfig::default();
+        assert_eq!(w.debounce_ms, default_debounce_ms());
+
+        let s = SuggestConfig::default();
+        assert_eq!(s.default_limit, default_suggest_limit());
+        assert_eq!(s.min_score, default_suggest_min_score());
+        assert_eq!(
+            s.graph_neighbor_score,
+            default_suggest_graph_neighbor_score()
+        );
+        assert_eq!(s.bm25_weight, default_suggest_bm25_weight());
+        assert_eq!(
+            s.community_peer_score,
+            default_suggest_community_peer_score()
+        );
     }
 }
