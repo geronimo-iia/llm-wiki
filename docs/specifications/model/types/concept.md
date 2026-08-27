@@ -25,6 +25,7 @@ Two types share this schema:
 | ------------ | ------------ | -------- | ------- | ----------------------------------------------- |
 | `read_when`  | list[string] | yes      |         | Retrieval conditions (situations, not keywords) |
 | `tldr`       | string       | no       | none    | One-sentence key takeaway                       |
+| `aliases`    | list[string] | no       | `[]`    | Alternative names and synonyms — keyword-indexed for synonym search |
 | `sources`    | list[string] | no       | `[]`    | Slugs of source pages that contributed claims   |
 | `concepts`   | list[string] | no       | `[]`    | Slugs of concept pages this page depends on     |
 | `confidence` | float 0.0–1.0 | no      | `0.5`   | Certainty of page content. See [base.md](base.md). Legacy strings `high`/`medium`/`low` are read as `0.9`/`0.5`/`0.2`. |
@@ -73,6 +74,7 @@ status: active
 type: concept
 last_updated: "2025-07-17"
 tags: [mixture-of-experts, scaling, transformers]
+aliases: []  # or: [Mixture-of-Experts, MoE, sparse routing]
 sources: [sources/switch-transformer-2021]
 concepts: [concepts/scaling-laws]
 confidence: 0.9
