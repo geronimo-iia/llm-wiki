@@ -118,6 +118,19 @@ pub fn resolve_wiki_name(
         .map_err(|e| e.to_string())
 }
 
+// ── Walk helper ───────────────────────────────────────────────────────────────
+
+/// Yield every `.md` file under `start` as a [`Slug`] resolved relative to `wiki_root`.
+pub fn walk_wiki_slugs<'a>(start: &Path, wiki_root: &'a Path) -> impl Iterator<Item = Slug> + 'a {
+    walkdir::WalkDir::new(start)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.path().is_file() && e.path().extension().and_then(|x| x.to_str()) == Some("md")
+        })
+        .filter_map(move |e| Slug::from_path(e.path(), wiki_root).ok())
+}
+
 // ── Resource notification helper ──────────────────────────────────────────────
 
 /// Collect `wiki://` URIs for all Markdown files under `path` (file or directory).
@@ -130,17 +143,8 @@ pub fn collect_page_uris(path: &Path, wiki_root: &Path, wiki_name: &str) -> Vec<
         }
         return vec![];
     }
-    walkdir::WalkDir::new(path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.path().is_file() && e.path().extension().and_then(|x| x.to_str()) == Some("md")
-        })
-        .filter_map(|e| {
-            Slug::from_path(e.path(), wiki_root)
-                .ok()
-                .map(|slug| format!("wiki://{wiki_name}/{slug}"))
-        })
+    walk_wiki_slugs(path, wiki_root)
+        .map(|slug| format!("wiki://{wiki_name}/{slug}"))
         .collect()
 }
 

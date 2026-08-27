@@ -20,7 +20,7 @@ use rmcp::service::{RequestContext, RoleServer};
 
 use crate::engine::{EngineState, WikiEngine};
 use crate::markdown;
-use crate::slug::{Slug, WikiUri};
+use crate::slug::WikiUri;
 
 // ── McpServer ─────────────────────────────────────────────────────────────────
 
@@ -56,18 +56,9 @@ impl McpServer {
         };
         let mut resources = Vec::new();
         for (wiki_name, wiki_root) in &roots {
-            let walker = walkdir::WalkDir::new(wiki_root)
-                .into_iter()
-                .filter_map(|e| e.ok())
-                .filter(|e| {
-                    e.path().is_file()
-                        && e.path().extension().and_then(|x| x.to_str()) == Some("md")
-                });
-            for entry in walker {
-                if let Ok(slug) = Slug::from_path(entry.path(), wiki_root) {
-                    let uri = format!("wiki://{wiki_name}/{slug}");
-                    resources.push(Resource::new(uri, slug.title()));
-                }
+            for slug in helpers::walk_wiki_slugs(wiki_root, wiki_root) {
+                let uri = format!("wiki://{wiki_name}/{slug}");
+                resources.push(Resource::new(uri, slug.title()));
             }
         }
         resources
