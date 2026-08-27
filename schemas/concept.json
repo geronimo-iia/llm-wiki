@@ -34,6 +34,12 @@
       "x-keyword": true,
       "description": "Lowercase hyphenated search terms"
     },
+    "aliases": {
+      "type": "array",
+      "items": { "type": "string" },
+      "x-keyword": true,
+      "description": "Alternative names and synonyms for this concept"
+    },
     "owner": {
       "type": "string",
       "description": "Person, team, or agent responsible"
