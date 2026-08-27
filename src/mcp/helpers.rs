@@ -90,7 +90,6 @@ pub fn arg_usize(args: &Map<String, Value>, key: &str) -> Option<usize> {
 // ── Wiki resolution ───────────────────────────────────────────────────────────
 
 /// Resolve the target wiki from Engine state + optional `wiki` arg.
-/// Resolve the target wiki from Engine state + optional `wiki` arg.
 pub fn resolve_wiki_name(
     engine: &EngineState,
     args: &Map<String, Value>,
