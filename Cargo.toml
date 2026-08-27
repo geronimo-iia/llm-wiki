@@ -64,6 +64,7 @@ petgraph-live = { version = "0.5.0", features = ["snapshot-lz4", "snapshot-zstd"
 
 # Filesystem traversal
 walkdir    = "2"
+globset    = "0.4"
 
 # Date/time
 chrono     = { version = "0.4", default-features = false, features = ["clock", "std"] }

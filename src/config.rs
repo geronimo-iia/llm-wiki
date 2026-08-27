@@ -306,17 +306,29 @@ impl Default for LoggingConfig {
     }
 }
 
-/// `[ingest]` section — controls ingest commit behaviour.
+/// `[ingest]` section — controls ingest commit behaviour and file filtering.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IngestConfig {
     /// Automatically commit ingested files to git after validation (default: true).
     #[serde(default = "default_true")]
     pub auto_commit: bool,
+    /// Gitignore-style glob patterns matched against slugs (relative to wiki_root).
+    /// Matching files are excluded from the search index. Default: empty (include all).
+    #[serde(default)]
+    pub exclude: Vec<String>,
+    /// Skip `.md` files that have no YAML frontmatter block (default: true).
+    /// Set to `false` if you intentionally store bare markdown under wiki_root.
+    #[serde(default = "default_true")]
+    pub skip_no_frontmatter: bool,
 }
 
 impl Default for IngestConfig {
     fn default() -> Self {
-        Self { auto_commit: true }
+        Self {
+            auto_commit: true,
+            exclude: vec![],
+            skip_no_frontmatter: true,
+        }
     }
 }
 
@@ -1163,6 +1175,24 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ingest_config_defaults() {
+        let cfg: IngestConfig = toml::from_str("").unwrap();
+        assert_eq!(cfg.exclude, Vec::<String>::new());
+        assert!(cfg.skip_no_frontmatter);
+    }
+
+    #[test]
+    fn ingest_config_exclude_roundtrip() {
+        let raw = r#"
+            exclude = ["drafts/**", "generated/**"]
+            skip_no_frontmatter = false
+        "#;
+        let cfg: IngestConfig = toml::from_str(raw).unwrap();
+        assert_eq!(cfg.exclude, vec!["drafts/**", "generated/**"]);
+        assert!(!cfg.skip_no_frontmatter);
+    }
 
     #[test]
     fn default_wiki_opt_empty_is_none() {

@@ -164,11 +164,11 @@ fn resolve_global_only_sections_always_from_global() {
 #[test]
 fn resolve_per_wiki_overrides_ingest() {
     let global = GlobalConfig {
-        ingest: IngestConfig { auto_commit: true },
+        ingest: IngestConfig { auto_commit: true, ..Default::default() },
         ..Default::default()
     };
     let per_wiki = WikiConfig {
-        ingest: Some(IngestConfig { auto_commit: false }),
+        ingest: Some(IngestConfig { auto_commit: false, ..Default::default() }),
         ..Default::default()
     };
     let resolved = resolve(&global, &per_wiki);
