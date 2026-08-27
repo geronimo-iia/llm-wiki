@@ -46,6 +46,12 @@ Architectural decisions and their rationale, grouped by release.
 | -------- | ------- |
 | [schema-overlay-model](1.0.0/schema-overlay-model.md) | Embedded defaults + on-disk overrides replace copy-on-create — `spaces::create` stops copying schemas; `space_builder` merges embedded + on-disk on every mount; `wiki migrate` backed by SHA manifest (`schemas/manifest.json`) cleans up stock copies from existing wikis without touching user customizations — implementation spec: [design-schema-overlay-migration](../improvements/design-schema-overlay-migration.md) |
 
+### Ingest
+
+| Decision | Summary |
+| -------- | ------- |
+| [ingest-exclude-and-skip-frontmatter](1.0.0/ingest-exclude-and-skip-frontmatter.md) | `exclude` glob patterns + `skip_no_frontmatter` (default `true`) added to `[ingest]` config — applied at all three index call sites via shared `should_index` helper; `open()` recovery tuple extended to carry `&IngestConfig`; no-frontmatter check uses raw content not `frontmatter.is_empty()` to avoid silently skipping malformed-YAML files |
+
 ### Windows compatibility
 
 | Decision | Summary |
