@@ -177,6 +177,7 @@ impl WikiEngine {
             last_commit.as_deref(),
             &space.index_schema,
             &space.type_registry,
+            &space.ingest_config,
         )?;
         if report.updated > 0 || report.deleted > 0 {
             tracing::info!(
@@ -208,6 +209,7 @@ impl WikiEngine {
             &space.repo_root,
             &space.index_schema,
             &space.type_registry,
+            &space.ingest_config,
         );
         rebuilding.store(false, std::sync::atomic::Ordering::Release);
         let report = result?;
@@ -241,6 +243,7 @@ impl WikiEngine {
                     last.as_deref(),
                     &space.index_schema,
                     &space.type_registry,
+                    &space.ingest_config,
                 )?;
             }
             Ok(StalenessKind::TypesChanged(types)) => {
@@ -251,6 +254,7 @@ impl WikiEngine {
                     &space.repo_root,
                     &space.index_schema,
                     &space.type_registry,
+                    &space.ingest_config,
                 ) {
                     tracing::warn!(wiki = %wiki_name, error = %e, "partial rebuild failed, doing full");
                     space.index_manager.rebuild(
@@ -258,6 +262,7 @@ impl WikiEngine {
                         &space.repo_root,
                         &space.index_schema,
                         &space.type_registry,
+                        &space.ingest_config,
                     )?;
                 }
             }
@@ -267,6 +272,7 @@ impl WikiEngine {
                     &space.repo_root,
                     &space.index_schema,
                     &space.type_registry,
+                    &space.ingest_config,
                 )?;
             }
             Err(e) => {
@@ -276,6 +282,7 @@ impl WikiEngine {
                     &space.repo_root,
                     &space.index_schema,
                     &space.type_registry,
+                    &space.ingest_config,
                 )?;
             }
         }
@@ -390,7 +397,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
 
     if needs_first_build {
         tracing::info!(wiki = %entry.name, "building index for the first time");
-        if let Err(e) = index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry)
+        if let Err(e) = index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry, &resolved_cfg.ingest)
         {
             tracing::error!(wiki = %entry.name, error = %e, "initial index build failed; wiki will serve no results");
         }
@@ -406,6 +413,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
                     last.as_deref(),
                     &index_schema,
                     &type_registry,
+                    &resolved_cfg.ingest,
                 ) {
                     // warn not error: the watcher will retry on the next commit
                     tracing::warn!(wiki = %entry.name, error = %e, "incremental update failed; index serves last successful state");
@@ -419,10 +427,11 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
                     &repo_root,
                     &index_schema,
                     &type_registry,
+                    &resolved_cfg.ingest,
                 ) {
                     tracing::warn!(wiki = %entry.name, error = %e, "partial rebuild failed, attempting full rebuild");
                     if let Err(e) =
-                        index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry)
+                        index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry, &resolved_cfg.ingest)
                     {
                         tracing::error!(wiki = %entry.name, error = %e, "full rebuild after partial failure also failed; wiki will serve stale results");
                     }
@@ -431,7 +440,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
             Ok(StalenessKind::FullRebuildNeeded) => {
                 tracing::info!(wiki = %entry.name, "index stale, rebuilding");
                 if let Err(e) =
-                    index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry)
+                    index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry, &resolved_cfg.ingest)
                 {
                     tracing::error!(wiki = %entry.name, error = %e, "index rebuild failed; wiki will serve stale results");
                 }
@@ -439,7 +448,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
             Err(e) => {
                 tracing::warn!(wiki = %entry.name, error = %e, "staleness check failed, attempting rebuild");
                 if let Err(e) =
-                    index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry)
+                    index_manager.rebuild(&wiki_root, &repo_root, &index_schema, &type_registry, &resolved_cfg.ingest)
                 {
                     tracing::error!(wiki = %entry.name, error = %e, "rebuild after staleness check failure also failed; wiki will serve stale results");
                 }
@@ -461,6 +470,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
             &wiki_root as &std::path::Path,
             &repo_root as &std::path::Path,
             &type_registry,
+            &resolved_cfg.ingest,
         ))
     } else {
         None

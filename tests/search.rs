@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use llm_wiki_engine::config::SearchConfig;
+use llm_wiki_engine::config::{IngestConfig, SearchConfig};
 use llm_wiki_engine::git;
 use llm_wiki_engine::index_manager::SpaceIndexManager;
 use llm_wiki_engine::index_schema::IndexSchema;
@@ -62,7 +62,7 @@ fn build_index(dir: &Path, wiki_root: &Path) -> SpaceIndexManager {
     let index_path = dir.join("index-store");
     git::commit(dir, "index pages").unwrap();
     let mgr = SpaceIndexManager::new("test", &index_path, 50_000_000);
-    mgr.rebuild(wiki_root, dir, &schema(), &registry()).unwrap();
+    mgr.rebuild(wiki_root, dir, &schema(), &registry(), &IngestConfig::default()).unwrap();
     mgr.open(&schema(), None).unwrap();
     mgr
 }

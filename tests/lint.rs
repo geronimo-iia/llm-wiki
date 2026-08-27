@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-use llm_wiki_engine::config::GlobalConfig;
+use llm_wiki_engine::config::{GlobalConfig, IngestConfig};
 use llm_wiki_engine::engine::{EngineState, SpaceContext};
 use llm_wiki_engine::git;
 use llm_wiki_engine::index_manager::SpaceIndexManager;
@@ -45,7 +45,7 @@ fn build_engine(dir: &Path, wiki_root: &Path) -> EngineState {
     let index_path = dir.join("index-store");
     git::commit(dir, "index pages").unwrap();
     let mgr = SpaceIndexManager::new("test", &index_path, 50_000_000);
-    mgr.rebuild(wiki_root, dir, &schema(), &registry()).unwrap();
+    mgr.rebuild(wiki_root, dir, &schema(), &registry(), &IngestConfig::default()).unwrap();
     mgr.open(&schema(), None).unwrap();
 
     let space = Arc::new(SpaceContext {
@@ -529,7 +529,7 @@ fn build_engine_with_name(dir: &Path, wiki_root: &Path, name: &str) -> EngineSta
     let index_path = dir.join("index-store");
     git::commit(dir, "index pages").unwrap();
     let mgr = SpaceIndexManager::new(name, &index_path, 50_000_000);
-    mgr.rebuild(wiki_root, dir, &schema(), &registry()).unwrap();
+    mgr.rebuild(wiki_root, dir, &schema(), &registry(), &IngestConfig::default()).unwrap();
     mgr.open(&schema(), None).unwrap();
 
     let space = Arc::new(SpaceContext {

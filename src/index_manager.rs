@@ -16,12 +16,36 @@ use tantivy::{
 };
 use walkdir::WalkDir;
 
+use crate::config::IngestConfig;
 use crate::frontmatter;
 use crate::git;
 use crate::index_schema::IndexSchema;
 use crate::links;
 use crate::slug::Slug;
 use crate::type_registry::SpaceTypeRegistry;
+
+fn should_index(slug: &str, content: &str, config: &IngestConfig, exclude: &globset::GlobSet) -> bool {
+    if exclude.is_match(slug) {
+        tracing::debug!(slug, "skipping excluded file");
+        return false;
+    }
+    if config.skip_no_frontmatter && !content.trim_start().starts_with("---") {
+        tracing::debug!(slug, "skipping file without frontmatter");
+        return false;
+    }
+    true
+}
+
+fn build_exclude_set(config: &IngestConfig) -> globset::GlobSet {
+    let mut builder = globset::GlobSetBuilder::new();
+    for pattern in &config.exclude {
+        match globset::Glob::new(pattern) {
+            Ok(g) => { builder.add(g); }
+            Err(e) => tracing::warn!(pattern, error = %e, "invalid exclude glob; skipping"),
+        }
+    }
+    builder.build().unwrap_or_else(|_| globset::GlobSetBuilder::new().build().unwrap())
+}
 
 // ── Return types ──────────────────────────────────────────────────────────────
 
@@ -192,7 +216,7 @@ impl SpaceIndexManager {
     pub fn open(
         &self,
         is: &IndexSchema,
-        recovery: Option<(&Path, &Path, &SpaceTypeRegistry)>,
+        recovery: Option<(&Path, &Path, &SpaceTypeRegistry, &IngestConfig)>,
     ) -> Result<()> {
         let search_dir = self.index_path.join("search-index");
 
@@ -204,7 +228,7 @@ impl SpaceIndexManager {
         let index = match try_open() {
             Ok(idx) => idx,
             Err(e) => {
-                if let Some((wiki_root, repo_root, registry)) = recovery {
+                if let Some((wiki_root, repo_root, registry, ingest_config)) = recovery {
                     tracing::warn!(
                         wiki = %self.wiki_name,
                         error = %e,
@@ -213,7 +237,7 @@ impl SpaceIndexManager {
                     if search_dir.exists() {
                         let _ = std::fs::remove_dir_all(&search_dir);
                     }
-                    self.rebuild(wiki_root, repo_root, is, registry)?;
+                    self.rebuild(wiki_root, repo_root, is, registry, ingest_config)?;
                     try_open().context("index still corrupt after rebuild")?
                 } else {
                     return Err(e);
@@ -304,6 +328,7 @@ impl SpaceIndexManager {
         repo_root: &Path,
         is: &IndexSchema,
         registry: &SpaceTypeRegistry,
+        ingest_config: &IngestConfig,
     ) -> Result<IndexReport> {
         let _rebuild_guard = self.rebuild_lock.lock().unwrap_or_else(|e| {
             tracing::warn!(
@@ -339,6 +364,7 @@ impl SpaceIndexManager {
         let mut pages = 0usize;
         let mut sections = 0usize;
         let mut skipped = 0usize;
+        let exclude = build_exclude_set(ingest_config);
 
         for entry in WalkDir::new(wiki_root).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
@@ -363,6 +389,10 @@ impl SpaceIndexManager {
                     continue;
                 }
             };
+            if !should_index(slug.as_str(), &content, ingest_config, &exclude) {
+                skipped += 1;
+                continue;
+            }
             let uri = format!("wiki://{}/{slug}", self.wiki_name);
             let page = frontmatter::parse(&content, Some(path));
 
@@ -509,12 +539,14 @@ impl SpaceIndexManager {
         last_indexed_commit: Option<&str>,
         is: &IndexSchema,
         registry: &SpaceTypeRegistry,
+        ingest_config: &IngestConfig,
     ) -> Result<UpdateReport> {
         let changes = git::collect_changed_files(repo_root, wiki_root, last_indexed_commit)?;
         if changes.is_empty() {
             return Ok(UpdateReport::default());
         }
 
+        let exclude = build_exclude_set(ingest_config);
         let mut writer = self.writer()?;
 
         let f_slug = is.field("slug");
@@ -537,6 +569,7 @@ impl SpaceIndexManager {
                 }
             };
 
+            // delete_term runs unconditionally — removes the doc if it was previously indexed
             writer.delete_term(Term::from_field_text(f_slug, slug.as_str()));
 
             if *status == Delta::Deleted {
@@ -544,6 +577,9 @@ impl SpaceIndexManager {
             } else {
                 let full_path = repo_root.join(path);
                 if let Ok(content) = std::fs::read_to_string(&full_path) {
+                    if !should_index(slug.as_str(), &content, ingest_config, &exclude) {
+                        continue;
+                    }
                     let page = frontmatter::parse(&content, Some(&full_path));
                     let uri = format!("wiki://{}/{slug}", self.wiki_name);
                     let is_bundle = full_path.file_name() == Some(std::ffi::OsStr::new("index.md"));
@@ -716,6 +752,7 @@ impl SpaceIndexManager {
         repo_root: &Path,
         is: &IndexSchema,
         registry: &SpaceTypeRegistry,
+        ingest_config: &IngestConfig,
     ) -> Result<IndexReport> {
         let start = std::time::Instant::now();
         let mut writer = self.writer()?;
@@ -730,6 +767,7 @@ impl SpaceIndexManager {
         let type_set: std::collections::HashSet<&str> = types.iter().map(|s| s.as_str()).collect();
         let mut pages = 0usize;
         let mut skipped = 0usize;
+        let exclude = build_exclude_set(ingest_config);
 
         for entry in WalkDir::new(wiki_root).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
@@ -757,6 +795,10 @@ impl SpaceIndexManager {
                     continue;
                 }
             };
+            if !should_index(slug.as_str(), &content, ingest_config, &exclude) {
+                skipped += 1;
+                continue;
+            }
             let uri = format!("wiki://{}/{slug}", self.wiki_name);
             let is_bundle = path.file_name() == Some(std::ffi::OsStr::new("index.md"));
             let source_dir_str = if is_bundle {
@@ -1021,5 +1063,36 @@ mod tests {
             Some("abc123"),
             "last_commit unchanged after second reload"
         );
+    }
+
+    #[test]
+    fn should_index_no_exclusions() {
+        let cfg = IngestConfig::default();
+        let gs = build_exclude_set(&cfg);
+        assert!(should_index("concepts/foo", "---\ntype: concept\n---\nbody", &cfg, &gs));
+        assert!(!should_index("readme", "# bare", &cfg, &gs));
+    }
+
+    #[test]
+    fn should_index_exclude_glob() {
+        let cfg = IngestConfig {
+            auto_commit: true,
+            exclude: vec!["drafts/**".to_string()],
+            skip_no_frontmatter: false,
+        };
+        let gs = build_exclude_set(&cfg);
+        assert!(!should_index("drafts/wip", "---\n---", &cfg, &gs));
+        assert!(should_index("concepts/foo", "---\n---", &cfg, &gs));
+    }
+
+    #[test]
+    fn should_index_skip_no_frontmatter_false() {
+        let cfg = IngestConfig {
+            auto_commit: true,
+            exclude: vec![],
+            skip_no_frontmatter: false,
+        };
+        let gs = build_exclude_set(&cfg);
+        assert!(should_index("readme", "# bare", &cfg, &gs));
     }
 }

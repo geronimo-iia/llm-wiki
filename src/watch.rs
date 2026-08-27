@@ -166,6 +166,7 @@ pub async fn run_watcher(
                                 space.index_manager.last_commit(),
                                 space.index_schema.clone(),
                                 Arc::clone(&space.type_registry),
+                                space.ingest_config.clone(),
                             ))
                         })
                         .collect()
@@ -179,6 +180,7 @@ pub async fn run_watcher(
                     last_commit,
                     index_schema,
                     type_registry,
+                    ingest_config,
                 ) in tasks
                 {
                     let start = std::time::Instant::now();
@@ -189,6 +191,7 @@ pub async fn run_watcher(
                             last_commit.as_deref(),
                             &index_schema,
                             &type_registry,
+                            &ingest_config,
                         )
                     })
                     .await

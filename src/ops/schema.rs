@@ -151,11 +151,13 @@ pub fn schema_add(
                 &index_path,
                 (engine.config.index.memory_budget_mb as usize) * 1_000_000,
             );
+            let ingest_cfg = space.resolved_config(&engine.config).ingest;
             match manager.rebuild(
                 &space.wiki_root,
                 &space.repo_root,
                 &new_index_schema,
                 &new_registry,
+                &ingest_cfg,
             ) {
                 Ok(_) => msg.push_str(", search index rebuilt"),
                 Err(e) => msg.push_str(&format!(
