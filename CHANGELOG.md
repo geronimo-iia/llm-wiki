@@ -14,6 +14,7 @@ Path traversal, info-disclosure, and oversized-input vectors closed across the M
 
 ### Added
 
+- **`aliases: array[string]`** optional field on `concept`/`query-result` pages (both share `concept.json`) — keyword-indexed (`x-keyword: true`) for synonym search. Existing wikis require one index rebuild to activate.
 - **`[ingest]` — `exclude`** — gitignore-style glob patterns (e.g. `drafts/**`) matched against the slug. Matching files are excluded from the search index; they remain on disk and accessible via `wiki_content_read`.
 - **Schema overlay model** — schemas are no longer copied into `schemas/` at wiki creation time; the engine always starts from embedded defaults, overlays any on-disk `schemas/*.json` files (same filename replaces, new filename adds), then applies `wiki.toml` type overrides. Existing custom schemas in `schemas/` continue to work without changes.
 - **`wiki migrate` CLI / `wiki_migrate` MCP tool** — scans `schemas/` for stock schema files (current and all pre-1.0.0 versions, compared by JSON value equality), deletes them, and reports kept custom schemas; `--dry-run` / `dry_run` previews without modifying anything; `--all` runs across every registered wiki.
