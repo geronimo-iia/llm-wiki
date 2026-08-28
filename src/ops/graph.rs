@@ -90,7 +90,7 @@ pub fn graph_build(
     params: &GraphParams<'_>,
 ) -> Result<GraphResult> {
     let space = engine.space(wiki_name)?;
-    let resolved = space.resolved_config(&engine.config);
+    let resolved = space.resolved_config();
 
     let fmt: GraphRenderFormat = params
         .format

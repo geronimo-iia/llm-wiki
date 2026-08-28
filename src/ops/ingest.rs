@@ -28,7 +28,7 @@ pub fn ingest_with_redact(
     wiki_name: &str,
 ) -> Result<ingest::IngestReport> {
     let space = engine.space(wiki_name)?;
-    let resolved = space.resolved_config(&engine.config);
+    let resolved = space.resolved_config();
 
     // Build changed-paths set from git diff (normal ingest only; dry_run validates all).
     // Paths from collect_changed_files are relative to repo_root; strip the wiki prefix

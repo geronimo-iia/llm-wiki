@@ -47,16 +47,14 @@ pub struct SpaceContext {
     pub rebuilding: Arc<AtomicBool>,
     /// Resolved ingest configuration for this wiki — used by rebuild and update calls.
     pub ingest_config: IngestConfig,
+    /// Resolved full configuration cached at mount time — avoids per-call disk reads.
+    pub resolved_cfg: ResolvedConfig,
 }
 
 impl SpaceContext {
-    /// Load and resolve the per-wiki config merged with `global`.
-    pub fn resolved_config(&self, global: &GlobalConfig) -> ResolvedConfig {
-        let wiki_cfg = config::load_wiki(&self.repo_root).unwrap_or_else(|e| {
-            tracing::warn!(path = %self.repo_root.display(), error = %e, "failed to load wiki config, using defaults");
-            Default::default()
-        });
-        config::resolve(global, &wiki_cfg)
+    /// Return the resolved config cached at mount time.
+    pub fn resolved_config(&self) -> &ResolvedConfig {
+        &self.resolved_cfg
     }
 }
 
@@ -539,6 +537,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
         community_cache: GenerationCache::new(),
         rebuilding: Arc::new(AtomicBool::new(false)),
         ingest_config: resolved_cfg.ingest.clone(),
+        resolved_cfg,
     })
 }
 

@@ -123,7 +123,7 @@ pub fn stats(engine: &EngineState, wiki_name: &str, opts: &StatsOptions) -> Resu
         &GraphFilter::default(),
     )?;
     let metrics = graph::compute_metrics(&wiki_graph);
-    let resolved = space.resolved_config(&engine.config);
+    let resolved = space.resolved_config();
     let communities = get_cached_community_stats(
         &space.index_schema,
         &space.type_registry,

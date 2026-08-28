@@ -68,6 +68,10 @@ fn build_engine(dir: &Path, wiki_root: &Path) -> EngineState {
         community_cache: petgraph_live::cache::GenerationCache::new(),
         rebuilding: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         ingest_config: llm_wiki_engine::config::IngestConfig::default(),
+        resolved_cfg: llm_wiki_engine::config::resolve(
+            &GlobalConfig::default(),
+            &Default::default(),
+        ),
     });
 
     let mut spaces = HashMap::new();
@@ -559,6 +563,10 @@ fn build_engine_with_name(dir: &Path, wiki_root: &Path, name: &str) -> EngineSta
         community_cache: petgraph_live::cache::GenerationCache::new(),
         rebuilding: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         ingest_config: llm_wiki_engine::config::IngestConfig::default(),
+        resolved_cfg: llm_wiki_engine::config::resolve(
+            &GlobalConfig::default(),
+            &Default::default(),
+        ),
     });
 
     let mut spaces = HashMap::new();

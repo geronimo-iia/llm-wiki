@@ -47,7 +47,7 @@ pub fn suggest(
     };
 
     let space = engine.space(&wiki_name)?;
-    let resolved = space.resolved_config(&engine.config);
+    let resolved = space.resolved_config();
     let limit = limit.unwrap_or(resolved.suggest.default_limit as usize);
     let min_score = resolved.suggest.min_score;
 

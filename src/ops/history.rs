@@ -32,7 +32,7 @@ pub fn history(
     };
 
     let space = engine.space(&wiki_name)?;
-    let resolved = space.resolved_config(&engine.config);
+    let resolved = space.resolved_config();
 
     let limit = limit.unwrap_or(resolved.history.default_limit as usize);
     let follow = follow.unwrap_or(resolved.history.follow);

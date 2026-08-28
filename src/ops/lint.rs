@@ -135,7 +135,7 @@ pub fn run_lint(
     let space = engine.space(wiki_name)?;
     let searcher = space.index_manager.searcher()?;
     let is = &space.index_schema;
-    let resolved = space.resolved_config(&engine.config);
+    let resolved = space.resolved_config();
     let lint_cfg = &resolved.lint;
     let wiki_root = &space.wiki_root;
 

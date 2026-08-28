@@ -151,7 +151,7 @@ pub fn schema_add(
                 &index_path,
                 (engine.config.index.memory_budget_mb as usize) * 1_000_000,
             );
-            let ingest_cfg = space.resolved_config(&engine.config).ingest;
+            let ingest_cfg = space.resolved_config().ingest.clone();
             match manager.rebuild(
                 &space.wiki_root,
                 &space.repo_root,
@@ -280,7 +280,7 @@ pub fn schema_remove(
     }
 
     // Auto-commit if configured and changes were made
-    let resolved = space.resolved_config(&engine.config);
+    let resolved = space.resolved_config();
     let repo_root = space.repo_root.clone();
     if resolved.ingest.auto_commit
         && (pages_deleted_from_disk > 0 || wiki_toml_updated || schema_file_deleted)
