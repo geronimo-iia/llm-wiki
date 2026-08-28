@@ -31,7 +31,6 @@ llm-wiki implements a different pattern — the **Dynamic Knowledge Repository**
 | Audit trail             | None                  | Git history per page        |
 | Data ownership          | Provider systems      | Your files, your git repo   |
 
----
 
 ## How it works
 
@@ -77,27 +76,25 @@ The engine validates frontmatter against a JSON Schema, extracts typed graph
 edges from `sources` and `concepts`, and indexes everything in tantivy. The
 graph is live the moment a page is committed.
 
----
 
 ## Install
 
 ```bash
-# macOS / Linux
+# Homebrew (macOS / Linux) — recommended
+brew tap geronimo-iia/tap
+brew install llm-wiki
+
+# macOS / Linux — curl installer
 curl -fsSL https://raw.githubusercontent.com/geronimo-iia/llm-wiki/main/install.sh | bash
 
 # Windows (PowerShell)
 irm https://raw.githubusercontent.com/geronimo-iia/llm-wiki/main/install.ps1 | iex
 
-# Homebrew
-brew install geronimo-iia/tap/llm-wiki
-
 # Cargo
-cargo install llm-wiki-engine
+cargo install llm-wiki
 ```
 
 → [All installation options](docs/guides/installation.md)
-
----
 
 ## Quick start
 
@@ -114,7 +111,22 @@ via the MCP config. The 24 tools are immediately available.
 
 → [Getting started guide](docs/guides/getting-started.md) · [IDE integration](docs/guides/ide-integration.md)
 
----
+## MCP configuration
+
+Add to your agent or IDE's MCP config:
+
+```json
+{
+  "mcpServers": {
+    "llm-wiki": {
+      "command": "llm-wiki",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+Works with Claude Code, VS Code (Copilot), Cursor, Windsurf, and any MCP-compatible client. For Zed (ACP over stdio), see the [IDE integration guide](docs/guides/ide-integration.md).
 
 ## IDE integration via ACP
 
@@ -140,8 +152,6 @@ llm-wiki serve --acp --http :18765
 
 → [IDE integration guide](docs/guides/ide-integration.md) · [ACP configuration](docs/guides/configuration.md)
 
----
-
 ## What agents can do
 
 | Tool | What it does |
@@ -153,9 +163,9 @@ llm-wiki serve --acp --http :18765
 | `wiki_content_new` | Scaffold a new page; returns local `path` for direct writes |
 | `wiki_resolve` | Resolve a slug or `wiki://` URI to its local filesystem path |
 | `wiki_ingest` | Validate a path, update the index, commit to git |
-| `wiki_graph` | Typed concept graph — Mermaid, DOT, LLM-readable, or `json` (nodes/edges/metrics/communities) |
+| `wiki_graph` | Typed concept graph — Mermaid, DOT, LLM-readable, or `summary` (aggregate metrics + community stats, no render) |
 | `wiki_suggest` | Find pages worth linking by tag overlap, graph distance, BM25 similarity |
-| `wiki_stats` | Wiki health: page counts, type distribution, staleness, graph density |
+| `wiki_stats` | Wiki health: page counts, type distribution, staleness, graph density; `detail: "full"` adds community centre slugs |
 | `wiki_lint` | Deterministic quality rules: orphans, broken links, missing fields, stale pages; scalable via `summary`, `path_prefix`, `page_size`, `cursor` |
 | `wiki_export` | Write full wiki to `llms.txt`, `llms-full`, or JSON — JSON includes custom frontmatter fields per page |
 | `wiki_history` | Git commit history for a page, with rename following |
@@ -165,11 +175,13 @@ llm-wiki serve --acp --http :18765
 | `wiki_content_commit` | Stage and commit specific pages or all pending changes to git |
 | `wiki_index_rebuild` | Rebuild the tantivy index for a wiki space |
 | `wiki_index_status` | Check whether the index is up to date |
-| `wiki_spaces_*` | Create, register, list, remove wiki spaces; supports custom `wiki_root` |
+| `wiki_spaces_create` | Create a new wiki space at a given path |
+| `wiki_spaces_register` | Register an existing wiki directory as a space |
+| `wiki_spaces_list` | List all registered spaces with status |
+| `wiki_spaces_remove` | Remove a registered space (does not delete files) |
+| `wiki_spaces_set_default` | Set the default wiki for tool calls that omit a wiki name |
 
 Full tool reference: [`docs/specifications/tools/`](docs/specifications/tools/)
-
----
 
 ## Skills
 
@@ -185,11 +197,10 @@ Claude Code plugin that ships ready-to-use workflows:
 | `research` | Search the wiki and synthesize an answer from existing knowledge |
 | `lint` | Structural audit — orphans, broken links, schema issues; uses `summary: true` first for large wikis |
 | `graph` | Explore and interpret the concept graph |
+| `migrate` | Clean up built-in schema copies left by the old copy-on-create model; runs `wiki migrate --all` |
 
 Skills are plain Markdown files — readable by the LLM, replaceable, forkable.
 Write your own for your own workflows.
-
----
 
 ## Architecture
 
@@ -203,8 +214,6 @@ The engine has no opinions about workflows, LLM providers, or interfaces.
 Every LLM call happens outside the binary. Every workflow lives in a skill.
 The separation means skills ship independently, the engine stays stable, and
 nothing is coupled to a specific AI provider.
-
----
 
 ## Technology
 
@@ -223,8 +232,6 @@ Single Rust binary. No runtime, no database, no Docker.
 | MCP | [rmcp](https://crates.io/crates/rmcp) — stdio + Streamable HTTP |
 | ACP | [agent-client-protocol](https://crates.io/crates/agent-client-protocol) |
 
----
-
 ## Documentation
 
 | | |
@@ -236,8 +243,6 @@ Single Rust binary. No runtime, no database, no Docker.
 | [Roadmap](docs/roadmap.md) | What shipped, what's next |
 | [Decisions](docs/decisions/README.md) | Architectural decision records |
 
----
-
 ## Related Projects
 
 | Project | Roadmap |
@@ -246,8 +251,6 @@ Single Rust binary. No runtime, no database, no Docker.
 | [llm-wiki-hugo-cms](https://github.com/geronimo-iia/llm-wiki-hugo-cms) | `docs/roadmap.md` |
 | [homebrew-tap](https://github.com/geronimo-iia/homebrew-tap) | Formula updates per release |
 | [asdf-llm-wiki](https://github.com/geronimo-iia/asdf-llm-wiki) | Plugin updates per release |
-
----
 
 ## Why I built this
 
@@ -275,8 +278,6 @@ or at work, I'd love to hear about it :)
 
 llm-wiki is a continuation of
 [agent-foundation](https://github.com/geronimo-iia/agent-foundation).
-
----
 
 ## Contributing
 

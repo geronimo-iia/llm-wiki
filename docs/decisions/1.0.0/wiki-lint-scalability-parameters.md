@@ -1,7 +1,7 @@
 # wiki_lint — scalability parameters
 
-**Date:** 2026-08-20
-**Status:** Proposed
+Date: 2026-08-20
+Status: Proposed
 
 ## Context
 

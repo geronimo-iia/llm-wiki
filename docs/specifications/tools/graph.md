@@ -35,8 +35,6 @@ llm-wiki graph
 
 See [graph.md](../engine/graph.md) for the graph engine contract.
 
-> **Note:** This specification is subject to change as the typed graph evolves.
-
 ### Output
 
 Mermaid (default):

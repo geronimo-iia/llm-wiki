@@ -109,7 +109,6 @@ log_format    = "text"
 debounce_ms = 500
 ```
 
-
 ## Sections
 
 ### `[global]` — Identity
@@ -195,7 +194,6 @@ is rejected.
 | `logging.log_rotation`  | `daily`            | `daily`, `hourly`, `never`                |
 | `logging.log_max_files` | `7`                | Max rotated files; `0` = unlimited        |
 | `logging.log_format`    | `text`             | `text` or `json`                          |
-
 
 ## Resolution Order
 

@@ -7,8 +7,7 @@ last_updated: "2026-08-04"
 
 # Engine Implementation
 
-Implementation reference for the engine runtime. Not a specification —
-see [specifications/](../specifications/README.md) for the design.
+Not a specification — see [specifications/](../specifications/README.md) for the design.
 
 ## Core Structs
 

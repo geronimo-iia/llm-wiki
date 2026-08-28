@@ -1,7 +1,7 @@
 # wiki_graph — JSON output format
 
-**Date:** 2026-08-17
-**Status:** Implemented (1.0.0)
+Date: 2026-08-17
+Status: Implemented (1.0.0)
 
 ## Context
 

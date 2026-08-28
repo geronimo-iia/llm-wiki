@@ -1,7 +1,7 @@
 # wiki_graph — scale problem and summary mode
 
-**Date:** 2026-08-20
-**Status:** Proposed
+Date: 2026-08-20
+Status: Proposed
 
 ## Context
 

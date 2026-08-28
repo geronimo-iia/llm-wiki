@@ -12,8 +12,6 @@ multi-step wiki workflows. **The engine does not manage skills.** Skills
 are a separate concern — installed, read, and executed by the IDE, the
 plugin system, or the user.
 
----
-
 ## 1. The Problem
 
 The engine provides tools (`wiki_search`, `wiki_write`, `wiki_ingest`,
@@ -28,8 +26,6 @@ The engine's `instructions.md` contains short workflow summaries (~10
 lines each). The vanillaflava skills that inspired this project are 200+
 lines each. That level of detail belongs outside the engine.
 
----
-
 ## 2. Separation of Concerns
 
 | Concern | Who owns it |
@@ -43,8 +39,6 @@ lines each. That level of detail belongs outside the engine.
 
 The engine never reads, resolves, or returns skill content. It provides
 the tools. Skills tell the LLM how to use them.
-
----
 
 ## 3. Layout Convention
 
@@ -86,8 +80,6 @@ my-wiki/
 - **Not managed by the engine** — `llm-wiki init` may create the empty
   folder, but the engine never reads from it.
 
----
-
 ## 4. SKILL.md Format
 
 Each skill follows the Claude Code SKILL.md convention:
@@ -112,8 +104,6 @@ description: Process source files into synthesized wiki pages. Reads
 | `name` | yes | Skill identifier |
 | `description` | yes | One-paragraph summary — when to use, what it does |
 
----
-
 ## 5. Skill Sources
 
 The user installs skills from their preferred source:
@@ -136,8 +126,6 @@ No skill installed = no skill content. The engine still works — the LLM
 just doesn't have detailed playbooks and relies on the short
 `instructions.md` orientation.
 
----
-
 ## 6. How Each Surface Reads Skills
 
 The engine is not involved. Each surface reads skills directly:
@@ -149,8 +137,6 @@ The engine is not involved. Each surface reads skills directly:
 | **VS Code** | Same — user or extension reads `skills/` from the workspace. |
 | **Zed (ACP)** | The IDE reads `skills/` from the workspace. The ACP agent does not serve skills. |
 | **CLI** | User reads `skills/<workflow>/SKILL.md` directly, or uses `cat`. |
-
----
 
 ## 7. What the Engine Provides
 
@@ -282,8 +268,6 @@ The LLM gets the orientation section automatically. Individual sections
 are available via `wiki_instruct("frontmatter")` or
 `llm-wiki instruct frontmatter`.
 
----
-
 ## 8. Relationship to `schema.md`
 
 `schema.md` defines the wiki's structure — categories, type conventions,
@@ -297,8 +281,6 @@ Step 1 — Read schema.md to understand this wiki's conventions.
 it. Both live in the wiki repo. Neither is managed by the engine beyond
 initial creation.
 
----
-
 ## 9. Init
 
 `llm-wiki init` does **not** create a `skills/` folder. The engine has no
@@ -309,8 +291,6 @@ from their preferred source:
 cd my-wiki
 git clone https://github.com/.../llm-wiki-skills skills
 ```
-
----
 
 ## 10. Delivery Across Surfaces
 
@@ -347,8 +327,6 @@ async fn run_skill(&self, session_id: &SessionId, workflow: &str, target: &str) 
 The IDE's LLM receives the engine instructions. If skills are installed
 in `skills/`, the IDE loads them separately as additional context. The
 engine doesn't know or care.
-
----
 
 ## 11. MCP Prompts and Resources
 
@@ -418,8 +396,6 @@ supports resource access.
 
 The engine serves both. It doesn't decide which to use — the LLM or
 client picks the right one based on context.
-
----
 
 ## 12. Open Questions
 

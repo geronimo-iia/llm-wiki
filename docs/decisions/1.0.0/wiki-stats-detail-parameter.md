@@ -1,7 +1,7 @@
 # wiki_stats — remove isolated slug list, add detail parameter
 
-**Date:** 2026-08-20
-**Status:** Proposed
+Date: 2026-08-20
+Status: Proposed
 
 ## Context
 

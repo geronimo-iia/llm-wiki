@@ -200,12 +200,12 @@ This creates `discussed-in` edges from meeting pages to concept pages
 in the graph. `wiki_graph --relation discussed-in` filters to those
 edges.
 
-Fields declared in `x-graph-edges` are automatically indexed as
+The engine automatically indexes fields declared in `x-graph-edges` as
 keywords (slug lists).
 
 To index a plain-string array as one keyword value per entry (instead
 of joining all values into one text string), add `"x-keyword": true`
-to the field definition. Values are lowercased at index time. Use this
+to the field definition. The engine lowercases values at index time. Use this
 for tag-like fields where each value is a discrete term, not prose:
 
 ```json

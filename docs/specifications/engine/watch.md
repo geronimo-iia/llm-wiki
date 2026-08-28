@@ -16,22 +16,21 @@ standalone command.
 
 ## Modes
 
-### Server mode
+**Server mode:**
 
 ```
 llm-wiki serve --watch
 ```
 
-Starts the watcher task alongside transport tasks. Shares the same
-`WikiEngine`.
+Starts the watcher task alongside transport tasks, sharing the same `WikiEngine`.
 
-### Standalone mode
+**Standalone mode:**
 
 ```
 llm-wiki watch [--wiki <name>]
 ```
 
-Runs the watcher without MCP transports. Ctrl+C to stop.
+Runs without MCP transports. Ctrl+C to stop.
 
 ## What it watches
 
@@ -113,10 +112,7 @@ After successful ingest, the watcher emits
 `notifications/resources/updated` for each changed page URI. After
 a schema rebuild, it emits `notifications/resources/list_changed`.
 
-## Hot reload interaction
-
-When a wiki is mounted/unmounted via hot reload, the watcher
-starts/stops watching that wiki's directory.
+When a wiki is mounted/unmounted via hot reload, the watcher starts/stops watching that wiki's directory.
 
 ## Configuration
 

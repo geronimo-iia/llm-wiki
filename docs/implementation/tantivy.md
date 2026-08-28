@@ -7,8 +7,7 @@ last_updated: "2026-08-19"
 
 # Tantivy Implementation Notes
 
-Implementation reference for working with tantivy in llm-wiki. Not a
-specification — see [index-management.md](../specifications/engine/index-management.md)
+Not a specification — see [index-management.md](../specifications/engine/index-management.md)
 for the design.
 
 ## Dynamic Schema Building
@@ -286,7 +285,7 @@ index
 **Why Manual, not OnCommitWithDelay (the tantivy default):**
 
 `OnCommitWithDelay` spawns a background file_watcher thread that polls
-`meta.json` for changes. When a second `Index::reader()` is opened on the same
+`meta.json` for changes. When you open a second `Index::reader()` on the same
 directory (e.g. `status()` opening a temporary reader for health checks), two
 watcher threads compete on the same file. Each reload writes a new `meta.json`,
 which the other watcher detects, triggering another reload — an infinite loop

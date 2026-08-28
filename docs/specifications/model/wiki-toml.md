@@ -15,7 +15,6 @@ last_updated: "2025-07-18"
 at the repo root, is committed to git, and is shared across all users
 of the wiki.
 
-
 ## Complete Example
 
 ```toml
@@ -46,7 +45,6 @@ type_strictness = "loose"   # "loose" (default) | "strict"
 archived = 0.0   # suppress archived for this wiki
 stub     = 0.6   # add a custom status
 ```
-
 
 ## Sections
 

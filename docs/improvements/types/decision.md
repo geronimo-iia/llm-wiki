@@ -56,15 +56,13 @@ decision ceased to apply.
 
 The page body carries the substance the frontmatter cannot:
 
-- **Rule text** — the decision stated precisely
-- **Rationale** — why this choice was made over alternatives
-- **Scope** — what the decision applies to and what it does not
-- **Alternatives considered** — options that were rejected and why
+- Rule text — the decision stated precisely
+- Rationale — why this choice was made over alternatives
+- Scope — what the decision applies to and what it does not
+- Alternatives considered — options that were rejected and why
 
 Keeping rationale in the body (not frontmatter) means it can be as
 long as needed and is full-text searchable.
-
-## Relationship to `doc`
 
 Use `decision` when the page records a choice that was made. Use `doc`
 when the page is a reference document (specification, guide, standard)

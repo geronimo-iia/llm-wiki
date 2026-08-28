@@ -9,7 +9,7 @@ last_updated: "2026-08-28"
 Constraints that are not enforced by the type system or compiler. Violating them
 produces silent correctness bugs — no panic, no error, wrong output.
 
-Exceptions are noted inline where a constraint is compile-time enforced.
+Each exception notes inline where a constraint is compile-time enforced.
 
 ## Snapshot key stability
 

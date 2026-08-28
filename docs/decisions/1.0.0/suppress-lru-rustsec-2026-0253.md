@@ -30,8 +30,6 @@ or patching `tantivy`, which is out of scope for a dependency hygiene task.
 would break `tantivy`'s API expectations since `tantivy` calls `lru` directly.
 This would require patching `tantivy` source as well — equivalent to forking.
 
-## Risk Assessment
-
 The unsoundness requires a panic to occur *inside* `LruCache::pop()` to
 trigger the use-after-free. `llm-wiki-engine` does not call `LruCache::pop()`
 directly. The call originates inside `tantivy` internals during index

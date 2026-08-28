@@ -44,10 +44,10 @@ Use `status: active` for unresolved contradictions and `superseded_by`
 (from `base.json`) to link to the resolution page when closed. Do not
 delete the contradiction page.
 
-> **Note:** The `status` enum on `base.json` does not include
-> `resolved`. Use `superseded_by` pointing to the resolution page
-> (a `decision` or `concept` page) to mark closure. This preserves
-> the audit trail without requiring a schema enum change.
+> The `status` enum on `base.json` does not include `resolved`. Use
+> `superseded_by` pointing to the resolution page (a `decision` or
+> `concept` page) to mark closure. This preserves the audit trail
+> without requiring a schema enum change.
 
 ## Frontmatter is flat by design
 
@@ -111,8 +111,6 @@ the settlement basis.
 | `decision`   | A decision page may resolve a contradiction — link via `superseded_by` |
 | `open_question` | An open question may be `blocked_by` a contradiction slug        |
 | Source types | `source_ids` points to the pages whose claims conflict              |
-
-## Agent-layer boundary
 
 The contradiction gate described in the TDS article ("if the topic is
 contested, refuse to answer") is an **agent-layer concern**, not an

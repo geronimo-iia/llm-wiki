@@ -75,16 +75,6 @@ This is an impedance mismatch with the architecture.
 | `6341193` | `duplicate-id` (error) + `id-format` (warning) lint rules; graph edges + backlinks resolve by id |
 | `1c8626f` | `id` field in all outputs; `content new --id`; MCP `auto_id`/`id` params |
 
-The id→slug mapping lives exclusively in Tantivy. It is not committed to git.
-After `git mv wiki/a.md wiki/b.md && git commit`, the mapping is stale until
-`index rebuild` runs — during that window, id resolution fails in exactly the
-same way a slug link would. The "permanent" contract is not upheld at the git
-layer.
-
-The strong guarantee would require a committed artifact (e.g. `wiki/.id-map.toml`)
-maintained atomically with page creation and moves. That was not implemented by
-como and adds complexity not warranted by the use case.
-
 ## Reference
 
 como-technologies/llm-wiki commits `238d131`, `e8446b7`, `6341193`, `1c8626f`.

@@ -10,7 +10,6 @@ depends_on:
 
 # Graph Cache Implementation
 
-Implementation reference for the in-memory graph cache introduced in v0.3.0.
 Not a specification — see [graph.md](../specifications/engine/graph.md) for
 the design contract.
 

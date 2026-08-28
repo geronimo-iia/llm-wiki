@@ -26,7 +26,7 @@ llm-wiki-engine
 Until `postcard` relaxes its constraint to `heapless ^0.8` or later, there is
 no upgrade path available without forking `postcard`.
 
-Notably, `cargo tree -i atomic-polyfill` returns nothing on the default build
+`cargo tree -i atomic-polyfill` returns nothing on the default build
 target — the crate is present in `Cargo.lock` but is not reachable in the
 compiled binary on standard targets (x86_64, aarch64). It exists only as a
 dependency for embedded/no-std targets that `postcard` supports but
@@ -41,8 +41,6 @@ crate and the constraint will be relaxed in a future release.
 (authored by the same maintainer). Replacing it to avoid a transitive
 unmaintained crate that is not even compiled into the binary would be
 disproportionate.
-
-## Risk Assessment
 
 Risk level: **negligible**. The crate is not compiled into the binary on any
 supported target. "Unmaintained" means no future security fixes will be
