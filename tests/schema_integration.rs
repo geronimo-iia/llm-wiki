@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 
+use llm_wiki_engine::config::TypeStrictness;
 use llm_wiki_engine::engine::WikiEngine;
 use llm_wiki_engine::ops;
 use llm_wiki_engine::spaces;
@@ -142,7 +143,7 @@ fn schema_template_passes_own_validation() {
             serde_yaml::from_str(yaml_content).unwrap_or_default();
 
         let space = eng.space("test").unwrap();
-        let result = space.type_registry.validate(&fm, "loose");
+        let result = space.type_registry.validate(&fm, TypeStrictness::Loose);
         assert!(
             result.is_ok(),
             "template for '{type_name}' failed validation: {:?}",

@@ -7,7 +7,7 @@ use jsonschema::Validator;
 use serde_yaml::Value;
 use sha2::{Digest, Sha256};
 
-use crate::config;
+use crate::config::{self, TypeStrictness};
 use crate::default_schemas;
 
 /// A compiled type entry in the registry.
@@ -179,7 +179,7 @@ impl SpaceTypeRegistry {
     /// - In strict mode, unknown types produce errors
     ///
     /// Returns a list of warnings. Bails on hard errors.
-    pub fn validate(&self, fm: &BTreeMap<String, Value>, strictness: &str) -> Result<Vec<String>> {
+    pub fn validate(&self, fm: &BTreeMap<String, Value>, strictness: TypeStrictness) -> Result<Vec<String>> {
         let mut warnings = Vec::new();
 
         // title is always required — hard error regardless of strictness
@@ -207,7 +207,7 @@ impl SpaceTypeRegistry {
         } else if self.types.contains_key(page_type) {
             page_type
         } else {
-            if strictness == "strict" {
+            if strictness == TypeStrictness::Strict {
                 bail!("unknown type '{page_type}'");
             }
             warnings.push(format!("unknown type '{page_type}'"));
@@ -218,7 +218,7 @@ impl SpaceTypeRegistry {
             let json_fm = yaml_fm_to_json(fm)?;
             let errors: Vec<_> = rt.validator.iter_errors(&json_fm).collect();
             if !errors.is_empty() {
-                if strictness == "strict" {
+                if strictness == TypeStrictness::Strict {
                     bail!("schema validation failed: {}", errors[0]);
                 }
                 for e in &errors {

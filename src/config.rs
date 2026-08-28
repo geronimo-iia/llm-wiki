@@ -79,7 +79,7 @@ impl std::str::FromStr for OutputFormat {
 }
 
 /// Validation strictness for unknown schema types.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum TypeStrictness {
     #[default]

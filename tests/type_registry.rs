@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 
+use llm_wiki_engine::config::TypeStrictness;
 use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 use serde_yaml::Value;
 
@@ -173,10 +174,10 @@ description = "Custom paper"
         ("type", "paper"),
         ("custom_field", "yes"),
     ]);
-    assert!(reg.validate(&valid, "strict").is_ok());
+    assert!(reg.validate(&valid, TypeStrictness::Strict).is_ok());
 
     let missing = fm(&[("title", "Test"), ("type", "paper")]);
-    assert!(reg.validate(&missing, "strict").is_err());
+    assert!(reg.validate(&missing, TypeStrictness::Strict).is_err());
 }
 
 #[test]
@@ -201,7 +202,7 @@ fn validate_valid_concept() {
                 ("type", "concept"),
                 ("read_when", "test"),
             ]),
-            "loose",
+            TypeStrictness::Loose,
         )
         .unwrap();
     // read_when as string instead of list will produce a schema warning in loose mode
@@ -212,14 +213,14 @@ fn validate_valid_concept() {
 #[test]
 fn validate_missing_title_in_strict() {
     let reg = SpaceTypeRegistry::from_embedded().unwrap();
-    let result = reg.validate(&fm(&[("type", "concept")]), "strict");
+    let result = reg.validate(&fm(&[("type", "concept")]), TypeStrictness::Strict);
     assert!(result.is_err());
 }
 
 #[test]
 fn validate_missing_type_warns() {
     let reg = SpaceTypeRegistry::from_embedded().unwrap();
-    let warnings = reg.validate(&fm(&[("title", "Test")]), "loose").unwrap();
+    let warnings = reg.validate(&fm(&[("title", "Test")]), TypeStrictness::Loose).unwrap();
     assert!(warnings.iter().any(|w| w.contains("type")));
 }
 
@@ -227,7 +228,7 @@ fn validate_missing_type_warns() {
 fn validate_unknown_type_loose_warns() {
     let reg = SpaceTypeRegistry::from_embedded().unwrap();
     let warnings = reg
-        .validate(&fm(&[("title", "Test"), ("type", "alien")]), "loose")
+        .validate(&fm(&[("title", "Test"), ("type", "alien")]), TypeStrictness::Loose)
         .unwrap();
     assert!(warnings.iter().any(|w| w.contains("unknown type")));
 }
@@ -235,7 +236,7 @@ fn validate_unknown_type_loose_warns() {
 #[test]
 fn validate_unknown_type_strict_errors() {
     let reg = SpaceTypeRegistry::from_embedded().unwrap();
-    let result = reg.validate(&fm(&[("title", "Test"), ("type", "alien")]), "strict");
+    let result = reg.validate(&fm(&[("title", "Test"), ("type", "alien")]), TypeStrictness::Strict);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("unknown type"));
 }
@@ -244,7 +245,7 @@ fn validate_unknown_type_strict_errors() {
 fn validate_base_type_accepts_minimal() {
     let reg = SpaceTypeRegistry::from_embedded().unwrap();
     let warnings = reg
-        .validate(&fm(&[("title", "Test"), ("type", "page")]), "loose")
+        .validate(&fm(&[("title", "Test"), ("type", "page")]), TypeStrictness::Loose)
         .unwrap();
     // "page" is unknown, falls back to default — warning about unknown type
     assert!(warnings.iter().any(|w| w.contains("unknown type")));
