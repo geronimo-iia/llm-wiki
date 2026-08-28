@@ -504,6 +504,10 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
             &entry.name,
             state_dir,
             &resolved_cfg.graph,
+            // key_fn: cache key = git HEAD SHA via last_commit().
+            // GraphState (petgraph_live 0.5.0) treats an opaque string key as
+            // a generation token — it discards the on-disk snapshot whenever the
+            // key changes. "no-commit" is a safe sentinel for repos with no commits.
             move || {
                 Ok(im_key
                     .last_commit()
