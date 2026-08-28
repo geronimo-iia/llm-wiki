@@ -376,4 +376,24 @@ mod tests {
             links
         );
     }
+
+    #[test]
+    fn links_in_fenced_code_block_excluded() {
+        // Invariant 5: link extraction skips content inside fenced code blocks.
+        let md = "```\n[[concepts/foo]]\n[bar](./bar.md)\n```";
+        assert!(
+            extract_body_wikilinks(md, None).is_empty(),
+            "links inside fenced code blocks must not be extracted"
+        );
+    }
+
+    #[test]
+    fn links_in_inline_code_excluded() {
+        // Invariant 5: link extraction skips inline code spans.
+        let md = "Use `[[concepts/foo]]` as an example.";
+        assert!(
+            extract_body_wikilinks(md, None).is_empty(),
+            "links inside inline code spans must not be extracted"
+        );
+    }
 }
