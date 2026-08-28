@@ -48,3 +48,4 @@ llm-wiki.
 | ---------------------- | -------------------------------------------------------- |
 | [release.md](release.md) | Release process and distribution channels              |
 | [local-testing.md](local-testing.md) | Test the local engine binary and skills plugin before publishing |
+| [migration-1.0.0.md](migration-1.0.0.md) | Remove redundant stock schema copies after upgrading from pre-1.0.0 |

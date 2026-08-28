@@ -19,6 +19,7 @@ User-facing documentation — start here.
 | [Graph](guides/graph.md)                           | Community detection, cross-cluster suggestions       |
 | [CI/CD](guides/ci-cd.md)                           | Pipelines and pre-commit hooks                       |
 | [Release](guides/release.md)                       | Release process and channels                         |
+| [Migration 1.0.0](guides/migration-1.0.0.md)       | Remove redundant stock schemas after upgrading       |
 
 ## Specifications
 
