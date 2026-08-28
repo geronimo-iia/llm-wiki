@@ -19,9 +19,10 @@ To shadow the homebrew-installed binary with the local build, symlink it earlier
 ln -sf "$(pwd)/target/release/llm-wiki" ~/.local/bin/llm-wiki
 ```
 
-Verify the right binary is picked up:
+After creating the symlink, reset the shell's command cache before verifying:
 
 ```bash
+hash -r
 which llm-wiki          # should show ~/.local/bin/llm-wiki
 llm-wiki --version      # should match Cargo.toml version
 ```
