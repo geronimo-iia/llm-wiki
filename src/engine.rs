@@ -127,6 +127,11 @@ impl WikiEngine {
         f(&engine)
     }
 
+    #[doc(hidden)]
+    pub fn state_for_test(&self) -> &Arc<RwLock<EngineState>> {
+        &self.state
+    }
+
     /// Build a `WikiEngine` from the global config at `config_path`, mounting all registered wikis.
     pub fn build(config_path: &Path) -> Result<Self> {
         let config = config::load_global(config_path)?;
