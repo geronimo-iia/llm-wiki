@@ -811,8 +811,7 @@ fn config_non_default_tokenizer_no_panic() {
     fs::create_dir_all(&wiki_root).unwrap();
 
     // Should not panic
-    let (registry, schema) =
-        space_builder::build_space_from_embedded(&Tokenizer::Raw).unwrap();
+    let (registry, schema) = space_builder::build_space_from_embedded(&Tokenizer::Raw).unwrap();
     let index_path = dir.path().join("idx");
     let mgr = SpaceIndexManager::new("test", &index_path, 50_000_000);
     // Empty wiki — no documents to tokenize, so rebuild succeeds

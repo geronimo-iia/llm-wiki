@@ -440,7 +440,9 @@ pub fn handle_graph(server: &McpServer, args: &Map<String, Value>) -> ToolHandle
         &engine,
         &wiki_name,
         &ops::GraphParams {
-            format: arg_str(args, "format").as_deref(),
+            format: arg_str(args, "format")
+                .map(|s| s.parse::<ops::GraphRenderFormat>().map_err(redact_error))
+                .transpose()?,
             root: arg_str(args, "root"),
             depth: arg_usize(args, "depth"),
             type_filter: arg_str(args, "type").as_deref(),

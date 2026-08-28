@@ -2,8 +2,58 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
+use crate::config::GraphFormat;
 use crate::engine::EngineState;
 use crate::graph;
+
+/// Runtime graph output format. Extends [`GraphFormat`] with `Summary`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GraphRenderFormat {
+    Mermaid,
+    Dot,
+    Llms,
+    Json,
+    Summary,
+}
+
+impl GraphRenderFormat {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Mermaid => "mermaid",
+            Self::Dot => "dot",
+            Self::Llms => "llms",
+            Self::Json => "json",
+            Self::Summary => "summary",
+        }
+    }
+}
+
+impl std::str::FromStr for GraphRenderFormat {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "mermaid" => Ok(Self::Mermaid),
+            "dot" => Ok(Self::Dot),
+            "llms" => Ok(Self::Llms),
+            "json" => Ok(Self::Json),
+            "summary" => Ok(Self::Summary),
+            other => Err(format!(
+                "unknown graph format {other:?}: expected mermaid, dot, llms, json, or summary"
+            )),
+        }
+    }
+}
+
+impl From<GraphFormat> for GraphRenderFormat {
+    fn from(f: GraphFormat) -> Self {
+        match f {
+            GraphFormat::Mermaid => Self::Mermaid,
+            GraphFormat::Dot => Self::Dot,
+            GraphFormat::Llms => Self::Llms,
+            GraphFormat::Json => Self::Json,
+        }
+    }
+}
 
 /// Rendered graph output plus the associated report.
 pub struct GraphResult {
@@ -15,8 +65,8 @@ pub struct GraphResult {
 
 /// Parameters for `graph_build`.
 pub struct GraphParams<'a> {
-    /// Output format: `"mermaid"`, `"dot"`, `"llms"`, `"json"`, or `"summary"`.
-    pub format: Option<&'a str>,
+    /// Output format. `None` falls back to the wiki config value.
+    pub format: Option<GraphRenderFormat>,
     /// Slug of the root node for a subgraph traversal.
     pub root: Option<String>,
     /// Maximum hops from root.
@@ -42,7 +92,9 @@ pub fn graph_build(
     let space = engine.space(wiki_name)?;
     let resolved = space.resolved_config(&engine.config);
 
-    let fmt = params.format.unwrap_or(resolved.graph.format.as_str());
+    let fmt: GraphRenderFormat = params
+        .format
+        .unwrap_or_else(|| resolved.graph.format.clone().into());
     let types: Vec<String> = params
         .type_filter
         .map(|t| t.split(',').map(|s| s.trim().to_string()).collect())
@@ -89,7 +141,7 @@ pub fn graph_build(
             &searcher,
             &filter,
         )?;
-        let communities = if fmt == "summary" {
+        let communities = if fmt == GraphRenderFormat::Summary {
             let min_nodes = resolved.graph.min_nodes_for_communities;
             graph::get_cached_community_stats(
                 &space.index_schema,
@@ -112,21 +164,16 @@ pub fn graph_build(
     };
 
     let rendered = match fmt {
-        "dot" => graph::render_dot(&g),
-        "llms" => graph::render_llms(&g),
-        "json" => graph::render_json(&g, resolved.graph.min_nodes_for_communities),
-        "mermaid" => graph::render_mermaid(&g),
-        "summary" => graph::render_summary(&g, &render_ctx),
-        other => {
-            anyhow::bail!(
-                "unknown graph format {other:?}: expected mermaid, dot, llms, json, or summary"
-            )
-        }
+        GraphRenderFormat::Dot => graph::render_dot(&g),
+        GraphRenderFormat::Llms => graph::render_llms(&g),
+        GraphRenderFormat::Json => graph::render_json(&g, resolved.graph.min_nodes_for_communities),
+        GraphRenderFormat::Mermaid => graph::render_mermaid(&g),
+        GraphRenderFormat::Summary => graph::render_summary(&g, &render_ctx),
     };
 
     let out = if let Some(out_path) = params.output {
         let content = if out_path.ends_with(".md") {
-            graph::wrap_graph_md(&rendered, fmt, &filter)
+            graph::wrap_graph_md(&rendered, fmt.as_str(), &filter)
         } else {
             rendered.clone()
         };

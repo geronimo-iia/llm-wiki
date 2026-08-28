@@ -1,6 +1,7 @@
 use super::helpers::setup_wiki;
 use llm_wiki_engine::engine::WikiEngine;
 use llm_wiki_engine::ops;
+use llm_wiki_engine::ops::GraphRenderFormat;
 
 // ── Graph ─────────────────────────────────────────────────────────────────────
 
@@ -15,7 +16,7 @@ fn graph_build_returns_nodes() {
         &engine,
         "test",
         &ops::GraphParams {
-            format: Some("mermaid"),
+            format: Some(GraphRenderFormat::Mermaid),
             root: None,
             depth: None,
             type_filter: None,
@@ -41,7 +42,7 @@ fn graph_build_dot_format() {
         &engine,
         "test",
         &ops::GraphParams {
-            format: Some("dot"),
+            format: Some(GraphRenderFormat::Dot),
             root: None,
             depth: None,
             type_filter: None,
@@ -66,7 +67,7 @@ fn graph_build_summary_format() {
         &engine,
         "test",
         &ops::GraphParams {
-            format: Some("summary"),
+            format: Some(GraphRenderFormat::Summary),
             root: None,
             depth: None,
             type_filter: None,

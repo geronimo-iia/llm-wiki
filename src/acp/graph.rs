@@ -4,7 +4,7 @@ use agent_client_protocol::schema::v1::{SessionId, ToolCallStatus, ToolKind};
 use agent_client_protocol::{Client, ConnectionTo};
 
 use crate::engine::WikiEngine;
-use crate::ops::{self, GraphParams};
+use crate::ops::{self, GraphParams, GraphRenderFormat};
 
 use super::helpers::{
     clear_active_run, get_cancelled, send_text, send_tool_call, send_tool_result,
@@ -35,7 +35,7 @@ pub fn step_graph(
             &engine,
             wiki_name,
             &GraphParams {
-                format: Some("llms"),
+                format: Some(GraphRenderFormat::Llms),
                 root: root.map(str::to_string),
                 depth: None,
                 type_filter: None,

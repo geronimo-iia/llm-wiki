@@ -403,7 +403,10 @@ fn main() -> Result<()> {
                 &engine,
                 wiki_name,
                 &ops::GraphParams {
-                    format: format.as_deref(),
+                    format: format
+                        .map(|s| s.parse::<ops::GraphRenderFormat>())
+                        .transpose()
+                        .map_err(anyhow::Error::msg)?,
                     root,
                     depth,
                     type_filter: r#type.as_deref(),

@@ -220,7 +220,9 @@ fn validate_missing_title_in_strict() {
 #[test]
 fn validate_missing_type_warns() {
     let reg = SpaceTypeRegistry::from_embedded().unwrap();
-    let warnings = reg.validate(&fm(&[("title", "Test")]), TypeStrictness::Loose).unwrap();
+    let warnings = reg
+        .validate(&fm(&[("title", "Test")]), TypeStrictness::Loose)
+        .unwrap();
     assert!(warnings.iter().any(|w| w.contains("type")));
 }
 
@@ -228,7 +230,10 @@ fn validate_missing_type_warns() {
 fn validate_unknown_type_loose_warns() {
     let reg = SpaceTypeRegistry::from_embedded().unwrap();
     let warnings = reg
-        .validate(&fm(&[("title", "Test"), ("type", "alien")]), TypeStrictness::Loose)
+        .validate(
+            &fm(&[("title", "Test"), ("type", "alien")]),
+            TypeStrictness::Loose,
+        )
         .unwrap();
     assert!(warnings.iter().any(|w| w.contains("unknown type")));
 }
@@ -236,7 +241,10 @@ fn validate_unknown_type_loose_warns() {
 #[test]
 fn validate_unknown_type_strict_errors() {
     let reg = SpaceTypeRegistry::from_embedded().unwrap();
-    let result = reg.validate(&fm(&[("title", "Test"), ("type", "alien")]), TypeStrictness::Strict);
+    let result = reg.validate(
+        &fm(&[("title", "Test"), ("type", "alien")]),
+        TypeStrictness::Strict,
+    );
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("unknown type"));
 }
@@ -245,7 +253,10 @@ fn validate_unknown_type_strict_errors() {
 fn validate_base_type_accepts_minimal() {
     let reg = SpaceTypeRegistry::from_embedded().unwrap();
     let warnings = reg
-        .validate(&fm(&[("title", "Test"), ("type", "page")]), TypeStrictness::Loose)
+        .validate(
+            &fm(&[("title", "Test"), ("type", "page")]),
+            TypeStrictness::Loose,
+        )
         .unwrap();
     // "page" is unknown, falls back to default — warning about unknown type
     assert!(warnings.iter().any(|w| w.contains("unknown type")));

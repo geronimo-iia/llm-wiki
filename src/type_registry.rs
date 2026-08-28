@@ -179,7 +179,11 @@ impl SpaceTypeRegistry {
     /// - In strict mode, unknown types produce errors
     ///
     /// Returns a list of warnings. Bails on hard errors.
-    pub fn validate(&self, fm: &BTreeMap<String, Value>, strictness: TypeStrictness) -> Result<Vec<String>> {
+    pub fn validate(
+        &self,
+        fm: &BTreeMap<String, Value>,
+        strictness: TypeStrictness,
+    ) -> Result<Vec<String>> {
         let mut warnings = Vec::new();
 
         // title is always required — hard error regardless of strictness

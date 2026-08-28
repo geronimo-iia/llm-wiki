@@ -311,7 +311,8 @@ fn schema_add_from_inside_schemas_dir_does_not_truncate() {
     assert_eq!(parsed["x-wiki-types"]["meeting"], "Meeting notes");
 
     // And the type registers when the space is rebuilt from disk.
-    let (registry, _) = llm_wiki_engine::space_builder::build_space(&repo_root, &Tokenizer::EnStem).unwrap();
+    let (registry, _) =
+        llm_wiki_engine::space_builder::build_space(&repo_root, &Tokenizer::EnStem).unwrap();
     assert!(registry.is_known("meeting"), "meeting type should register");
 }
 

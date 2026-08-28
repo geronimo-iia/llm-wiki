@@ -15,7 +15,10 @@ use crate::type_registry::{
 /// Build both SpaceTypeRegistry and IndexSchema from a wiki's schema
 /// files. Reads each schema file once, discards raw JSON after
 /// construction.
-pub fn build_space(repo_root: &Path, tokenizer: &Tokenizer) -> Result<(SpaceTypeRegistry, IndexSchema)> {
+pub fn build_space(
+    repo_root: &Path,
+    tokenizer: &Tokenizer,
+) -> Result<(SpaceTypeRegistry, IndexSchema)> {
     let schemas_dir = repo_root.join("schemas");
 
     // Always start from embedded defaults
@@ -68,7 +71,9 @@ pub fn build_space(repo_root: &Path, tokenizer: &Tokenizer) -> Result<(SpaceType
 }
 
 /// Build both from embedded defaults (no disk access).
-pub fn build_space_from_embedded(tokenizer: &Tokenizer) -> Result<(SpaceTypeRegistry, IndexSchema)> {
+pub fn build_space_from_embedded(
+    tokenizer: &Tokenizer,
+) -> Result<(SpaceTypeRegistry, IndexSchema)> {
     let parsed = parse_from_embedded()?;
     assemble_without_overrides(parsed, tokenizer)
 }
