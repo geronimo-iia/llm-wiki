@@ -9,7 +9,7 @@ fn schema_list_returns_types() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let types = ops::schema_list(&engine, "test").unwrap();
     assert!(types.len() >= 15);
@@ -22,7 +22,7 @@ fn schema_show_returns_json() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let content = ops::schema_show(&engine, "test", "concept").unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
@@ -34,7 +34,7 @@ fn schema_show_unknown_type_errors() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::schema_show(&engine, "test", "nonexistent");
     assert!(result.is_err());
@@ -45,7 +45,7 @@ fn schema_show_template_has_frontmatter() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let template = ops::schema_show_template(&engine, "test", "concept").unwrap();
     assert!(template.starts_with("---"));
@@ -58,7 +58,7 @@ fn schema_validate_passes_default_schemas() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let issues = ops::schema_validate(&engine, "test", None).unwrap();
     assert!(
@@ -84,7 +84,7 @@ fn schema_remove_removes_custom_type() {
     // Add the custom type (engine state reflects disk after add via wiki.toml)
     {
         let manager = WikiEngine::build(&config_path).unwrap();
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         ops::schema_add(&engine, "test", "custom-note", &schema_file).unwrap();
     }
 
@@ -93,7 +93,7 @@ fn schema_remove_removes_custom_type() {
 
     // Verify it was added
     {
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         let types = ops::schema_list(&engine, "test").unwrap();
         assert!(
             types.iter().any(|t| t.name == "custom-note"),

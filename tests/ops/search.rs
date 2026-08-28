@@ -11,7 +11,7 @@ fn search_returns_results() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let results = ops::search(
         &engine,
@@ -35,7 +35,7 @@ fn search_type_filter() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let results = ops::search(
         &engine,
@@ -60,7 +60,7 @@ fn list_returns_pages() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::list(&engine, "test", None, None, 1, None).unwrap();
     assert!(result.total >= 2);
@@ -71,7 +71,7 @@ fn list_type_filter() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::list(&engine, "test", Some("concept"), None, 1, None).unwrap();
     assert!(result.total >= 2);
@@ -99,7 +99,7 @@ fn search_facets_type_distribution() {
     git::commit(&wiki_path, "add paper").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::search(
         &engine,
@@ -144,7 +144,7 @@ fn search_facets_type_unfiltered_when_type_filter_active() {
     git::commit(&wiki_path, "add paper").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     // Search with type filter on concept
     let result = ops::search(
@@ -174,7 +174,7 @@ fn search_facets_empty_when_no_results() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::search(
         &engine,
@@ -201,7 +201,7 @@ fn list_facets_always_present() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::list(&engine, "test", None, None, 1, None).unwrap();
 

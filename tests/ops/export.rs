@@ -13,7 +13,7 @@ fn export_llms_txt_writes_file_and_reports() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let report = ops::export(
         &engine,
@@ -43,7 +43,7 @@ fn export_llms_full_includes_page_bodies() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let report = ops::export(
         &engine,
@@ -70,7 +70,7 @@ fn export_json_produces_valid_json_array() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let report = ops::export(
         &engine,
@@ -102,7 +102,7 @@ fn export_default_path_resolves_to_wiki_root() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let report = ops::export(
         &engine,
@@ -146,7 +146,7 @@ fn export_excludes_archived_by_default() {
         let wiki_name = "test".to_string();
         ops::index_rebuild(&manager, &wiki_name).unwrap();
     }
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let report = ops::export(
         &engine,
@@ -212,7 +212,7 @@ fn export_json_includes_custom_frontmatter_fields() {
     llm_wiki_engine::git::commit(&wiki_path, "add decision").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let report = ops::export(
         &engine,
@@ -257,7 +257,7 @@ fn export_json_omits_frontmatter_when_no_extra_fields() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let report = ops::export(
         &engine,
@@ -312,7 +312,7 @@ fn export_skips_stale_index_entry() {
     fs::remove_file(wiki_root.join("concepts/stale-page.md")).unwrap();
     git::commit(&wiki_path, "remove stale").unwrap();
 
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     // Export should succeed (no error), stale page has no body
     let report = ops::export(
         &engine,
@@ -357,7 +357,7 @@ fn export_loads_bundle_body() {
     let manager = WikiEngine::build(&config_path).unwrap();
     ops::index_rebuild(&manager, "test").unwrap();
 
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let report = ops::export(
         &engine,
         &ExportOptions {
@@ -396,7 +396,7 @@ fn export_llms_txt_empty_wiki() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_empty_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let report = ops::export(
         &engine,
@@ -421,7 +421,7 @@ fn export_llms_full_empty_wiki() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_empty_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let report = ops::export(
         &engine,
@@ -442,7 +442,7 @@ fn export_json_empty_wiki() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_empty_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let report = ops::export(
         &engine,
@@ -479,7 +479,7 @@ fn export_unicode_in_fields() {
     llm_wiki_engine::git::commit(dir.path().join("test").as_path(), "add unicode page").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let report = ops::export(
         &engine,

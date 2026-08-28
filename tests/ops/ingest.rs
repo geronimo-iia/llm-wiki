@@ -14,7 +14,7 @@ fn ingest_validates_and_indexes() {
 
     // Write a new page
     {
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         let space = engine.space("test").unwrap();
         fs::write(
             space.wiki_root.join("concepts/rag.md"),
@@ -24,7 +24,7 @@ fn ingest_validates_and_indexes() {
     }
 
     let report = {
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         ops::ingest(&engine, &manager, "concepts/rag.md", false, "test").unwrap()
     };
     assert_eq!(report.pages_validated, 1);
@@ -37,20 +37,20 @@ fn ingest_dry_run_does_not_commit() {
     let manager = WikiEngine::build(&config_path).unwrap();
 
     let head_before = {
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         let space = engine.space("test").unwrap();
         git::current_head(&space.repo_root)
     };
 
     let report = {
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         ops::ingest(&engine, &manager, "concepts/moe.md", true, "test").unwrap()
     };
     assert_eq!(report.pages_validated, 1);
     assert!(report.commit.is_empty());
 
     let head_after = {
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         let space = engine.space("test").unwrap();
         git::current_head(&space.repo_root)
     };
@@ -76,7 +76,7 @@ fn ingest_warns_on_wrong_edge_target_type() {
     git::commit(&wiki_path, "add bad page").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let report = ops::ingest(&engine, &manager, "concepts/bad.md", false, "test").unwrap();
 
     // Should warn: concepts/moe is type "concept", but sources expects source types
@@ -113,7 +113,7 @@ fn ingest_no_warning_on_correct_edge_target_type() {
     git::commit(&wiki_path, "add pages").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let report = ops::ingest(&engine, &manager, "concepts/good.md", false, "test").unwrap();
 
     // No edge target warnings expected

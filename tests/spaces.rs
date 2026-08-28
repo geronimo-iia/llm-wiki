@@ -277,7 +277,7 @@ fn ops_set_default_rolls_back_in_memory_on_disk_failure() {
     let manager = WikiEngine::build(&cfg).unwrap();
     ops::spaces_set_default("alpha", &cfg, Some(&manager)).unwrap();
     {
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         assert_eq!(engine.config.global.default_wiki, "alpha");
     }
 
@@ -297,7 +297,7 @@ fn ops_set_default_rolls_back_in_memory_on_disk_failure() {
     assert!(err.is_err(), "disk failure must propagate");
 
     // In-memory must be rolled back to "alpha".
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     assert_eq!(
         engine.config.global.default_wiki, "alpha",
         "in-memory default must be rolled back on disk failure"

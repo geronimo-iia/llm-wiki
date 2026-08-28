@@ -8,7 +8,7 @@ fn stats_returns_metrics() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::stats(&engine, "test", &ops::StatsOptions::default()).unwrap();
     assert_eq!(result.wiki, "test");
@@ -21,7 +21,7 @@ fn stats_orphan_count() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::stats(&engine, "test", &ops::StatsOptions::default()).unwrap();
     // Both pages are concepts with no inbound edges from other types
@@ -37,7 +37,7 @@ fn stats_staleness_buckets_sum_to_total() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::stats(&engine, "test", &ops::StatsOptions::default()).unwrap();
     let staleness_total =
@@ -57,7 +57,7 @@ fn stats_on_empty_wiki() {
         .unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::stats(&engine, "empty", &ops::StatsOptions::default()).unwrap();
     assert_eq!(result.pages, 0);
@@ -101,7 +101,7 @@ fn stats_structural_fields_present_on_connected_graph() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki_with_cycle(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::stats(&engine, "test", &ops::StatsOptions::default()).unwrap();
     // Structural fields must always be present as keys (Some or None)
@@ -160,7 +160,7 @@ fn stats_structural_fields_null_when_disabled() {
     std::fs::write(&config_path, patched).unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::stats(&engine, "test", &ops::StatsOptions::default()).unwrap();
     assert!(
@@ -213,7 +213,7 @@ fn stats_structural_note_set_on_disconnected_graph() {
     llm_wiki_engine::git::commit(&wiki_path, "add isolated pages").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::stats(&engine, "disc", &ops::StatsOptions::default()).unwrap();
     assert!(
@@ -240,7 +240,7 @@ fn stats_detail_full_returns_center_list() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki_with_cycle(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::stats(
         &engine,
@@ -265,7 +265,7 @@ fn stats_detail_summary_returns_center_count() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki_with_cycle(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::stats(&engine, "test", &ops::StatsOptions::default()).unwrap();
     assert!(

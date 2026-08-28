@@ -10,7 +10,7 @@ fn content_new_concept_has_body_template() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     ops::content_new(
         &engine,
@@ -40,7 +40,7 @@ fn content_new_section_has_body_template() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     ops::content_new(&engine, "topics", None, true, false, None, None).unwrap();
 
@@ -66,7 +66,7 @@ fn custom_template_overrides_embedded() {
     .unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     ops::content_new(
         &engine,
@@ -96,7 +96,7 @@ fn missing_template_falls_back_to_empty_body() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     // "skill" type has no body template
     ops::content_new(
