@@ -405,6 +405,36 @@ mod tests {
         );
     }
 
+    #[test]
+    fn mixed_batch_schema_wins_over_md() {
+        let mut md: HashSet<(String, PathBuf)> = HashSet::new();
+        let mut schema: HashSet<String> = HashSet::new();
+        classify_event(
+            "mywiki",
+            Path::new("/repo/wiki/concepts/foo.md"),
+            &mut md,
+            &mut schema,
+        );
+        classify_event(
+            "mywiki",
+            Path::new("/repo/schemas/concept.json"),
+            &mut md,
+            &mut schema,
+        );
+        // Mirrors the priority check in run_watcher: schema_wikis non-empty → RebuildIndex
+        let action = if !schema.is_empty() {
+            "RebuildIndex"
+        } else if !md.is_empty() {
+            "IngestPages"
+        } else {
+            "none"
+        };
+        assert_eq!(
+            action, "RebuildIndex",
+            "schema change must take priority over md change in a mixed batch"
+        );
+    }
+
     // ── rebuilding flag contract ────────────────────────────────────────────────
 
     /// swap(true) returns false on first call (not rebuilding → proceed) and
