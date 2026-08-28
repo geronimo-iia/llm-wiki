@@ -229,7 +229,7 @@ fn validate_file(
     }
 
     // Validate base fields via type registry
-    let warnings = registry.validate(&page.frontmatter, &validation.type_strictness)?;
+    let warnings = registry.validate(&page.frontmatter, validation.type_strictness.as_str())?;
     let rel = path.strip_prefix(wiki_root).unwrap_or(path);
     for w in warnings {
         report.warnings.push(format!("{}: {}", rel.display(), w));

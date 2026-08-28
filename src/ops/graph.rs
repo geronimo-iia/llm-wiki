@@ -42,7 +42,7 @@ pub fn graph_build(
     let space = engine.space(wiki_name)?;
     let resolved = space.resolved_config(&engine.config);
 
-    let fmt = params.format.unwrap_or(&resolved.graph.format);
+    let fmt = params.format.unwrap_or(resolved.graph.format.as_str());
     let types: Vec<String> = params
         .type_filter
         .map(|t| t.split(',').map(|s| s.trim().to_string()).collect())

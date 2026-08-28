@@ -5,6 +5,193 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 
+// ── Config enums ──────────────────────────────────────────────────────────────
+
+/// Page display mode for CLI output.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PageMode {
+    #[default]
+    Flat,
+    Hierarchical,
+}
+impl PageMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Flat => "flat",
+            Self::Hierarchical => "hierarchical",
+        }
+    }
+}
+impl std::fmt::Display for PageMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl std::str::FromStr for PageMode {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "flat" => Ok(Self::Flat),
+            "hierarchical" => Ok(Self::Hierarchical),
+            other => Err(format!(
+                "invalid value {other:?} for defaults.page_mode; allowed: flat, hierarchical"
+            )),
+        }
+    }
+}
+
+/// Default CLI output format.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum OutputFormat {
+    #[default]
+    Text,
+    Json,
+    Markdown,
+}
+impl OutputFormat {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Json => "json",
+            Self::Markdown => "markdown",
+        }
+    }
+}
+impl std::fmt::Display for OutputFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl std::str::FromStr for OutputFormat {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "text" => Ok(Self::Text),
+            "json" => Ok(Self::Json),
+            "markdown" => Ok(Self::Markdown),
+            other => Err(format!(
+                "invalid value {other:?} for defaults.output_format; allowed: text, json, markdown"
+            )),
+        }
+    }
+}
+
+/// Validation strictness for unknown schema types.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TypeStrictness {
+    #[default]
+    Loose,
+    Strict,
+}
+impl TypeStrictness {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Loose => "loose",
+            Self::Strict => "strict",
+        }
+    }
+}
+impl std::fmt::Display for TypeStrictness {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl std::str::FromStr for TypeStrictness {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "loose" => Ok(Self::Loose),
+            "strict" => Ok(Self::Strict),
+            other => Err(format!(
+                "invalid value {other:?} for validation.type_strictness; allowed: loose, strict"
+            )),
+        }
+    }
+}
+
+/// Graph rendering output format.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum GraphFormat {
+    #[default]
+    Mermaid,
+    Dot,
+    Llms,
+    Json,
+}
+impl GraphFormat {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Mermaid => "mermaid",
+            Self::Dot => "dot",
+            Self::Llms => "llms",
+            Self::Json => "json",
+        }
+    }
+}
+impl std::fmt::Display for GraphFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl std::str::FromStr for GraphFormat {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "mermaid" => Ok(Self::Mermaid),
+            "dot" => Ok(Self::Dot),
+            "llms" => Ok(Self::Llms),
+            "json" => Ok(Self::Json),
+            other => Err(format!(
+                "invalid value {other:?} for graph.format; allowed: mermaid, dot, llms, json"
+            )),
+        }
+    }
+}
+
+/// Tantivy tokenizer name.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Tokenizer {
+    #[default]
+    EnStem,
+    Raw,
+    Simple,
+    Default,
+}
+impl Tokenizer {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::EnStem => "en_stem",
+            Self::Raw => "raw",
+            Self::Simple => "simple",
+            Self::Default => "default",
+        }
+    }
+}
+impl std::fmt::Display for Tokenizer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl std::str::FromStr for Tokenizer {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "en_stem" => Ok(Self::EnStem),
+            "raw" => Ok(Self::Raw),
+            "simple" => Ok(Self::Simple),
+            "default" => Ok(Self::Default),
+            other => Err(format!(
+                "invalid value {other:?} for index.tokenizer; allowed: en_stem, raw, simple, default"
+            )),
+        }
+    }
+}
+
 // ── Section structs ───────────────────────────────────────────────────────────
 
 /// The `[global]` section of the global config file.
@@ -53,13 +240,13 @@ pub struct Defaults {
     pub search_sections: bool,
     /// Page display mode: `"flat"` or `"hierarchical"` (default: `"flat"`).
     #[serde(default = "default_page_mode")]
-    pub page_mode: String,
+    pub page_mode: PageMode,
     /// Number of pages returned per `list` call (default: 20).
     #[serde(default = "default_list_page_size")]
     pub list_page_size: u32,
     /// Default output format: `"text"` or `"json"` (default: `"text"`).
     #[serde(default = "default_output_format")]
-    pub output_format: String,
+    pub output_format: OutputFormat,
     /// Maximum number of tag facet values to return (default: 10).
     #[serde(default = "default_facets_top_tags")]
     pub facets_top_tags: u32,
@@ -105,7 +292,7 @@ pub struct IndexConfig {
     pub memory_budget_mb: u32,
     /// Tantivy tokenizer name (default: `"en_stem"`).
     #[serde(default = "default_tokenizer")]
-    pub tokenizer: String,
+    pub tokenizer: Tokenizer,
 }
 
 impl Default for IndexConfig {
@@ -124,7 +311,7 @@ impl Default for IndexConfig {
 pub struct GraphConfig {
     /// Default graph output format: `"mermaid"`, `"dot"`, or `"llms"` (default: `"mermaid"`).
     #[serde(default = "default_graph_format")]
-    pub format: String,
+    pub format: GraphFormat,
     /// Default hop depth for subgraph extraction (default: 3).
     #[serde(default = "default_graph_depth")]
     pub depth: u32,
@@ -267,7 +454,7 @@ impl Default for ServeConfig {
 pub struct ValidationConfig {
     /// How strictly unknown types are treated: `"loose"` (warn) or `"strict"` (error) (default: `"loose"`).
     #[serde(default = "default_type_strictness")]
-    pub type_strictness: String,
+    pub type_strictness: TypeStrictness,
 }
 
 impl Default for ValidationConfig {
@@ -622,14 +809,14 @@ fn default_search_top_k() -> u32 {
 fn default_true() -> bool {
     true
 }
-fn default_page_mode() -> String {
-    "flat".into()
+fn default_page_mode() -> PageMode {
+    PageMode::Flat
 }
 fn default_list_page_size() -> u32 {
     20
 }
-fn default_output_format() -> String {
-    "text".into()
+fn default_output_format() -> OutputFormat {
+    OutputFormat::Text
 }
 fn default_facets_top_tags() -> u32 {
     10
@@ -640,11 +827,11 @@ fn default_max_content_bytes() -> usize {
 fn default_memory_budget_mb() -> u32 {
     50
 }
-fn default_tokenizer() -> String {
-    "en_stem".into()
+fn default_tokenizer() -> Tokenizer {
+    Tokenizer::EnStem
 }
-fn default_graph_format() -> String {
-    "mermaid".into()
+fn default_graph_format() -> GraphFormat {
+    GraphFormat::Mermaid
 }
 fn default_graph_depth() -> u32 {
     3
@@ -664,8 +851,8 @@ fn default_restart_backoff() -> u32 {
 fn default_heartbeat_secs() -> u32 {
     60
 }
-fn default_type_strictness() -> String {
-    "loose".into()
+fn default_type_strictness() -> TypeStrictness {
+    TypeStrictness::Loose
 }
 fn default_log_path() -> String {
     let home = std::env::var("HOME")
@@ -830,9 +1017,14 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "defaults.search_top_k" => global.defaults.search_top_k = value.parse()?,
         "defaults.search_excerpt" => global.defaults.search_excerpt = value.parse()?,
         "defaults.search_sections" => global.defaults.search_sections = value.parse()?,
-        "defaults.page_mode" => global.defaults.page_mode = value.into(),
+        "defaults.page_mode" => {
+            global.defaults.page_mode = value.parse::<PageMode>().map_err(anyhow::Error::msg)?
+        }
         "defaults.list_page_size" => global.defaults.list_page_size = value.parse()?,
-        "defaults.output_format" => global.defaults.output_format = value.into(),
+        "defaults.output_format" => {
+            global.defaults.output_format =
+                value.parse::<OutputFormat>().map_err(anyhow::Error::msg)?
+        }
         "defaults.facets_top_tags" => global.defaults.facets_top_tags = value.parse()?,
         "defaults.max_content_bytes" => global.defaults.max_content_bytes = value.parse()?,
         "read.no_frontmatter" => global.read.no_frontmatter = value.parse()?,
@@ -840,12 +1032,10 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "index.auto_recovery" => global.index.auto_recovery = value.parse()?,
         "index.memory_budget_mb" => global.index.memory_budget_mb = value.parse()?,
         "index.tokenizer" => {
-            check_enum(key, value, &["en_stem", "raw", "simple", "default"])?;
-            global.index.tokenizer = value.into();
+            global.index.tokenizer = value.parse::<Tokenizer>().map_err(anyhow::Error::msg)?
         }
         "graph.format" => {
-            check_enum(key, value, &["mermaid", "dot", "llms", "json"])?;
-            global.graph.format = value.into();
+            global.graph.format = value.parse::<GraphFormat>().map_err(anyhow::Error::msg)?
         }
         "graph.depth" => global.graph.depth = value.parse()?,
         "graph.output" => global.graph.output = value.into(),
@@ -875,8 +1065,9 @@ pub fn set_global_config_value(global: &mut GlobalConfig, key: &str, value: &str
         "suggest.bm25_weight" => global.suggest.bm25_weight = value.parse()?,
         "suggest.community_peer_score" => global.suggest.community_peer_score = value.parse()?,
         "validation.type_strictness" => {
-            check_enum(key, value, &["strict", "loose"])?;
-            global.validation.type_strictness = value.into();
+            global.validation.type_strictness = value
+                .parse::<TypeStrictness>()
+                .map_err(anyhow::Error::msg)?
         }
         "logging.log_path" => global.logging.log_path = value.into(),
         "logging.log_rotation" => {
@@ -926,17 +1117,17 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "defaults.search_top_k" => resolved.defaults.search_top_k.to_string(),
         "defaults.search_excerpt" => resolved.defaults.search_excerpt.to_string(),
         "defaults.search_sections" => resolved.defaults.search_sections.to_string(),
-        "defaults.page_mode" => resolved.defaults.page_mode.clone(),
+        "defaults.page_mode" => resolved.defaults.page_mode.to_string(),
         "defaults.list_page_size" => resolved.defaults.list_page_size.to_string(),
-        "defaults.output_format" => resolved.defaults.output_format.clone(),
+        "defaults.output_format" => resolved.defaults.output_format.to_string(),
         "defaults.facets_top_tags" => resolved.defaults.facets_top_tags.to_string(),
         "defaults.max_content_bytes" => resolved.defaults.max_content_bytes.to_string(),
         "read.no_frontmatter" => resolved.read.no_frontmatter.to_string(),
         "index.auto_rebuild" => global.index.auto_rebuild.to_string(),
         "index.auto_recovery" => global.index.auto_recovery.to_string(),
         "index.memory_budget_mb" => global.index.memory_budget_mb.to_string(),
-        "index.tokenizer" => global.index.tokenizer.clone(),
-        "graph.format" => resolved.graph.format.clone(),
+        "index.tokenizer" => global.index.tokenizer.to_string(),
+        "graph.format" => resolved.graph.format.to_string(),
         "graph.depth" => resolved.graph.depth.to_string(),
         "graph.output" => resolved.graph.output.clone(),
         "graph.snapshot" => resolved.graph.snapshot.to_string(),
@@ -953,7 +1144,7 @@ pub fn get_config_value(resolved: &ResolvedConfig, global: &GlobalConfig, key: &
         "serve.heartbeat_secs" => global.serve.heartbeat_secs.to_string(),
         "serve.acp_max_sessions" => global.serve.acp_max_sessions.to_string(),
         "serve.mcp_max_param_len" => global.serve.mcp_max_param_len.to_string(),
-        "validation.type_strictness" => resolved.validation.type_strictness.clone(),
+        "validation.type_strictness" => resolved.validation.type_strictness.to_string(),
         "logging.log_path" => global.logging.log_path.clone(),
         "logging.log_rotation" => global.logging.log_rotation.clone(),
         "logging.log_max_files" => global.logging.log_max_files.to_string(),
@@ -999,7 +1190,7 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
             wiki_cfg
                 .defaults
                 .get_or_insert_with(Defaults::default)
-                .page_mode = value.into();
+                .page_mode = value.parse::<PageMode>().map_err(anyhow::Error::msg)?;
         }
         "defaults.list_page_size" => {
             wiki_cfg
@@ -1011,7 +1202,7 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
             wiki_cfg
                 .defaults
                 .get_or_insert_with(Defaults::default)
-                .output_format = value.into();
+                .output_format = value.parse::<OutputFormat>().map_err(anyhow::Error::msg)?;
         }
         "defaults.facets_top_tags" => {
             wiki_cfg
@@ -1035,7 +1226,9 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
             wiki_cfg
                 .validation
                 .get_or_insert_with(ValidationConfig::default)
-                .type_strictness = value.into();
+                .type_strictness = value
+                .parse::<TypeStrictness>()
+                .map_err(anyhow::Error::msg)?;
         }
         "ingest.auto_commit" => {
             wiki_cfg
@@ -1086,11 +1279,10 @@ pub fn set_wiki_config_value(wiki_cfg: &mut WikiConfig, key: &str, value: &str) 
                 .community_peer_score = value.parse()?;
         }
         "graph.format" => {
-            check_enum(key, value, &["mermaid", "dot", "llms", "json"])?;
             wiki_cfg
                 .graph
                 .get_or_insert_with(GraphConfig::default)
-                .format = value.into();
+                .format = value.parse::<GraphFormat>().map_err(anyhow::Error::msg)?;
         }
         "graph.depth" => {
             wiki_cfg

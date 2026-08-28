@@ -136,7 +136,7 @@ pub fn schema_add(
     // longer matches it and any later rebuild would fail with "An index
     // exists but the schema does not match". Clear the stale index and
     // rebuild it with the new registry + schema so subsequent commands work.
-    match space_builder::build_space(&space.repo_root, &engine.config.index.tokenizer) {
+    match space_builder::build_space(&space.repo_root, engine.config.index.tokenizer.as_str()) {
         Ok((new_registry, new_index_schema)) => {
             let index_path = space.index_manager.index_path().to_path_buf();
             let search_dir = index_path.join("search-index");
@@ -337,7 +337,7 @@ pub fn schema_validate(
     }
 
     // Index resolution check
-    match space_builder::build_space(&space.repo_root, &engine.config.index.tokenizer) {
+    match space_builder::build_space(&space.repo_root, engine.config.index.tokenizer.as_str()) {
         Ok(_) => {}
         Err(e) => issues.push(format!("index resolution failed: {e}")),
     }

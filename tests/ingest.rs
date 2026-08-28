@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
-use llm_wiki_engine::config::ValidationConfig;
+use llm_wiki_engine::config::{TypeStrictness, ValidationConfig};
 use llm_wiki_engine::git;
 use llm_wiki_engine::ingest::*;
 use llm_wiki_engine::type_registry::SpaceTypeRegistry;
@@ -310,7 +310,7 @@ fn ingest_errors_on_unknown_type_strict() {
 
     let opts = IngestOptions::default();
     let strict = ValidationConfig {
-        type_strictness: "strict".into(),
+        type_strictness: TypeStrictness::Strict,
     };
     let result = ingest(
         Path::new("concepts/alien.md"),
