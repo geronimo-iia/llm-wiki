@@ -237,6 +237,9 @@ impl SpaceTypeRegistry {
 
 impl Default for SpaceTypeRegistry {
     fn default() -> Self {
+        // Panics only if embedded schema bytes are corrupted (e.g. binary patching).
+        // `from_embedded()` is exercised by tests/type_registry.rs::embedded_knows_all_15_types
+        // and siblings — a parse failure there would surface the problem at CI time.
         Self::from_embedded().expect("embedded schemas must be valid at compile time")
     }
 }
