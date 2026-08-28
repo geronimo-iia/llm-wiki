@@ -153,7 +153,7 @@ impl std::str::FromStr for GraphFormat {
 }
 
 /// Tantivy tokenizer name.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Tokenizer {
     #[default]

@@ -1,5 +1,6 @@
 use std::fs;
 
+use llm_wiki_engine::config::Tokenizer;
 use llm_wiki_engine::index_schema::IndexSchema;
 use llm_wiki_engine::space_builder;
 
@@ -10,8 +11,8 @@ fn embedded_schema_fields_are_deterministic() {
     // build_space_from_embedded must produce identical field sets across
     // calls — guards against non-deterministic HashMap iteration in
     // default_schemas().
-    let (_, schema1) = space_builder::build_space_from_embedded("en_stem").unwrap();
-    let (_, schema2) = space_builder::build_space_from_embedded("en_stem").unwrap();
+    let (_, schema1) = space_builder::build_space_from_embedded(&Tokenizer::EnStem).unwrap();
+    let (_, schema2) = space_builder::build_space_from_embedded(&Tokenizer::EnStem).unwrap();
 
     let mut fields1: Vec<_> = schema1.fields.keys().collect();
     let mut fields2: Vec<_> = schema2.fields.keys().collect();
@@ -37,7 +38,7 @@ fn from_embedded_schemas_has_fixed_fields() {
     // No schemas/ dir → falls back to embedded
     fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
 
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
     for name in &["slug", "uri", "body", "body_links"] {
         assert!(is.try_field(name).is_some(), "missing fixed field: {name}");
     }
@@ -48,7 +49,7 @@ fn from_embedded_schemas_has_base_fields() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
 
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
     for name in &[
         "title",
         "summary",
@@ -67,7 +68,7 @@ fn from_embedded_schemas_has_concept_fields() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
 
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
     for name in &[
         "read_when",
         "tldr",
@@ -88,7 +89,7 @@ fn from_embedded_schemas_has_skill_fields() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
 
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
     // document_refs from skill.json
     assert!(is.try_field("document_refs").is_some());
 }
@@ -98,7 +99,7 @@ fn from_embedded_schemas_skips_aliased_fields() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
 
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
     // skill.json has name/description/when_to_use aliased to title/summary/read_when
     // The aliased source fields should NOT be in the index
     assert!(
@@ -146,7 +147,7 @@ fn from_disk_discovers_custom_fields() {
     .unwrap();
     fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
 
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
     assert!(
         is.try_field("priority").is_some(),
         "custom enum field should exist"
@@ -184,7 +185,7 @@ fn enum_fields_are_keywords() {
     .unwrap();
     fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
 
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
     assert!(is.try_field("level").is_some());
 }
 
@@ -240,7 +241,7 @@ description = "Special type"
     )
     .unwrap();
 
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
     assert!(
         is.try_field("extra_field").is_some(),
         "override schema field should be indexed"
@@ -278,7 +279,7 @@ fn duplicate_fields_across_schemas_are_deduplicated() {
     fs::write(dir.path().join("wiki.toml"), "name = \"test\"\n").unwrap();
 
     // Should not panic on duplicate field names
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
     assert!(is.try_field("title").is_some());
 }
 
@@ -297,14 +298,14 @@ fn setup_wiki_with_repo_schemas(dir: &std::path::Path) {
 fn repo_schemas_build_successfully() {
     let dir = tempfile::tempdir().unwrap();
     setup_wiki_with_repo_schemas(dir.path());
-    IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
 }
 
 #[test]
 fn repo_schemas_have_all_base_fields() {
     let dir = tempfile::tempdir().unwrap();
     setup_wiki_with_repo_schemas(dir.path());
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
 
     // From base.json
     for name in &[
@@ -328,7 +329,7 @@ fn repo_schemas_have_all_base_fields() {
 fn repo_schemas_have_all_concept_fields() {
     let dir = tempfile::tempdir().unwrap();
     setup_wiki_with_repo_schemas(dir.path());
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
 
     // From concept.json
     for name in &[
@@ -350,7 +351,7 @@ fn repo_schemas_have_all_concept_fields() {
 fn repo_schemas_have_all_doc_fields() {
     let dir = tempfile::tempdir().unwrap();
     setup_wiki_with_repo_schemas(dir.path());
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
 
     // doc.json adds read_when and sources (already covered by concept),
     // but verify they exist
@@ -362,7 +363,7 @@ fn repo_schemas_have_all_doc_fields() {
 fn repo_schemas_have_skill_specific_fields() {
     let dir = tempfile::tempdir().unwrap();
     setup_wiki_with_repo_schemas(dir.path());
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
 
     // From skill.json — fields that are NOT aliased
     assert!(
@@ -391,7 +392,7 @@ fn repo_schemas_have_skill_specific_fields() {
 fn repo_schemas_skip_skill_aliased_fields() {
     let dir = tempfile::tempdir().unwrap();
     setup_wiki_with_repo_schemas(dir.path());
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
 
     // skill.json aliases: name→title, description→summary, when_to_use→read_when
     assert!(
@@ -412,7 +413,7 @@ fn repo_schemas_skip_skill_aliased_fields() {
 fn repo_schemas_field_count_is_reasonable() {
     let dir = tempfile::tempdir().unwrap();
     setup_wiki_with_repo_schemas(dir.path());
-    let is = IndexSchema::build_from_schemas(dir.path(), "en_stem").unwrap();
+    let is = IndexSchema::build_from_schemas(dir.path(), &Tokenizer::EnStem).unwrap();
 
     // 4 fixed + fields from 6 schemas (deduplicated, aliases skipped)
     // Should be roughly 25-35 fields

@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use llm_wiki_engine::config::IngestConfig;
+use llm_wiki_engine::config::{IngestConfig, Tokenizer};
 use llm_wiki_engine::git;
 use llm_wiki_engine::index_manager::SpaceIndexManager;
 use llm_wiki_engine::index_schema::IndexSchema;
@@ -11,7 +11,7 @@ use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 use tantivy::Searcher;
 
 fn schema_and_registry() -> (IndexSchema, SpaceTypeRegistry) {
-    let (registry, schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
+    let (registry, schema) = space_builder::build_space_from_embedded(&Tokenizer::EnStem).unwrap();
     (schema, registry)
 }
 

@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 
+use llm_wiki_engine::config::Tokenizer;
 use llm_wiki_engine::engine::WikiEngine;
 use llm_wiki_engine::git;
 
@@ -81,7 +82,7 @@ fn engine_mount_fails_loud_on_broken_schema() {
     );
 
     // The error chain names the wiki and the broken schema file.
-    let err = match llm_wiki_engine::space_builder::build_space(&wiki_path, "en_stem") {
+    let err = match llm_wiki_engine::space_builder::build_space(&wiki_path, &Tokenizer::EnStem) {
         Err(e) => e,
         Ok(_) => panic!("build_space should fail on a broken schema"),
     };

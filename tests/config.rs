@@ -802,10 +802,9 @@ fn config_no_wiki_toml_uses_defaults() {
 }
 
 #[test]
-fn config_invalid_tokenizer_name_no_panic() {
+fn config_non_default_tokenizer_no_panic() {
     // Tantivy does not validate tokenizer names at schema-build or index-open time.
-    // An unknown tokenizer only errors at query time when tokenization is attempted.
-    // This test verifies: build_space_from_embedded with an unknown tokenizer does
+    // This test verifies: build_space_from_embedded with a non-default tokenizer does
     // not panic, and rebuild on an empty wiki succeeds (no pages to tokenize).
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = dir.path().join("wiki");
@@ -813,7 +812,7 @@ fn config_invalid_tokenizer_name_no_panic() {
 
     // Should not panic
     let (registry, schema) =
-        space_builder::build_space_from_embedded("nonexistent_tokenizer").unwrap();
+        space_builder::build_space_from_embedded(&Tokenizer::Raw).unwrap();
     let index_path = dir.path().join("idx");
     let mgr = SpaceIndexManager::new("test", &index_path, 50_000_000);
     // Empty wiki — no documents to tokenize, so rebuild succeeds

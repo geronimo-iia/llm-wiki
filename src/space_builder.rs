@@ -4,7 +4,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
-use crate::config;
+use crate::config::{self, Tokenizer};
 use crate::default_schemas;
 use crate::index_schema::{FieldClass, IndexSchema, SchemaBuilder, classify_field};
 use crate::type_registry::{
@@ -15,7 +15,7 @@ use crate::type_registry::{
 /// Build both SpaceTypeRegistry and IndexSchema from a wiki's schema
 /// files. Reads each schema file once, discards raw JSON after
 /// construction.
-pub fn build_space(repo_root: &Path, tokenizer: &str) -> Result<(SpaceTypeRegistry, IndexSchema)> {
+pub fn build_space(repo_root: &Path, tokenizer: &Tokenizer) -> Result<(SpaceTypeRegistry, IndexSchema)> {
     let schemas_dir = repo_root.join("schemas");
 
     // Always start from embedded defaults
@@ -68,7 +68,7 @@ pub fn build_space(repo_root: &Path, tokenizer: &str) -> Result<(SpaceTypeRegist
 }
 
 /// Build both from embedded defaults (no disk access).
-pub fn build_space_from_embedded(tokenizer: &str) -> Result<(SpaceTypeRegistry, IndexSchema)> {
+pub fn build_space_from_embedded(tokenizer: &Tokenizer) -> Result<(SpaceTypeRegistry, IndexSchema)> {
     let parsed = parse_from_embedded()?;
     assemble_without_overrides(parsed, tokenizer)
 }
@@ -142,7 +142,7 @@ fn parse_schema_file(schema_rel: &str, content: &str) -> Result<ParsedSchemaFile
 fn assemble(
     parsed: Vec<ParsedSchemaFile>,
     repo_root: &Path,
-    tokenizer: &str,
+    tokenizer: &Tokenizer,
 ) -> Result<(SpaceTypeRegistry, IndexSchema)> {
     let mut types = HashMap::new();
     let mut schema_builder = SchemaBuilder::new(tokenizer);
@@ -224,7 +224,7 @@ fn assemble(
 
 fn assemble_without_overrides(
     parsed: Vec<ParsedSchemaFile>,
-    tokenizer: &str,
+    tokenizer: &Tokenizer,
 ) -> Result<(SpaceTypeRegistry, IndexSchema)> {
     let mut types = HashMap::new();
     let mut schema_builder = SchemaBuilder::new(tokenizer);
@@ -300,7 +300,7 @@ mod tests {
         )
         .unwrap();
 
-        let (registry, _) = build_space(repo_root, "default").unwrap();
+        let (registry, _) = build_space(repo_root, &Tokenizer::Default).unwrap();
         assert!(registry.is_known("concept"));
         assert!(registry.is_known("paper"));
     }
@@ -322,7 +322,7 @@ mod tests {
         )
         .unwrap();
 
-        let (registry, _) = build_space(repo_root, "default").unwrap();
+        let (registry, _) = build_space(repo_root, &Tokenizer::Default).unwrap();
         assert!(registry.is_known("mytype"));
         assert!(registry.is_known("concept"));
     }
@@ -333,14 +333,14 @@ mod tests {
         let repo_root = dir.path();
         std::fs::create_dir(repo_root.join("schemas")).unwrap();
 
-        let (registry, _) = build_space(repo_root, "default").unwrap();
+        let (registry, _) = build_space(repo_root, &Tokenizer::Default).unwrap();
         assert!(registry.is_known("concept"));
         assert!(registry.is_known("default"));
     }
 
     #[test]
     fn build_space_from_embedded_succeeds_with_default_tokenizer() {
-        let (registry, _index) = build_space_from_embedded("default").unwrap();
+        let (registry, _index) = build_space_from_embedded(&Tokenizer::Default).unwrap();
         // Embedded schemas must always register the "default" fallback type.
         assert!(
             registry.is_known("default"),
@@ -359,7 +359,7 @@ mod tests {
     #[test]
     fn build_space_from_embedded_succeeds_with_simple_tokenizer() {
         // Tokenizer choice must not cause a build failure.
-        if let Err(e) = build_space_from_embedded("simple") {
+        if let Err(e) = build_space_from_embedded(&Tokenizer::Simple) {
             panic!("build_space_from_embedded with 'simple' tokenizer failed: {e:#}");
         }
     }
@@ -372,7 +372,7 @@ mod tests {
         std::fs::create_dir(&schemas_dir).unwrap();
         std::fs::write(schemas_dir.join("bad.json"), b"{ not valid json ~~~ ").unwrap();
 
-        match build_space(repo_root, "default") {
+        match build_space(repo_root, &Tokenizer::Default) {
             Ok(_) => panic!("corrupted JSON schema must cause build_space to fail"),
             Err(e) => {
                 let msg = format!("{e:#}");

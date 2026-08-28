@@ -374,7 +374,7 @@ fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Re
     // with no schemas/ directory at all still works — build_space handles
     // that case internally by using the embedded defaults.
     let (type_registry, index_schema) =
-        space_builder::build_space(&repo_root, config.index.tokenizer.as_str()).with_context(
+        space_builder::build_space(&repo_root, &config.index.tokenizer).with_context(
             || {
                 format!(
                     "failed to build type registry for wiki \"{}\" from {}",

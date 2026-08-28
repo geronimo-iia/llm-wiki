@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use llm_wiki_engine::config::TypeStrictness;
+use llm_wiki_engine::config::{Tokenizer, TypeStrictness};
 use llm_wiki_engine::engine::WikiEngine;
 use llm_wiki_engine::ops;
 use llm_wiki_engine::spaces;
@@ -311,7 +311,7 @@ fn schema_add_from_inside_schemas_dir_does_not_truncate() {
     assert_eq!(parsed["x-wiki-types"]["meeting"], "Meeting notes");
 
     // And the type registers when the space is rebuilt from disk.
-    let (registry, _) = llm_wiki_engine::space_builder::build_space(&repo_root, "en_stem").unwrap();
+    let (registry, _) = llm_wiki_engine::space_builder::build_space(&repo_root, &Tokenizer::EnStem).unwrap();
     assert!(registry.is_known("meeting"), "meeting type should register");
 }
 

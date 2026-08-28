@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use llm_wiki_engine::config::IngestConfig;
+use llm_wiki_engine::config::{IngestConfig, Tokenizer};
 use llm_wiki_engine::git;
 use llm_wiki_engine::index_manager::SpaceIndexManager;
 use llm_wiki_engine::index_schema::IndexSchema;
@@ -10,12 +10,12 @@ use llm_wiki_engine::space_builder;
 use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 
 fn schema() -> IndexSchema {
-    let (_registry, schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
+    let (_registry, schema) = space_builder::build_space_from_embedded(&Tokenizer::EnStem).unwrap();
     schema
 }
 
 fn registry() -> SpaceTypeRegistry {
-    let (registry, _schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
+    let (registry, _schema) = space_builder::build_space_from_embedded(&Tokenizer::EnStem).unwrap();
     registry
 }
 
