@@ -118,7 +118,7 @@ fn main() -> Result<()> {
         // ── Config ────────────────────────────────────────────────────
         Commands::Config { action } => match action {
             ConfigAction::Get { key } => {
-                let val = ops::config_get(&config_path, &key)?;
+                let val = ops::config_get(&config_path, &key, cli.wiki.as_deref())?;
                 println!("{val}");
             }
             ConfigAction::Set {
@@ -133,14 +133,15 @@ fn main() -> Result<()> {
             }
             ConfigAction::List {
                 global: is_global,
-                wiki: _,
+                wiki: wiki_name,
                 format,
             } => {
                 if is_global {
                     let s = ops::config_list_global(&config_path)?;
                     println!("{s}");
                 } else {
-                    let resolved = ops::config_list_resolved(&config_path)?;
+                    let wiki = wiki_name.as_deref().or(cli.wiki.as_deref());
+                    let resolved = ops::config_list_resolved(&config_path, wiki)?;
                     if is_json(&format) {
                         println!("{}", serde_json::to_string_pretty(&resolved)?);
                     } else {

@@ -125,7 +125,9 @@ pub fn handle_config(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
         }
         "get" => {
             let key = arg_str_req(args, "key")?;
-            let val = ops::config_get(config_path, &key).map_err(redact_error)?;
+            let wiki_name = arg_str(args, "wiki");
+            let val =
+                ops::config_get(config_path, &key, wiki_name.as_deref()).map_err(redact_error)?;
             ok_text(format!("{key}: {val}"))
         }
         "set" => {

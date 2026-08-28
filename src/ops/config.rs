@@ -5,10 +5,14 @@ use anyhow::Result;
 use crate::config::{self, WikiConfig};
 use crate::spaces;
 
-/// Read a single config key from the resolved global config.
-pub fn config_get(config_path: &Path, key: &str) -> Result<String> {
+/// Read a single config key from the resolved config, optionally merged with a per-wiki override.
+pub fn config_get(config_path: &Path, key: &str, wiki_name: Option<&str>) -> Result<String> {
     let g = config::load_global(config_path)?;
-    let resolved = config::resolve(&g, &WikiConfig::default());
+    let wiki_cfg = match wiki_name {
+        Some(name) => config::load_wiki(&spaces::resolve_name(name, &g)?.path)?,
+        None => WikiConfig::default(),
+    };
+    let resolved = config::resolve(&g, &wiki_cfg);
     Ok(config::get_config_value(&resolved, &g, key))
 }
 
@@ -49,8 +53,15 @@ pub fn config_list_global(config_path: &Path) -> Result<String> {
     Ok(toml::to_string_pretty(&g)?)
 }
 
-/// Return the fully resolved config (global defaults merged with wiki overrides).
-pub fn config_list_resolved(config_path: &Path) -> Result<config::ResolvedConfig> {
+/// Return the fully resolved config, optionally merged with a per-wiki override.
+pub fn config_list_resolved(
+    config_path: &Path,
+    wiki_name: Option<&str>,
+) -> Result<config::ResolvedConfig> {
     let g = config::load_global(config_path)?;
-    Ok(config::resolve(&g, &WikiConfig::default()))
+    let wiki_cfg = match wiki_name {
+        Some(name) => config::load_wiki(&spaces::resolve_name(name, &g)?.path)?,
+        None => WikiConfig::default(),
+    };
+    Ok(config::resolve(&g, &wiki_cfg))
 }
