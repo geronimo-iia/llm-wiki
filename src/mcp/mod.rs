@@ -177,12 +177,12 @@ impl ServerHandler for McpServer {
                                 .with_mime_type("text/markdown"),
                         ])),
                         Err(e) => Err(McpError::internal_error(
-                            format!("failed to read: {e}"),
+                            helpers::redact_error(format!("failed to read: {e}")),
                             None,
                         )),
                     }
                 }
-                Err(e) => Err(McpError::invalid_params(format!("{e}"), None)),
+                Err(e) => Err(McpError::invalid_params(helpers::redact_error(e), None)),
             }
         } else {
             Err(McpError::invalid_params(
