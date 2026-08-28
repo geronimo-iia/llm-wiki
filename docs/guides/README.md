@@ -47,3 +47,4 @@ llm-wiki.
 | Guide                  | Description                                              |
 | ---------------------- | -------------------------------------------------------- |
 | [release.md](release.md) | Release process and distribution channels              |
+| [local-testing.md](local-testing.md) | Test the local engine binary and skills plugin before publishing |
