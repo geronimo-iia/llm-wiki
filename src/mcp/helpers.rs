@@ -101,7 +101,7 @@ pub fn arg_bool(args: &Map<String, Value>, key: &str) -> bool {
 
 /// Extract an optional unsigned integer argument by key.
 pub fn arg_usize(args: &Map<String, Value>, key: &str) -> Option<usize> {
-    args.get(key).and_then(|v| v.as_u64()).map(|n| n as usize)
+     args.get(key).and_then(|v| v.as_u64()).and_then(|n| usize::try_from(n).ok())
 }
 
 // ── Wiki resolution ───────────────────────────────────────────────────────────
