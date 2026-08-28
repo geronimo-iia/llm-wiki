@@ -161,7 +161,7 @@ fn main() -> Result<()> {
                 let manager = WikiEngine::build(&config_path)?;
                 let result = manager.with_state(|engine| {
                     ops::content_read(
-                        &engine,
+                        engine,
                         &uri,
                         cli.wiki.as_deref(),
                         no_frontmatter,
@@ -192,7 +192,7 @@ fn main() -> Result<()> {
 
                 let manager = WikiEngine::build(&config_path)?;
                 let result = manager.with_state(|engine| {
-                    ops::content_write(&engine, &uri, cli.wiki.as_deref(), &content)
+                    ops::content_write(engine, &uri, cli.wiki.as_deref(), &content)
                 })?;
                 println!(
                     "Wrote {} bytes to {}",
@@ -230,7 +230,7 @@ fn main() -> Result<()> {
                     let manager = WikiEngine::build(&config_path)?;
                     let result = manager.with_state(|engine| {
                         ops::content_new(
-                            &engine,
+                            engine,
                             &uri,
                             cli.wiki.as_deref(),
                             section,
@@ -250,7 +250,7 @@ fn main() -> Result<()> {
                 let manager = WikiEngine::build(&config_path)?;
                 let hash = manager.with_state(|engine| {
                     let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
-                    ops::content_commit(&engine, &wiki_name, &slugs, all, message.as_deref())
+                    ops::content_commit(engine, &wiki_name, &slugs, all, message.as_deref())
                 })?;
 
                 if hash.is_empty() {
@@ -275,7 +275,7 @@ fn main() -> Result<()> {
             let results = manager.with_state(|engine| {
                 let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
                 ops::search(
-                    &engine,
+                    engine,
                     wiki_name,
                     &ops::SearchParams {
                         query: &query,
@@ -318,7 +318,7 @@ fn main() -> Result<()> {
             let result = manager.with_state(|engine| {
                 let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
                 ops::list(
-                    &engine,
+                    engine,
                     wiki_name,
                     r#type.as_deref(),
                     status.as_deref(),
@@ -357,7 +357,7 @@ fn main() -> Result<()> {
             let manager = WikiEngine::build(&config_path)?;
             let report = manager.with_state(|engine| {
                 let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
-                ops::ingest_with_redact(&engine, &manager, &path, dry_run, redact, &wiki_name)
+                ops::ingest_with_redact(engine, &manager, &path, dry_run, redact, &wiki_name)
             })?;
 
             if is_json(&format) {
@@ -405,7 +405,7 @@ fn main() -> Result<()> {
             let result = manager.with_state(|engine| {
                 let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
                 ops::graph_build(
-                    &engine,
+                    engine,
                     wiki_name,
                     &ops::GraphParams {
                         format: format
@@ -443,7 +443,7 @@ fn main() -> Result<()> {
             let report = manager.with_state(|engine| {
                 let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
                 ops::export(
-                    &engine,
+                    engine,
                     &ops::ExportOptions {
                         wiki: wiki_name,
                         path,
@@ -496,7 +496,7 @@ fn main() -> Result<()> {
                 let manager = WikiEngine::build(&config_path)?;
                 let status = manager.with_state(|engine| {
                     let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
-                    ops::index_status(&engine, wiki_name)
+                    ops::index_status(engine, wiki_name)
                 })?;
 
                 if is_json(&format) {
@@ -524,7 +524,7 @@ fn main() -> Result<()> {
             let manager = WikiEngine::build(&config_path)?;
             let follow = if no_follow { Some(false) } else { None };
             let result = manager.with_state(|engine| {
-                ops::history(&engine, &slug, cli.wiki.as_deref(), limit, follow)
+                ops::history(engine, &slug, cli.wiki.as_deref(), limit, follow)
             })?;
 
             if is_json(&format) {
@@ -552,7 +552,7 @@ fn main() -> Result<()> {
             match action {
                 SchemaAction::List { format } => {
                     let entries =
-                        manager.with_state(|engine| ops::schema_list(&engine, &wiki_name))?;
+                        manager.with_state(|engine| ops::schema_list(engine, &wiki_name))?;
                     if is_json(&format) {
                         println!("{}", serde_json::to_string_pretty(&entries)?);
                     } else {
@@ -568,18 +568,18 @@ fn main() -> Result<()> {
                 } => {
                     if template {
                         let tmpl = manager.with_state(|engine| {
-                            ops::schema_show_template(&engine, &wiki_name, &name)
+                            ops::schema_show_template(engine, &wiki_name, &name)
                         })?;
                         println!("{tmpl}");
                     } else {
                         let content = manager
-                            .with_state(|engine| ops::schema_show(&engine, &wiki_name, &name))?;
+                            .with_state(|engine| ops::schema_show(engine, &wiki_name, &name))?;
                         println!("{content}");
                     }
                 }
                 SchemaAction::Add { name, schema_path } => {
                     let msg = manager.with_state(|engine| {
-                        ops::schema_add(&engine, &wiki_name, &name, Path::new(&schema_path))
+                        ops::schema_add(engine, &wiki_name, &name, Path::new(&schema_path))
                     })?;
                     println!("{msg}");
                 }
@@ -614,7 +614,7 @@ fn main() -> Result<()> {
                 }
                 SchemaAction::Validate { name } => {
                     let issues = manager.with_state(|engine| {
-                        ops::schema_validate(&engine, &wiki_name, name.as_deref())
+                        ops::schema_validate(engine, &wiki_name, name.as_deref())
                     })?;
                     if issues.is_empty() {
                         println!("ok");
@@ -666,7 +666,7 @@ fn main() -> Result<()> {
             let manager = WikiEngine::build(&config_path)?;
             let result = manager.with_state(|engine| {
                 let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
-                ops::stats(&engine, &wiki_name, &ops::StatsOptions::default())
+                ops::stats(engine, &wiki_name, &ops::StatsOptions::default())
             })?;
 
             if is_json(&format) {
@@ -715,7 +715,7 @@ fn main() -> Result<()> {
             let (wiki_name, report) = manager.with_state(|engine| {
                 let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
                 let report = ops::run_lint(
-                    &engine,
+                    engine,
                     &wiki_name,
                     &ops::LintOptions {
                         rules: rules.as_deref(),
@@ -753,7 +753,7 @@ fn main() -> Result<()> {
         } => {
             let manager = WikiEngine::build(&config_path)?;
             let result = manager
-                .with_state(|engine| ops::suggest(&engine, &slug, cli.wiki.as_deref(), limit))?;
+                .with_state(|engine| ops::suggest(engine, &slug, cli.wiki.as_deref(), limit))?;
 
             if is_json(&format) {
                 println!("{}", serde_json::to_string_pretty(&result)?);
