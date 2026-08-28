@@ -116,6 +116,17 @@ pub struct WikiEngine {
 }
 
 impl WikiEngine {
+    pub fn with_state<F, T>(&self, f: F) -> anyhow::Result<T>
+    where
+        F: FnOnce(&EngineState) -> anyhow::Result<T>,
+    {
+        let engine = self
+            .state
+            .read()
+            .map_err(|_| anyhow::anyhow!("engine lock poisoned"))?;
+        f(&engine)
+    }
+
     /// Build a `WikiEngine` from the global config at `config_path`, mounting all registered wikis.
     pub fn build(config_path: &Path) -> Result<Self> {
         let config = config::load_global(config_path)?;
