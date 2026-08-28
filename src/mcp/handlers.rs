@@ -655,8 +655,7 @@ pub fn handle_info(server: &McpServer, _args: &Map<String, Value>) -> ToolHandle
                 }
                 Ok(s) => {
                     all_ok = false;
-                    let reason = s.degraded_reason.unwrap_or_else(|| "unknown".to_string());
-                    serde_json::json!({"status": "degraded", "reason": reason})
+                    serde_json::json!({"status": "degraded", "reason": s.degraded_reason})
                 }
                 Err(e) => {
                     all_ok = false;

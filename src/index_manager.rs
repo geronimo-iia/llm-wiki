@@ -85,6 +85,7 @@ pub struct UpdateReport {
 /// Healthy when `openable = true`, `queryable = true`, and `stale = false`.
 /// Any failing condition sets `degraded_reason`; priority order: openable →
 /// queryable → stale (a non-openable index is also non-queryable by definition).
+/// `degraded_reason` is an empty string when the index is fully healthy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexStatus {
     /// Wiki name.
@@ -105,9 +106,9 @@ pub struct IndexStatus {
     /// True if the index can be queried (reader opened successfully).
     pub queryable: bool,
     /// Human-readable explanation when the index is degraded (not ok).
-    /// None when the index is fully healthy.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub degraded_reason: Option<String>,
+    /// Empty string when the index is fully healthy.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub degraded_reason: String,
 }
 
 /// Classification of index staleness used to choose the cheapest rebuild strategy.
@@ -672,16 +673,14 @@ impl SpaceIndexManager {
         };
 
         let degraded_reason = if !openable {
-            Some("search index directory cannot be opened by Tantivy; run wiki_index_rebuild to recover".to_string())
+            "search index directory cannot be opened by Tantivy; run wiki_index_rebuild to recover".to_string()
         } else if !queryable {
-            Some(
-                "search index reader failed to initialize; run wiki_index_rebuild to recover"
-                    .to_string(),
-            )
+            "search index reader failed to initialize; run wiki_index_rebuild to recover"
+                .to_string()
         } else if stale {
-            Some("index is behind the current HEAD commit or schema — rebuild needed; run wiki_index_rebuild to recover".to_string())
+            "index is behind the current HEAD commit or schema — rebuild needed; run wiki_index_rebuild to recover".to_string()
         } else {
-            None
+            String::new()
         };
 
         Ok(IndexStatus {
