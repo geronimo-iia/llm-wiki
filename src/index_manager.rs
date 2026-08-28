@@ -673,7 +673,8 @@ impl SpaceIndexManager {
         };
 
         let degraded_reason = if !openable {
-            "search index directory cannot be opened by Tantivy; run wiki_index_rebuild to recover".to_string()
+            "search index directory cannot be opened by Tantivy; run wiki_index_rebuild to recover"
+                .to_string()
         } else if !queryable {
             "search index reader failed to initialize; run wiki_index_rebuild to recover"
                 .to_string()

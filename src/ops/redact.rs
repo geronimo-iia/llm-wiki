@@ -35,45 +35,44 @@ struct RedactPattern {
 
 // ── Built-in patterns ─────────────────────────────────────────────────────────
 
-static BUILTIN_PATTERNS: std::sync::LazyLock<Vec<RedactPattern>> =
-    std::sync::LazyLock::new(|| {
-        let specs: &[(&'static str, &'static str, &'static str)] = &[
-            (
-                "github-pat",
-                r"ghp_[A-Za-z0-9]{36}",
-                "[REDACTED:github-pat]",
-            ),
-            ("openai-key", r"sk-[A-Za-z0-9]{48}", "[REDACTED:openai-key]"),
-            (
-                "anthropic-key",
-                r"sk-ant-[A-Za-z0-9\-]{90,}",
-                "[REDACTED:anthropic-key]",
-            ),
-            (
-                "aws-access-key",
-                r"AKIA[0-9A-Z]{16}",
-                "[REDACTED:aws-access-key]",
-            ),
-            (
-                "bearer-token",
-                r"Bearer [A-Za-z0-9\-._~+/]{20,}",
-                "[REDACTED:bearer-token]",
-            ),
-            (
-                "email",
-                r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}",
-                "[REDACTED:email]",
-            ),
-        ];
-        specs
-            .iter()
-            .map(|(name, pat, rep)| RedactPattern {
-                name,
-                regex: Regex::new(pat).expect("builtin regex is valid"),
-                replacement: rep,
-            })
-            .collect()
-    });
+static BUILTIN_PATTERNS: std::sync::LazyLock<Vec<RedactPattern>> = std::sync::LazyLock::new(|| {
+    let specs: &[(&'static str, &'static str, &'static str)] = &[
+        (
+            "github-pat",
+            r"ghp_[A-Za-z0-9]{36}",
+            "[REDACTED:github-pat]",
+        ),
+        ("openai-key", r"sk-[A-Za-z0-9]{48}", "[REDACTED:openai-key]"),
+        (
+            "anthropic-key",
+            r"sk-ant-[A-Za-z0-9\-]{90,}",
+            "[REDACTED:anthropic-key]",
+        ),
+        (
+            "aws-access-key",
+            r"AKIA[0-9A-Z]{16}",
+            "[REDACTED:aws-access-key]",
+        ),
+        (
+            "bearer-token",
+            r"Bearer [A-Za-z0-9\-._~+/]{20,}",
+            "[REDACTED:bearer-token]",
+        ),
+        (
+            "email",
+            r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}",
+            "[REDACTED:email]",
+        ),
+    ];
+    specs
+        .iter()
+        .map(|(name, pat, rep)| RedactPattern {
+            name,
+            regex: Regex::new(pat).expect("builtin regex is valid"),
+            replacement: rep,
+        })
+        .collect()
+});
 
 // ── Pattern builder ───────────────────────────────────────────────────────────
 
