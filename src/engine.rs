@@ -110,9 +110,9 @@ impl EngineState {
 /// Cheap to clone (`Arc` inside). Safe to share across async tasks.
 pub struct WikiEngine {
     /// Shared engine state protected by a reader-writer lock.
-    pub state: Arc<RwLock<EngineState>>,
+    pub(crate) state: Arc<RwLock<EngineState>>,
     /// Serializes config file mutations (load → modify → save) to prevent lost writes.
-    pub config_write_lock: Arc<Mutex<()>>,
+    pub(crate) config_write_lock: Arc<Mutex<()>>,
 }
 
 impl WikiEngine {
