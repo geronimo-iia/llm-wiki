@@ -172,13 +172,9 @@ impl WikiEngine {
 
     /// Incrementally update the index from git changes since the last indexed commit.
     pub fn refresh_index(&self, wiki_name: &str) -> Result<UpdateReport> {
-        let space: Arc<SpaceContext> = {
-            let engine = self
-                .state
-                .read()
-                .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-            Arc::clone(engine.space(wiki_name)?)
-        };
+        let space: Arc<SpaceContext> = self.with_state(|engine| {
+            Ok(Arc::clone(engine.space(wiki_name)?))
+        })?;
         let last_commit = space.index_manager.last_commit();
         let report = space.index_manager.update(
             &space.wiki_root,
@@ -201,14 +197,10 @@ impl WikiEngine {
 
     /// Rebuild the search index from scratch by walking the wiki tree.
     pub fn rebuild_index(&self, wiki_name: &str) -> Result<IndexReport> {
-        let (space, rebuilding) = {
-            let engine = self
-                .state
-                .read()
-                .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
+        let (space, rebuilding) = self.with_state(|engine| {
             let sp = engine.space(wiki_name)?;
-            (Arc::clone(sp), Arc::clone(&sp.rebuilding))
-        };
+            Ok((Arc::clone(sp), Arc::clone(&sp.rebuilding)))
+        })?;
         // Signal to the watcher that a rebuild is in progress so it doesn't
         // dispatch a competing one. rebuild_lock inside SpaceIndexManager serializes
         // any rebuild that slips through before this store.
@@ -235,13 +227,9 @@ impl WikiEngine {
     /// when possible, full rebuild only when necessary.
     pub fn schema_rebuild(&self, wiki_name: &str) -> Result<()> {
         // Hold the read lock only long enough to clone the Arc — drops before I/O.
-        let space: Arc<SpaceContext> = {
-            let engine = self
-                .state
-                .read()
-                .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-            Arc::clone(engine.space(wiki_name)?)
-        };
+        let space: Arc<SpaceContext> = self.with_state(|engine| {
+            Ok(Arc::clone(engine.space(wiki_name)?))
+        })?;
         match space.index_manager.staleness_kind(&space.repo_root) {
             Ok(StalenessKind::Current) => {}
             Ok(StalenessKind::CommitChanged) => {
@@ -302,13 +290,9 @@ impl WikiEngine {
     /// tools for hot reload.
     pub fn mount_wiki(&self, entry: &WikiEntry) -> Result<()> {
         // Clone cheap fields under the read lock, then drop before I/O.
-        let (state_dir, config) = {
-            let engine = self
-                .state
-                .read()
-                .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-            (engine.state_dir.clone(), engine.config.clone())
-        };
+        let (state_dir, config) = self.with_state(|engine| {
+            Ok((engine.state_dir.clone(), engine.config.clone()))
+        })?;
         let ctx = mount_space(entry, &state_dir, &config)?;
         let mut engine = self
             .state

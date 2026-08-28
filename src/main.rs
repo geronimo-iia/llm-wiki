@@ -159,15 +159,10 @@ fn main() -> Result<()> {
                 list_assets,
             } => {
                 let manager = WikiEngine::build(&config_path)?;
-                let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-
-                match ops::content_read(
-                    &engine,
-                    &uri,
-                    cli.wiki.as_deref(),
-                    no_frontmatter,
-                    list_assets,
-                )? {
+                let result = manager.with_state(|engine| {
+                    ops::content_read(&engine, &uri, cli.wiki.as_deref(), no_frontmatter, list_assets)
+                })?;
+                match result {
                     ops::ContentReadResult::Page(content) => print!("{content}"),
                     ops::ContentReadResult::Assets(assets) => {
                         for a in &assets {
@@ -190,8 +185,9 @@ fn main() -> Result<()> {
                 };
 
                 let manager = WikiEngine::build(&config_path)?;
-                let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-                let result = ops::content_write(&engine, &uri, cli.wiki.as_deref(), &content)?;
+                let result = manager.with_state(|engine| {
+                    ops::content_write(&engine, &uri, cli.wiki.as_deref(), &content)
+                })?;
                 println!(
                     "Wrote {} bytes to {}",
                     result.bytes_written,
@@ -208,10 +204,14 @@ fn main() -> Result<()> {
             } => {
                 if dry_run {
                     let manager = WikiEngine::build(&config_path)?;
-                    let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-                    let global = &engine.config;
-                    let (entry, slug) =
-                        llm_wiki_engine::slug::WikiUri::resolve(&uri, cli.wiki.as_deref(), global)?;
+                    let (entry_name, slug) = manager.with_state(|engine| {
+                        let (entry, slug) = llm_wiki_engine::slug::WikiUri::resolve(
+                            &uri,
+                            cli.wiki.as_deref(),
+                            &engine.config,
+                        )?;
+                        Ok((entry.name.clone(), slug.to_string()))
+                    })?;
                     let kind = if section {
                         "section"
                     } else if bundle {
@@ -219,19 +219,20 @@ fn main() -> Result<()> {
                     } else {
                         "flat"
                     };
-                    println!("Would create {kind} at wiki://{}/{slug}", entry.name);
+                    println!("Would create {kind} at wiki://{entry_name}/{slug}");
                 } else {
                     let manager = WikiEngine::build(&config_path)?;
-                    let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-                    let result = ops::content_new(
-                        &engine,
-                        &uri,
-                        cli.wiki.as_deref(),
-                        section,
-                        bundle,
-                        name.as_deref(),
-                        r#type.as_deref(),
-                    )?;
+                    let result = manager.with_state(|engine| {
+                        ops::content_new(
+                            &engine,
+                            &uri,
+                            cli.wiki.as_deref(),
+                            section,
+                            bundle,
+                            name.as_deref(),
+                            r#type.as_deref(),
+                        )
+                    })?;
                     println!("Created: {}", result.uri);
                 }
             }
@@ -241,11 +242,10 @@ fn main() -> Result<()> {
                 message,
             } => {
                 let manager = WikiEngine::build(&config_path)?;
-                let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-                let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
-
-                let hash =
-                    ops::content_commit(&engine, &wiki_name, &slugs, all, message.as_deref())?;
+                let hash = manager.with_state(|engine| {
+                    let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
+                    ops::content_commit(&engine, &wiki_name, &slugs, all, message.as_deref())
+                })?;
 
                 if hash.is_empty() {
                     println!("Nothing to commit");
@@ -266,21 +266,21 @@ fn main() -> Result<()> {
             format,
         } => {
             let manager = WikiEngine::build(&config_path)?;
-            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
-
-            let results = ops::search(
-                &engine,
-                wiki_name,
-                &ops::SearchParams {
-                    query: &query,
-                    type_filter: r#type.as_deref(),
-                    no_excerpt,
-                    top_k,
-                    include_sections,
-                    cross_wiki,
-                },
-            )?;
+            let results = manager.with_state(|engine| {
+                let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
+                ops::search(
+                    &engine,
+                    wiki_name,
+                    &ops::SearchParams {
+                        query: &query,
+                        type_filter: r#type.as_deref(),
+                        no_excerpt,
+                        top_k,
+                        include_sections,
+                        cross_wiki,
+                    },
+                )
+            })?;
 
             if is_json(&format) {
                 println!("{}", serde_json::to_string_pretty(&results)?);
@@ -309,17 +309,10 @@ fn main() -> Result<()> {
             format,
         } => {
             let manager = WikiEngine::build(&config_path)?;
-            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
-
-            let result = ops::list(
-                &engine,
-                wiki_name,
-                r#type.as_deref(),
-                status.as_deref(),
-                page,
-                page_size,
-            )?;
+            let result = manager.with_state(|engine| {
+                let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
+                ops::list(&engine, wiki_name, r#type.as_deref(), status.as_deref(), page, page_size)
+            })?;
 
             if is_json(&format) {
                 println!("{}", serde_json::to_string_pretty(&result)?);
@@ -349,11 +342,10 @@ fn main() -> Result<()> {
             format,
         } => {
             let manager = WikiEngine::build(&config_path)?;
-            let report = {
-                let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
+            let report = manager.with_state(|engine| {
                 let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
-                ops::ingest_with_redact(&engine, &manager, &path, dry_run, redact, &wiki_name)?
-            };
+                ops::ingest_with_redact(&engine, &manager, &path, dry_run, redact, &wiki_name)
+            })?;
 
             if is_json(&format) {
                 println!("{}", serde_json::to_string_pretty(&report)?);
@@ -397,26 +389,26 @@ fn main() -> Result<()> {
             cross_wiki,
         } => {
             let manager = WikiEngine::build(&config_path)?;
-            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
-
-            let result = ops::graph_build(
-                &engine,
-                wiki_name,
-                &ops::GraphParams {
-                    format: format
-                        .map(|s| s.parse::<ops::GraphRenderFormat>())
-                        .transpose()
-                        .map_err(anyhow::Error::msg)?,
-                    root,
-                    depth,
-                    type_filter: r#type.as_deref(),
-                    relation,
-                    output: output.as_deref(),
-                    cross_wiki,
-                    limit: None,
-                },
-            )?;
+            let result = manager.with_state(|engine| {
+                let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
+                ops::graph_build(
+                    &engine,
+                    wiki_name,
+                    &ops::GraphParams {
+                        format: format
+                            .map(|s| s.parse::<ops::GraphRenderFormat>())
+                            .transpose()
+                            .map_err(anyhow::Error::msg)?,
+                        root,
+                        depth,
+                        type_filter: r#type.as_deref(),
+                        relation,
+                        output: output.as_deref(),
+                        cross_wiki,
+                        limit: None,
+                    },
+                )
+            })?;
 
             // If no output file, print rendered graph
             if output.is_none() {
@@ -433,21 +425,20 @@ fn main() -> Result<()> {
             status,
         } => {
             let manager = WikiEngine::build(&config_path)?;
-            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
-
             let export_format = ops::ExportFormat::parse(format.as_deref().unwrap_or("llms-txt"));
             let include_archived = status.as_deref() == Some("all");
-
-            let report = ops::export(
-                &engine,
-                &ops::ExportOptions {
-                    wiki: wiki_name,
-                    path,
-                    format: export_format,
-                    include_archived,
-                },
-            )?;
+            let report = manager.with_state(|engine| {
+                let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
+                ops::export(
+                    &engine,
+                    &ops::ExportOptions {
+                        wiki: wiki_name,
+                        path,
+                        format: export_format,
+                        include_archived,
+                    },
+                )
+            })?;
             println!(
                 "Exported {} pages ({} bytes) → {}",
                 report.pages_written, report.bytes, report.path
@@ -458,26 +449,24 @@ fn main() -> Result<()> {
         Commands::Index { action } => match action {
             IndexAction::Rebuild { dry_run, format } => {
                 let manager = WikiEngine::build(&config_path)?;
-                let wiki_name = {
-                    let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-                    engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string()
-                };
+                let wiki_name = manager.with_state(|engine| {
+                    Ok(engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string())
+                })?;
 
                 if dry_run {
-                    let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-                    let space = engine.space(&wiki_name)?;
-                    let count = walkdir::WalkDir::new(&space.wiki_root)
-                        .into_iter()
-                        .filter_map(|e| e.ok())
-                        .filter(|e| {
-                            e.path().is_file()
-                                && e.path().extension().and_then(|x| x.to_str()) == Some("md")
-                        })
-                        .count();
-                    println!(
-                        "Would index {count} pages from {}",
-                        space.wiki_root.display()
-                    );
+                    let (count, wiki_root) = manager.with_state(|engine| {
+                        let space = engine.space(&wiki_name)?;
+                        let count = walkdir::WalkDir::new(&space.wiki_root)
+                            .into_iter()
+                            .filter_map(|e| e.ok())
+                            .filter(|e| {
+                                e.path().is_file()
+                                    && e.path().extension().and_then(|x| x.to_str()) == Some("md")
+                            })
+                            .count();
+                        Ok((count, space.wiki_root.display().to_string()))
+                    })?;
+                    println!("Would index {count} pages from {wiki_root}");
                 } else {
                     let report = ops::index_rebuild(&manager, &wiki_name)?;
                     if is_json(&format) {
@@ -492,10 +481,10 @@ fn main() -> Result<()> {
             }
             IndexAction::Status { format } => {
                 let manager = WikiEngine::build(&config_path)?;
-                let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-                let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
-
-                let status = ops::index_status(&engine, wiki_name)?;
+                let status = manager.with_state(|engine| {
+                    let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
+                    ops::index_status(&engine, wiki_name)
+                })?;
 
                 if is_json(&format) {
                     println!("{}", serde_json::to_string_pretty(&status)?);
@@ -520,9 +509,10 @@ fn main() -> Result<()> {
             format,
         } => {
             let manager = WikiEngine::build(&config_path)?;
-            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
             let follow = if no_follow { Some(false) } else { None };
-            let result = ops::history(&engine, &slug, cli.wiki.as_deref(), limit, follow)?;
+            let result = manager.with_state(|engine| {
+                ops::history(&engine, &slug, cli.wiki.as_deref(), limit, follow)
+            })?;
 
             if is_json(&format) {
                 println!("{}", serde_json::to_string_pretty(&result)?);
@@ -542,12 +532,13 @@ fn main() -> Result<()> {
         // ── Serve ─────────────────────────────────────────────────────
         Commands::Schema { action } => {
             let manager = WikiEngine::build(&config_path)?;
-            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
+            let wiki_name = manager.with_state(|engine| {
+                Ok(engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string())
+            })?;
 
             match action {
                 SchemaAction::List { format } => {
-                    let entries = ops::schema_list(&engine, &wiki_name)?;
+                    let entries = manager.with_state(|engine| ops::schema_list(&engine, &wiki_name))?;
                     if is_json(&format) {
                         println!("{}", serde_json::to_string_pretty(&entries)?);
                     } else {
@@ -562,15 +553,21 @@ fn main() -> Result<()> {
                     format: _,
                 } => {
                     if template {
-                        let tmpl = ops::schema_show_template(&engine, &wiki_name, &name)?;
+                        let tmpl = manager.with_state(|engine| {
+                            ops::schema_show_template(&engine, &wiki_name, &name)
+                        })?;
                         println!("{tmpl}");
                     } else {
-                        let content = ops::schema_show(&engine, &wiki_name, &name)?;
+                        let content = manager.with_state(|engine| {
+                            ops::schema_show(&engine, &wiki_name, &name)
+                        })?;
                         println!("{content}");
                     }
                 }
                 SchemaAction::Add { name, schema_path } => {
-                    let msg = ops::schema_add(&engine, &wiki_name, &name, Path::new(&schema_path))?;
+                    let msg = manager.with_state(|engine| {
+                        ops::schema_add(&engine, &wiki_name, &name, Path::new(&schema_path))
+                    })?;
                     println!("{msg}");
                 }
                 SchemaAction::Remove {
@@ -579,7 +576,6 @@ fn main() -> Result<()> {
                     delete_pages,
                     dry_run,
                 } => {
-                    drop(engine);
                     let report = ops::schema_remove(
                         &manager,
                         &wiki_name,
@@ -604,7 +600,9 @@ fn main() -> Result<()> {
                     }
                 }
                 SchemaAction::Validate { name } => {
-                    let issues = ops::schema_validate(&engine, &wiki_name, name.as_deref())?;
+                    let issues = manager.with_state(|engine| {
+                        ops::schema_validate(&engine, &wiki_name, name.as_deref())
+                    })?;
                     if issues.is_empty() {
                         println!("ok");
                     } else {
@@ -653,9 +651,10 @@ fn main() -> Result<()> {
         // ── Stats ───────────────────────────────────────────────────────
         Commands::Stats { format } => {
             let manager = WikiEngine::build(&config_path)?;
-            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
-            let result = ops::stats(&engine, &wiki_name, &ops::StatsOptions::default())?;
+            let result = manager.with_state(|engine| {
+                let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
+                ops::stats(&engine, &wiki_name, &ops::StatsOptions::default())
+            })?;
 
             if is_json(&format) {
                 println!("{}", serde_json::to_string_pretty(&result)?);
@@ -700,17 +699,19 @@ fn main() -> Result<()> {
             format,
         } => {
             let manager = WikiEngine::build(&config_path)?;
-            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
-            let report = ops::run_lint(
-                &engine,
-                &wiki_name,
-                &ops::LintOptions {
-                    rules: rules.as_deref(),
-                    severity: severity.as_deref(),
-                    ..Default::default()
-                },
-            )?;
+            let (wiki_name, report) = manager.with_state(|engine| {
+                let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?.to_string();
+                let report = ops::run_lint(
+                    &engine,
+                    &wiki_name,
+                    &ops::LintOptions {
+                        rules: rules.as_deref(),
+                        severity: severity.as_deref(),
+                        ..Default::default()
+                    },
+                )?;
+                Ok((wiki_name, report))
+            })?;
 
             if is_json(&format) {
                 println!("{}", serde_json::to_string_pretty(&report)?);
@@ -738,8 +739,9 @@ fn main() -> Result<()> {
             format,
         } => {
             let manager = WikiEngine::build(&config_path)?;
-            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            let result = ops::suggest(&engine, &slug, cli.wiki.as_deref(), limit)?;
+            let result = manager.with_state(|engine| {
+                ops::suggest(&engine, &slug, cli.wiki.as_deref(), limit)
+            })?;
 
             if is_json(&format) {
                 println!("{}", serde_json::to_string_pretty(&result)?);
@@ -755,10 +757,7 @@ fn main() -> Result<()> {
 
         Commands::Watch { wiki } => {
             let manager = std::sync::Arc::new(WikiEngine::build(&config_path)?);
-            let debounce = {
-                let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-                engine.config.watch.debounce_ms
-            };
+            let debounce = manager.with_state(|engine| Ok(engine.config.watch.debounce_ms))?;
             println!("Watching for changes (ctrl+c to stop)...");
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(async {

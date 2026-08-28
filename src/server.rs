@@ -104,14 +104,13 @@ pub async fn serve(
     // 1. Build WikiEngine
     let manager = Arc::new(WikiEngine::build(config_path)?);
 
-    let (wiki_count, serve_cfg, http_enabled, resolved_port) = {
-        let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
+    let (wiki_count, serve_cfg, http_enabled, resolved_port) = manager.with_state(|engine| {
         let count = engine.spaces.len();
         let cfg = engine.config.serve.clone();
         let http = http_port.is_some() || cfg.http;
         let port = http_port.unwrap_or(cfg.http_port);
-        (count, cfg, http, port)
-    };
+        Ok((count, cfg, http, port))
+    })?;
 
     // 2. Log startup summary
     let mut transports = vec!["stdio".to_string()];
@@ -174,10 +173,7 @@ pub async fn serve(
     let watch_handle = if watch {
         let watch_manager = manager.clone();
         let cancel_watch = cancel.clone();
-        let debounce = {
-            let engine = manager.state.read().map_err(|_| anyhow::anyhow!("lock"))?;
-            engine.config.watch.debounce_ms
-        };
+        let debounce = manager.with_state(|engine| Ok(engine.config.watch.debounce_ms))?;
         let push_tx_watch = push_tx;
         Some(tokio::spawn(async move {
             if let Err(e) =
