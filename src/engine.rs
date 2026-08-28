@@ -359,7 +359,10 @@ impl WikiEngine {
 
 fn mount_space(entry: &WikiEntry, state_dir: &Path, config: &GlobalConfig) -> Result<SpaceContext> {
     let repo_root = crate::pathutil::strip_verbatim_prefix(entry.path.clone());
-    let wiki_cfg = config::load_wiki(&repo_root).unwrap_or_default();
+    let wiki_cfg = config::load_wiki(&repo_root).unwrap_or_else(|e| {
+        tracing::warn!(wiki = %entry.name, error = %e, "failed to load wiki.toml, using defaults");
+        Default::default()
+    });
     let resolved_cfg = config::resolve(config, &wiki_cfg);
     let wiki_root = repo_root.join(&wiki_cfg.wiki_root);
     let index_path = state_dir.join("indexes").join(&entry.name);
