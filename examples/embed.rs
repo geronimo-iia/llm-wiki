@@ -50,7 +50,9 @@ fn main() -> anyhow::Result<()> {
 
     // ── 2. Resolve target wiki name ────────────────────────────────────────────
     let wiki_name = engine.with_state(|state| {
-        Ok(state.resolve_wiki_name(wiki_override.as_deref())?.to_string())
+        Ok(state
+            .resolve_wiki_name(wiki_override.as_deref())?
+            .to_string())
     })?;
 
     println!("Wiki   : {wiki_name}");

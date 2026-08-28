@@ -291,7 +291,11 @@ fn auto_recovery_false_leaves_index_unavailable_after_corruption() {
 
     // First build — index is healthy.
     let manager = WikiEngine::build(&config_path).unwrap();
-    let idx_path = manager.state_for_test().read().unwrap().index_path_for("test");
+    let idx_path = manager
+        .state_for_test()
+        .read()
+        .unwrap()
+        .index_path_for("test");
     drop(manager);
 
     // Corrupt every file in the search-index directory.

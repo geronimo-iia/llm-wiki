@@ -160,7 +160,13 @@ fn main() -> Result<()> {
             } => {
                 let manager = WikiEngine::build(&config_path)?;
                 let result = manager.with_state(|engine| {
-                    ops::content_read(&engine, &uri, cli.wiki.as_deref(), no_frontmatter, list_assets)
+                    ops::content_read(
+                        &engine,
+                        &uri,
+                        cli.wiki.as_deref(),
+                        no_frontmatter,
+                        list_assets,
+                    )
                 })?;
                 match result {
                     ops::ContentReadResult::Page(content) => print!("{content}"),
@@ -311,7 +317,14 @@ fn main() -> Result<()> {
             let manager = WikiEngine::build(&config_path)?;
             let result = manager.with_state(|engine| {
                 let wiki_name = engine.resolve_wiki_name(cli.wiki.as_deref())?;
-                ops::list(&engine, wiki_name, r#type.as_deref(), status.as_deref(), page, page_size)
+                ops::list(
+                    &engine,
+                    wiki_name,
+                    r#type.as_deref(),
+                    status.as_deref(),
+                    page,
+                    page_size,
+                )
             })?;
 
             if is_json(&format) {
@@ -538,7 +551,8 @@ fn main() -> Result<()> {
 
             match action {
                 SchemaAction::List { format } => {
-                    let entries = manager.with_state(|engine| ops::schema_list(&engine, &wiki_name))?;
+                    let entries =
+                        manager.with_state(|engine| ops::schema_list(&engine, &wiki_name))?;
                     if is_json(&format) {
                         println!("{}", serde_json::to_string_pretty(&entries)?);
                     } else {
@@ -558,9 +572,8 @@ fn main() -> Result<()> {
                         })?;
                         println!("{tmpl}");
                     } else {
-                        let content = manager.with_state(|engine| {
-                            ops::schema_show(&engine, &wiki_name, &name)
-                        })?;
+                        let content = manager
+                            .with_state(|engine| ops::schema_show(&engine, &wiki_name, &name))?;
                         println!("{content}");
                     }
                 }
@@ -739,9 +752,8 @@ fn main() -> Result<()> {
             format,
         } => {
             let manager = WikiEngine::build(&config_path)?;
-            let result = manager.with_state(|engine| {
-                ops::suggest(&engine, &slug, cli.wiki.as_deref(), limit)
-            })?;
+            let result = manager
+                .with_state(|engine| ops::suggest(&engine, &slug, cli.wiki.as_deref(), limit))?;
 
             if is_json(&format) {
                 println!("{}", serde_json::to_string_pretty(&result)?);
