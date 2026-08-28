@@ -319,6 +319,45 @@ WikiEngine::build()
 
 Every `searcher()` call is `inner.index_reader.searcher()` — a cheap arc clone.
 
+## Rebuild: Close Handles Before Rename (Windows)
+
+`rebuild()` performs a three-phase atomic directory swap:
+
+```
+Phase 1: search-index/          → search-index-prev/
+Phase 2: search-index-building/ → search-index/
+Phase 3: delete search-index-prev/
+```
+
+On Windows, `fs::rename` on a directory fails with **os error 5 (Access is
+denied)** if any file handle — including a memory-mapped file — is open inside
+that directory. `tantivy::Index` uses `MmapDirectory`, so `inner.tantivy_index`
+and `inner.index_reader` keep mmap handles alive, blocking Phase 1.
+
+### Close before rename
+
+Before Phase 1, `rebuild()` acquires an `inner.write()` lock and sets both
+`tantivy_index` and `index_reader` to `None`. This releases all `Arc`-counted
+references; tantivy drops mmap handles when the last `Index` clone is dropped.
+The write lock is released before the rename sequence runs — a concurrent
+search will block briefly on `inner.read()` and succeed on the freshly opened
+index.
+
+### Reopen fresh after rename (not `reload_reader()`)
+
+After Phase 2, `rebuild()` opens a fresh `Index` from the new `search-index/`
+directory and creates a new `IndexReader` with `ReloadPolicy::Manual`.
+`reload_reader()` cannot be used here: `inner.index_reader` is `None` after the
+close step, so there is nothing to reload.
+
+### `close()` test escape hatch
+
+Tests that verify recovery from a corrupt index must overwrite files in the
+live `search-index/` directory after a `rebuild()` has mapped them. On Windows
+those files cannot be overwritten while mmap'd. `SpaceIndexManager::close()`
+(`#[doc(hidden)]`) clears both `tantivy_index` and `index_reader`, releasing
+mmap handles without tearing down the manager. Production code never calls it.
+
 ## Index Writer
 
 The writer manages in-memory segments and flushes to disk.

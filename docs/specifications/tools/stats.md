@@ -33,8 +33,6 @@ staleness: fresh(30) 7d(8) 30d(4)
 index:     ok, built 2025-07-21T14:32:01Z
 ```
 
-JSON (`--format json`):
-
 JSON (`--format json`, `detail: "summary"` default):
 
 ```json

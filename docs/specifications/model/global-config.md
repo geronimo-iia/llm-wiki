@@ -158,7 +158,7 @@ These keys can appear in both `config.toml` (global) and `wiki.toml`
 | `ingest.exclude`             | `[]`      | Gitignore-style glob patterns matched against slugs (relative to `wiki_root`). Matching files are excluded from the search index. |
 | `ingest.skip_no_frontmatter` | `true`    | Skip `.md` files that have no `---` YAML frontmatter block. Set to `false` if you intentionally store bare markdown under `wiki_root`. |
 | `validation.type_strictness` | `loose`   | `strict`: unknown type is error; `loose`: warning |
-| `graph.format`               | `mermaid` | Default output format: `mermaid` or `dot`         |
+| `graph.format`               | `mermaid` | Default output format: `mermaid`, `dot`, `llms`, or `json` |
 | `graph.depth`                | `3`       | Default hop limit when `--root` is set            |
 | `graph.type`                 | `[]`      | Page types to include; empty = all                |
 | `graph.output`               | `""`      | Default output path; empty = stdout               |
@@ -170,7 +170,7 @@ These keys can appear in both `config.toml` (global) and `wiki.toml`
 | `graph.structural_algorithms` | `true`       | Enable diameter/radius/center fields in `wiki_stats`; set `false` to skip entirely |
 | `graph.max_nodes_for_diameter` | `2000`      | Skip O(n²) diameter/radius/center/periphery above this local node count |
 | `index.memory_budget_mb`     | `50`      | Tantivy writer memory budget in MB                |
-| `index.tokenizer`            | `en_stem` | Tantivy tokenizer for text fields                 |
+| `index.tokenizer`            | `en_stem` | Tantivy tokenizer for text fields: `en_stem`, `raw`, `simple`, or `default` |
 
 ### Global-only settings
 

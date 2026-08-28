@@ -66,10 +66,12 @@ digraph wiki {
 }
 ```
 
-JSON (`--format json`):
+JSON (`--format json`) — **Post-1.0, deferred**:
 
-Structured output with all nodes, edges, aggregate metrics, and Louvain community assignments.
-Use when programmatic processing is needed — `jq` pipelines, custom visualisers, or downstream analysis.
+> The `json` field exists in config but is not yet implemented at runtime. Do not use in production until a 1.x release note confirms availability.
+
+Planned: structured output with all nodes, edges, aggregate metrics, and Louvain community assignments.
+Intended for programmatic processing — `jq` pipelines, custom visualisers, or downstream analysis.
 
 ```json
 {
@@ -137,6 +139,9 @@ Key hubs: Mixture of Experts (12 edges), Scaling Laws (9 edges), Agent (7 edges)
 
 **Isolated nodes (3):** draft-stub-xyz, tangent-note-abc, orphan-page
 ```
+
+Isolated titles are capped at 20. When more exist, the output appends:
+`"… and N more (use wiki_lint(rules: \"orphan,periphery\") for the full list)"`.
 
 Use `format: "llms"` when the goal is interpretation or analysis.
 Use `format: "mermaid"` or `format: "dot"` when a renderable diagram is needed.

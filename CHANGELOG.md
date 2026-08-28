@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Path traversal, info-disclosure, and oversized-input vectors closed across the MCP surface. Absolute filesystem paths (index path, config path, error strings) no longer leak to LLM clients — all tool errors are redacted before dispatch. MCP string parameters are bounded at 8 192 bytes by default (`serve.mcp_max_param_len`); content writes are capped at 10 MB. Slug inputs in `wiki_history`, `wiki_suggest`, `wiki_content_commit`, and `resolve_read_target` validated before any filesystem access. Three CVEs resolved in dependencies (`memmap2`, `event-listener`, `h2`).
 
+Two security advisories suppressed in `audit.toml` (upstream-blocked, no fix available in the required version range):
+
+- **RUSTSEC-2026-0253** (`lru` use-after-free) — `lru 0.16.4` has a confirmed unsoundness (panic inside `LruCache::pop()` can trigger use-after-free). `lru` is a transitive dependency of `tantivy ^0.26`, which pins `lru ^0.16.3`; no fixed version exists in that range. `llm-wiki-engine` does not call `LruCache::pop()` directly; the trigger requires a panic inside tantivy LRU internals, which is not a realistic scenario under expected workloads. Risk: **low**. Re-evaluate after each `tantivy` release. Decision: `docs/decisions/1.0.0/suppress-lru-rustsec-2026-0253.md`.
+
+- **RUSTSEC-2023-0089** (`atomic-polyfill` unmaintained) — `atomic-polyfill 1.0.3` is flagged unmaintained (no known vulnerability). It enters via `petgraph-live → postcard → heapless ^0.7.0`; `heapless 0.9` dropped it but `postcard` pins `heapless ^0.7.0`. The crate is not compiled into the binary on any supported target (x86_64, aarch64) — `cargo tree -i atomic-polyfill` returns nothing on standard builds. Risk: **negligible**. Re-evaluate after each `postcard` release. Decision: `docs/decisions/1.0.0/suppress-atomic-polyfill-rustsec-2023-0089.md`.
+
+- **RUSTSEC-2019-0040** (`boxfnonce`) suppression **removed** — advisory resolved upstream; no longer needed.
+
 ### Added
 
 - **`aliases: array[string]`** optional field on `concept`/`query-result` pages (both share `concept.json`) — keyword-indexed (`x-keyword: true`) for synonym search. Existing wikis require one index rebuild to activate.

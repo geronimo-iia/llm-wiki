@@ -24,7 +24,24 @@ llm-wiki schema show <type> --template                             Print frontma
 llm-wiki schema add <type> <schema-path>                           Register a custom type
 llm-wiki schema remove <type> [--delete] [--delete-pages] [--dry-run]  Unregister a type
 llm-wiki schema validate [<type>]                                  Validate schemas + index resolution
+llm-wiki migrate --wiki <name>|--all [--dry-run]                   Remove stock schema copies from existing wikis
 ```
+
+## Overlay Merge Model
+
+Built-in schemas (base, concept, doc, paper, section, skill) are embedded in
+the engine binary. `spaces create` no longer copies them into `schemas/` — a
+newly created wiki has an empty `schemas/` directory (`.gitkeep` only).
+
+On every mount, `space_builder` loads embedded defaults first, then merges
+any `.json` files found in `<wiki>/schemas/` on top. On-disk files are user
+overrides; their absence means "use the engine default". The merge applies the
+same logic as `schema validate`'s `build_space()` dry-run, so the overlay
+result is always a valid tantivy schema.
+
+To override a built-in type, create a file with the same name as the built-in
+in `schemas/`. Only the fields you define take effect — the engine fills in
+the rest from the embedded default.
 
 ## Operations
 
@@ -136,8 +153,11 @@ Optional fields may be included as comments or omitted.
 
 ### add
 
-Register a custom type by copying a schema file into the wiki and
-optionally adding a `[types.*]` override to `wiki.toml`.
+Register a custom type by copying a user-provided schema file into the wiki's
+`schemas/` directory and optionally adding a `[types.*]` override to
+`wiki.toml`. This is for brand-new types only — to override a built-in type,
+drop a file with the same name directly into `schemas/` (see overlay model
+above).
 
 **CLI:**
 ```
@@ -159,7 +179,7 @@ llm-wiki schema add <type> <schema-path> [--wiki <name>]
 1. Validate the schema file (valid JSON, valid JSON Schema)
 2. Copy it to `<wiki>/schemas/<filename>`
 3. If the schema has `x-wiki-types` declaring the type → done
-   (auto-discovered on next build)
+   (auto-discovered on next mount via overlay merge)
 4. If not → add a `[types.<type>]` entry to `wiki.toml` pointing
    to the copied schema file
 5. Run `validate` on the result to confirm index resolution works
@@ -254,6 +274,51 @@ validation misses:
 
 **Output:** ok or list of errors/warnings per schema file.
 
+### migrate
+
+Remove stock schema copies from wikis created before version 1.0.0, when
+`spaces create` still copied built-in schemas into `schemas/`. Under the
+overlay model those copies shadow the engine defaults and block automatic
+schema upgrades.
+
+**CLI:**
+```
+llm-wiki migrate --wiki <name> [--dry-run]
+llm-wiki migrate --all [--dry-run]
+```
+
+**MCP:**
+```json
+{
+  "action": "migrate",
+  "wiki": "<name>|all",
+  "dry_run": true
+}
+```
+
+`--wiki <name>` or `--all` is required — no silent all-wikis default.
+
+**Detection method:** JSON equality via `serde_json::Value` comparison.
+A file is considered stock if its parsed content matches any known stock
+schema version — current embedded schemas or any version in the source
+archive (`schemas/archive/<version>/`). Whitespace, key ordering, and line
+endings are all normalized by parsing, so the check is not sensitive to
+platform differences.
+
+**Behavior:**
+
+1. For each wiki in scope, scan `schemas/*.json`
+2. Parse each file; compare against all known stock versions
+3. If `--dry-run` → report which files would be removed, stop
+4. Remove files whose parsed content matches a stock version
+5. Leave files with any user customization untouched (warn about each)
+6. Auto-commit deleted files per wiki after a successful non-dry-run run
+
+**Output per wiki:**
+- Files removed: list of filenames
+- Files skipped (customized): list of filenames with a warning
+- Nothing to migrate: reported if `schemas/` has no stock copies
+
 ## MCP Tool Definition
 
 ```json
@@ -261,14 +326,14 @@ validation misses:
   "name": "wiki_schema",
   "description": "Inspect and manage type schemas",
   "parameters": {
-    "action": "list | show | add | remove | validate",
+    "action": "list | show | add | remove | validate | migrate",
     "type": "(for show/add/remove/validate) type name",
     "template": "(for show) return frontmatter template instead of schema",
     "schema_path": "(for add) path to schema file to copy",
     "delete": "(for remove) also delete/modify the schema file",
     "delete_pages": "(for remove) also delete page files from disk",
-    "dry_run": "(for remove) show what would be done without doing it",
-    "wiki": "target wiki name (required — uses default if omitted)"
+    "dry_run": "(for remove/migrate) show what would be done without doing it",
+    "wiki": "target wiki name or 'all' (for migrate); uses default if omitted"
   }
 }
 ```

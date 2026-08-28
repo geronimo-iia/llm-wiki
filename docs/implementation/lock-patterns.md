@@ -2,7 +2,7 @@
 title: "Lock Patterns"
 summary: "How RwLock<EngineState> is acquired and released across the codebase — rules, anti-patterns, and call-site examples."
 status: ready
-last_updated: "2026-08-19"
+last_updated: "2026-08-28"
 read_when:
   - Adding a new operation that reads or writes engine state
   - Writing an MCP handler that needs both a read and a write path
@@ -215,6 +215,24 @@ This is separate from `EngineState.state: RwLock<...>`. The `RwLock` is held
 at read level for the duration of rebuild; the `rebuild_lock` is an additional
 mutex specifically for serialising concurrent rebuild callers on the same space.
 
+### Relation to `SpaceContext.rebuilding: Arc<AtomicBool>`
+
+`SpaceContext` carries `rebuilding: Arc<AtomicBool>`, initialised to `false` in
+`mount_space`. The watcher checks this flag before dispatching a `schema_rebuild`
+task — if already `true`, the dispatch is skipped (best-effort deduplication at
+submission time).
+
+`rebuild_lock` is the hard serialisation gate at execution time. It covers cases
+the `AtomicBool` cannot:
+
+- A direct `wiki_index_rebuild` MCP call concurrent with a watcher-triggered
+  rebuild bypasses the watcher's flag check entirely.
+- A race between the watcher's `compare_exchange` check and the flag being set
+  — the window is tiny but non-zero.
+
+The two mechanisms are complementary: `AtomicBool` reduces unnecessary rebuilds;
+`rebuild_lock` guarantees correctness when they do overlap.
+
 ## with_config_lock and Atomic Rollback
 
 Space-mutating operations (`spaces_create`, `spaces_register`,
@@ -269,6 +287,28 @@ Both `mount_wiki` and `remove` acquire `state.write()` independently; neither
 is nested inside the other. No deadlock risk — `with_config_lock` holds only
 `config_write_lock: Mutex<()>`, not `state`.
 
+## ACP Sessions: `parking_lot::Mutex`
+
+The `Sessions` type in `src/acp/mod.rs` uses `parking_lot::Mutex` instead of
+`std::sync::Mutex`.
+
+Rationale:
+
+- `parking_lot::Mutex::lock()` returns `MutexGuard` directly — no `Result`, no
+  `.unwrap()`, no poison concept. A panic in a critical section does not poison
+  the lock for subsequent callers.
+- Sync-friendly: works in both sync and async contexts without `.await`. Helper
+  functions stay sync; no cascade refactor required.
+- `parking_lot 0.12` is already in the transitive dependency tree (via
+  `jsonschema` and `tokio`). Adding it as a direct dependency pulls zero new
+  packages.
+
+Guards must still not be held across `.await` points. Keep all critical sections
+in explicit blocks that drop the guard before any subsequent async work.
+
+Do not use `tokio::sync::Mutex` for `Sessions` — the sync helpers that access it
+are not async and would require restructuring.
+
 ## Fields That Have Their Own Synchronisation
 
 These `SpaceContext` fields do NOT need the `EngineState` write lock for
@@ -276,9 +316,12 @@ mutations — they use internal synchronisation:
 
 | Field | Type | Sync mechanism |
 |-------|------|----------------|
-| `index_manager` | `Arc<SpaceIndexManager>` | Internal `RwLock<IndexInner>` |
+| `index_manager` | `Arc<SpaceIndexManager>` | Internal `RwLock<IndexInner>` + `rebuild_lock: Mutex<()>` |
+| `rebuilding` | `Arc<AtomicBool>` | Atomic `compare_exchange` (AcqRel/Acquire) |
 | `graph_cache` | `WikiGraphCache` | `GenerationCache` (atomic) or `GraphState` (internal Mutex) |
 | `community_cache` | `GenerationCache<CommunityData>` | Atomic generation check |
 
 The `EngineState` write lock is only needed to add, remove, or replace
-a `SpaceContext` entry in `EngineState.spaces`.
+a `SpaceContext` entry in `EngineState.spaces`. A re-mount via `mount_wiki`
+constructs a new `SpaceContext` with `rebuilding = false`, automatically
+resetting any stuck flag without special-case logic.

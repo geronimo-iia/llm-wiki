@@ -67,8 +67,16 @@ How frontmatter fields map to roles:
 - **Body text** is indexed as BM25 text.
 - **Slug** is `STRING | STORED | FAST` — stored for results, FAST for
   sorted pagination via `order_by_string_fast_field`.
-- **Keyword fields** (`type`, `status`, `tags`) are `STRING | FAST` —
-  FAST enables both exact-match filtering and facet counting.
+- **Keyword fields** (`type`, `status`, `tags`) are `STRING | STORED | FAST` —
+  STORED for result output, FAST enables both exact-match filtering and facet
+  counting via `StrColumn`. `type` was historically `TEXT | STORED` due to a
+  bug in `classify_field`'s string arm; it is now `STRING | STORED | FAST`.
+- **`last_updated`** is `STRING | STORED | FAST` (`"x-keyword": true` in
+  `base.json`). ISO 8601 date strings are atomic tokens — keyword storage is
+  semantically correct and avoids tokenization. FAST enables `StalenessCollector`
+  to read dates via `StrColumn` with zero `searcher.doc()` calls. `title` was
+  evaluated for the same promotion but rejected: it is in the `QueryParser`
+  field list and keyword indexing would break word-level full-text title search.
 - **Numeric fields** (`confidence`) are `f64 | FAST | STORED` — stored
   for result output, FAST for per-document score access inside the
   `tweak_score` collector. `confidence` is written via the dedicated
@@ -117,16 +125,32 @@ open Index in search-index-building/
 walk wiki/ -> parse each .md -> add_document()
 writer.commit()
 
+// close open handles before rename (required on Windows)
+inner.write():
+    inner.tantivy_index = None
+    inner.index_reader  = None
+// mmap handles released; rename now safe on all platforms
+
 // three-rename atomic swap
 search-index/          -> search-index-prev/
 search-index-building/ -> search-index/
-reload_reader()
-  ok  -> rm -rf search-index-prev/
+
+// open fresh index and reader on the new live directory
+open Index from new search-index/
+create IndexReader (ReloadPolicy::Manual)
+  ok  -> inner.write(): set tantivy_index, index_reader
+         rm -rf search-index-prev/
          update state.toml
   err -> search-index/      -> search-index-building/   (rollback)
          search-index-prev/ -> search-index/             (rollback)
          return error (fatal — previous index restored)
 ```
+
+**Windows note:** `fs::rename` on a directory fails with os error 5 (Access
+Denied) if any memory-mapped file is open inside it. Clearing `tantivy_index`
+and `index_reader` from `IndexInner` before Phase 1 releases all mmap handles.
+After Phase 2, a fresh `Index` and `IndexReader` are opened — `reload_reader()`
+cannot be used because there is no live reader to reload at that point.
 
 Cost: O(n) where n = total pages.
 

@@ -23,13 +23,15 @@ pub struct EngineState {
 
 /// Top-level coordinator. Wraps EngineState in Arc<RwLock>.
 pub struct WikiEngine {
-    pub state: Arc<RwLock<EngineState>>,
+    pub(crate) state: Arc<RwLock<EngineState>>,
+    pub(crate) config_write_lock: Arc<Mutex<()>>,
 }
 ```
 
 `EngineState` holds the current state. `WikiEngine` sits above it and
-provides `build`, `refresh_index`, and `rebuild_index`. Tools read
-from `EngineState` via the shared reference.
+provides `build`, `refresh_index`, `rebuild_index`, and `with_state`. Tools read
+from `EngineState` via `with_state`. `state` and `config_write_lock` are
+`pub(crate)` — external callers use `with_state`.
 
 ### SpaceContext
 
@@ -47,6 +49,16 @@ pub struct SpaceContext {
     pub community_cache: GenerationCache<CommunityData>,
 }
 ```
+
+`resolved_config()` returns a cached `&ResolvedConfig` populated at mount time —
+no disk I/O, no `global: &GlobalConfig` parameter:
+
+```rust
+pub fn resolved_config(&self) -> &ResolvedConfig
+```
+
+Config changes take effect on the next remount. All `ops::*` call sites call
+`space.resolved_config()` with no arguments.
 
 `type_registry` is `Arc<SpaceTypeRegistry>` — shared with the `'static` build closure
 inside `WikiGraphCache::WithSnapshot`. Arc clone at construction; deref is transparent.
@@ -94,9 +106,12 @@ Tools receive a read reference to `EngineState` and a wiki name (from
 
 ```rust
 // Read path (search, list, graph, read)
-let engine = wiki_engine.state.read();
-let space = engine.space(wiki_name)?;
-let searcher = space.index_manager.searcher()?;
+wiki_engine.with_state(|engine| {
+    let space = engine.space(wiki_name)?;
+    let searcher = space.index_manager.searcher()?;
+    // ...
+    Ok(result)
+})?;
 
 // Write path (ingest)
 wiki_engine.refresh_index(wiki_name)?;
@@ -108,6 +123,12 @@ wiki_engine.refresh_index(wiki_name)?;
 impl WikiEngine {
     /// Build from config file. Mounts all registered wikis.
     pub fn build(config_path: &Path) -> Result<Self>;
+
+    /// Read engine state. Acquires the read lock, runs `f`, releases the lock.
+    /// This is the public accessor for embedding code — `state` is `pub(crate)`.
+    pub fn with_state<F, T>(&self, f: F) -> anyhow::Result<T>
+    where
+        F: FnOnce(&EngineState) -> anyhow::Result<T>;
 
     /// Incremental index update after ingest.
     pub fn refresh_index(&self, wiki_name: &str) -> Result<UpdateReport>;

@@ -1,8 +1,8 @@
 ---
 title: "Graph Cache Implementation"
-summary: "In-memory graph cache keyed on index generation — eliminates redundant build_graph and Louvain calls in serve mode."
+summary: "In-memory graph cache keyed on index generation — eliminates redundant build_graph and Louvain calls in serve mode. Documents the corrected full ΔQ Louvain formula and sigma_tot precompute (v1.0.0)."
 status: ready
-last_updated: "2026-08-04"
+last_updated: "2026-08-28"
 depends_on:
   - engine.md
   - index-manager.md
@@ -35,7 +35,9 @@ pub struct CommunityData {
 
 `CommunityData` replaces `CachedGraph.community_map` + `CachedGraph.community_stats`.
 `local_count` stores local node count at build time — avoids re-traversal on the hot path.
-Community and graph caches share the same generation key.
+When `NoSnapshot`, both caches use `generation()` as key. When `WithSnapshot`,
+`graph_cache` uses `last_commit()` (see snapshot section); `community_cache`
+always uses `generation()`.
 
 Both caches live in `SpaceContext`:
 
@@ -141,6 +143,62 @@ not at build time.
 `compute_communities` and `node_community_map` are thin wrappers over
 `build_community_data` — they extract `.0` and `.1` respectively. This ensures
 all three entry points share identical Louvain logic with no duplication.
+
+## Louvain algorithm (v1.0.0)
+
+`louvain_phase1` in `src/graph.rs` implements community detection. Two bugs
+were fixed in v1.0.0 — a correctness bug and a performance bug.
+
+### ΔQ formula
+
+The original formula computed only the join half:
+
+```
+gain = k_i_in / m  −  sigma_tot[c] * k_i / (2 * m²)
+```
+
+This accepted moves that decreased modularity, causing oscillation. The
+corrected full formula:
+
+```
+leave_gain = k_i_in_current / m  −  (sigma_tot[current_c] − k_i) * k_i / (2 * m²)
+join_gain  = k_i_in / m          −  sigma_tot[c] * k_i / (2 * m²)
+net_gain   = join_gain − leave_gain
+```
+
+A move is accepted only when `net_gain > 0` — modularity strictly increases.
+`sigma_tot[current_c] − k_i` removes node `v`'s own degree from the leave cost
+(node is leaving, so it should not count itself).
+
+### `sigma_tot` precomputation
+
+`sigma_tot` (sum of all edge weights per community) is precomputed once per
+pass (O(N)) and updated incrementally on each accepted move:
+
+```rust
+sigma_tot[current_c] -= k_i;
+sigma_tot[best_c]    += k_i;
+```
+
+Previous approach rebuilt `sigma_tot` by iterating the full community map for
+every node — O(N²) per pass × O(N) passes = O(N³). The precomputed value is
+exact: node `v` is not in any candidate community `c ≠ current_c`, so
+`sigma_tot[c]` does not include `v`. For `sigma_tot[current_c]`, the leave
+formula subtracts `k_i` explicitly, so the precomputed value is correct.
+
+Complexity after fix: O(M × passes) where passes ≤ `n × 10`.
+
+### Pass cap
+
+The v0.2.0 pass cap is retained as a hard safety bound. The formula fix reduces
+oscillation in practice (moves accepted only when modularity strictly increases),
+but the cap remains.
+
+### Regression test
+
+`test_louvain_two_clusters` in `src/graph.rs` — two fully-connected clusters of
+4 nodes joined by one bridge edge. The test **failed on the original code** and
+passes on the corrected code. Added as a permanent regression test.
 
 ## `GraphFilter::is_default()`
 

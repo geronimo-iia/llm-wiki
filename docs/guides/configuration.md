@@ -122,8 +122,9 @@ skip_no_frontmatter = false
 
 ### Enable strict type validation
 
-By default, unknown types produce a warning. Switch to strict mode
-to reject pages with unregistered types:
+`validation.type_strictness` accepts `"loose"` (default) or `"strict"`. In
+`loose` mode, unknown types produce a warning; in `strict` mode they are
+rejected as an error:
 
 ```bash
 llm-wiki config set validation.type_strictness strict --wiki research
@@ -219,7 +220,8 @@ for the full reference.
 
 ### Change graph output format
 
-Default is Mermaid. Switch to DOT for Graphviz:
+`graph.format` accepts `"mermaid"` (default), `"dot"`, `"llms"`, or `"json"`.
+Switch to DOT for Graphviz:
 
 ```bash
 llm-wiki config set graph.format dot --global

@@ -5,6 +5,21 @@ frontmatter against the type's JSON Schema on ingest, indexes fields
 according to the schema, and includes declared edges in the concept
 graph.
 
+## Overlay Model
+
+Built-in schemas (base, concept, doc, paper, section, skill) are embedded in
+the engine binary. `spaces create` does not copy them into `schemas/` — that
+directory starts empty. On every mount, `space_builder` merges the embedded
+defaults with any `.json` files found in `schemas/`. On-disk files overlay the
+defaults; absent files mean "use the engine default".
+
+To override a built-in type, create a file with the same name as the built-in
+schema in your wiki's `schemas/` directory. Only the fields you define override
+the defaults.
+
+To add a brand-new type (no built-in default to override), follow the workflow
+below.
+
 ## Quick Start
 
 ```
@@ -97,9 +112,9 @@ Key parts:
 llm-wiki schema add meeting schemas/meeting.json
 ```
 
-This copies the schema into the wiki's `schemas/` directory and
+This copies your schema file into the wiki's `schemas/` directory and
 validates index resolution. If the schema has `x-wiki-types`, the
-type is discovered automatically.
+type is discovered automatically on the next mount.
 
 Verify:
 
@@ -253,6 +268,41 @@ when creating pages with `wiki_content_new`:
 
 The template is plain Markdown (no frontmatter). The engine prepends
 the scaffolded frontmatter automatically.
+
+## Override a Built-in Type
+
+To change the behavior of a built-in type (e.g., add a required field to
+`concept`), create a file with the same name in `schemas/`:
+
+```bash
+# Show the current built-in schema
+llm-wiki schema show concept --format json > schemas/concept.json
+
+# Edit schemas/concept.json — add your fields, constraints, or edges
+# The engine merges your file on top of the embedded default on next mount
+```
+
+Only the fields and extensions you define override the defaults. You do not
+need to reproduce the entire schema — but in practice copying the full output
+of `schema show` and editing it avoids surprises.
+
+## Migrate Existing Wikis
+
+Wikis created before version 1.0.0 may have stock schema copies in `schemas/`
+left over from the old copy-on-create model. Use `wiki migrate` to remove them:
+
+```bash
+llm-wiki migrate --wiki <name>    # migrate a specific wiki
+llm-wiki migrate --all            # migrate all registered wikis
+llm-wiki migrate --wiki <name> --dry-run  # preview what would be removed
+```
+
+`wiki migrate` detects stock copies by comparing on-disk content to a JSON
+equality archive of every known historical schema version (current and
+archived releases). Files whose parsed content matches any known stock version
+are removed. Genuine user customizations (any edit, field addition, or
+structural change) are left untouched. After a successful non-dry-run
+migration, deleted files are auto-committed per wiki.
 
 ## Reference
 

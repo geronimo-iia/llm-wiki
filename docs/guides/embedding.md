@@ -35,31 +35,34 @@ fn main() -> anyhow::Result<()> {
 
     let engine = WikiEngine::build(&config_path)?;
 
-    let state = engine.state.read().map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-    let wiki_name = state.resolve_wiki_name(None)?.to_string();
+    engine.with_state(|state| {
+        let wiki_name = state.resolve_wiki_name(None)?.to_string();
 
-    let result = search(
-        &state,
-        &wiki_name,
-        &SearchParams {
-            query: "async rust",
-            type_filter: None,
-            no_excerpt: false,
-            top_k: Some(5),
-            include_sections: false,
-            cross_wiki: false,
-        },
-    )?;
+        let result = search(
+            state,
+            &wiki_name,
+            &SearchParams {
+                query: "async rust",
+                type_filter: None,
+                no_excerpt: false,
+                top_k: Some(5),
+                include_sections: false,
+                cross_wiki: false,
+            },
+        )?;
 
-    for hit in &result.results {
-        println!("[{:.2}] {} — {}", hit.score, hit.slug, hit.title);
-    }
+        for hit in &result.results {
+            println!("[{:.2}] {} — {}", hit.score, hit.slug, hit.title);
+        }
 
-    // List first page of results
-    let page_list = list(&state, &wiki_name, None, None, 1, Some(5))?;
-    for entry in &page_list.pages {
-        println!("  {} [{}]", entry.slug, entry.status);
-    }
+        // List first page of results
+        let page_list = list(state, &wiki_name, None, None, 1, Some(5))?;
+        for entry in &page_list.pages {
+            println!("  {} [{}]", entry.slug, entry.status);
+        }
+
+        Ok(())
+    })?;
 
     Ok(())
 }
@@ -75,33 +78,38 @@ WIKI=rust-kb cargo run --example embed -- "async rust"
 
 | Type | Module | Purpose |
 |---|---|---|
-| `WikiEngine` | `llm_wiki_engine` | Owns all wiki spaces; built once, shared via `Arc` |
-| `EngineState` | `llm_wiki_engine::engine` | Read-locked view of mounted spaces; passed to `ops::*` |
+| `WikiEngine` | `llm_wiki_engine` | Owns all wiki spaces; built once, shared via `Arc`. Use `with_state` to read engine state. |
+| `EngineState` | `llm_wiki_engine::engine` | View of mounted spaces; passed to `ops::*` via `with_state` closure |
 | `SearchParams` | `llm_wiki_engine::ops` | Search query + options |
 | `SearchResult` | `llm_wiki_engine` | Ranked hits with excerpts |
 | `WikiStats` | `llm_wiki_engine::ops` | Aggregate stats from `ops::stats()` |
 
 ## Concurrency
 
-`WikiEngine` wraps its state in `Arc<RwLock<EngineState>>`. Take a read lock, do your work, drop it.
-Index writes (ingest, rebuild) use a write lock internally — do not hold a read lock across an ingest call.
+`WikiEngine` wraps its state in `Arc<RwLock<EngineState>>`. The `state` field is
+`pub(crate)` — use `with_state` to access it. `with_state` acquires a read lock,
+runs your closure, and releases the lock. Index writes (ingest, rebuild) use a
+write lock internally — do not call `ingest` or `refresh_index` from inside a
+`with_state` closure.
 
 ```rust
 let engine = Arc::new(WikiEngine::build(&config_path)?);
 
-// Read lock is cheap; drop it before calling ingest
-let result = {
-    let state = engine.state.read().map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-    search(&state, "my-wiki", &SearchParams {
+// Read lock acquired and released inside with_state
+let result = engine.with_state(|state| {
+    search(state, "my-wiki", &SearchParams {
         query: "query",
         type_filter: None,
         no_excerpt: true,
         top_k: Some(10),
         include_sections: false,
         cross_wiki: false,
-    })?
-};
+    })
+})?;
 ```
+
+See [engine-state-embedding-api](../decisions/1.0.0/engine-state-embedding-api.md)
+for the rationale behind `with_state` and the `pub(crate)` visibility change.
 
 ## Available ops
 

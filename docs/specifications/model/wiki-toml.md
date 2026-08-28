@@ -35,10 +35,12 @@ description = "ML research knowledge base"
 # Per-wiki settings (override global defaults)
 
 [ingest]
-auto_commit = true
+auto_commit          = true
+exclude              = []       # gitignore-style globs matched against slugs
+skip_no_frontmatter  = true     # skip .md files with no --- frontmatter block
 
 [validation]
-type_strictness = "loose"
+type_strictness = "loose"   # "loose" (default) | "strict"
 
 [search.status]
 archived = 0.0   # suppress archived for this wiki
@@ -92,8 +94,8 @@ Commonly overridden per-wiki:
 | `[search.status]` | Status multiplier map. Only declare keys that differ from the global baseline. Built-ins (`active`, `draft`, `archived`, `unknown`) are inherited automatically. |
 | `[suggest]`      | `default_limit`, `min_score`                                                 |
 | `[lint]`         | `stale_days`, `stale_confidence_threshold` — replaces global value entirely  |
-| `[ingest]`       | `auto_commit`, `exclude`, `skip_no_frontmatter`                              |
-| `[graph]`        | `format`, `depth`, `min_nodes_for_communities`, `community_suggestions_limit` |
+| `[ingest]`       | `auto_commit`; `exclude` (array of gitignore-style glob patterns matched against slugs — matched files are skipped from indexing); `skip_no_frontmatter` (bool, default `true` — skip `.md` files with no `---` frontmatter block) |
+| `[graph]`        | `format` (`"mermaid"` (default) \| `"dot"` \| `"llms"` \| `"json"`), `depth`, `min_nodes_for_communities`, `community_suggestions_limit` |
 | `[redact]`       | `disable` (list of built-in pattern names to skip), `[[redact.patterns]]` (custom patterns) |
 
 `[search.status]` is the only section resolved **key-by-key**: a
