@@ -670,7 +670,11 @@ pub fn handle_info(server: &McpServer, _args: &Map<String, Value>) -> ToolHandle
         "version": version,
         "spaces": spaces,
         "default_wiki": default_wiki,
-        "index_status": if all_ok { Value::String("ok".into()) } else { Value::Object(index_status) },
+        "index_status": if all_ok {
+            serde_json::json!({"status": "ok"})
+        } else {
+            serde_json::json!({"status": "degraded", "wikis": index_status})
+        },
     });
     ok_text(serde_json::to_string_pretty(&info).map_err(redact_error)?)
 }

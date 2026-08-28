@@ -180,6 +180,30 @@ fn graph_has_relation_param() {
     assert!(props.contains_key("relation"), "missing relation param");
 }
 
+#[test]
+fn wiki_info_index_status_is_always_object() {
+    let (server, _dir) = make_server();
+    let empty_args = Map::new();
+    let result = tools::call(&server, "wiki_info", &empty_args);
+    let text = result
+        .content
+        .iter()
+        .filter_map(|c| c.as_text())
+        .map(|t| t.text.as_str())
+        .collect::<Vec<_>>()
+        .join("");
+    let v: serde_json::Value = serde_json::from_str(&text).expect("wiki_info must return JSON");
+    let index_status = v.get("index_status").expect("index_status field missing");
+    assert!(
+        index_status.is_object(),
+        "index_status must always be an object, got: {index_status}"
+    );
+    assert!(
+        index_status.get("status").is_some(),
+        "index_status object must have a 'status' key"
+    );
+}
+
 /// Every tool name returned by tool_list() must be handled in the dispatch
 /// table. If a tool is advertised but not dispatched, calling it returns
 /// "unknown tool: <name>" — this test catches that gap.
