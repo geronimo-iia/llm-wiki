@@ -64,12 +64,7 @@ digraph wiki {
 }
 ```
 
-JSON (`--format json`) — **Post-1.0, deferred**:
-
-> The `json` field exists in config but is not yet implemented at runtime. Do not use in production until a 1.x release note confirms availability.
-
-Planned: structured output with all nodes, edges, aggregate metrics, and Louvain community assignments.
-Intended for programmatic processing — `jq` pipelines, custom visualisers, or downstream analysis.
+JSON (`--format json`): structured output with all nodes, edges, aggregate metrics, and Louvain community assignments. Use for `jq` pipelines, custom visualisers, or downstream analysis.
 
 ```json
 {

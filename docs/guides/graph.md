@@ -87,16 +87,12 @@ Response is always under 2KB regardless of wiki size. Use it as the first call o
 … and N more (use wiki_lint(rules: "orphan,periphery") for the full list)
 ```
 
-## Machine-readable output (format: json) — Post-1.0, deferred
+## Machine-readable output (format: json)
 
-> `format: "json"` is not yet implemented at runtime. The field exists in config but returns an error
-> until a 1.x release confirms availability. Use `format: "summary"` for structured aggregate data today.
+`wiki_graph(format: "json")` returns all nodes, edges, aggregate metrics, and Louvain community
+assignments as structured JSON — use for `jq` pipelines, custom visualisers, and downstream analysis.
 
-Planned: `wiki_graph(format: "json")` will return all nodes, edges, aggregate metrics, and Louvain
-community assignments as structured JSON — intended for `jq` pipelines, custom visualisers, and
-downstream analysis.
-
-The `communities` field will map each slug to a Louvain community id (integer), `null` when the graph
+The `communities` field maps each slug to a Louvain community id (integer), `null` when the graph
 is below `min_nodes_for_communities`.
 
 ## Structural health
