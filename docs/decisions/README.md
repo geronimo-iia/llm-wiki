@@ -36,6 +36,12 @@ Architectural decisions and their rationale, grouped by release.
 | [fast-field-facet-collector](1.0.0/fast-field-facet-collector.md) | `KeywordFacetCollector` + `StrColumn` fast fields for facet counting — built-in `FacetCollector` rejected (wrong tantivy type for STRING fields); accumulate-in-TopDocs rejected (top-K only); `MultiCollector` reduces search/list from 4 to 2 segment passes; `type` field schema bug fixed as prerequisite |
 | [last-updated-keyword-fast-column](1.0.0/last-updated-keyword-fast-column.md) | `last_updated` promoted from TEXT to `STRING\|STORED\|FAST` — enables `StalenessCollector` to read ISO 8601 dates via `StrColumn` with zero `searcher.doc()` calls; `title` evaluated for same promotion but rejected (in `QueryParser` field list, keyword would break word-level title search) |
 
+### MCP protocol
+
+| Decision | Summary |
+| -------- | ------- |
+| [mcp-max-param-len-scope](1.0.0/mcp-max-param-len-scope.md) | `mcp_max_param_len` (default 8192) applies to short params only (slugs, queries, names); `wiki_content_write` and `wiki_content_new` are exempt — they enforce `max_content_len` (10 MiB) independently; the two limits are orthogonal |
+
 ### Dependency hygiene
 
 | Decision | Summary |

@@ -407,7 +407,22 @@ pub fn call(server: &McpServer, name: &str, args: &Map<String, Value>) -> ToolRe
         .engine()
         .map(|e| e.config.serve.mcp_max_param_len)
         .unwrap_or(8192);
-    if let Err(e) = check_param_lengths(args, max_len) {
+    // wiki_content_write and wiki_content_new enforce their own max_content_len
+    // on the `content` param — exempting it here avoids a conflict with the
+    // tighter mcp_max_param_len guard (see docs/decisions/1.0.0/mcp-max-param-len-scope.md).
+    let args_to_check;
+    let effective_args: &Map<String, Value> =
+        if name == "wiki_content_write" || name == "wiki_content_new" {
+            args_to_check = args
+                .iter()
+                .filter(|(k, _)| k.as_str() != "content")
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            &args_to_check
+        } else {
+            args
+        };
+    if let Err(e) = check_param_lengths(effective_args, max_len) {
         return ToolResult {
             content: err_text(e),
             is_error: true,

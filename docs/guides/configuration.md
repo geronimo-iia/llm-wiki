@@ -302,13 +302,18 @@ llm-wiki config set serve.acp_max_sessions 5 --global
 This is a global-only key — it applies to the server process, not
 per-wiki.
 
-To tighten or relax the MCP input size limit (default 8192 bytes):
+To tighten or relax the MCP input size limit for short parameters such as
+slugs, queries, and wiki names (default 8192 bytes):
 
 ```bash
 llm-wiki config set serve.mcp_max_param_len 16384 --global
 ```
 
 This is a global-only key — it applies to the server process, not per-wiki.
+
+> **Note:** The `content` parameter of `wiki_content_write` and
+> `wiki_content_new` is exempt from this limit. Those tools enforce their own
+> cap via `serve.max_content_len` (default 10 MiB).
 
 ### Configure logging
 
