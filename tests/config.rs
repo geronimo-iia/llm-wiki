@@ -34,7 +34,7 @@ type_strictness = "strict"
     assert_eq!(config.wikis.len(), 1);
     assert_eq!(config.wikis[0].name, "research");
     assert_eq!(config.defaults.search_top_k, 15);
-    assert_eq!(config.validation.type_strictness, "strict");
+    assert_eq!(config.validation.type_strictness, TypeStrictness::Strict);
 }
 
 #[test]
@@ -43,9 +43,9 @@ fn load_global_returns_defaults_when_missing() {
     let path = dir.path().join("config.toml");
     let config = load_global(&path).unwrap();
     assert_eq!(config.defaults.search_top_k, 10);
-    assert_eq!(config.defaults.output_format, "text");
+    assert_eq!(config.defaults.output_format, OutputFormat::Text);
     assert_eq!(config.index.memory_budget_mb, 50);
-    assert_eq!(config.index.tokenizer, "en_stem");
+    assert_eq!(config.index.tokenizer, Tokenizer::EnStem);
 }
 
 #[test]
@@ -89,7 +89,7 @@ fn resolve_per_wiki_overrides_global() {
             ..Default::default()
         },
         validation: ValidationConfig {
-            type_strictness: "loose".into(),
+            type_strictness: TypeStrictness::Loose,
         },
         ..Default::default()
     };
@@ -99,13 +99,13 @@ fn resolve_per_wiki_overrides_global() {
             ..Default::default()
         }),
         validation: Some(ValidationConfig {
-            type_strictness: "strict".into(),
+            type_strictness: TypeStrictness::Strict,
         }),
         ..Default::default()
     };
     let resolved = resolve(&global, &per_wiki);
     assert_eq!(resolved.defaults.search_top_k, 25);
-    assert_eq!(resolved.validation.type_strictness, "strict");
+    assert_eq!(resolved.validation.type_strictness, TypeStrictness::Strict);
 }
 
 #[test]
@@ -146,7 +146,7 @@ fn resolve_global_only_sections_always_from_global() {
     let global = GlobalConfig {
         index: IndexConfig {
             memory_budget_mb: 100,
-            tokenizer: "default".into(),
+            tokenizer: Tokenizer::Default,
             ..Default::default()
         },
         serve: ServeConfig {
@@ -157,18 +157,24 @@ fn resolve_global_only_sections_always_from_global() {
     };
     let resolved = resolve(&global, &WikiConfig::default());
     assert_eq!(resolved.index.memory_budget_mb, 100);
-    assert_eq!(resolved.index.tokenizer, "default");
+    assert_eq!(resolved.index.tokenizer, Tokenizer::Default);
     assert_eq!(resolved.serve.http_port, 9090);
 }
 
 #[test]
 fn resolve_per_wiki_overrides_ingest() {
     let global = GlobalConfig {
-        ingest: IngestConfig { auto_commit: true },
+        ingest: IngestConfig {
+            auto_commit: true,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let per_wiki = WikiConfig {
-        ingest: Some(IngestConfig { auto_commit: false }),
+        ingest: Some(IngestConfig {
+            auto_commit: false,
+            ..Default::default()
+        }),
         ..Default::default()
     };
     let resolved = resolve(&global, &per_wiki);
@@ -224,7 +230,7 @@ fn set_global_sets_defaults_key() {
 fn set_global_sets_output_format() {
     let mut g = GlobalConfig::default();
     set_global_config_value(&mut g, "defaults.output_format", "json").unwrap();
-    assert_eq!(g.defaults.output_format, "json");
+    assert_eq!(g.defaults.output_format, OutputFormat::Json);
 }
 
 #[test]
@@ -233,7 +239,7 @@ fn set_global_sets_index_keys() {
     set_global_config_value(&mut g, "index.memory_budget_mb", "100").unwrap();
     set_global_config_value(&mut g, "index.tokenizer", "default").unwrap();
     assert_eq!(g.index.memory_budget_mb, 100);
-    assert_eq!(g.index.tokenizer, "default");
+    assert_eq!(g.index.tokenizer, Tokenizer::Default);
 }
 
 #[test]
@@ -287,7 +293,7 @@ fn set_global_accepts_valid_graph_formats() {
     let mut g = GlobalConfig::default();
     for fmt in ["mermaid", "dot", "llms", "json"] {
         set_global_config_value(&mut g, "graph.format", fmt).unwrap();
-        assert_eq!(g.graph.format, fmt);
+        assert_eq!(g.graph.format.as_str(), fmt);
     }
 }
 
@@ -333,7 +339,7 @@ fn set_wiki_sets_defaults_key() {
 fn set_wiki_sets_output_format() {
     let mut cfg = WikiConfig::default();
     set_wiki_config_value(&mut cfg, "defaults.output_format", "json").unwrap();
-    assert_eq!(cfg.defaults.unwrap().output_format, "json");
+    assert_eq!(cfg.defaults.unwrap().output_format, OutputFormat::Json);
 }
 
 #[test]
@@ -342,7 +348,7 @@ fn set_wiki_sets_graph_keys() {
     set_wiki_config_value(&mut cfg, "graph.format", "dot").unwrap();
     set_wiki_config_value(&mut cfg, "graph.depth", "5").unwrap();
     let g = cfg.graph.unwrap();
-    assert_eq!(g.format, "dot");
+    assert_eq!(g.format, GraphFormat::Dot);
     assert_eq!(g.depth, 5);
 }
 
@@ -350,7 +356,10 @@ fn set_wiki_sets_graph_keys() {
 fn set_wiki_sets_validation_key() {
     let mut cfg = WikiConfig::default();
     set_wiki_config_value(&mut cfg, "validation.type_strictness", "strict").unwrap();
-    assert_eq!(cfg.validation.unwrap().type_strictness, "strict");
+    assert_eq!(
+        cfg.validation.unwrap().type_strictness,
+        TypeStrictness::Strict
+    );
 }
 
 #[test]
@@ -409,7 +418,7 @@ fn set_wiki_rejects_unknown_key() {
 
 #[test]
 fn defaults_output_format() {
-    assert_eq!(Defaults::default().output_format, "text");
+    assert_eq!(Defaults::default().output_format, OutputFormat::Text);
 }
 
 #[test]
@@ -418,13 +427,13 @@ fn index_config_defaults() {
     assert!(!cfg.auto_rebuild);
     assert!(cfg.auto_recovery);
     assert_eq!(cfg.memory_budget_mb, 50);
-    assert_eq!(cfg.tokenizer, "en_stem");
+    assert_eq!(cfg.tokenizer, Tokenizer::EnStem);
 }
 
 #[test]
 fn logging_config_defaults() {
     let cfg = LoggingConfig::default();
-    assert!(cfg.log_path.ends_with(".llm-wiki/logs"));
+    assert!(std::path::Path::new(&cfg.log_path).ends_with(std::path::Path::new(".llm-wiki/logs")));
     assert_eq!(cfg.log_rotation, "daily");
     assert_eq!(cfg.log_max_files, 7);
     assert_eq!(cfg.log_format, "text");
@@ -450,7 +459,7 @@ fn get_config_value_reads_resolved_keys() {
     let global = GlobalConfig {
         defaults: Defaults {
             search_top_k: 42,
-            output_format: "json".into(),
+            output_format: OutputFormat::Json,
             ..Default::default()
         },
         ..Default::default()
@@ -472,7 +481,7 @@ fn get_config_value_reads_global_only_keys() {
     let global = GlobalConfig {
         index: IndexConfig {
             memory_budget_mb: 100,
-            tokenizer: "default".into(),
+            tokenizer: Tokenizer::Default,
             ..Default::default()
         },
         serve: ServeConfig {
@@ -788,27 +797,31 @@ fn config_no_wiki_toml_uses_defaults() {
     let global = GlobalConfig::default();
     let resolved = resolve(&global, &wiki_cfg);
     assert_eq!(resolved.defaults.search_top_k, 10);
-    assert_eq!(resolved.index.tokenizer, "en_stem");
+    assert_eq!(resolved.index.tokenizer, Tokenizer::EnStem);
     assert_eq!(resolved.index.memory_budget_mb, 50);
 }
 
 #[test]
-fn config_invalid_tokenizer_name_no_panic() {
+fn config_non_default_tokenizer_no_panic() {
     // Tantivy does not validate tokenizer names at schema-build or index-open time.
-    // An unknown tokenizer only errors at query time when tokenization is attempted.
-    // This test verifies: build_space_from_embedded with an unknown tokenizer does
+    // This test verifies: build_space_from_embedded with a non-default tokenizer does
     // not panic, and rebuild on an empty wiki succeeds (no pages to tokenize).
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = dir.path().join("wiki");
     fs::create_dir_all(&wiki_root).unwrap();
 
     // Should not panic
-    let (registry, schema) =
-        space_builder::build_space_from_embedded("nonexistent_tokenizer").unwrap();
+    let (registry, schema) = space_builder::build_space_from_embedded(&Tokenizer::Raw).unwrap();
     let index_path = dir.path().join("idx");
-    let mgr = SpaceIndexManager::new("test", &index_path);
+    let mgr = SpaceIndexManager::new("test", &index_path, 50_000_000);
     // Empty wiki — no documents to tokenize, so rebuild succeeds
-    let result = mgr.rebuild(&wiki_root, dir.path(), &schema, &registry);
+    let result = mgr.rebuild(
+        &wiki_root,
+        dir.path(),
+        &schema,
+        &registry,
+        &IngestConfig::default(),
+    );
     assert!(
         result.is_ok(),
         "rebuild with unknown tokenizer on empty wiki should not fail: {result:?}"

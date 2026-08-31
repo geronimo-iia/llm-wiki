@@ -34,6 +34,9 @@ pub async fn serve_acp(
     let cx_tx = Arc::new(cx_tx);
 
     // Push task: block until a cx is available, then forward watcher events to idle sessions
+    // Note: JoinHandle is intentionally dropped. The task self-terminates when cx_rx or push_rx
+    // is closed (see `is_err()` / `recv()` returns None above), which happens naturally on server
+    // drop. Explicit abort via Drop is not needed — channel closure is the shutdown signal.
     {
         let sessions = sessions.clone();
         tokio::spawn(async move {

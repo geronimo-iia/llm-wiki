@@ -14,8 +14,6 @@ skills that any agent platform can implement differently.
 
 The engine is a dumb pipe. Skills are the brain.
 
----
-
 ## 1. Design Principle
 
 A tool belongs in the engine if and only if it requires **stateful
@@ -28,8 +26,6 @@ access** that a skill cannot replicate:
 
 Everything else — workflow orchestration, LLM prompting, multi-step
 procedures — belongs in skills.
-
----
 
 ## 2. MCP/ACP Tool Surface
 
@@ -106,8 +102,6 @@ format.
 A skill cannot replicate this — it would need to read every page, parse
 every link, and build the graph in-context. The engine does it in
 milliseconds from the index.
-
----
 
 ## 3. Frontmatter and the Index
 
@@ -229,8 +223,6 @@ No tool reads `.md` files from disk for queries. All of `wiki_search`,
 If the index is stale (git HEAD moved without ingest), `wiki_index_status`
 reports it. `wiki_index_rebuild` reconstructs from committed files.
 
----
-
 ## 4. Claude Code Plugin Structure
 
 ```
@@ -304,8 +296,6 @@ single source of truth for workflow instructions.
 See [§8 llm-wiki-skills Repository](#8-llm-wiki-skills-repository)
 for the full mapping.
 
----
-
 ## 5. Non-Claude Agents
 
 The MCP tool surface is agent-agnostic. Non-Claude agents use the same
@@ -320,8 +310,6 @@ The MCP tool surface is agent-agnostic. Non-Claude agents use the same
 
 The engine doesn't care who calls the tools or how the workflow is
 orchestrated. It validates, indexes, commits, and searches.
-
----
 
 ## 6. What the Engine Binary Contains
 
@@ -341,8 +329,6 @@ After focusing:
 | `llm-wiki lint` (CLI) | **Removed** | Moves to plugin skill |
 | `llm-wiki config` (CLI) | Yes | Get/set/list config values |
 | Embedded LLM prompts | **None** | Engine has no opinion about LLM behavior |
-
----
 
 ## 7. The Wiki as Skill Registry
 
@@ -448,8 +434,6 @@ tags: [ingest, workflow]
 The `concepts` field creates graph edges from the skill to the knowledge
 it depends on. `wiki_graph` renders these relationships. An agent can
 follow the edges to load supporting knowledge before executing the skill.
-
----
 
 ## 8. llm-wiki-skills Repository
 
@@ -607,32 +591,3 @@ This skill extends the `/llm-wiki:ingest` workflow for academic papers.
 LLM prompts. The `llm-wiki-skills` repo is the single source of truth
 for workflow instructions.
 
----
-
-## 9. Summary
-
-The focused llm-wiki exposes **16 MCP/ACP tools** in three groups:
-
-- **Space management** (5): init, list, remove, set-default, config
-- **Content operations** (5): read, write, new-page, new-section, commit
-- **Search & index** (6): search, list, ingest, graph, index-rebuild,
-  index-status
-
-Skills live in the **`llm-wiki-skills`** repository — a Claude Code
-plugin with 8 skills (bootstrap, ingest, crystallize, research, lint,
-graph, frontmatter, skill). Distributed via the Claude marketplace,
-git clone, or `--plugin-dir`.
-
-The tantivy index is the query engine. All frontmatter fields are
-indexed — `title`, `summary`, `read_when`, `type`, `status`, `tags`,
-`sources`, `concepts`, `owner`, `superseded_by`, and body text. This
-makes search, filtered listing, and graph traversal possible without
-reading files from disk.
-
-All LLM workflow intelligence lives in skills. The Claude Code plugin
-ships 6 skills (ingest, crystallize, research, lint, bootstrap,
-frontmatter). Other agent platforms write their own.
-
-The engine is stateless with respect to LLM behavior. It has no embedded
-prompts, no instruct command, no opinion about how an LLM should use the
-tools. It just manages files, git, and search.

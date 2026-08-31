@@ -67,7 +67,4 @@ The pipeline: BM25 pre-filter → QJL attention-based reranking. See
 | Binary size | Larger (model runtime) | Same (compiled in) |
 | Model updates | Re-embed everything | Re-extract weights |
 
-## Status
-
-Accepted. The semantic search study prompt remains in `docs/prompts/`
-as historical context but is not on the roadmap.
+The semantic search study prompt remains in `docs/prompts/` as historical context.

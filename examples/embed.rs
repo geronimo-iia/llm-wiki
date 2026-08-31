@@ -49,13 +49,11 @@ fn main() -> anyhow::Result<()> {
     let engine = WikiEngine::build(&config_path)?;
 
     // ── 2. Resolve target wiki name ────────────────────────────────────────────
-    let state = engine
-        .state
-        .read()
-        .map_err(|_| anyhow::anyhow!("lock poisoned"))?;
-    let wiki_name = state
-        .resolve_wiki_name(wiki_override.as_deref())?
-        .to_string();
+    let wiki_name = engine.with_state(|state| {
+        Ok(state
+            .resolve_wiki_name(wiki_override.as_deref())?
+            .to_string())
+    })?;
 
     println!("Wiki   : {wiki_name}");
     println!("Query  : {query}\n");
@@ -70,7 +68,11 @@ fn main() -> anyhow::Result<()> {
         cross_wiki: false,
     };
 
-    let result: SearchResult = search(&state, &wiki_name, &params)?;
+    let (result, page_list) = engine.with_state(|state| {
+        let result: SearchResult = search(state, &wiki_name, &params)?;
+        let page_list = list(state, &wiki_name, None, None, 1, Some(5))?;
+        Ok((result, page_list))
+    })?;
 
     if result.results.is_empty() {
         println!("No results.");
@@ -83,7 +85,6 @@ fn main() -> anyhow::Result<()> {
 
     // ── 4. List first page ─────────────────────────────────────────────────────
     println!("\nAll pages (first 5):");
-    let page_list = list(&state, &wiki_name, None, None, 1, Some(5))?;
     for entry in &page_list.pages {
         println!("  {} [{}]", entry.slug, entry.status);
     }

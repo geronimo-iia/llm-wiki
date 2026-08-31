@@ -1,9 +1,23 @@
+use std::sync::Arc;
+
+use llm_wiki_engine::engine::WikiEngine;
+use llm_wiki_engine::mcp::McpServer;
 use llm_wiki_engine::mcp::tools;
+use serde_json::Map;
+
+fn make_server() -> (McpServer, tempfile::TempDir) {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = dir.path().join("llm-wiki.toml");
+    std::fs::write(&config_path, "").unwrap();
+    let engine = WikiEngine::build(&config_path).unwrap();
+    let server = McpServer::new(Arc::new(engine));
+    (server, dir)
+}
 
 #[test]
-fn tool_list_returns_24_tools() {
+fn tool_list_returns_25_tools() {
     let tools = tools::tool_list();
-    assert_eq!(tools.len(), 24);
+    assert_eq!(tools.len(), 25);
 }
 
 #[test]
@@ -34,6 +48,7 @@ fn tool_list_contains_expected_names() {
         "wiki_suggest",
         "wiki_export",
         "wiki_info",
+        "wiki_migrate",
     ];
     for name in &expected {
         assert!(names.contains(name), "missing tool: {name}");
@@ -163,4 +178,53 @@ fn graph_has_relation_param() {
         .as_object()
         .unwrap();
     assert!(props.contains_key("relation"), "missing relation param");
+}
+
+#[test]
+fn wiki_info_index_status_is_always_object() {
+    let (server, _dir) = make_server();
+    let empty_args = Map::new();
+    let result = tools::call(&server, "wiki_info", &empty_args);
+    let text = result
+        .content
+        .iter()
+        .filter_map(|c| c.as_text())
+        .map(|t| t.text.as_str())
+        .collect::<Vec<_>>()
+        .join("");
+    let v: serde_json::Value = serde_json::from_str(&text).expect("wiki_info must return JSON");
+    let index_status = v.get("index_status").expect("index_status field missing");
+    assert!(
+        index_status.is_object(),
+        "index_status must always be an object, got: {index_status}"
+    );
+    assert!(
+        index_status.get("status").is_some(),
+        "index_status object must have a 'status' key"
+    );
+}
+
+/// Every tool name returned by tool_list() must be handled in the dispatch
+/// table. If a tool is advertised but not dispatched, calling it returns
+/// "unknown tool: <name>" — this test catches that gap.
+#[test]
+fn all_advertised_tools_are_dispatched() {
+    let (server, _dir) = make_server();
+    let empty_args = Map::new();
+    for tool in &tools::tool_list() {
+        let result = tools::call(&server, tool.name.as_ref(), &empty_args);
+        let content_text = result
+            .content
+            .iter()
+            .filter_map(|c| c.as_text())
+            .map(|t| t.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            !content_text.contains("unknown tool:"),
+            "tool '{}' is in tool_list() but not handled in dispatch table: {}",
+            tool.name,
+            content_text
+        );
+    }
 }

@@ -265,15 +265,14 @@ fn content_write_accepts_content_within_limit() {
 }
 
 #[test]
-fn search_index_error_includes_rebuild_hint() {
+fn content_commit_rejects_invalid_slugs() {
     let (server, _dir) = make_server();
-    // No wikis configured: resolve_wiki_name fails before reaching index query.
-    // Verify that errors that DO reach the index path include the hint.
-    // We test the hint by checking the error-enrichment closure compiles and fires on the right text.
-    // This is a unit test for the hint text pattern.
-    let result = handlers::handle_search(&server, &str_arg("query", "foo"));
+    let args = str_arg("slugs", "../evil,foo");
+    let result = handlers::handle_content_commit(&server, &args);
     assert!(result.is_err());
     let msg = result.unwrap_err();
-    // No wikis → "default wiki" error, NOT the index error. Just verify no panic.
-    assert!(!msg.is_empty(), "error message must not be empty");
+    assert!(
+        msg.contains("path traversal") || msg.contains("cannot contain"),
+        "expected slug validation error, got: {msg}"
+    );
 }

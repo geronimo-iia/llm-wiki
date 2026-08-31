@@ -2,7 +2,7 @@
 title: "Lock Patterns"
 summary: "How RwLock<EngineState> is acquired and released across the codebase — rules, anti-patterns, and call-site examples."
 status: ready
-last_updated: "2026-08-17"
+last_updated: "2026-08-28"
 read_when:
   - Adding a new operation that reads or writes engine state
   - Writing an MCP handler that needs both a read and a write path
@@ -197,6 +197,118 @@ self.state.read().map_err(|_| anyhow::anyhow!("lock poisoned"))?
 Both are acceptable — a poisoned lock means the engine is in an inconsistent
 state and the request cannot be served anyway.
 
+## Serialising Concurrent Rebuilds
+
+`SpaceIndexManager` has a `rebuild_lock: Mutex<()>` field. `rebuild()` acquires
+it at entry and releases it on return. This serialises concurrent rebuild
+calls — the second caller blocks until the first completes, then proceeds with
+the now-updated index.
+
+```rust
+// inside SpaceIndexManager::rebuild()
+let _rebuild_guard = self.rebuild_lock.lock()
+    .map_err(|_| anyhow::anyhow!("rebuild lock poisoned"))?;
+// full rebuild runs under this guard
+```
+
+This is separate from `EngineState.state: RwLock<...>`. The `RwLock` is held
+at read level for the duration of rebuild; the `rebuild_lock` is an additional
+mutex specifically for serialising concurrent rebuild callers on the same space.
+
+### Relation to `SpaceContext.rebuilding: Arc<AtomicBool>`
+
+`SpaceContext` carries `rebuilding: Arc<AtomicBool>`, initialised to `false` in
+`mount_space`. The watcher checks this flag before dispatching a `schema_rebuild`
+task — if already `true`, the dispatch is skipped (best-effort deduplication at
+submission time).
+
+`rebuild_lock` is the hard serialisation gate at execution time. It covers cases
+the `AtomicBool` cannot:
+
+- A direct `wiki_index_rebuild` MCP call concurrent with a watcher-triggered
+  rebuild bypasses the watcher's flag check entirely.
+- A race between the watcher's `compare_exchange` check and the flag being set
+  — the window is tiny but non-zero.
+
+The two mechanisms are complementary: `AtomicBool` reduces unnecessary rebuilds;
+`rebuild_lock` guarantees correctness when they do overlap.
+
+## with_config_lock and Atomic Rollback
+
+Space-mutating operations (`spaces_create`, `spaces_register`,
+`spaces_set_default`) run inside `WikiEngine::with_config_lock`. The method
+acquires a dedicated `config_write_lock: Mutex<()>` that serialises concurrent
+space mutations.
+
+`with_config_lock` does **not** hold `state: RwLock`. The closure acquires and
+releases `state.write()` internally for each mutation step.
+
+### Atomic rollback for set_default
+
+`spaces_set_default` captures the previous default before mutation so it can
+roll back on disk failure:
+
+```rust
+// capture before mutation
+let prev_default = state.read()?.global.default_wiki.clone();
+// mutate in-memory
+engine.set_default(&wiki_name)?;
+// persist to disk
+if atomic_write(&cfg_path, &new_config).is_err() {
+    // restore in-memory state without going through set_default's validation
+    state.write()?.global.default_wiki = prev_default;
+    return Err(...);
+}
+```
+
+`engine.set_default()` validates that the wiki name exists. Direct
+`state.write()` access is required for rollback because the prev_default may
+be an empty string (no default), which would fail `set_default`'s
+`contains_key` check.
+
+### Atomic rollback for mount_wiki
+
+`spaces_create` / `spaces_register` perform `mount_wiki` (which writes
+`state.write()`) followed by a config persist. The rollback (`spaces::remove`)
+runs inside the same `with_config_lock` closure:
+
+```rust
+with_config_lock(|| {
+    engine.mount_wiki(space)?;          // state.write() internally
+    if atomic_write(cfg_path, cfg).is_err() {
+        spaces::remove(engine, &name);  // rollback — state.write() again
+        return Err(...);
+    }
+    Ok(())
+})
+```
+
+Both `mount_wiki` and `remove` acquire `state.write()` independently; neither
+is nested inside the other. No deadlock risk — `with_config_lock` holds only
+`config_write_lock: Mutex<()>`, not `state`.
+
+## ACP Sessions: `parking_lot::Mutex`
+
+The `Sessions` type in `src/acp/mod.rs` uses `parking_lot::Mutex` instead of
+`std::sync::Mutex`.
+
+Rationale:
+
+- `parking_lot::Mutex::lock()` returns `MutexGuard` directly — no `Result`, no
+  `.unwrap()`, no poison concept. A panic in a critical section does not poison
+  the lock for subsequent callers.
+- Sync-friendly: works in both sync and async contexts without `.await`. Helper
+  functions stay sync; no cascade refactor required.
+- `parking_lot 0.12` is already in the transitive dependency tree (via
+  `jsonschema` and `tokio`). Adding it as a direct dependency pulls zero new
+  packages.
+
+Guards must still not be held across `.await` points. Keep all critical sections
+in explicit blocks that drop the guard before any subsequent async work.
+
+Do not use `tokio::sync::Mutex` for `Sessions` — the sync helpers that access it
+are not async and would require restructuring.
+
 ## Fields That Have Their Own Synchronisation
 
 These `SpaceContext` fields do NOT need the `EngineState` write lock for
@@ -204,9 +316,12 @@ mutations — they use internal synchronisation:
 
 | Field | Type | Sync mechanism |
 |-------|------|----------------|
-| `index_manager` | `Arc<SpaceIndexManager>` | Internal `RwLock<IndexInner>` |
+| `index_manager` | `Arc<SpaceIndexManager>` | Internal `RwLock<IndexInner>` + `rebuild_lock: Mutex<()>` |
+| `rebuilding` | `Arc<AtomicBool>` | Atomic `compare_exchange` (AcqRel/Acquire) |
 | `graph_cache` | `WikiGraphCache` | `GenerationCache` (atomic) or `GraphState` (internal Mutex) |
 | `community_cache` | `GenerationCache<CommunityData>` | Atomic generation check |
 
 The `EngineState` write lock is only needed to add, remove, or replace
-a `SpaceContext` entry in `EngineState.spaces`.
+a `SpaceContext` entry in `EngineState.spaces`. A re-mount via `mount_wiki`
+constructs a new `SpaceContext` with `rebuilding = false`, automatically
+resetting any stuck flag without special-case logic.

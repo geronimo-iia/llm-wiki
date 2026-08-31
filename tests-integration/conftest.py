@@ -13,7 +13,7 @@ FIXTURES = Path(__file__).parent.parent / "tests" / "fixtures"
 @pytest.fixture(scope="session")
 def binary():
     b = shutil.which(BINARY) or BINARY
-    result = subprocess.run([b, "--version"], capture_output=True, text=True)
+    result = subprocess.run([b, "--version"], capture_output=True, text=True, encoding="utf-8")
     assert result.returncode == 0, f"binary not found: {b!r} — set LLM_WIKI_BIN"
     return b
 
@@ -55,6 +55,7 @@ class WikiEnv:
             [self.binary, "--config", str(self.config), *args],
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
         if check:
             assert result.returncode == 0, (

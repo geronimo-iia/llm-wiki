@@ -2,13 +2,12 @@
 title: "Tantivy Implementation Notes"
 summary: "Tantivy-specific implementation details — dynamic schema, TopDocs, index writer, tokenizer, and segment management."
 status: ready
-last_updated: "2026-04-28"
+last_updated: "2026-08-19"
 ---
 
 # Tantivy Implementation Notes
 
-Implementation reference for working with tantivy in llm-wiki. Not a
-specification — see [index-management.md](../specifications/engine/index-management.md)
+Not a specification — see [index-management.md](../specifications/engine/index-management.md)
 for the design.
 
 ## Dynamic Schema Building
@@ -26,6 +25,7 @@ custom meeting-notes type), it becomes a new tantivy field.
 4. Classify each by JSON Schema type:
    - `string` → `TEXT | STORED` (tokenized for BM25)
    - `string` with `enum` or `const` → `STRING | STORED | FAST` (keyword)
+   - `string` with `"x-keyword": true` → `STRING | STORED | FAST` (keyword; values lowercased at index time)
    - `array` with `"x-keyword": true` → `STRING | STORED | FAST` per value (keyword per entry; values lowercased at index time)
    - `array` of `string` items with `enum`/`const` → `STRING | STORED | FAST` per value (keyword per entry)
    - `array` of plain `string` items (no `x-keyword`) → `TEXT | STORED` (joined and tokenized)
@@ -132,6 +132,139 @@ let sorted = searcher.search(
 
 Native string sort — no encoding, no tie-breaking needed.
 
+## Fast-Field Facet Counting
+
+`wiki_search` and `wiki_list` return facet counts (distributions over `type`,
+`status`, `tags`). These are collected without touching the stored-doc store via
+a custom `KeywordFacetCollector` that reads tantivy columnar fast fields.
+
+### KeywordFacetCollector
+
+Implements `tantivy::Collector`. In `collect()`, retrieves a `StrColumn` fast
+field for the target field name, iterates term ordinals per doc, and resolves
+each ordinal to a string via `ord_to_str`. Counts are accumulated in a
+`HashMap<String, u64>`.
+
+```rust
+struct KeywordFacetCollector {
+    field_name: String,
+    top_n: usize,
+}
+
+// Segment-level state
+struct KeywordFacetSegmentCollector {
+    column: Option<tantivy::columnar::StrColumn>,
+    buf: String,
+    counts: HashMap<String, u64>,
+}
+```
+
+`StrColumn` is available at `tantivy::columnar::StrColumn` (tantivy 0.26
+re-exports the `columnar` crate). Fields must be `STRING | FAST` for
+`fast_fields().str(name)` to return `Some`.
+
+### MultiCollector
+
+Multiple `KeywordFacetCollector` instances are combined with `MultiCollector`
+to run all facet field passes over the same query in a single
+`searcher.search()` call:
+
+```rust
+fn collect_facets(
+    searcher: &Searcher,
+    query: &dyn tantivy::query::Query,
+    fields: &[(&str, usize)],
+) -> Result<Vec<HashMap<String, u64>>>
+```
+
+### Search pass reduction
+
+Using `MultiCollector` and bundling facet collectors with the main `TopDocs`
+collector reduces tantivy segment passes:
+
+| Function   | Before | After |
+|------------|--------|-------|
+| `search()` | 4      | 2     |
+| `list()`   | 4      | 2     |
+
+The `type` facet uses an unfiltered query (all docs in the space); it cannot be
+folded into the main filtered pass and runs as a separate call to
+`collect_facets`.
+
+## FAST-Field Segment Collectors
+
+Beyond facet counting, the `Collector`+`SegmentCollector` pattern is used
+wherever stored-doc reads can be eliminated by reading FAST fields directly
+during traversal.
+
+### StalenessCollector
+
+`compute_staleness` in `src/ops/stats.rs` uses a custom `StalenessCollector`
+that reads the `last_updated` FAST field during the single `AllQuery` sweep —
+zero `searcher.doc()` calls.
+
+`last_updated` is `STRING | STORED | FAST` (`"x-keyword": true` in `base.json`).
+In the segment collector, `fast_fields().str("last_updated")` returns
+`Result<Option<StrColumn>>`; `term_ords(doc)` gives the ordinal iterator;
+`ord_to_str(ord, &mut buf)` resolves each ordinal to the ISO 8601 string.
+
+```rust
+struct StalenessSegmentCollector {
+    col: Option<tantivy::columnar::StrColumn>,
+    buf: String,
+    counts: StalenessCounters,
+}
+
+impl SegmentCollector for StalenessSegmentCollector {
+    type Fruit = StalenessCounters;
+
+    fn collect(&mut self, doc: tantivy::DocId, _score: tantivy::Score) {
+        let Some(col) = &self.col else {
+            self.counts.no_date += 1;
+            return;
+        };
+        self.buf.clear();
+        if let Some(ord) = col.term_ords(doc).next() {
+            let _ = col.ord_to_str(ord, &mut self.buf);
+        }
+        // parse self.buf as NaiveDate and bucket into counts
+    }
+
+    fn harvest(self) -> StalenessCounters { self.counts }
+}
+```
+
+`let _ = col.ord_to_str(...)` — the return value must be explicitly discarded
+to satisfy `-D warnings`.
+
+Fields must be `STRING | FAST`; TEXT fields return `None` from
+`fast_fields().str()` silently.
+
+### DocRecord shared pass in run_lint
+
+`run_lint` in `src/ops/lint.rs` performs a single `AllQuery + DocSetCollector`
+pass at the top of the function, reading all needed stored fields into a
+`Vec<DocRecord>`. Each lint rule then iterates this vec with zero additional
+tantivy calls.
+
+```rust
+struct DocRecord {
+    slug: String,
+    doc_type: String,
+    last_updated: Option<String>,
+    confidence: Option<f64>,
+    confidence_field_absent: bool,
+    fields_present: HashMap<String, bool>,
+    body_links: Vec<String>,
+}
+```
+
+`confidence_field_absent: bool` distinguishes "field not in schema" (→
+`is_low_confidence = true`) from "field in schema, no value" (→
+`is_low_confidence = false`). Without this distinction, pages in a wiki with no
+`confidence` field in the schema would all be incorrectly flagged as
+low-confidence.
+
 ## IndexReader and ReloadPolicy
 
 The `IndexReader` is held in `SpaceIndexManager::inner.index_reader` for the
@@ -152,7 +285,7 @@ index
 **Why Manual, not OnCommitWithDelay (the tantivy default):**
 
 `OnCommitWithDelay` spawns a background file_watcher thread that polls
-`meta.json` for changes. When a second `Index::reader()` is opened on the same
+`meta.json` for changes. When you open a second `Index::reader()` on the same
 directory (e.g. `status()` opening a temporary reader for health checks), two
 watcher threads compete on the same file. Each reload writes a new `meta.json`,
 which the other watcher detects, triggering another reload — an infinite loop
@@ -184,6 +317,45 @@ WikiEngine::build()
 ```
 
 Every `searcher()` call is `inner.index_reader.searcher()` — a cheap arc clone.
+
+## Rebuild: Close Handles Before Rename (Windows)
+
+`rebuild()` performs a three-phase atomic directory swap:
+
+```
+Phase 1: search-index/          → search-index-prev/
+Phase 2: search-index-building/ → search-index/
+Phase 3: delete search-index-prev/
+```
+
+On Windows, `fs::rename` on a directory fails with **os error 5 (Access is
+denied)** if any file handle — including a memory-mapped file — is open inside
+that directory. `tantivy::Index` uses `MmapDirectory`, so `inner.tantivy_index`
+and `inner.index_reader` keep mmap handles alive, blocking Phase 1.
+
+### Close before rename
+
+Before Phase 1, `rebuild()` acquires an `inner.write()` lock and sets both
+`tantivy_index` and `index_reader` to `None`. This releases all `Arc`-counted
+references; tantivy drops mmap handles when the last `Index` clone is dropped.
+The write lock is released before the rename sequence runs — a concurrent
+search will block briefly on `inner.read()` and succeed on the freshly opened
+index.
+
+### Reopen fresh after rename (not `reload_reader()`)
+
+After Phase 2, `rebuild()` opens a fresh `Index` from the new `search-index/`
+directory and creates a new `IndexReader` with `ReloadPolicy::Manual`.
+`reload_reader()` cannot be used here: `inner.index_reader` is `None` after the
+close step, so there is nothing to reload.
+
+### `close()` test escape hatch
+
+Tests that verify recovery from a corrupt index must overwrite files in the
+live `search-index/` directory after a `rebuild()` has mapped them. On Windows
+those files cannot be overwritten while mmap'd. `SpaceIndexManager::close()`
+(`#[doc(hidden)]`) clears both `tantivy_index` and `index_reader`, releasing
+mmap handles without tearing down the manager. Production code never calls it.
 
 ## Index Writer
 

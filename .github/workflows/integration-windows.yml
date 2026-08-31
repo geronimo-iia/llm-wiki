@@ -1,0 +1,81 @@
+name: Integration Tests (Windows)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests-integration/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/integration-windows.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests-integration/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/integration-windows.yml"
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Which suite to run"
+        required: false
+        default: "all"
+        type: choice
+        options: [all, engine, mcp, acp]
+
+concurrency:
+  group: integration-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  integration-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.95"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --locked
+
+      - name: Unit tests
+        run: cargo test --locked
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          working-directory: tests-integration
+
+      - name: Install Python deps
+        run: uv sync --group dev
+        working-directory: tests-integration
+
+      - name: Run engine suite
+        if: ${{ inputs.suite == 'all' || inputs.suite == 'engine' || inputs.suite == '' }}
+        env:
+          LLM_WIKI_BIN: ${{ github.workspace }}/target/debug/llm-wiki.exe
+        run: uv run pytest engine/ -v
+        working-directory: tests-integration
+
+      - name: Run MCP suite
+        if: ${{ inputs.suite == 'all' || inputs.suite == 'mcp' || inputs.suite == '' }}
+        env:
+          LLM_WIKI_BIN: ${{ github.workspace }}/target/debug/llm-wiki.exe
+        run: uv run pytest mcp/ -v
+        working-directory: tests-integration
+
+      - name: Run ACP suite
+        if: ${{ inputs.suite == 'all' || inputs.suite == 'acp' || inputs.suite == '' }}
+        env:
+          LLM_WIKI_BIN: ${{ github.workspace }}/target/debug/llm-wiki.exe
+        run: uv run pytest acp/ -v
+        working-directory: tests-integration

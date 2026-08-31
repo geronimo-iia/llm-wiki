@@ -5,7 +5,7 @@ read_when:
   - Setting up a new wiki
   - Managing registered wiki spaces
 status: ready
-last_updated: "2025-07-21"
+last_updated: "2026-08-20"
 ---
 
 # Space Management
@@ -172,3 +172,18 @@ llm-wiki spaces set-default <name>
 Alias for `wiki_config set global.default_wiki <name>`.
 
 When called from a running server, the default updates immediately.
+
+## Atomicity guarantees
+
+`wiki_spaces_create`, `wiki_spaces_register`, and `wiki_spaces_set_default`
+are atomic with respect to disk and in-memory state:
+
+- If the `wiki.toml` write fails after in-memory state has been updated,
+  the engine rolls back automatically — no manual recovery needed.
+- Concurrent space mutations are serialised by an internal config lock.
+  A rebuild triggered by a file-watcher event on a newly mounted space
+  runs only after the space is fully registered.
+
+If a `wiki_spaces_create` or `wiki_spaces_register` call returns an
+error, no partial state is left behind: the config entry is removed and
+the space is not mounted.

@@ -122,13 +122,22 @@ full rebuild on first run. This is expected and correct.
 | Change | Detected by | Action |
 |--------|------------|--------|
 | Schema file added/removed/modified | `schema_hash` mismatch | Full rebuild |
+| Field index type change (e.g. TEXT → `STRING\|STORED\|FAST`) | `schema_hash` mismatch | Full rebuild |
 | `wiki.toml` `[types.*]` changed | `schema_hash` mismatch | Full rebuild |
 | New commit (content change) | `commit` mismatch | Incremental update |
 | `state.toml` missing/malformed | Parse failure | Full rebuild |
 
 Because the full file content is hashed, any change to a schema file
 — adding properties, modifying `x-graph-edges`, changing validation
-rules — triggers a hash mismatch.
+rules, adding `"x-keyword": true` to a field — triggers a hash mismatch.
+
+**Example — `last_updated` promotion (v1.0.0):** adding `"x-keyword": true` to
+`last_updated` in `base.json` changed the tantivy field type from TEXT to
+`STRING | STORED | FAST`. Existing indexes built against the pre-1.0.0 schema
+detect a `schema_hash` mismatch on first startup and trigger a full rebuild.
+No data is lost; `last_updated` values are re-indexed as keywords. If
+`index.auto_rebuild = false`, the index remains stale until `wiki_index_rebuild`
+is called manually.
 
 ## Partial Rebuild (future)
 

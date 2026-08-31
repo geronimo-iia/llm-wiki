@@ -4,7 +4,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
-use crate::config;
+use crate::config::{self, Tokenizer};
 use crate::default_schemas;
 use crate::index_schema::{FieldClass, IndexSchema, SchemaBuilder, classify_field};
 use crate::type_registry::{
@@ -15,20 +15,65 @@ use crate::type_registry::{
 /// Build both SpaceTypeRegistry and IndexSchema from a wiki's schema
 /// files. Reads each schema file once, discards raw JSON after
 /// construction.
-pub fn build_space(repo_root: &Path, tokenizer: &str) -> Result<(SpaceTypeRegistry, IndexSchema)> {
+pub fn build_space(
+    repo_root: &Path,
+    tokenizer: &Tokenizer,
+) -> Result<(SpaceTypeRegistry, IndexSchema)> {
     let schemas_dir = repo_root.join("schemas");
-    let parsed = if schemas_dir.is_dir() {
-        parse_from_dir(&schemas_dir, repo_root)?
-    } else {
-        parse_from_embedded()?
-    };
 
-    let (registry, index_schema) = assemble(parsed, repo_root, tokenizer)?;
-    Ok((registry, index_schema))
+    // Always start from embedded defaults
+    let mut base = parse_from_embedded()?;
+
+    // Layer on-disk overrides: same filename replaces, new filename adds
+    if schemas_dir.is_dir() {
+        let mut entries: Vec<_> = std::fs::read_dir(&schemas_dir)?
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("json"))
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+
+        for entry in entries {
+            let path = entry.path();
+            let filename = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let content = std::fs::read_to_string(&path)?;
+            let schema_rel = format!("schemas/{filename}");
+            let parsed = parse_schema_file(&schema_rel, &content)
+                .with_context(|| format!("invalid schema file: {}", path.display()))?;
+            if let Some(pos) = base.iter().position(|p| p.schema_rel == schema_rel) {
+                base[pos] = parsed;
+            } else {
+                base.push(parsed);
+            }
+        }
+
+        // wiki.toml extra type paths not already in schemas/
+        let wiki_cfg = config::load_wiki(repo_root)?;
+        let seen: std::collections::HashSet<String> =
+            base.iter().map(|p| p.schema_rel.clone()).collect();
+        for type_entry in wiki_cfg.types.values() {
+            if !seen.contains(&type_entry.schema) {
+                let schema_path = repo_root.join(&type_entry.schema);
+                let content = std::fs::read_to_string(&schema_path)?;
+                base.push(
+                    parse_schema_file(&type_entry.schema, &content).with_context(|| {
+                        format!("invalid schema file: {}", schema_path.display())
+                    })?,
+                );
+            }
+        }
+    }
+
+    assemble(base, repo_root, tokenizer)
 }
 
 /// Build both from embedded defaults (no disk access).
-pub fn build_space_from_embedded(tokenizer: &str) -> Result<(SpaceTypeRegistry, IndexSchema)> {
+pub fn build_space_from_embedded(
+    tokenizer: &Tokenizer,
+) -> Result<(SpaceTypeRegistry, IndexSchema)> {
     let parsed = parse_from_embedded()?;
     assemble_without_overrides(parsed, tokenizer)
 }
@@ -46,54 +91,6 @@ struct ParsedSchemaFile {
 }
 
 // ── Parsing ───────────────────────────────────────────────────────────────────
-
-fn parse_from_dir(schemas_dir: &Path, repo_root: &Path) -> Result<Vec<ParsedSchemaFile>> {
-    let mut parsed = Vec::new();
-    let mut seen_files: HashSet<String> = HashSet::new();
-
-    let mut entries: Vec<_> = std::fs::read_dir(schemas_dir)?
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().and_then(|ext| ext.to_str()) == Some("json"))
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
-    for entry in entries {
-        let path = entry.path();
-        let filename = path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        seen_files.insert(filename.clone());
-        let content = std::fs::read_to_string(&path)?;
-        let schema_rel = format!("schemas/{filename}");
-        parsed.push(
-            parse_schema_file(&schema_rel, &content)
-                .with_context(|| format!("invalid schema file: {}", path.display()))?,
-        );
-    }
-
-    // Add wiki.toml override schemas not already scanned
-    let wiki_cfg = config::load_wiki(repo_root)?;
-    for type_entry in wiki_cfg.types.values() {
-        let schema_path = repo_root.join(&type_entry.schema);
-        let filename = schema_path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        if !seen_files.contains(&filename) {
-            seen_files.insert(filename);
-            let content = std::fs::read_to_string(&schema_path)?;
-            parsed.push(
-                parse_schema_file(&type_entry.schema, &content)
-                    .with_context(|| format!("invalid schema file: {}", schema_path.display()))?,
-            );
-        }
-    }
-
-    Ok(parsed)
-}
 
 fn parse_from_embedded() -> Result<Vec<ParsedSchemaFile>> {
     let mut parsed = Vec::new();
@@ -150,7 +147,7 @@ fn parse_schema_file(schema_rel: &str, content: &str) -> Result<ParsedSchemaFile
 fn assemble(
     parsed: Vec<ParsedSchemaFile>,
     repo_root: &Path,
-    tokenizer: &str,
+    tokenizer: &Tokenizer,
 ) -> Result<(SpaceTypeRegistry, IndexSchema)> {
     let mut types = HashMap::new();
     let mut schema_builder = SchemaBuilder::new(tokenizer);
@@ -232,7 +229,7 @@ fn assemble(
 
 fn assemble_without_overrides(
     parsed: Vec<ParsedSchemaFile>,
-    tokenizer: &str,
+    tokenizer: &Tokenizer,
 ) -> Result<(SpaceTypeRegistry, IndexSchema)> {
     let mut types = HashMap::new();
     let mut schema_builder = SchemaBuilder::new(tokenizer);
@@ -292,8 +289,63 @@ mod tests {
     use super::*;
 
     #[test]
+    fn overlay_disk_file_replaces_embedded_type() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo_root = dir.path();
+        let schemas_dir = repo_root.join("schemas");
+        std::fs::create_dir(&schemas_dir).unwrap();
+
+        let custom = serde_json::json!({
+            "x-wiki-types": { "concept": "custom description" },
+            "properties": {}
+        });
+        std::fs::write(
+            schemas_dir.join("concept.json"),
+            serde_json::to_string(&custom).unwrap(),
+        )
+        .unwrap();
+
+        let (registry, _) = build_space(repo_root, &Tokenizer::Default).unwrap();
+        assert!(registry.is_known("concept"));
+        assert!(registry.is_known("paper"));
+    }
+
+    #[test]
+    fn overlay_new_disk_file_adds_type() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo_root = dir.path();
+        let schemas_dir = repo_root.join("schemas");
+        std::fs::create_dir(&schemas_dir).unwrap();
+
+        let custom = serde_json::json!({
+            "x-wiki-types": { "mytype": "a custom type" },
+            "properties": {}
+        });
+        std::fs::write(
+            schemas_dir.join("mytype.json"),
+            serde_json::to_string(&custom).unwrap(),
+        )
+        .unwrap();
+
+        let (registry, _) = build_space(repo_root, &Tokenizer::Default).unwrap();
+        assert!(registry.is_known("mytype"));
+        assert!(registry.is_known("concept"));
+    }
+
+    #[test]
+    fn overlay_empty_schemas_dir_uses_embedded() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo_root = dir.path();
+        std::fs::create_dir(repo_root.join("schemas")).unwrap();
+
+        let (registry, _) = build_space(repo_root, &Tokenizer::Default).unwrap();
+        assert!(registry.is_known("concept"));
+        assert!(registry.is_known("default"));
+    }
+
+    #[test]
     fn build_space_from_embedded_succeeds_with_default_tokenizer() {
-        let (registry, _index) = build_space_from_embedded("default").unwrap();
+        let (registry, _index) = build_space_from_embedded(&Tokenizer::Default).unwrap();
         // Embedded schemas must always register the "default" fallback type.
         assert!(
             registry.is_known("default"),
@@ -312,7 +364,7 @@ mod tests {
     #[test]
     fn build_space_from_embedded_succeeds_with_simple_tokenizer() {
         // Tokenizer choice must not cause a build failure.
-        if let Err(e) = build_space_from_embedded("simple") {
+        if let Err(e) = build_space_from_embedded(&Tokenizer::Simple) {
             panic!("build_space_from_embedded with 'simple' tokenizer failed: {e:#}");
         }
     }
@@ -325,7 +377,7 @@ mod tests {
         std::fs::create_dir(&schemas_dir).unwrap();
         std::fs::write(schemas_dir.join("bad.json"), b"{ not valid json ~~~ ").unwrap();
 
-        match build_space(repo_root, "default") {
+        match build_space(repo_root, &Tokenizer::Default) {
             Ok(_) => panic!("corrupted JSON schema must cause build_space to fail"),
             Err(e) => {
                 let msg = format!("{e:#}");

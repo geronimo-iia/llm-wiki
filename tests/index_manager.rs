@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 
+use llm_wiki_engine::config::{IngestConfig, Tokenizer};
 use llm_wiki_engine::git;
 use llm_wiki_engine::index_manager::SpaceIndexManager;
 use llm_wiki_engine::index_schema::IndexSchema;
@@ -10,7 +11,7 @@ use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 use tantivy::Searcher;
 
 fn schema_and_registry() -> (IndexSchema, SpaceTypeRegistry) {
-    let (registry, schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
+    let (registry, schema) = space_builder::build_space_from_embedded(&Tokenizer::EnStem).unwrap();
     (schema, registry)
 }
 
@@ -49,13 +50,20 @@ fn concept_page(title: &str, body: &str) -> String {
 
 fn make_manager(dir: &Path) -> SpaceIndexManager {
     let index_path = dir.join("index-store");
-    SpaceIndexManager::new("test", index_path)
+    SpaceIndexManager::new("test", index_path, 50_000_000)
 }
 
 fn build_index(dir: &Path, wiki_root: &Path) -> SpaceIndexManager {
     let mgr = make_manager(dir);
     git::commit(dir, "index pages").unwrap();
-    mgr.rebuild(wiki_root, dir, &schema(), &registry()).unwrap();
+    mgr.rebuild(
+        wiki_root,
+        dir,
+        &schema(),
+        &registry(),
+        &IngestConfig::default(),
+    )
+    .unwrap();
     mgr.open(&schema(), None).unwrap();
     mgr
 }
@@ -96,7 +104,13 @@ fn rebuild_report_fields() {
 
     let mgr = make_manager(dir.path());
     let report = mgr
-        .rebuild(&wiki_root, dir.path(), &schema(), &registry())
+        .rebuild(
+            &wiki_root,
+            dir.path(),
+            &schema(),
+            &registry(),
+            &IngestConfig::default(),
+        )
         .unwrap();
 
     assert_eq!(report.wiki, "test");
@@ -141,7 +155,7 @@ fn status_when_no_index() {
     let dir = tempfile::tempdir().unwrap();
     setup_repo(dir.path());
 
-    let mgr = SpaceIndexManager::new("test", dir.path().join("nonexistent"));
+    let mgr = SpaceIndexManager::new("test", dir.path().join("nonexistent"), 50_000_000);
     let status = mgr.status(dir.path()).unwrap();
 
     assert!(status.stale);
@@ -181,7 +195,8 @@ fn update_adds_new_page() {
     let reg = registry();
 
     let mgr = make_manager(dir.path());
-    mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
+    mgr.rebuild(&wiki_root, dir.path(), &is, &reg, &IngestConfig::default())
+        .unwrap();
 
     write_page(
         &wiki_root,
@@ -189,7 +204,16 @@ fn update_adds_new_page() {
         &concept_page("NewPage", "new body"),
     );
 
-    let report = mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
+    let report = mgr
+        .update(
+            &wiki_root,
+            dir.path(),
+            None,
+            &is,
+            &reg,
+            &IngestConfig::default(),
+        )
+        .unwrap();
     assert_eq!(report.updated, 1);
 
     let searcher = open_searcher(&mgr, &is);
@@ -214,7 +238,16 @@ fn update_noop_when_no_changes() {
     let is = schema();
     let reg = registry();
 
-    let report = mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
+    let report = mgr
+        .update(
+            &wiki_root,
+            dir.path(),
+            None,
+            &is,
+            &reg,
+            &IngestConfig::default(),
+        )
+        .unwrap();
     assert_eq!(report.updated, 0);
     assert_eq!(report.deleted, 0);
 }
@@ -245,7 +278,16 @@ fn update_deletes_removed_page() {
     assert!(!results.results.is_empty());
 
     fs::remove_file(wiki_root.join("concepts/gone.md")).unwrap();
-    let report = mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
+    let report = mgr
+        .update(
+            &wiki_root,
+            dir.path(),
+            None,
+            &is,
+            &reg,
+            &IngestConfig::default(),
+        )
+        .unwrap();
     assert_eq!(report.deleted, 1);
 
     let searcher = open_searcher(&mgr, &is);
@@ -279,7 +321,16 @@ fn update_modifies_existing_page() {
         "concepts/evolve.md",
         &concept_page("Evolve", "updated body with unicorn"),
     );
-    let report = mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
+    let report = mgr
+        .update(
+            &wiki_root,
+            dir.path(),
+            None,
+            &is,
+            &reg,
+            &IngestConfig::default(),
+        )
+        .unwrap();
     assert_eq!(report.updated, 1);
 
     let searcher = open_searcher(&mgr, &is);
@@ -356,7 +407,12 @@ fn open_recovers_from_corruption() {
     git::commit(dir.path(), "pages").unwrap();
     let is = schema();
     let reg = registry();
-    mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
+    mgr.rebuild(&wiki_root, dir.path(), &is, &reg, &IngestConfig::default())
+        .unwrap();
+
+    // Close held mmap handles before overwriting files — Windows blocks writes to
+    // memory-mapped files with ERROR_USER_MAPPED_FILE (os error 1224).
+    mgr.close();
 
     // Corrupt the index files
     let search_dir = mgr.index_path().join("search-index");
@@ -368,7 +424,10 @@ fn open_recovers_from_corruption() {
     }
 
     // open with recovery should rebuild and succeed
-    let result = mgr.open(&is, Some((&wiki_root, dir.path(), &reg)));
+    let result = mgr.open(
+        &is,
+        Some((&wiki_root, dir.path(), &reg, &IngestConfig::default())),
+    );
     assert!(result.is_ok());
     assert!(mgr.searcher().is_ok());
 }
@@ -381,8 +440,18 @@ fn open_fails_without_recovery_on_corruption() {
 
     let mgr = make_manager(dir.path());
     git::commit(dir.path(), "pages").unwrap();
-    mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry())
-        .unwrap();
+    mgr.rebuild(
+        &wiki_root,
+        dir.path(),
+        &schema(),
+        &registry(),
+        &IngestConfig::default(),
+    )
+    .unwrap();
+
+    // Close held mmap handles before overwriting files — Windows blocks writes to
+    // memory-mapped files with ERROR_USER_MAPPED_FILE (os error 1224).
+    mgr.close();
 
     // Corrupt the index files
     let search_dir = mgr.index_path().join("search-index");
@@ -756,7 +825,14 @@ fn rebuild_types_reindexes_only_changed_type() {
 
     // Partial rebuild only "concept" type
     let report = mgr
-        .rebuild_types(&["concept".to_string()], &wiki_root, dir.path(), &is, &reg)
+        .rebuild_types(
+            &["concept".to_string()],
+            &wiki_root,
+            dir.path(),
+            &is,
+            &reg,
+            &IngestConfig::default(),
+        )
         .unwrap();
     assert_eq!(report.pages_indexed, 1);
 
@@ -871,7 +947,13 @@ fn rebuild_stale_build_dir_wiped_at_entry() {
     fs::create_dir_all(&build_dir).unwrap();
     fs::write(build_dir.join("stale_artifact.txt"), b"crash leftovers").unwrap();
 
-    let result = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry());
+    let result = mgr.rebuild(
+        &wiki_root,
+        dir.path(),
+        &schema(),
+        &registry(),
+        &IngestConfig::default(),
+    );
     assert!(
         result.is_ok(),
         "rebuild must succeed despite stale build dir"
@@ -892,7 +974,13 @@ fn rebuild_empty_wiki() {
     git::commit(dir.path(), "empty").unwrap();
 
     let report = mgr
-        .rebuild(&wiki_root, dir.path(), &schema(), &registry())
+        .rebuild(
+            &wiki_root,
+            dir.path(),
+            &schema(),
+            &registry(),
+            &IngestConfig::default(),
+        )
         .unwrap();
     assert_eq!(report.pages_indexed, 0);
     assert_eq!(report.skipped, 0);
@@ -919,7 +1007,8 @@ fn rebuild_then_query() {
         &concept_page("BetaPage", "second page content"),
     );
     git::commit(dir.path(), "add beta").unwrap();
-    mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
+    mgr.rebuild(&wiki_root, dir.path(), &is, &reg, &IngestConfig::default())
+        .unwrap();
 
     let searcher = mgr.searcher().unwrap();
     let results = search::search(
@@ -962,7 +1051,8 @@ fn rebuild_refreshes_reader_immediately() {
     git::commit(dir.path(), "add after").unwrap();
 
     // Second rebuild — no open() called afterward
-    mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
+    mgr.rebuild(&wiki_root, dir.path(), &is, &reg, &IngestConfig::default())
+        .unwrap();
 
     // The held reader must see the new page without calling open() again
     let searcher = mgr.searcher().unwrap();
@@ -1003,7 +1093,15 @@ fn update_refreshes_reader_immediately() {
     );
 
     // update() — no open() called afterward
-    mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
+    mgr.update(
+        &wiki_root,
+        dir.path(),
+        None,
+        &is,
+        &reg,
+        &IngestConfig::default(),
+    )
+    .unwrap();
 
     // The held reader must see the new page via mgr.searcher() (not open_searcher)
     let searcher = mgr.searcher().unwrap();
@@ -1031,7 +1129,8 @@ fn update_default_wiki_root_slug_correct() {
     let reg = registry();
 
     let mgr = make_manager(dir.path());
-    mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
+    mgr.rebuild(&wiki_root, dir.path(), &is, &reg, &IngestConfig::default())
+        .unwrap();
 
     write_page(
         &wiki_root,
@@ -1039,7 +1138,15 @@ fn update_default_wiki_root_slug_correct() {
         &concept_page("FooDefault", "body"),
     );
 
-    mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
+    mgr.update(
+        &wiki_root,
+        dir.path(),
+        None,
+        &is,
+        &reg,
+        &IngestConfig::default(),
+    )
+    .unwrap();
 
     let searcher = open_searcher(&mgr, &is);
     let results = search::search(
@@ -1075,7 +1182,8 @@ fn update_custom_wiki_root_slug_correct() {
     let reg = registry();
 
     let mgr = make_manager(dir.path());
-    mgr.rebuild(&wiki_root, dir.path(), &is, &reg).unwrap();
+    mgr.rebuild(&wiki_root, dir.path(), &is, &reg, &IngestConfig::default())
+        .unwrap();
 
     write_page(
         &wiki_root,
@@ -1083,7 +1191,15 @@ fn update_custom_wiki_root_slug_correct() {
         &concept_page("FooCustom", "body"),
     );
 
-    mgr.update(&wiki_root, dir.path(), None, &is, &reg).unwrap();
+    mgr.update(
+        &wiki_root,
+        dir.path(),
+        None,
+        &is,
+        &reg,
+        &IngestConfig::default(),
+    )
+    .unwrap();
 
     let searcher = open_searcher(&mgr, &is);
     let results = search::search(
@@ -1116,7 +1232,13 @@ fn rebuild_empty_wiki_state_written_and_searchable() {
     let mgr = make_manager(dir.path());
     git::commit(dir.path(), "empty").unwrap();
     let report = mgr
-        .rebuild(&wiki_root, dir.path(), &schema(), &registry())
+        .rebuild(
+            &wiki_root,
+            dir.path(),
+            &schema(),
+            &registry(),
+            &IngestConfig::default(),
+        )
         .unwrap();
 
     assert_eq!(report.pages_indexed, 0, "empty wiki must index zero pages");
@@ -1148,7 +1270,13 @@ fn rebuild_no_commits() {
 
     let mgr = make_manager(dir.path());
     // Must not panic; commit field will be empty string
-    let result = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry());
+    let result = mgr.rebuild(
+        &wiki_root,
+        dir.path(),
+        &schema(),
+        &registry(),
+        &IngestConfig::default(),
+    );
     assert!(
         result.is_ok(),
         "rebuild on unborn HEAD must not panic: {result:?}"
@@ -1174,11 +1302,24 @@ fn update_no_commits_graceful() {
 
     let mgr = make_manager(dir.path());
     // rebuild first so the index exists
-    mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry())
-        .unwrap();
+    mgr.rebuild(
+        &wiki_root,
+        dir.path(),
+        &schema(),
+        &registry(),
+        &IngestConfig::default(),
+    )
+    .unwrap();
 
     // update on unborn HEAD must not panic
-    let result = mgr.update(&wiki_root, dir.path(), None, &schema(), &registry());
+    let result = mgr.update(
+        &wiki_root,
+        dir.path(),
+        None,
+        &schema(),
+        &registry(),
+        &IngestConfig::default(),
+    );
     // Either Ok or Err is acceptable — no panic is the contract
     let _ = result;
 }
@@ -1199,7 +1340,13 @@ fn rebuild_rollback_first_build_no_prior_index() {
     mgr.fail_next_reload
         .store(true, std::sync::atomic::Ordering::Release);
 
-    let result = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry());
+    let result = mgr.rebuild(
+        &wiki_root,
+        dir.path(),
+        &schema(),
+        &registry(),
+        &IngestConfig::default(),
+    );
 
     assert!(
         result.is_err(),
@@ -1235,7 +1382,13 @@ fn rebuild_rollback_subsequent_build_restores_prior_index() {
 
     write_page(&wiki_root, "concepts/bar.md", &concept_page("Bar", "body"));
     git::commit(dir.path(), "second build").unwrap();
-    let result = mgr.rebuild(&wiki_root, dir.path(), &schema(), &registry());
+    let result = mgr.rebuild(
+        &wiki_root,
+        dir.path(),
+        &schema(),
+        &registry(),
+        &IngestConfig::default(),
+    );
 
     assert!(
         result.is_err(),

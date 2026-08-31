@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 
+use llm_wiki_engine::config::Tokenizer;
 use llm_wiki_engine::engine::WikiEngine;
 use llm_wiki_engine::git;
 
@@ -34,7 +35,7 @@ fn engine_builds_from_config() {
     let (config_path, _) = setup_wiki(dir.path(), "test");
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     assert_eq!(engine.default_wiki_name(), Some("test"));
     assert!(engine.spaces.contains_key("test"));
@@ -48,7 +49,7 @@ fn engine_builds_with_no_wikis() {
     fs::write(&config_path, "[global]\ndefault_wiki = \"\"\n").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     assert!(engine.spaces.is_empty());
 }
@@ -59,7 +60,7 @@ fn engine_builds_with_missing_config() {
     let config_path = dir.path().join("nonexistent").join("config.toml");
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     assert!(engine.spaces.is_empty());
 }
@@ -74,14 +75,14 @@ fn engine_mount_fails_loud_on_broken_schema() {
     fs::write(wiki_path.join("schemas/concept.json"), "not valid json {{{").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     assert!(
         engine.space("test").is_err(),
         "wiki with a broken schema must not mount"
     );
 
     // The error chain names the wiki and the broken schema file.
-    let err = match llm_wiki_engine::space_builder::build_space(&wiki_path, "en_stem") {
+    let err = match llm_wiki_engine::space_builder::build_space(&wiki_path, &Tokenizer::EnStem) {
         Err(e) => e,
         Ok(_) => panic!("build_space should fail on a broken schema"),
     };
@@ -102,7 +103,7 @@ fn engine_mounts_wiki_without_schemas_dir() {
     fs::remove_dir_all(wiki_path.join("schemas")).unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let space = engine.space("test").unwrap();
     assert!(space.type_registry.is_known("concept"));
 }
@@ -115,7 +116,7 @@ fn engine_space_returns_mounted_wiki() {
     let (config_path, _) = setup_wiki(dir.path(), "research");
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let space = engine.space("research").unwrap();
     assert_eq!(space.name, "research");
@@ -128,7 +129,7 @@ fn engine_space_errors_on_unknown() {
     let (config_path, _) = setup_wiki(dir.path(), "test");
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     assert!(engine.space("nonexistent").is_err());
 }
@@ -139,7 +140,7 @@ fn resolve_wiki_name_uses_default() {
     let (config_path, _) = setup_wiki(dir.path(), "research");
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     assert_eq!(engine.resolve_wiki_name(None).unwrap(), "research");
     assert_eq!(engine.resolve_wiki_name(Some("other")).unwrap(), "other");
@@ -151,7 +152,7 @@ fn index_path_derived_from_state_dir() {
     let (config_path, _) = setup_wiki(dir.path(), "test");
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let idx_path = engine.index_path_for("test");
     assert!(idx_path.starts_with(dir.path().join("state")));
@@ -219,11 +220,12 @@ fn engine_mounts_wiki_with_custom_wiki_root() {
     llm_wiki_engine::git::commit(&wiki_path, "add skill page").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let space = engine.space("skills").unwrap();
 
+    // canonicalize both sides: macOS resolves /var→/private/var, Windows adds \\?\
     let expected_wiki_root = wiki_path.canonicalize().unwrap().join("skills");
-    assert_eq!(space.wiki_root, expected_wiki_root);
+    assert_eq!(space.wiki_root.canonicalize().unwrap(), expected_wiki_root);
 }
 
 #[test]
@@ -236,7 +238,7 @@ fn engine_indexes_custom_wiki_root_fixture() {
         .unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine_guard = manager.state.read().unwrap();
+    let engine_guard = manager.state_for_test().read().unwrap();
     let space = engine_guard.space("alt-root").unwrap();
 
     assert!(space.wiki_root.ends_with("content"));
@@ -269,7 +271,7 @@ fn content_read_works_with_custom_wiki_root() {
     llm_wiki_engine::git::commit(&wiki_path, "add page").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result =
         llm_wiki_engine::ops::content_read(&engine, "wiki://skills/bootstrap", None, false, false)
@@ -289,7 +291,11 @@ fn auto_recovery_false_leaves_index_unavailable_after_corruption() {
 
     // First build — index is healthy.
     let manager = WikiEngine::build(&config_path).unwrap();
-    let idx_path = manager.state.read().unwrap().index_path_for("test");
+    let idx_path = manager
+        .state_for_test()
+        .read()
+        .unwrap()
+        .index_path_for("test");
     drop(manager);
 
     // Corrupt every file in the search-index directory.
@@ -308,7 +314,7 @@ fn auto_recovery_false_leaves_index_unavailable_after_corruption() {
 
     // Remount — open() should NOT rebuild; searcher must be unavailable.
     let manager2 = WikiEngine::build(&config_path).unwrap();
-    let engine = manager2.state.read().unwrap();
+    let engine = manager2.state_for_test().read().unwrap();
     let space = engine.space("test").unwrap();
     assert!(
         space.index_manager.searcher().is_err(),
@@ -330,7 +336,7 @@ fn set_default_updates_engine_and_disk_atomically() {
 
     // Precondition: alpha is default.
     assert_eq!(
-        manager.state.read().unwrap().default_wiki_name(),
+        manager.state_for_test().read().unwrap().default_wiki_name(),
         Some("alpha")
     );
 
@@ -338,7 +344,7 @@ fn set_default_updates_engine_and_disk_atomically() {
 
     // In-memory engine reflects the change immediately — no restart required.
     assert_eq!(
-        manager.state.read().unwrap().default_wiki_name(),
+        manager.state_for_test().read().unwrap().default_wiki_name(),
         Some("beta")
     );
 

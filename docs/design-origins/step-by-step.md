@@ -1,17 +1,12 @@
 # Step-by-Step Guide
 
-Let’s review how an individual would develop one of these wikis. 
-
 ## Step 1: Obtain your resources
 
 You need to accumulate everything – articles that you have saved, books enjoyed, notes you have created, transcripts from discussions, and even your very own historical conversations. All these materials are your raw materials, just as ore must undergo refining before use. 
 
 ## Step 2: Classify prior to extracting (Ingest)
 
-One of the best practices from this community is to not treat all documents in the same fashion. 
-For example, a 50-page research white paper requires extraction on a section-by-section basis while a tweet or social media thread only requires a primary insight and corresponding context. 
-Likewise, a meeting transcript requires extraction of decisions that were made, action items that are to be carried out and key quotations. 
-By first classifying the type of document will help extract the right type of information to the correct amount of detail. 
+Don't treat all documents the same way. A 50-page research white paper requires section-by-section extraction. A tweet or social media thread needs only a primary insight and context. A meeting transcript needs decisions made, action items, and key quotes. Classify the document type first to extract the right depth of information.
 
 
 > I just added a new article to raw/articles/
@@ -83,10 +78,7 @@ Done.
 
 ## Record your questions
 
-This is one of the most under-appreciated features of the system. 
-When you ask the LLM a well-formed question and receive a response that provides valuable insight. 
-
-For example, a comparison between two frameworks, or an explanation of how two concepts are related, you save that response as a new wiki page tagged with the label query-result. As time goes on, your best thinking has been collected rather than lost in chat logs.
+When a well-formed question yields a valuable response — a framework comparison, an explanation of how two concepts relate — save it as a new wiki page tagged `query-result`. Your best thinking accumulates in the wiki rather than disappearing into chat logs.
 
 
 ```
@@ -121,4 +113,4 @@ At appropriate intervals, you ask the LLM to audit the entire wiki for contradic
 Additionally, the LLM will provide input on identifying orphan pages (i.e., pages that have no links pointing to them), and for providing a list of concepts that are referenced within the existing content but are not yet represented by their own respective pages.
 
 
-Sample comming soon
+Sample coming soon

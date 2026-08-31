@@ -13,8 +13,6 @@ A `type: skill` page uses Claude Code / agent-foundation skill
 frontmatter. The engine validates per-type using JSON Schema and indexes
 uniformly.
 
----
-
 ## 1. The Problem
 
 One frontmatter schema doesn't fit all page types. A concept page
@@ -29,8 +27,6 @@ into the same schema means either:
 
 The wiki should validate what each type requires and index what each
 type provides — without hardcoding every possible type in the engine.
-
----
 
 ## 2. Design: JSON Schema Type Profiles
 
@@ -70,8 +66,6 @@ place:
   descriptions, enough to know what types exist and what they mean
 - No Markdown-as-config parsing — `schema.md` is eliminated
 
----
-
 ## 3. Repository Layout
 
 ```
@@ -92,8 +86,6 @@ my-wiki/
 No `schema.md`. The type registry lives in `wiki.toml`. The JSON Schema
 files live in `schemas/`. The wiki conventions that were in `schema.md`
 move to skills (LLM instructions) or `README.md` (human context).
-
----
 
 ## 4. wiki.toml Type Registry
 
@@ -157,8 +149,6 @@ missing `type` field.
 
 Multiple types can share the same schema file (e.g., `paper`, `article`,
 `documentation` all use `schemas/paper.json`).
-
----
 
 ## 5. Schema Definitions
 
@@ -455,8 +445,6 @@ mapping.
 }
 ```
 
----
-
 ## 6. The `x-index-aliases` Extension
 
 Standard JSON Schema validators ignore `x-` prefixed keywords. The wiki
@@ -507,8 +495,6 @@ Fields not aliased to a canonical field are indexed as generic text
 (strings get tokenized into the body text field; lists of strings become
 keywords).
 
----
-
 ## 7. Engine Behavior
 
 ### Ingest
@@ -535,8 +521,6 @@ No change. These tools operate on canonical index fields. They don't
 know or care which type produced the data. A skill page with
 `name: my-skill` is findable by searching "my-skill" because `name` was
 aliased to `title` at ingest time.
-
----
 
 ## 8. What This Enables
 
@@ -610,8 +594,6 @@ The engine doesn't need to know what "meeting-notes" means. It validates
 against the schema and indexes using the alias mapping. The LLM reads
 the type description via `wiki_config list`.
 
----
-
 ## 9. What Happened to schema.md
 
 `schema.md` was doing two jobs:
@@ -634,8 +616,6 @@ The conventions move to:
 `schema.md` is eliminated. `wiki.toml` is the single source of truth
 for everything the engine needs. LLM workflow instructions live in
 skills.
-
----
 
 ## 10. Default Types
 
@@ -705,8 +685,6 @@ types.
 
 Classify by the source material's nature, not its topic. A blog post
 about academic research is `article`, not `paper`.
-
----
 
 ## 11. Type Relationships and Graph Modeling
 
@@ -853,8 +831,6 @@ no frontmatter field, they get a generic `links-to` relation with no
 type constraint. The engine parses them from the body text at ingest
 time, same as today.
 
----
-
 ## 12. Backward Compatibility
 
 - Pages without a `type` field default to `type: page`, validated
@@ -868,8 +844,6 @@ time, same as today.
 - No frontmatter rewriting — existing files are untouched
 - `additionalProperties: true` on all schemas — unrecognized fields
   are preserved and indexed as text
-
----
 
 ## 13. Compatibility with Agent-Foundation
 
@@ -887,21 +861,3 @@ A wiki that stores agent-foundation skills can use a `skill.json` schema
 that `$ref`s the agent-foundation skill frontmatter definition, extended
 with `x-index-aliases` for wiki indexing.
 
----
-
-## 14. Summary
-
-| Concern | How it's handled |
-|---------|-----------------|
-| Different types need different fields | JSON Schema per type in `schemas/` |
-| Type registry | `wiki.toml` `[types.*]` with `schema` + `description` |
-| Default types | 14 built-in types covering knowledge, sources, extensions, structure |
-| Different field names across types | `x-index-aliases` maps to canonical index roles |
-| Type relationships in graph | `x-graph-edges` declares typed directed edges with target constraints |
-| Validation standard | JSON Schema Draft 2020-12 |
-| Index uniformity | Aliases resolve at ingest; index sees canonical fields only |
-| LLM discovers types | `wiki_config list` returns type names + descriptions |
-| Existing pages keep working | `[types.default]` fallback + built-in base schema |
-| Custom types | Add schema file + register in `wiki.toml` |
-| Agent-foundation compatibility | Same JSON Schema draft; `$ref` composition possible |
-| schema.md eliminated | Type registry → `wiki.toml`; conventions → skills |

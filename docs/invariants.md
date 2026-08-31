@@ -1,13 +1,15 @@
 ---
 title: "Architectural Invariants"
 summary: "Non-obvious constraints that must hold for correctness. Violations produce no compile error."
-last_updated: "2026-08-04"
+last_updated: "2026-08-28"
 ---
 
 # Architectural Invariants
 
 Constraints that are not enforced by the type system or compiler. Violating them
 produces silent correctness bugs — no panic, no error, wrong output.
+
+Each exception notes inline where a constraint is compile-time enforced.
 
 ## Snapshot key stability
 
@@ -37,6 +39,42 @@ Duplicating it causes a silent double-rebuild; removing it from ops breaks CLI.
 **Corollary for tests:** tests asserting cache invalidation must call
 `ops::index_rebuild`, not `index_manager.rebuild()` directly. The latter rebuilds
 tantivy but does not refresh the graph cache.
+
+## Concurrent rebuild serialisation
+
+**Invariant:** at most one `rebuild()` call runs per wiki space at any time.
+`SpaceIndexManager.rebuild_lock: Mutex<()>` enforces this.
+
+**Why:** two concurrent full rebuilds on the same space both write to
+`search-index-building/`, then both attempt the three-rename atomic swap.
+The second rename would overwrite the first's committed index, and both
+readers would reload at unpredictable points. Serialising via `rebuild_lock`
+ensures each rebuild sees the outcome of the previous one.
+
+**Corollary:** `rebuild_lock` is separate from `state: RwLock`. `state` is
+held at read level during rebuild; `rebuild_lock` is the concurrency guard.
+Never hold both write guards simultaneously.
+
+## Space mutation atomicity
+
+**Invariant:** in-memory space state and the persisted `wiki.toml` must never
+diverge after a `spaces_create`, `spaces_register`, or `spaces_set_default`
+call returns.
+
+**Why:** if the in-memory mutation succeeds but the disk write fails (and is
+not rolled back), subsequent requests see a default or space that the next
+engine restart will not find — silent divergence between memory and disk.
+
+Rollback rules:
+- `spaces_set_default`: capture `prev_default` before calling `set_default()`;
+  on disk failure restore via `state.write()` directly (bypasses
+  `contains_key` validation, which rejects an empty string).
+- `spaces_create` / `spaces_register`: run `mount_wiki` and
+  `spaces::remove` rollback inside the same `with_config_lock` closure so no
+  other write can observe the intermediate state.
+
+See [lock-patterns.md](implementation/lock-patterns.md) for the rollback
+patterns.
 
 ## Lock ordering
 
@@ -135,6 +173,62 @@ rebuild.
 is implicitly ephemeral. Stable identity requires a source-of-truth in the git-tracked
 markdown files or `state.toml`. Introducing a ULID field would require committing ids to
 frontmatter or `state.toml` before they could be relied upon. See `docs/decisions/reject-page-id.md`.
+
+## NormalizedSlug type boundary
+
+**Invariant (compile-time enforced):** a `NormalizedSlug` can only be constructed
+via `Slug::normalize()` (public) or `NormalizedSlug::from_normalized()` (crate-internal).
+Raw `String` slugs must never be compared to normalized slugs without going through
+normalization first.
+
+**Why:** slug normalisation (lowercasing all path components) was previously
+convention-enforced only. A raw user-input slug and an index-read slug compared
+with `==` without the compiler catching the mismatch, producing silent
+false-negatives in search and lint. `NormalizedSlug(String)` makes mixing raw and
+normalized slugs a type error.
+
+Construction paths:
+- `Slug::normalize() -> NormalizedSlug` — the public path for all external callers.
+- `NormalizedSlug::from_normalized(String)` — `pub(crate)`, for tantivy index reads
+  where the stored value is already known to be lowercased at index time.
+
+`Slug` is unchanged: it enforces structural validity (no `..`, no leading `/`, no
+extension). `NormalizedSlug` adds the lowercasing guarantee on top.
+
+## `redact_error` Windows path gap (known limitation)
+
+**Invariant:** `redact_error` in `src/mcp/handlers.rs` strips filesystem paths from
+MCP error strings before returning them to LLM clients. The current implementation
+covers Unix absolute paths (`/…`) and tilde-prefixed paths (`~/…`, `~user/…`).
+
+**Known gap:** Windows drive-letter paths (`C:\Users\…`) and UNC paths
+(`\\server\share\…`) are NOT redacted. A Windows build of `llm-wiki serve` will
+leak these forms in MCP error responses.
+
+**Why deferred:** no Windows maintainer can run `cargo test` to verify that the fix
+does not over-redact short strings (`C:` alone, short UNC prefixes). The fix and the
+required unit tests must be contributed together. See
+`docs/decisions/1.0.0/redact-error-windows-paths.md` for the exact regex change and
+test requirements.
+
+## `WikiEngine.state` visibility
+
+**Invariant:** `WikiEngine.state` is `pub(crate)`. External crates must not access
+it directly. The public read entry point is `WikiEngine::with_state`, which acquires
+the lock and maps the poison error uniformly.
+
+**Why:** exposing the `Arc<RwLock<EngineState>>` field as `pub` couples embedders to
+the lock type, poison-handling convention, and `EngineState` field layout. Any change
+to the interior mutability model would be a breaking API change.
+
+Access patterns:
+- External embedders: `engine.with_state(|s| { … })`.
+- Integration tests (`tests/*.rs`): `engine.state_for_test().read()` —
+  `#[doc(hidden)]`, no stability guarantee.
+- Crate-internal code (`pub(crate)`): `self.state.read()` / `.write()` directly.
+
+`config_write_lock` is also `pub(crate)` with no public accessor — it is an internal
+serialisation primitive, not part of the embedding contract.
 
 ## Filtered graph requests bypass cache
 

@@ -2,7 +2,7 @@
 
 from https://github.com/vanillaflava/llm-wiki-claude-skills
 
-What this implementation adds beyond Karpathy's original pattern. These are decisions that emerged from sustained real use.
+What this implementation adds beyond Karpathy's original pattern.
 
 ## Karpathy Pattern → This Implementation
 

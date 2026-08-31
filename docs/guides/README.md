@@ -36,8 +36,16 @@ llm-wiki.
 | [llms-format.md](llms-format.md)           | LLM-optimized output: when and how to use `format: "llms"` and `wiki_export` |
 | [graph.md](graph.md)                       | Community detection, cross-cluster suggestions, threshold tuning             |
 
+## Embedding and integration
+
+| Guide                          | Description                                                          |
+| ------------------------------ | -------------------------------------------------------------------- |
+| [embedding.md](embedding.md)   | Use `llm-wiki-engine` as a library crate in your own Rust binary     |
+
 ## Operations
 
 | Guide                  | Description                                              |
 | ---------------------- | -------------------------------------------------------- |
 | [release.md](release.md) | Release process and distribution channels              |
+| [local-testing.md](local-testing.md) | Test the local engine binary and skills plugin before publishing |
+| [migration-1.0.0.md](migration-1.0.0.md) | Remove redundant stock schema copies after upgrading from pre-1.0.0 |

@@ -248,7 +248,112 @@ fn set_default_wiki_errors_on_unregistered() {
     let cfg = dir.path().join("config.toml");
     std::fs::write(&cfg, "[global]\ndefault_wiki = \"\"\n").unwrap();
 
-    assert!(spaces::set_default_wiki("nope", &cfg).is_err());
+    assert!(
+        spaces::set_default_wiki("nope", &cfg).is_err(),
+        "set_default on unregistered wiki must fail"
+    );
+    let config = load_global(&cfg).unwrap();
+    assert_eq!(
+        config.global.default_wiki, "",
+        "failed set_default must not modify disk config"
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn ops_set_default_rolls_back_in_memory_on_disk_failure() {
+    use llm_wiki_engine::engine::WikiEngine;
+    use llm_wiki_engine::ops;
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let cfg = config_path(dir.path());
+
+    // Create two wikis; "alpha" becomes the initial default.
+    let alpha_path = dir.path().join("alpha");
+    let beta_path = dir.path().join("beta");
+    spaces::create(&alpha_path, "alpha", None, false, false, &cfg, None).unwrap();
+    spaces::create(&beta_path, "beta", None, false, false, &cfg, None).unwrap();
+    let manager = WikiEngine::build(&cfg).unwrap();
+    ops::spaces_set_default("alpha", &cfg, Some(&manager)).unwrap();
+    {
+        let engine = manager.state_for_test().read().unwrap();
+        assert_eq!(engine.config.global.default_wiki, "alpha");
+    }
+
+    // Make config directory non-writable so atomic_write (tempfile + rename) fails.
+    // The config file itself being read-only is not enough because atomic_write renames
+    // a temp file into place, which succeeds even against a read-only target on macOS.
+    // cfg is dir/dot-wiki/config.toml; lock the dot-wiki dir where the temp file is created.
+    let config_dir = cfg.parent().unwrap().to_path_buf();
+    std::fs::set_permissions(&config_dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+
+    // Attempt to change default to "beta" — disk write fails.
+    let err = ops::spaces_set_default("beta", &cfg, Some(&manager));
+
+    // Restore dir permissions before any assertion (tempdir cleanup needs write access).
+    std::fs::set_permissions(&config_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert!(err.is_err(), "disk failure must propagate");
+
+    // In-memory must be rolled back to "alpha".
+    let engine = manager.state_for_test().read().unwrap();
+    assert_eq!(
+        engine.config.global.default_wiki, "alpha",
+        "in-memory default must be rolled back on disk failure"
+    );
+}
+
+#[test]
+fn ops_create_rolls_back_config_when_mount_fails() {
+    // This test proves rollback correctness (config entry removed on mount failure),
+    // not race elimination. The race fix (mount+rollback inside with_config_lock)
+    // cannot be verified deterministically in a unit test.
+    use llm_wiki_engine::engine::WikiEngine;
+    use llm_wiki_engine::ops;
+
+    let dir = tempfile::tempdir().unwrap();
+    // Create one valid wiki so WikiEngine::build succeeds
+    let seed_path = dir.path().join("seed");
+    let cfg = config_path(dir.path());
+    spaces::create(&seed_path, "seed", None, false, false, &cfg, None).unwrap();
+    let manager = WikiEngine::build(&cfg).unwrap();
+
+    // Attempt to create a wiki at a path that will make mount_space fail.
+    // We create the path structure valid enough for spaces::create to succeed,
+    // but add a broken schemas/ entry so build_space fails during mount.
+    let bad_path = dir.path().join("bad");
+    // Create minimal directory structure so spaces::create does not fail
+    std::fs::create_dir_all(bad_path.join("wiki")).unwrap();
+    std::fs::write(bad_path.join("wiki.toml"), "[wiki]\nwiki_root = \"wiki\"\n").unwrap();
+    // Create a schemas/ dir with an invalid JSON file to make build_space error.
+    // parse_from_dir reads only .json files, so .yaml would be silently ignored.
+    std::fs::create_dir_all(bad_path.join("schemas")).unwrap();
+    std::fs::write(
+        bad_path.join("schemas").join("bad.json"),
+        "not valid json {{{",
+    )
+    .unwrap();
+
+    let result = ops::spaces_create(
+        &bad_path,
+        "bad",
+        None,
+        false,
+        false,
+        &cfg,
+        Some(&manager),
+        None,
+    );
+
+    assert!(result.is_err(), "mount failure must propagate");
+
+    // Config must not contain "bad" — rollback must have removed it
+    let config = llm_wiki_engine::config::load_global(&cfg).unwrap();
+    assert!(
+        !config.wikis.iter().any(|w| w.name == "bad"),
+        "rollback must remove wiki from config on mount failure"
+    );
 }
 
 // ── load_all ──────────────────────────────────────────────────────────────────
@@ -284,7 +389,7 @@ fn resolve_name_errors_on_missing() {
 // ── schemas and wiki.toml types ──────────────────────────────────────────────
 
 #[test]
-fn create_writes_default_schema_files() {
+fn create_schemas_dir_is_empty_of_stock_files() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_path = dir.path().join("research");
     let cfg = config_path(dir.path());
@@ -292,34 +397,36 @@ fn create_writes_default_schema_files() {
     spaces::create(&wiki_path, "research", None, false, false, &cfg, None).unwrap();
 
     let schemas_dir = wiki_path.join("schemas");
-    for name in &[
-        "base.json",
-        "concept.json",
-        "paper.json",
-        "skill.json",
-        "doc.json",
-        "section.json",
-    ] {
-        let path = schemas_dir.join(name);
-        assert!(path.is_file(), "missing schema: {name}");
-        let content = std::fs::read_to_string(&path).unwrap();
-        assert!(content.contains("\"$schema\""), "{name} missing $schema");
-    }
+    assert!(schemas_dir.exists(), "schemas/ must exist");
+    let json_count = std::fs::read_dir(&schemas_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("json"))
+        .count();
+    assert_eq!(json_count, 0, "create must not write stock .json files");
 }
 
 #[test]
-fn create_schema_files_match_embedded() {
+fn create_does_not_copy_stock_schemas() {
     let dir = tempfile::tempdir().unwrap();
-    let wiki_path = dir.path().join("research");
+    let wiki_path = dir.path().join("mywiki");
     let cfg = config_path(dir.path());
 
-    spaces::create(&wiki_path, "research", None, false, false, &cfg, None).unwrap();
+    spaces::create(&wiki_path, "mywiki", None, false, false, &cfg, None).unwrap();
 
-    let embedded = llm_wiki_engine::default_schemas::default_schemas();
-    for (filename, expected) in &embedded {
-        let on_disk = std::fs::read_to_string(wiki_path.join("schemas").join(filename)).unwrap();
-        assert_eq!(&on_disk, *expected, "mismatch for {filename}");
-    }
+    let schemas_dir = wiki_path.join("schemas");
+    assert!(schemas_dir.exists(), "schemas/ dir must exist");
+
+    let json_files: Vec<_> = std::fs::read_dir(&schemas_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("json"))
+        .collect();
+    assert!(
+        json_files.is_empty(),
+        "create must not copy stock schema files; found: {:?}",
+        json_files.iter().map(|e| e.file_name()).collect::<Vec<_>>()
+    );
 }
 
 #[test]
@@ -347,23 +454,22 @@ fn create_generates_wiki_toml_without_types() {
 }
 
 #[test]
-fn create_does_not_overwrite_existing_schemas() {
+fn create_does_not_delete_existing_custom_schemas() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_path = dir.path().join("research");
     let cfg = config_path(dir.path());
 
     spaces::create(&wiki_path, "research", None, false, false, &cfg, None).unwrap();
 
-    // Modify a schema on disk
-    let custom = wiki_path.join("schemas/base.json");
+    // Place a custom schema in schemas/
+    let custom = wiki_path.join("schemas/custom.json");
     std::fs::write(&custom, r#"{"custom": true}"#).unwrap();
 
-    // Re-run create (same name = skip path)
-    // Simulate by calling ensure_structure indirectly via a new wiki
+    // Create a second wiki to exercise ensure_structure again
     let wiki_path2 = dir.path().join("other");
     spaces::create(&wiki_path2, "other", None, false, false, &cfg, None).unwrap();
 
-    // Original wiki's custom schema untouched (create skipped it)
+    // First wiki's custom schema is untouched
     let content = std::fs::read_to_string(&custom).unwrap();
     assert!(content.contains("custom"));
 }
@@ -448,10 +554,10 @@ fn validate_wiki_root_rejects_missing_directory() {
 #[test]
 fn validate_wiki_root_rejects_traversal_via_symlink() {
     let outer = tempfile::tempdir().unwrap();
-    let inner = tempfile::tempdir().unwrap();
-    let link = outer.path().join("escape");
+    let _inner = tempfile::tempdir().unwrap();
+    let _link = outer.path().join("escape");
     #[cfg(unix)]
-    std::os::unix::fs::symlink(inner.path(), &link).unwrap();
+    std::os::unix::fs::symlink(_inner.path(), &_link).unwrap();
     #[cfg(unix)]
     {
         let err = llm_wiki_engine::spaces::validate_wiki_root(outer.path(), "escape").unwrap_err();
@@ -673,7 +779,7 @@ fn register_existing_no_prior_toml_creates_wiki_toml() {
         "content/ dir must exist"
     );
 
-    // default schemas written
+    // schemas/ contains .gitkeep so git tracks it as an extension point
     assert!(
         wiki_path
             .join("schemas")
@@ -681,6 +787,6 @@ fn register_existing_no_prior_toml_creates_wiki_toml() {
             .unwrap()
             .next()
             .is_some(),
-        "schemas/ must contain default schema files"
+        "schemas/ must not be completely empty (.gitkeep expected)"
     );
 }

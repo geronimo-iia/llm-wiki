@@ -200,6 +200,75 @@ in `tests-integration/pyproject.toml`.
 Use this after merging features that touch MCP handlers, ACP workflows, graph
 rendering, or ingest logic — areas not covered by unit tests alone.
 
+## Cross-platform Test Hygiene
+
+The integration CI job runs `cargo test` and `pytest engine/` on `windows-latest`.
+Six rules eliminate Windows CI failures that do not reproduce on Linux or macOS.
+Apply all six to any new test or fixture.
+
+### 1. Gate Unix-only code with `#[cfg(unix)]`
+
+`std::os::unix::fs::PermissionsExt` and `std::os::unix::fs::symlink` do not exist
+on Windows. Annotate any test function that uses them with `#[cfg(unix)]`.
+Variables declared outside such a block but used only inside it must be prefixed
+with `_` to suppress the `unused_variable` warning emitted on Windows.
+
+### 2. Use `USERPROFILE` as fallback for `HOME`
+
+`HOME` is absent on Windows; the equivalent is `USERPROFILE`. Production code that
+resolves a default path must try `HOME` first, then `USERPROFILE`, then fall back:
+
+```rust
+std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+    .unwrap_or_else(|_| ".".into())
+```
+
+### 3. Use `Path::ends_with` for path suffix checks
+
+`String::ends_with(".llm-wiki/logs")` fails on Windows because path separators are
+backslashes. Use `std::path::Path::ends_with` instead — it compares path components
+regardless of separator:
+
+```rust
+assert!(Path::new(&cfg.log_path).ends_with(Path::new(".llm-wiki/logs")));
+```
+
+### 4. Canonicalize both sides when comparing absolute paths
+
+`Path::canonicalize()` on macOS resolves `/var/…` to `/private/var/…` and on
+Windows prepends `\\?\`. When asserting that two paths refer to the same location,
+canonicalize both sides:
+
+```rust
+assert_eq!(space.wiki_root.canonicalize()?, wiki_path.canonicalize()?.join("wiki"));
+```
+
+The engine strips `\\?\` from user-facing values via `strip_verbatim_prefix` in
+`src/pathutil.rs`. Tests compare raw stored values, so they need this pattern.
+
+### 5. Force `encoding="utf-8"` on subprocess output and file I/O
+
+Python's `subprocess.run(..., text=True)` and `Path.read_text()` / `.write_text()`
+default to the system locale encoding (`cp1252` on Windows). Wiki fixture files
+contain UTF-8 content. Always declare the encoding explicitly:
+
+```python
+# subprocess
+subprocess.run([...], capture_output=True, text=True, encoding="utf-8")
+
+# file I/O
+path.read_text(encoding="utf-8")
+path.write_text(content, encoding="utf-8")
+```
+
+### 6. No hardcoded Unix paths in pytest configuration
+
+`pyproject.toml` `addopts` must not reference Unix-only paths. The option
+`--basetemp=/tmp/llm-wiki-tests` causes every pytest `tmp_path` fixture to fail on
+Windows because `/tmp` does not exist. Remove `--basetemp`; pytest selects a
+per-OS default temp directory automatically.
+
 ## Environment Notes
 
 - llm-wiki writes its space registry to `~/.llm-wiki/config.toml` by default

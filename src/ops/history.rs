@@ -32,7 +32,7 @@ pub fn history(
     };
 
     let space = engine.space(&wiki_name)?;
-    let resolved = space.resolved_config(&engine.config);
+    let resolved = space.resolved_config();
 
     let limit = limit.unwrap_or(resolved.history.default_limit as usize);
     let follow = follow.unwrap_or(resolved.history.follow);
@@ -47,4 +47,21 @@ pub fn history(
         slug: slug.to_string(),
         entries,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn history_result_serde_round_trip() {
+        let original = HistoryResult {
+            slug: "concepts/foo".into(),
+            entries: vec![],
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let decoded: HistoryResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.slug, original.slug);
+        assert!(decoded.entries.is_empty());
+    }
 }

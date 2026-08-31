@@ -215,6 +215,21 @@ pub enum Commands {
         #[arg(long)]
         wiki: Option<String>,
     },
+    /// Remove redundant stock schema copies from wiki directories
+    Migrate {
+        /// Target a specific wiki (required unless --all is given)
+        #[arg(long)]
+        wiki: Option<String>,
+        /// Run against all registered wikis
+        #[arg(long)]
+        all: bool,
+        /// Report what would be deleted without modifying anything
+        #[arg(long)]
+        dry_run: bool,
+        /// Output format: text | json
+        #[arg(long)]
+        format: Option<String>,
+    },
     /// Inspect and manage server logs
     Logs {
         /// The logs subcommand.
@@ -238,7 +253,7 @@ pub enum LogsAction {
     Clear,
 }
 
-/// Subcommands for `llm-wiki spaces`.
+/// Create, register, remove, list, and set the default wiki space.
 #[derive(Subcommand)]
 pub enum SpacesAction {
     /// Create a new wiki repository
@@ -333,7 +348,7 @@ pub enum ConfigAction {
     },
 }
 
-/// Subcommands for `llm-wiki content`.
+/// Read, write, create, and commit wiki pages.
 #[derive(Subcommand)]
 pub enum ContentAction {
     /// Read a page or asset by slug or wiki:// URI
@@ -388,7 +403,7 @@ pub enum ContentAction {
     },
 }
 
-/// Subcommands for `llm-wiki index`.
+/// Rebuild, check status, or view the schema of the Tantivy search index.
 #[derive(Subcommand)]
 pub enum IndexAction {
     /// Rebuild the search index from committed Markdown
@@ -408,7 +423,7 @@ pub enum IndexAction {
     },
 }
 
-/// Subcommands for `llm-wiki schema`.
+/// Inspect and manage page type schemas loaded from the wiki.
 #[derive(Subcommand)]
 pub enum SchemaAction {
     /// List all registered types

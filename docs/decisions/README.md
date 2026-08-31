@@ -10,6 +10,8 @@ Architectural decisions and their rationale, grouped by release.
 | -------- | ------- |
 | [acp-sessions-parking-lot-mutex](1.0.0/acp-sessions-parking-lot-mutex.md) | `parking_lot::Mutex` for ACP `Sessions` — `tokio::sync::Mutex` rejected because helper functions are sync; `std::sync::Mutex` rejected due to poison crash vector; `parking_lot` already in transitive tree, zero new packages |
 | [watcher-rebuild-guard-atomic-bool](1.0.0/watcher-rebuild-guard-atomic-bool.md) | `Arc<AtomicBool>` per `SpaceContext` to skip redundant concurrent rebuilds — `JoinHandle` abort rejected (Tantivy non-cancellable); per-wiki watch channel rejected (disproportionate); flag resets on re-mount; stuck-flag edge case on shutdown is benign |
+| [rebuild-lock-mutex-space-index-manager](1.0.0/rebuild-lock-mutex-space-index-manager.md) | `Mutex<()>` on `SpaceIndexManager` serialises concurrent `rebuild()` calls — Tantivy writer lock rejected (different `Index` instances); `state` write-lock rejected (blocks all reads); per-wiki channel rejected (disproportionate); complements `AtomicBool` watcher guard |
+| [spaces-atomic-rollback](1.0.0/spaces-atomic-rollback.md) | Direct `state.write()` for `set_default` rollback — `set_default("")` rejected (fails `contains_key` for empty string); rollback runs inside `with_config_lock` closure to prevent concurrent observers seeing intermediate state |
 
 ### Stable API
 
@@ -17,14 +19,28 @@ Architectural decisions and their rationale, grouped by release.
 | -------- | ------- |
 | [binary-and-library-crate](1.0.0/binary-and-library-crate.md) | Keep `[lib]` target — embedding value (non-trivial engine reuse without forking), test architecture (direct unit testing of internals), docs.rs façade; stable surface = 5 re-exported types; internal modules remain accessible to test layer until Post-1.0 refactor |
 | [normalized-slug-newtype](1.0.0/normalized-slug-newtype.md) | `NormalizedSlug(String)` newtype — slug normalisation was convention-only; `Slug::normalize()` is the only public constructor; `from_normalized` bypass for internal index reads; `PartialEq<str>` impls keep test assertions unchanged; serializes as plain string |
-| [pub-crate-partial-migration](1.0.0/pub-crate-partial-migration.md) | Only 4 of 22 modules converted to `pub(crate)` (`cli`, `server`, `watch`, `pathutil`) — 18 remain `pub mod` because `tests/*.rs` imports them directly; `#[allow(unreachable_pub)]` per module suppresses noise; full migration deferred to Post-1.0 test-layer refactor |
+| [pub-crate-partial-migration](1.0.0/pub-crate-partial-migration.md) | Only 1 of 22 modules converted to `pub(crate)` (`pathutil`) — `cli`/`server`/`watch` blocked by `[[bin]]` crate boundary; remaining 18 blocked by `tests/*.rs` direct imports; `#![warn(unreachable_pub)]` crate-wide; full migration deferred to Post-1.0 |
+| [engine-state-embedding-api](1.0.0/engine-state-embedding-api.md) | `WikiEngine::with_state<F,T>` (read-only) replaces direct `engine.state.read()` at all 26 production sites; `state` and `config_write_lock` restricted to `pub(crate)`; `#[doc(hidden)] state_for_test()` accessor bridges ~130 integration-test sites that cannot see `pub(crate)` |
+| [config-typed-enums](1.0.0/config-typed-enums.md) | `TypeStrictness`, `Tokenizer`, `GraphFormat` replace string config fields; `GraphRenderFormat` adds `Summary` as a separate runtime-only enum (`From<GraphFormat>`) — `Summary` cannot be stored in config; `TypeStrictness`/`Tokenizer` are `Copy`; `as_str()` kept for Tantivy and markdown boundaries |
+| [space-context-resolved-config](1.0.0/space-context-resolved-config.md) | `SpaceContext` caches `resolved_cfg: ResolvedConfig` at mount time — `mount_space` already computed it and discarded it; `resolved_config()` becomes a zero-cost borrow with no `global` parameter; `ingest_config` field kept for write-lock callers |
 | [wiki-graph-json-format](1.0.0/wiki-graph-json-format.md) | `json` format for `wiki_graph` deferred to Post-1.0 — `GraphReport` is already `Serialize` so implementation cost is near-zero, but field names must be stable before exposing as a versioned JSON contract |
+| [wiki-lint-scalability-parameters](1.0.0/wiki-lint-scalability-parameters.md) | Add `summary`, `path_prefix`, `page_size`, `cursor` to `wiki_lint` — full-wiki runs at 1,000+ pages exceed LLM context budgets; four parameters used in combination (summary → rule+prefix scope → paginate) make large wikis workable without server-side state |
+| [wiki-graph-scale-summary-format](1.0.0/wiki-graph-scale-summary-format.md) | Add `format: "summary"` to `wiki_graph` — unfiltered `mermaid`/`dot`/`json` on 1,315 nodes is 270–450KB; summary returns aggregate metrics only (<2KB); also cap isolated titles in `format: "llms"` at 20; document scoped-first call sequence |
+| [wiki-stats-detail-parameter](1.0.0/wiki-stats-detail-parameter.md) | Remove `communities.isolated: Vec<String>` from `CommunityStats` permanently — redundant with `wiki_lint rules: "periphery,orphan"` and a divergent second source of truth; add `detail: "summary" \| "full"` gating `center` slug list; fixes 275KB response at 1,315 pages; also fix `structural_note` silent null when `structural_algorithms: false` |
 
 ### Performance
 
 | Decision | Summary |
 | -------- | ------- |
 | [louvain-sigma-tot-precompute](1.0.0/louvain-sigma-tot-precompute.md) | Full Louvain ΔQ formula (join gain − leave cost) + `sigma_tot` precomputed per pass — original formula was incomplete (join-only), causing oscillation and wrong partitions; `test_louvain_two_clusters` failed on original code; formula fix is correctness, sigma_tot is performance (O(N³)→O(M)); pass cap retained |
+| [fast-field-facet-collector](1.0.0/fast-field-facet-collector.md) | `KeywordFacetCollector` + `StrColumn` fast fields for facet counting — built-in `FacetCollector` rejected (wrong tantivy type for STRING fields); accumulate-in-TopDocs rejected (top-K only); `MultiCollector` reduces search/list from 4 to 2 segment passes; `type` field schema bug fixed as prerequisite |
+| [last-updated-keyword-fast-column](1.0.0/last-updated-keyword-fast-column.md) | `last_updated` promoted from TEXT to `STRING\|STORED\|FAST` — enables `StalenessCollector` to read ISO 8601 dates via `StrColumn` with zero `searcher.doc()` calls; `title` evaluated for same promotion but rejected (in `QueryParser` field list, keyword would break word-level title search) |
+
+### MCP protocol
+
+| Decision | Summary |
+| -------- | ------- |
+| [mcp-max-param-len-scope](1.0.0/mcp-max-param-len-scope.md) | `mcp_max_param_len` (default 8192) applies to short params only (slugs, queries, names); `wiki_content_write` and `wiki_content_new` are exempt — they enforce `max_content_len` (10 MiB) independently; the two limits are orthogonal |
 
 ### Dependency hygiene
 
@@ -32,6 +48,26 @@ Architectural decisions and their rationale, grouped by release.
 | -------- | ------- |
 | [suppress-lru-rustsec-2026-0253](1.0.0/suppress-lru-rustsec-2026-0253.md) | Suppress `lru` use-after-free advisory — upstream-blocked via `tantivy ^0.16.3` pin; no fixed version in range; risk low (trigger requires panic inside tantivy LRU internals); re-evaluate on each `tantivy` release |
 | [suppress-atomic-polyfill-rustsec-2023-0089](1.0.0/suppress-atomic-polyfill-rustsec-2023-0089.md) | Suppress `atomic-polyfill` unmaintained advisory — upstream-blocked via `postcard → heapless ^0.7.0` chain; crate not compiled into binary on any supported target; risk negligible; re-evaluate on each `postcard` release |
+
+### Schema management
+
+| Decision | Summary |
+| -------- | ------- |
+| [schema-overlay-model](1.0.0/schema-overlay-model.md) | Embedded defaults + on-disk overrides replace copy-on-create — `spaces::create` stops copying schemas; `space_builder` merges embedded + on-disk on every mount; `wiki migrate` backed by SHA manifest (`schemas/manifest.json`) cleans up stock copies from existing wikis without touching user customizations — implementation spec: [design-schema-overlay-migration](../improvements/design-schema-overlay-migration.md) |
+| aliases-concept | `aliases[]` (string array, `x-keyword`) added to `concept.json` — enables synonym search via BM25 FAST fields; no Rust code change (embedded via `include_str!`); requires `rebuild_types` or full rebuild on existing wikis |
+
+### Ingest
+
+| Decision | Summary |
+| -------- | ------- |
+| [ingest-exclude-and-skip-frontmatter](1.0.0/ingest-exclude-and-skip-frontmatter.md) | `exclude` glob patterns + `skip_no_frontmatter` (default `true`) added to `[ingest]` config — applied at all three index call sites via shared `should_index` helper; `open()` recovery tuple extended to carry `&IngestConfig`; no-frontmatter check uses raw content not `frontmatter.is_empty()` to avoid silently skipping malformed-YAML files |
+
+### Windows compatibility
+
+| Decision | Summary |
+| -------- | ------- |
+| [rebuild-close-handles-before-rename](1.0.0/rebuild-close-handles-before-rename.md) | Drop `tantivy_index`/`index_reader` from `inner` before live→backup rename — Windows denies rename on directories with open mmap handles (os error 5); reopen fresh after rename instead of `reload_reader()`; `close()` escape hatch for tests that corrupt mmap'd files (os error 1224) |
+| [windows-compat-test-hygiene](1.0.0/windows-compat-test-hygiene.md) | Six cross-platform rules for tests: `#[cfg(unix)]` gating, `USERPROFILE` fallback, `Path::ends_with` for path suffix checks, canonicalize both sides for path equality, `encoding="utf-8"` on all subprocess/file I/O, no hardcoded `/tmp` in pytest config |
 
 ### Known gaps
 
@@ -213,4 +249,3 @@ Architectural decisions and their rationale, grouped by release.
 | -------- | ------- |
 | [config-crate](backlog/config-crate.md) | Reject `config` crate — current TOML loading sufficient; revisit if env-var overrides needed at scale |
 | [replace-serde-yaml](backlog/replace-serde-yaml.md) | Migrate off abandoned `serde_yaml 0.9` — blocked: `saphyr-serde v0.0.0` is a stub, `serde_yaml2` serializer output format is broken; revisit when `saphyr-serde >= 0.1.0` ships |
-| [engine-state-embedding-api](backlog/engine-state-embedding-api.md) | Hide `engine.state` behind `WikiEngine::with_state<F,T>` — decouples embedders from the lock type and `EngineState` shape; purely additive |

@@ -35,6 +35,7 @@ Returns a JSON object:
   "total": 3,
   "errors": 2,
   "warnings": 1,
+  "has_more": false,
   "findings": [
     {
       "slug":     "concepts/moe",
@@ -50,6 +51,38 @@ Returns a JSON object:
 Each finding includes `path` — the absolute filesystem path to the offending
 file. Use it to `Edit` the file directly without a follow-up `wiki_resolve` call.
 
+When `summary: true`:
+
+```json
+{
+  "wiki": "ARCH",
+  "total": 847,
+  "errors": 12,
+  "warnings": 835,
+  "has_more": false,
+  "findings": [],
+  "by_rule": {
+    "orphan": 312,
+    "broken-link": 8,
+    "missing-fields": 527
+  }
+}
+```
+
+When `page_size` is set, `next_cursor` appears in the response when there are more pages:
+
+```json
+{
+  "wiki": "ARCH",
+  "total": 847,
+  "errors": 12,
+  "warnings": 835,
+  "has_more": true,
+  "next_cursor": 100,
+  "findings": [ "..." ]
+}
+```
+
 Empty `findings` array = clean wiki. CLI exits non-zero when any
 `error` finding exists.
 
@@ -60,6 +93,33 @@ Empty `findings` array = clean wiki. CLI exits non-zero when any
 | `rules` | string | all | Comma-separated rule names: `orphan`, `broken-link`, `broken-cross-wiki-link`, `missing-fields`, `stale`, `unknown-type`, `articulation-point`, `bridge`, `periphery` |
 | `severity` | string | all | Filter output: `error` \| `warning` |
 | `wiki` | string | default | Target wiki name |
+| `summary` | bool | false | Return counts only — `total`, `errors`, `warnings`, `by_rule`; no `findings` array. Use on large wikis to identify which rules have findings before requesting the full list. |
+| `path_prefix` | string | — | Restrict findings to slugs starting with this prefix, e.g. `"nrg-architecture/studies"`. Applied after all rules run; does not affect counts in other fields when not combined with `summary`. |
+| `page_size` | integer | — | Maximum findings per response. When set, the response includes `has_more: bool` and `next_cursor: integer` for pagination. |
+| `cursor` | integer | 0 | Zero-based offset into the sorted findings list. Pass the `next_cursor` value from the previous response to advance. |
+
+## Call sequence for large wikis
+
+```
+wiki_lint(summary: true)
+```
+
+Returns `by_rule` counts — identify which rules have findings without paying
+the full output cost.
+
+```
+wiki_lint(rules: "missing-fields", path_prefix: "nrg-architecture/studies")
+```
+
+Narrow to a single rule and subtree.
+
+```
+wiki_lint(rules: "missing-fields", path_prefix: "nrg-architecture/studies", page_size: 100)
+wiki_lint(rules: "missing-fields", path_prefix: "nrg-architecture/studies", page_size: 100, cursor: 100)
+```
+
+Paginate only when the scoped result is still large (typically > 200 findings).
+Cursor values are stable within a session as long as the index is not rebuilt.
 
 ## Rules
 

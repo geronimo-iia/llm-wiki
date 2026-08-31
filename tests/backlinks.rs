@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 
+use llm_wiki_engine::config::{IngestConfig, Tokenizer};
 use llm_wiki_engine::git;
 use llm_wiki_engine::index_manager::SpaceIndexManager;
 use llm_wiki_engine::index_schema::IndexSchema;
@@ -9,12 +10,12 @@ use llm_wiki_engine::space_builder;
 use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 
 fn schema() -> IndexSchema {
-    let (_registry, schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
+    let (_registry, schema) = space_builder::build_space_from_embedded(&Tokenizer::EnStem).unwrap();
     schema
 }
 
 fn registry() -> SpaceTypeRegistry {
-    let (registry, _schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
+    let (registry, _schema) = space_builder::build_space_from_embedded(&Tokenizer::EnStem).unwrap();
     registry
 }
 
@@ -40,8 +41,15 @@ fn write_page(wiki_root: &Path, rel_path: &str, content: &str) {
 fn build_index(dir: &Path, wiki_root: &Path) -> SpaceIndexManager {
     let index_path = dir.join("index-store");
     git::commit(dir, "index pages").unwrap();
-    let mgr = SpaceIndexManager::new("test", &index_path);
-    mgr.rebuild(wiki_root, dir, &schema(), &registry()).unwrap();
+    let mgr = SpaceIndexManager::new("test", &index_path, 50_000_000);
+    mgr.rebuild(
+        wiki_root,
+        dir,
+        &schema(),
+        &registry(),
+        &IngestConfig::default(),
+    )
+    .unwrap();
     mgr.open(&schema(), None).unwrap();
     mgr
 }

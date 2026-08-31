@@ -26,7 +26,7 @@ pub fn search(
     params: &SearchParams<'_>,
 ) -> Result<search::SearchResult> {
     let space = engine.space(wiki_name)?;
-    let resolved = space.resolved_config(&engine.config);
+    let resolved = space.resolved_config();
 
     let opts = search::SearchOptions {
         no_excerpt: params.no_excerpt,
@@ -68,7 +68,7 @@ pub fn list(
     page_size: Option<usize>,
 ) -> Result<search::PageList> {
     let space = engine.space(wiki_name)?;
-    let resolved = space.resolved_config(&engine.config);
+    let resolved = space.resolved_config();
 
     let opts = search::ListOptions {
         r#type: type_filter.map(|s| s.to_string()),

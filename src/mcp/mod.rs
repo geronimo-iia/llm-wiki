@@ -20,7 +20,7 @@ use rmcp::service::{RequestContext, RoleServer};
 
 use crate::engine::{EngineState, WikiEngine};
 use crate::markdown;
-use crate::slug::{Slug, WikiUri};
+use crate::slug::WikiUri;
 
 // ── McpServer ─────────────────────────────────────────────────────────────────
 
@@ -38,29 +38,27 @@ impl McpServer {
     }
 
     /// Acquire a read guard on the engine state.
-    pub fn engine(&self) -> std::sync::RwLockReadGuard<'_, EngineState> {
-        self.manager.state.read().expect("engine lock poisoned")
+    pub fn engine(&self) -> Result<std::sync::RwLockReadGuard<'_, EngineState>, String> {
+        self.manager
+            .state
+            .read()
+            .map_err(|_| helpers::redact_error("engine lock poisoned"))
     }
 
     fn list_wiki_resources(&self) -> Vec<rmcp::model::Resource> {
-        let engine = match self.manager.state.read() {
-            Ok(e) => e,
+        let roots: Vec<(String, std::path::PathBuf)> = match self.manager.state.read() {
+            Ok(engine) => engine
+                .spaces
+                .iter()
+                .map(|(name, space)| (name.clone(), space.wiki_root.clone()))
+                .collect(),
             Err(_) => return vec![],
         };
         let mut resources = Vec::new();
-        for (wiki_name, space) in &engine.spaces {
-            let walker = walkdir::WalkDir::new(&space.wiki_root)
-                .into_iter()
-                .filter_map(|e| e.ok())
-                .filter(|e| {
-                    e.path().is_file()
-                        && e.path().extension().and_then(|x| x.to_str()) == Some("md")
-                });
-            for entry in walker {
-                if let Ok(slug) = Slug::from_path(entry.path(), &space.wiki_root) {
-                    let uri = format!("wiki://{wiki_name}/{slug}");
-                    resources.push(Resource::new(uri, slug.title()));
-                }
+        for (wiki_name, wiki_root) in &roots {
+            for slug in helpers::walk_wiki_slugs(wiki_root, wiki_root) {
+                let uri = format!("wiki://{wiki_name}/{slug}");
+                resources.push(Resource::new(uri, slug.title()));
             }
         }
         resources
@@ -92,13 +90,13 @@ impl ServerHandler for McpServer {
         }))
     }
 
-    fn call_tool(
+    async fn call_tool(
         &self,
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<CallToolResponse, McpError>> + Send + '_ {
+    ) -> Result<CallToolResponse, McpError> {
         let args = request.arguments.unwrap_or_default();
-        let result = tools::call(self, &request.name, &args);
+        let result = tokio::task::block_in_place(|| tools::call(self, &request.name, &args));
 
         // Send resource update notifications for ingested pages
         if !result.notify_uris.is_empty() {
@@ -136,7 +134,7 @@ impl ServerHandler for McpServer {
             CallToolResult::success(result.content)
         };
 
-        std::future::ready(Ok(tool_result.into()))
+        Ok(tool_result.into())
     }
 
     fn list_resources(
@@ -179,12 +177,12 @@ impl ServerHandler for McpServer {
                                 .with_mime_type("text/markdown"),
                         ])),
                         Err(e) => Err(McpError::internal_error(
-                            format!("failed to read: {e}"),
+                            helpers::redact_error(format!("failed to read: {e}")),
                             None,
                         )),
                     }
                 }
-                Err(e) => Err(McpError::invalid_params(format!("{e}"), None)),
+                Err(e) => Err(McpError::invalid_params(helpers::redact_error(e), None)),
             }
         } else {
             Err(McpError::invalid_params(

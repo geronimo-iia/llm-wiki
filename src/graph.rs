@@ -7,7 +7,10 @@ use anyhow::Result;
 use chrono::Utc;
 use petgraph::Direction;
 use petgraph::graph::{DiGraph, EdgeIndex, NodeIndex};
-use petgraph::visit::EdgeRef as _;
+use petgraph::visit::{
+    Data, EdgeRef as _, GraphBase, IntoEdgeReferences, IntoEdges, IntoNeighbors,
+    IntoNodeIdentifiers, NodeCount, NodeIndexable, Visitable,
+};
 use serde::{Deserialize, Serialize};
 use tantivy::Searcher;
 use tantivy::collector::TopDocs;
@@ -45,8 +48,219 @@ pub struct LabeledEdge {
     pub relation: String,
 }
 
+type InnerGraph = DiGraph<PageNode, LabeledEdge>;
+
 /// Directed graph type used for the wiki concept graph.
-pub type WikiGraph = DiGraph<PageNode, LabeledEdge>;
+/// Wraps petgraph `DiGraph` and maintains `slug_to_node` for O(1) slug lookup.
+#[derive(Clone)]
+pub struct WikiGraph {
+    inner: InnerGraph,
+    slug_to_node: HashMap<String, NodeIndex>,
+}
+
+impl WikiGraph {
+    /// Create an empty graph with no nodes or edges.
+    pub fn new() -> Self {
+        Self {
+            inner: InnerGraph::new(),
+            slug_to_node: HashMap::new(),
+        }
+    }
+
+    /// Return the `NodeIndex` for `slug`, or `None` if not present.
+    pub fn node_for_slug(&self, slug: &str) -> Option<NodeIndex> {
+        self.slug_to_node.get(slug).copied()
+    }
+
+    /// Add a page node and register it in the slug index; return its index.
+    pub fn add_node(&mut self, node: PageNode) -> NodeIndex {
+        let slug = node.slug.clone();
+        let idx = self.inner.add_node(node);
+        self.slug_to_node.insert(slug, idx);
+        idx
+    }
+
+    /// Add a directed edge from `a` to `b` with label `w`; return its index.
+    pub fn add_edge(&mut self, a: NodeIndex, b: NodeIndex, w: LabeledEdge) -> EdgeIndex {
+        self.inner.add_edge(a, b, w)
+    }
+
+    /// Iterate over all node indices in the graph.
+    pub fn node_indices(&self) -> impl Iterator<Item = NodeIndex> + '_ {
+        self.inner.node_indices()
+    }
+
+    /// Iterate over all edge indices in the graph.
+    pub fn edge_indices(&self) -> impl Iterator<Item = EdgeIndex> + '_ {
+        self.inner.edge_indices()
+    }
+
+    /// Return the total number of nodes.
+    pub fn node_count(&self) -> usize {
+        self.inner.node_count()
+    }
+
+    /// Return the total number of edges.
+    pub fn edge_count(&self) -> usize {
+        self.inner.edge_count()
+    }
+
+    /// Iterate over neighbors of `n` in direction `d` (Incoming or Outgoing).
+    pub fn neighbors_directed(
+        &self,
+        n: NodeIndex,
+        d: petgraph::Direction,
+    ) -> impl Iterator<Item = NodeIndex> + '_ {
+        self.inner.neighbors_directed(n, d)
+    }
+
+    /// Iterate over edges incident to `n` in direction `d`.
+    pub fn edges_directed(
+        &self,
+        n: NodeIndex,
+        d: petgraph::Direction,
+    ) -> petgraph::graph::Edges<'_, LabeledEdge, petgraph::Directed> {
+        self.inner.edges_directed(n, d)
+    }
+
+    /// Return the source and target node indices for edge `e`, or `None` if removed.
+    pub fn edge_endpoints(&self, e: EdgeIndex) -> Option<(NodeIndex, NodeIndex)> {
+        self.inner.edge_endpoints(e)
+    }
+
+    /// Find the edge index between `a` and `b`, or `None` if no such edge exists.
+    pub fn find_edge(&self, a: NodeIndex, b: NodeIndex) -> Option<EdgeIndex> {
+        self.inner.find_edge(a, b)
+    }
+
+    /// Iterate over neighbors of `n` ignoring edge direction.
+    pub fn neighbors_undirected(&self, n: NodeIndex) -> impl Iterator<Item = NodeIndex> + '_ {
+        self.inner.neighbors_undirected(n)
+    }
+
+    /// Iterate over all outgoing edges from `n`.
+    pub fn edges(
+        &self,
+        n: NodeIndex,
+    ) -> petgraph::graph::Edges<'_, LabeledEdge, petgraph::Directed> {
+        self.inner.edges(n)
+    }
+}
+
+impl std::ops::Index<NodeIndex> for WikiGraph {
+    type Output = PageNode;
+    fn index(&self, idx: NodeIndex) -> &PageNode {
+        &self.inner[idx]
+    }
+}
+
+impl std::ops::Index<EdgeIndex> for WikiGraph {
+    type Output = LabeledEdge;
+    fn index(&self, idx: EdgeIndex) -> &LabeledEdge {
+        &self.inner[idx]
+    }
+}
+
+impl Default for WikiGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl GraphBase for WikiGraph {
+    type NodeId = NodeIndex;
+    type EdgeId = EdgeIndex;
+}
+
+impl Data for WikiGraph {
+    type NodeWeight = PageNode;
+    type EdgeWeight = LabeledEdge;
+}
+
+impl NodeCount for WikiGraph {
+    fn node_count(&self) -> usize {
+        self.inner.node_count()
+    }
+}
+
+impl NodeIndexable for WikiGraph {
+    fn node_bound(&self) -> usize {
+        self.inner.node_bound()
+    }
+
+    fn to_index(&self, ix: NodeIndex) -> usize {
+        self.inner.to_index(ix)
+    }
+
+    fn from_index(&self, ix: usize) -> NodeIndex {
+        self.inner.from_index(ix)
+    }
+}
+
+impl Visitable for WikiGraph {
+    type Map = <InnerGraph as Visitable>::Map;
+
+    fn visit_map(&self) -> Self::Map {
+        self.inner.visit_map()
+    }
+
+    fn reset_map(&self, map: &mut Self::Map) {
+        self.inner.reset_map(map);
+    }
+}
+
+impl<'a> IntoNodeIdentifiers for &'a WikiGraph {
+    type NodeIdentifiers = <&'a InnerGraph as IntoNodeIdentifiers>::NodeIdentifiers;
+
+    fn node_identifiers(self) -> Self::NodeIdentifiers {
+        (&self.inner).node_identifiers()
+    }
+}
+
+impl<'a> IntoNeighbors for &'a WikiGraph {
+    type Neighbors = <&'a InnerGraph as IntoNeighbors>::Neighbors;
+
+    fn neighbors(self, n: NodeIndex) -> Self::Neighbors {
+        self.inner.neighbors(n)
+    }
+}
+
+impl<'a> IntoEdges for &'a WikiGraph {
+    type Edges = <&'a InnerGraph as IntoEdges>::Edges;
+
+    fn edges(self, a: NodeIndex) -> Self::Edges {
+        self.inner.edges(a)
+    }
+}
+
+impl<'a> IntoEdgeReferences for &'a WikiGraph {
+    type EdgeRef = <&'a InnerGraph as IntoEdgeReferences>::EdgeRef;
+    type EdgeReferences = <&'a InnerGraph as IntoEdgeReferences>::EdgeReferences;
+
+    fn edge_references(self) -> Self::EdgeReferences {
+        self.inner.edge_references()
+    }
+}
+
+impl Serialize for WikiGraph {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.inner.serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for WikiGraph {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let inner = InnerGraph::deserialize(d)?;
+        let slug_to_node = inner
+            .node_indices()
+            .map(|idx| (inner[idx].slug.clone(), idx))
+            .collect();
+        Ok(Self {
+            inner,
+            slug_to_node,
+        })
+    }
+}
 
 /// DiGraph never returns None for edges that exist in the graph.
 /// All call sites hold an EdgeIndex obtained from the same graph iteration,
@@ -57,7 +271,7 @@ fn endpoints(g: &WikiGraph, e: EdgeIndex) -> (NodeIndex, NodeIndex) {
 }
 
 /// Filtering parameters for graph construction and subgraph extraction.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct GraphFilter {
     /// Root slug for subgraph extraction (None = full graph).
     pub root: Option<String>,
@@ -67,6 +281,20 @@ pub struct GraphFilter {
     pub types: Vec<String>,
     /// Edge relation label to filter on (None = all relations).
     pub relation: Option<String>,
+    /// Maximum pages to fetch from the index in one pass (default: 100_000).
+    pub max_pages: usize,
+}
+
+impl Default for GraphFilter {
+    fn default() -> Self {
+        Self {
+            root: None,
+            depth: None,
+            types: Vec::new(),
+            relation: None,
+            max_pages: 100_000,
+        }
+    }
 }
 
 impl GraphFilter {
@@ -74,6 +302,8 @@ impl GraphFilter {
     /// `depth` is intentionally excluded: a depth-limited full graph still loads from the full
     /// snapshot cache and applies the hop limit at render time, so the cache key must not vary
     /// by depth.
+    /// `max_pages` intentionally excluded — fetch limit, not a graph structure filter;
+    /// must not affect snapshot cache key (same as depth).
     pub fn is_default(&self) -> bool {
         self.root.is_none() && self.types.is_empty() && self.relation.is_none()
     }
@@ -134,7 +364,7 @@ pub struct WikiGraphJson {
 /// Produces a `WikiGraphJson` with all nodes, edges, metrics, and community
 /// assignments. Edges reference nodes by slug. Community assignments are
 /// `null` for very small graphs (Louvain requires ≥ 3 nodes per group).
-pub fn render_json(graph: &WikiGraph) -> String {
+pub fn render_json(graph: &WikiGraph, min_nodes: usize) -> String {
     let nodes: Vec<JsonNode> = graph
         .node_indices()
         .map(|idx| {
@@ -164,7 +394,10 @@ pub fn render_json(graph: &WikiGraph) -> String {
         nodes,
         edges,
         metrics: compute_metrics(graph),
-        communities: node_community_map(graph, 3),
+        communities: node_community_map(graph, min_nodes).unwrap_or_else(|e| {
+            tracing::error!(error = %e, "community map computation failed; omitting from JSON output");
+            None
+        }),
     };
 
     serde_json::to_string_pretty(&output).unwrap_or_else(|e| {
@@ -239,9 +472,9 @@ pub struct CommunityStats {
     pub largest: usize,
     /// Size (node count) of the smallest cluster.
     pub smallest: usize,
-    /// Slugs of pages in communities of size ≤ 2 — weakly connected pages.
-    pub isolated: Vec<String>,
 }
+
+type CommunityPair = (Option<CommunityStats>, Option<HashMap<String, usize>>);
 
 /// Cached community detection results for a space.
 pub struct CommunityData {
@@ -328,9 +561,9 @@ fn louvain_phase1(
     community: &mut HashMap<NodeIndex, usize>,
     degrees: &HashMap<NodeIndex, usize>,
     m: usize,
-) -> bool {
+) -> Result<bool> {
     if m == 0 {
-        return false;
+        return Ok(false);
     }
     debug_assert!(
         community.len() == adj.len(),
@@ -351,6 +584,11 @@ fn louvain_phase1(
 
     loop {
         if pass >= max_passes {
+            tracing::warn!(
+                passes = pass,
+                nodes = sorted_nodes.len(),
+                "Louvain phase1 hit max_passes limit — possible oscillation on large graph"
+            );
             break;
         }
         pass += 1;
@@ -366,15 +604,17 @@ fn louvain_phase1(
         }
 
         for &node in &sorted_nodes {
-            let current_c = *community.get(&node).expect("node must be in community map");
+            let current_c = *community.get(&node).ok_or_else(|| {
+                anyhow::anyhow!("Louvain: node {:?} absent from community map", node)
+            })?;
             let k_i = *degrees.get(&node).unwrap_or(&0) as f64;
 
             // Gather neighboring communities and k_i_in for each
             let mut neighbor_c_edges: HashMap<usize, usize> = HashMap::new();
             for &nb in adj.get(&node).into_iter().flatten() {
-                let nb_c = *community
-                    .get(&nb)
-                    .expect("neighbour must be in community map");
+                let nb_c = *community.get(&nb).ok_or_else(|| {
+                    anyhow::anyhow!("Louvain: neighbour {:?} absent from community map", nb)
+                })?;
                 *neighbor_c_edges.entry(nb_c).or_default() += 1;
             }
 
@@ -416,19 +656,22 @@ fn louvain_phase1(
             break;
         }
     }
-    moved
+    Ok(moved)
 }
 
 /// Run Louvain community detection on `graph`. Returns `None` when local node count < `min_nodes`.
 /// Delegates to `build_community_data` — see its doc for algorithm details.
-pub fn compute_communities(graph: &WikiGraph, min_nodes: usize) -> Option<CommunityStats> {
-    build_community_data(graph, min_nodes).0
+pub fn compute_communities(graph: &WikiGraph, min_nodes: usize) -> Result<Option<CommunityStats>> {
+    Ok(build_community_data(graph, min_nodes)?.0)
 }
 
 /// Returns slug → community id map, or `None` when below threshold.
 /// Delegates to `build_community_data` — shares the same Louvain run as `compute_communities`.
-pub fn node_community_map(graph: &WikiGraph, min_nodes: usize) -> Option<HashMap<String, usize>> {
-    build_community_data(graph, min_nodes).1
+pub fn node_community_map(
+    graph: &WikiGraph,
+    min_nodes: usize,
+) -> Result<Option<HashMap<String, usize>>> {
+    Ok(build_community_data(graph, min_nodes)?.1)
 }
 
 // ── build_graph ───────────────────────────────────────────────────────────────
@@ -447,17 +690,21 @@ pub fn build_graph(
     let f_type = is.field("type");
     let f_body_links = is.field("body_links");
 
-    let top_docs = searcher.search(&AllQuery, &TopDocs::with_limit(100_000).order_by_score())?;
+    let top_docs = searcher.search(
+        &AllQuery,
+        &TopDocs::with_limit(filter.max_pages).order_by_score(),
+    )?;
 
-    if top_docs.len() >= 100_000 {
+    if top_docs.len() >= filter.max_pages {
         tracing::warn!(
             count = top_docs.len(),
-            "graph: TopDocs limit reached — index has ≥100 000 pages; graph may be silently truncated"
+            limit = filter.max_pages,
+            "graph: TopDocs limit reached — index has ≥{} pages; graph may be silently truncated",
+            filter.max_pages
         );
     }
 
     let mut graph = WikiGraph::new();
-    let mut slug_to_idx: HashMap<String, NodeIndex> = HashMap::new();
 
     struct DocInfo {
         slug: String,
@@ -497,8 +744,7 @@ pub fn build_graph(
             r#type: page_type.clone(),
             external: false,
         };
-        let idx = graph.add_node(node);
-        slug_to_idx.insert(slug.clone(), idx);
+        graph.add_node(node);
 
         // Read body wiki-links
         let body_links: Vec<String> = doc
@@ -530,8 +776,8 @@ pub fn build_graph(
 
     // Second pass: add edges
     for doc_info in &all_docs {
-        let from_idx = match slug_to_idx.get(&doc_info.slug) {
-            Some(idx) => *idx,
+        let from_idx = match graph.node_for_slug(&doc_info.slug) {
+            Some(idx) => idx,
             None => continue,
         };
 
@@ -549,7 +795,7 @@ pub fn build_graph(
             }
 
             for target in targets {
-                let to_idx = resolve_or_external(target, &mut graph, &mut slug_to_idx);
+                let to_idx = resolve_or_external(target, &mut graph);
                 if let Some(to_idx) = to_idx
                     && from_idx != to_idx
                 {
@@ -567,7 +813,7 @@ pub fn build_graph(
         // Body wiki-links → "links-to"
         if filter.relation.is_none() || filter.relation.as_deref() == Some("links-to") {
             for target in &doc_info.body_links {
-                let to_idx = resolve_or_external(target, &mut graph, &mut slug_to_idx);
+                let to_idx = resolve_or_external(target, &mut graph);
                 if let Some(to_idx) = to_idx
                     && from_idx != to_idx
                 {
@@ -596,28 +842,23 @@ pub fn build_graph(
 /// Resolve a target slug to a node index. If the target is a `wiki://` URI,
 /// insert an external placeholder node on demand. Returns `None` only for
 /// plain local slugs that don't exist in the index.
-fn resolve_or_external(
-    target: &str,
-    graph: &mut WikiGraph,
-    slug_to_idx: &mut HashMap<String, NodeIndex>,
-) -> Option<NodeIndex> {
+fn resolve_or_external(target: &str, graph: &mut WikiGraph) -> Option<NodeIndex> {
     if target.starts_with("wiki://") {
-        let key = target.to_string();
-        let idx = *slug_to_idx.entry(key.clone()).or_insert_with(|| {
-            let (_wiki, slug) = match ParsedLink::parse(target) {
-                ParsedLink::CrossWiki { wiki, slug } => (wiki, slug),
-                ParsedLink::Local(_) => ("external".to_string(), target.to_string()),
-            };
-            graph.add_node(PageNode {
-                slug: slug.clone(),
-                title: key.clone(),
-                r#type: "external".to_string(),
-                external: true,
-            })
+        if let Some(idx) = graph.node_for_slug(target) {
+            return Some(idx);
+        }
+        // slug = full URI so slug_to_node key matches node_for_slug(target) above.
+        // build_graph_cross_wiki uses node.title (not node.slug) for external resolution,
+        // so changing slug from the parsed short form to the full URI is safe.
+        let idx = graph.add_node(PageNode {
+            slug: target.to_string(),
+            title: target.to_string(),
+            r#type: "external".to_string(),
+            external: true,
         });
         Some(idx)
     } else {
-        slug_to_idx.get(target).copied()
+        graph.node_for_slug(target)
     }
 }
 
@@ -832,24 +1073,27 @@ pub fn render_llms(graph: &WikiGraph) -> String {
     let nodes = graph.node_count();
     let edges = graph.edge_count();
 
-    // Separate external placeholder nodes
-    let external_refs: Vec<String> = graph
-        .node_indices()
-        .filter(|&idx| graph[idx].external)
-        .map(|idx| graph[idx].title.clone())
-        .collect();
-
-    // Group local nodes by type
+    // Single pass: collect external refs, type groups, hub degrees, and isolated nodes.
+    let mut external_refs: Vec<String> = Vec::new();
     let mut by_type: HashMap<String, Vec<String>> = HashMap::new();
+    let mut degree: Vec<(usize, String)> = Vec::new();
+    let mut isolated: Vec<String> = Vec::new();
     for idx in graph.node_indices() {
         let node = &graph[idx];
+        let d = graph.neighbors_directed(idx, Direction::Incoming).count()
+            + graph.neighbors_directed(idx, Direction::Outgoing).count();
         if node.external {
-            continue;
+            external_refs.push(node.title.clone());
+        } else {
+            by_type
+                .entry(node.r#type.clone())
+                .or_default()
+                .push(node.title.clone());
         }
-        by_type
-            .entry(node.r#type.clone())
-            .or_default()
-            .push(node.title.clone());
+        degree.push((d, node.title.clone()));
+        if d == 0 {
+            isolated.push(node.title.clone());
+        }
     }
 
     // Sort type groups by count descending
@@ -866,37 +1110,12 @@ pub fn render_llms(graph: &WikiGraph) -> String {
     let mut relations: Vec<(String, usize)> = relation_counts.into_iter().collect();
     relations.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
 
-    // Compute per-node total degree for hub detection
-    let mut degree: Vec<(usize, String)> = graph
-        .node_indices()
-        .map(|idx| {
-            let d = graph.neighbors_directed(idx, Direction::Incoming).count()
-                + graph.neighbors_directed(idx, Direction::Outgoing).count();
-            (d, graph[idx].title.clone())
-        })
-        .collect();
     degree.sort_by_key(|a| Reverse(a.0));
     let top_hubs: Vec<String> = degree
         .iter()
         .take(5)
         .filter(|(d, _)| *d > 0)
         .map(|(d, t)| format!("{t} ({d} edges)"))
-        .collect();
-
-    // Isolated nodes (no edges at all)
-    let isolated: Vec<String> = graph
-        .node_indices()
-        .filter(|&idx| {
-            graph
-                .neighbors_directed(idx, Direction::Incoming)
-                .next()
-                .is_none()
-                && graph
-                    .neighbors_directed(idx, Direction::Outgoing)
-                    .next()
-                    .is_none()
-        })
-        .map(|idx| graph[idx].title.clone())
         .collect();
 
     let cluster_count = type_groups.len();
@@ -929,24 +1148,119 @@ pub fn render_llms(graph: &WikiGraph) -> String {
     }
 
     if !isolated.is_empty() {
-        out.push_str(&format!(
-            "\n**Isolated nodes ({}):** {}\n",
-            isolated.len(),
+        let total = isolated.len();
+        let listed = if total > 20 {
+            format!(
+                "{}, … and {} more (use wiki_lint(rules: \"orphan,periphery\") for the full list)",
+                isolated[..20].join(", "),
+                total - 20
+            )
+        } else {
             isolated.join(", ")
-        ));
+        };
+        out.push_str(&format!("\n**Isolated nodes ({total}):** {listed}\n"));
     }
 
     if !external_refs.is_empty() {
-        let mut sorted = external_refs.clone();
-        sorted.sort();
+        let mut external_refs = external_refs;
+        external_refs.sort();
         out.push_str(&format!(
             "\n**External references ({}):** {}\n",
-            sorted.len(),
-            sorted.join(", ")
+            external_refs.len(),
+            external_refs.join(", ")
         ));
     }
 
     out
+}
+
+// ── render_summary ────────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct HubEntry {
+    slug: String,
+    degree: usize,
+}
+
+#[derive(Serialize)]
+struct GraphSummary {
+    nodes: usize,
+    edges: usize,
+    external_refs: usize,
+    by_type: HashMap<String, usize>,
+    top_hubs: Vec<HubEntry>,
+    relation_counts: HashMap<String, usize>,
+    isolated_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    communities: Option<CommunityStats>,
+}
+
+/// Render context for `render_summary` — passed by the ops layer, which owns the cache.
+pub struct RenderContext {
+    /// Top-hub count (capped).
+    pub top_n: usize,
+    /// Pre-fetched from the community cache; `None` for cross-wiki or below threshold.
+    pub communities: Option<CommunityStats>,
+}
+
+/// Aggregate topology metrics — under 2KB at any scale. No node or edge enumeration.
+pub fn render_summary(graph: &WikiGraph, ctx: &RenderContext) -> String {
+    let nodes = graph.node_count();
+    let edges = graph.edge_count();
+
+    let mut external_refs = 0usize;
+    let mut by_type: HashMap<String, usize> = HashMap::new();
+    let mut degree: Vec<(usize, String)> = Vec::new();
+    let mut isolated_count = 0usize;
+
+    for idx in graph.node_indices() {
+        let node = &graph[idx];
+        let d = graph.neighbors_directed(idx, Direction::Incoming).count()
+            + graph.neighbors_directed(idx, Direction::Outgoing).count();
+        if node.external {
+            external_refs += 1;
+        } else {
+            *by_type.entry(node.r#type.clone()).or_default() += 1;
+        }
+        degree.push((d, node.slug.clone()));
+        if d == 0 {
+            isolated_count += 1;
+        }
+    }
+
+    degree.sort_by_key(|a| Reverse(a.0));
+    let top_hubs: Vec<HubEntry> = degree
+        .iter()
+        .take(ctx.top_n)
+        .filter(|(d, _)| *d > 0)
+        .map(|(d, s)| HubEntry {
+            slug: s.clone(),
+            degree: *d,
+        })
+        .collect();
+
+    let mut relation_counts: HashMap<String, usize> = HashMap::new();
+    for eidx in graph.edge_indices() {
+        *relation_counts
+            .entry(graph[eidx].relation.clone())
+            .or_default() += 1;
+    }
+
+    let summary = GraphSummary {
+        nodes,
+        edges,
+        external_refs,
+        by_type,
+        top_hubs,
+        relation_counts,
+        isolated_count,
+        communities: ctx.communities.clone(),
+    };
+
+    serde_json::to_string_pretty(&summary).unwrap_or_else(|e| {
+        tracing::error!(error = %e, "render_summary serialization failed");
+        "{}".to_string()
+    })
 }
 
 // ── render_mermaid ────────────────────────────────────────────────────────────
@@ -1089,10 +1403,7 @@ pub fn wrap_graph_md(rendered: &str, format: &str, filter: &GraphFilter) -> Stri
 
 /// Extract a BFS subgraph rooted at `root_slug` up to `depth` hops in both directions.
 pub fn subgraph(graph: &WikiGraph, root_slug: &str, depth: usize) -> WikiGraph {
-    let root_idx = match graph
-        .node_indices()
-        .find(|&idx| graph[idx].slug == root_slug)
-    {
+    let root_idx = match graph.node_for_slug(root_slug) {
         Some(idx) => idx,
         None => return WikiGraph::new(),
     };
@@ -1144,10 +1455,7 @@ pub fn subgraph(graph: &WikiGraph, root_slug: &str, depth: usize) -> WikiGraph {
 
 /// Run Louvain once and return both community outputs.
 /// Returns `(None, None)` when local node count < `min_nodes` (pass 0 to always run).
-fn build_community_data(
-    graph: &WikiGraph,
-    min_nodes: usize,
-) -> (Option<CommunityStats>, Option<HashMap<String, usize>>) {
+fn build_community_data(graph: &WikiGraph, min_nodes: usize) -> Result<CommunityPair> {
     let local_nodes: Vec<NodeIndex> = {
         let mut v: Vec<NodeIndex> = graph
             .node_indices()
@@ -1158,7 +1466,7 @@ fn build_community_data(
     };
 
     if local_nodes.len() < min_nodes {
-        return (None, None);
+        return Ok((None, None));
     }
 
     let adj = build_adjacency(graph);
@@ -1172,7 +1480,7 @@ fn build_community_data(
         .map(|(i, &n)| (n, i))
         .collect();
 
-    louvain_phase1(&adj, &mut community, &degrees, m);
+    louvain_phase1(&adj, &mut community, &degrees, m)?;
 
     // Normalize community ids to contiguous 0..k
     let mut id_remap: HashMap<usize, usize> = HashMap::new();
@@ -1180,7 +1488,7 @@ fn build_community_data(
     for &n in &local_nodes {
         let c = *community
             .get(&n)
-            .expect("node must be in community map after louvain_phase1");
+            .ok_or_else(|| anyhow::anyhow!("Louvain: node {:?} absent after phase1", n))?;
         id_remap.entry(c).or_insert_with(|| {
             let id = next_id;
             next_id += 1;
@@ -1188,7 +1496,9 @@ fn build_community_data(
         });
     }
     for val in community.values_mut() {
-        *val = *id_remap.get(val).expect("community id must exist in remap");
+        *val = *id_remap
+            .get(val)
+            .ok_or_else(|| anyhow::anyhow!("Louvain: community id {:?} absent from remap", val))?;
     }
 
     // Build community_map
@@ -1205,26 +1515,13 @@ fn build_community_data(
     }
     let largest = sizes.values().copied().max().unwrap_or(0);
     let smallest = sizes.values().copied().min().unwrap_or(0);
-    let mut isolated: Vec<String> = local_nodes
-        .iter()
-        .filter(|&&n| {
-            let c = *community
-                .get(&n)
-                .expect("node must be in community map after remap");
-            *sizes.get(&c).unwrap_or(&0) <= 2
-        })
-        .map(|&n| graph[n].slug.clone())
-        .collect();
-    isolated.sort();
-
     let stats = CommunityStats {
         count,
         largest,
         smallest,
-        isolated,
     };
 
-    (Some(stats), Some(community_map))
+    Ok((Some(stats), Some(community_map)))
 }
 
 // ── Cached graph accessors ───────────────────────────────────────────────────
@@ -1258,6 +1555,43 @@ pub fn get_or_build_graph(
     })
 }
 
+fn ensure_community_data(
+    index_schema: &IndexSchema,
+    type_registry: &SpaceTypeRegistry,
+    index_manager: &SpaceIndexManager,
+    graph_cache: &WikiGraphCache,
+    community_cache: &petgraph_live::cache::GenerationCache<CommunityData>,
+    searcher: &Searcher,
+) -> Result<std::sync::Arc<CommunityData>> {
+    // generation() increments on every reload_reader() call. last_commit() is NOT used
+    // because same-commit schema-triggered rebuilds produce a new index without changing
+    // the commit hash — those must also invalidate the graph cache.
+    let current_gen = index_manager.generation();
+    community_cache.get_or_build(current_gen, || -> Result<CommunityData> {
+        let graph = graph_cache.get_fresh(current_gen, || {
+            build_graph(
+                searcher,
+                index_schema,
+                &GraphFilter::default(),
+                type_registry,
+            )
+        })?;
+        let local_count = graph.node_indices().filter(|&i| !graph[i].external).count();
+        let (stats_opt, map_opt) = build_community_data(&graph, 0)?;
+        let stats = stats_opt.unwrap_or(CommunityStats {
+            count: 0,
+            largest: 0,
+            smallest: 0,
+        });
+        let map = map_opt.unwrap_or_default();
+        Ok(CommunityData {
+            local_count,
+            map: Arc::new(map),
+            stats,
+        })
+    })
+}
+
 /// Return cached community map, or None if graph is below `min_nodes` threshold.
 ///
 /// Hot path (both caches warm): community_cache hits immediately — graph_cache not touched.
@@ -1271,36 +1605,14 @@ pub fn get_cached_community_map(
     searcher: &Searcher,
     min_nodes: usize,
 ) -> Result<Option<Arc<HashMap<String, usize>>>> {
-    // generation() increments on every reload_reader() call. last_commit() is NOT used
-    // because same-commit schema-triggered rebuilds produce a new index without changing
-    // the commit hash — those must also invalidate the graph cache.
-    let current_gen = index_manager.generation();
-
-    let community = community_cache.get_or_build(current_gen, || -> Result<CommunityData> {
-        let graph = graph_cache.get_fresh(current_gen, || {
-            build_graph(
-                searcher,
-                index_schema,
-                &GraphFilter::default(),
-                type_registry,
-            )
-        })?;
-        let local_count = graph.node_indices().filter(|&i| !graph[i].external).count();
-        let (stats_opt, map_opt) = build_community_data(&graph, 0);
-        let stats = stats_opt.unwrap_or(CommunityStats {
-            count: 0,
-            largest: 0,
-            smallest: 0,
-            isolated: vec![],
-        });
-        let map = map_opt.unwrap_or_default();
-        Ok(CommunityData {
-            local_count,
-            map: Arc::new(map),
-            stats,
-        })
-    })?;
-
+    let community = ensure_community_data(
+        index_schema,
+        type_registry,
+        index_manager,
+        graph_cache,
+        community_cache,
+        searcher,
+    )?;
     if community.local_count < min_nodes {
         return Ok(None);
     }
@@ -1319,36 +1631,14 @@ pub fn get_cached_community_stats(
     searcher: &Searcher,
     min_nodes: usize,
 ) -> Result<Option<CommunityStats>> {
-    // generation() increments on every reload_reader() call. last_commit() is NOT used
-    // because same-commit schema-triggered rebuilds produce a new index without changing
-    // the commit hash — those must also invalidate the graph cache.
-    let current_gen = index_manager.generation();
-
-    let community = community_cache.get_or_build(current_gen, || -> Result<CommunityData> {
-        let graph = graph_cache.get_fresh(current_gen, || {
-            build_graph(
-                searcher,
-                index_schema,
-                &GraphFilter::default(),
-                type_registry,
-            )
-        })?;
-        let local_count = graph.node_indices().filter(|&i| !graph[i].external).count();
-        let (stats_opt, map_opt) = build_community_data(&graph, 0);
-        let stats = stats_opt.unwrap_or(CommunityStats {
-            count: 0,
-            largest: 0,
-            smallest: 0,
-            isolated: vec![],
-        });
-        let map = map_opt.unwrap_or_default();
-        Ok(CommunityData {
-            local_count,
-            map: Arc::new(map),
-            stats,
-        })
-    })?;
-
+    let community = ensure_community_data(
+        index_schema,
+        type_registry,
+        index_manager,
+        graph_cache,
+        community_cache,
+        searcher,
+    )?;
     if community.local_count < min_nodes {
         return Ok(None);
     }
@@ -1384,7 +1674,7 @@ mod tests {
             },
         );
 
-        let json_str = render_json(&g);
+        let json_str = render_json(&g, 3);
         let v: Value =
             serde_json::from_str(&json_str).expect("render_json must produce valid JSON");
 
@@ -1418,7 +1708,7 @@ mod tests {
     #[test]
     fn render_json_empty_graph() {
         let g = WikiGraph::new();
-        let json_str = render_json(&g);
+        let json_str = render_json(&g, 3);
         let v: serde_json::Value = serde_json::from_str(&json_str).unwrap();
         assert_eq!(v["nodes"].as_array().unwrap().len(), 0);
         assert_eq!(v["edges"].as_array().unwrap().len(), 0);
@@ -1445,7 +1735,6 @@ mod tests {
                 count: 1,
                 largest: 1,
                 smallest: 1,
-                isolated: vec![],
             },
         };
         assert_eq!(data.local_count, 3);
@@ -1464,7 +1753,7 @@ mod tests {
 
     #[test]
     fn render_mermaid_node_ids_are_valid_and_unique() {
-        let mut g: WikiGraph = DiGraph::new();
+        let mut g = WikiGraph::new();
         // Titles with spaces, special chars, angle brackets — all would break old mermaid_id
         let a = g.add_node(make_node(
             "concepts/arc-str",
@@ -1535,7 +1824,7 @@ mod tests {
 
     #[test]
     fn render_mermaid_external_node_id_valid() {
-        let mut g: WikiGraph = DiGraph::new();
+        let mut g = WikiGraph::new();
         let local = g.add_node(make_node("concepts/foo", "Foo Concept", "concept", false));
         let ext = g.add_node(make_node("bar", "wiki://otherwiki/bar", "external", true));
         g.add_edge(
@@ -1620,7 +1909,7 @@ mod tests {
         // Each node starts in its own community
         let mut community: HashMap<NodeIndex, usize> = (0..8usize).map(|i| (make(i), i)).collect();
 
-        louvain_phase1(&adj, &mut community, &degrees, m);
+        louvain_phase1(&adj, &mut community, &degrees, m).unwrap();
 
         // All cluster A nodes must share one community id
         let ca: HashSet<usize> = cluster_a.iter().map(|n| community[n]).collect();
@@ -1677,12 +1966,100 @@ mod tests {
         // Run 12 times; each run must converge (second pass makes no moves).
         for run in 0..12 {
             let mut community: HashMap<NodeIndex, usize> = (0..n).map(|i| (make(i), i)).collect();
-            louvain_phase1(&adj, &mut community, &degrees, m);
-            let moved = louvain_phase1(&adj, &mut community, &degrees, m);
+            louvain_phase1(&adj, &mut community, &degrees, m).unwrap();
+            let moved = louvain_phase1(&adj, &mut community, &degrees, m).unwrap();
             assert!(
                 !moved,
                 "run {run}: second louvain_phase1 pass on a converged partition should make no moves — oscillation detected"
             );
         }
+    }
+
+    #[test]
+    fn wiki_graph_node_for_slug_is_o1() {
+        let mut g = WikiGraph::new();
+        g.add_node(PageNode {
+            slug: "alpha".into(),
+            title: "Alpha".into(),
+            r#type: "page".into(),
+            external: false,
+        });
+        g.add_node(PageNode {
+            slug: "beta".into(),
+            title: "Beta".into(),
+            r#type: "page".into(),
+            external: false,
+        });
+        assert!(g.node_for_slug("alpha").is_some());
+        assert!(g.node_for_slug("beta").is_some());
+        assert!(g.node_for_slug("missing").is_none());
+    }
+
+    #[test]
+    fn subgraph_root_not_found_returns_empty() {
+        let g = WikiGraph::new();
+        let sub = subgraph(&g, "no-such-slug", 2);
+        assert_eq!(sub.node_count(), 0);
+        assert_eq!(sub.edge_count(), 0);
+    }
+
+    #[test]
+    fn subgraph_single_node_depth_zero() {
+        let mut g = WikiGraph::new();
+        g.add_node(PageNode {
+            slug: "root".into(),
+            title: "Root".into(),
+            r#type: "page".into(),
+            external: false,
+        });
+        g.add_node(PageNode {
+            slug: "other".into(),
+            title: "Other".into(),
+            r#type: "page".into(),
+            external: false,
+        });
+        g.add_edge(
+            g.node_for_slug("root").unwrap(),
+            g.node_for_slug("other").unwrap(),
+            LabeledEdge {
+                relation: "links-to".into(),
+            },
+        );
+        let sub = subgraph(&g, "root", 0);
+        assert_eq!(sub.node_count(), 1);
+    }
+
+    #[test]
+    fn compute_metrics_empty_graph_all_zeros() {
+        let g = WikiGraph::new();
+        let m = compute_metrics(&g);
+        assert_eq!(m.nodes, 0);
+        assert_eq!(m.edges, 0);
+        assert_eq!(m.orphans, 0);
+        assert_eq!(m.avg_connections, 0.0);
+        assert_eq!(m.density, 0.0);
+    }
+
+    #[test]
+    fn compute_metrics_triangle_has_correct_values() {
+        // 3 nodes, 3 directed edges a→b, b→c, c→a — no orphans
+        let mut g = WikiGraph::new();
+        let a = g.add_node(make_node("a", "A", "note", false));
+        let b = g.add_node(make_node("b", "B", "note", false));
+        let c = g.add_node(make_node("c", "C", "note", false));
+        let edge = || LabeledEdge {
+            relation: "links-to".to_string(),
+        };
+        g.add_edge(a, b, edge());
+        g.add_edge(b, c, edge());
+        g.add_edge(c, a, edge());
+        let m = compute_metrics(&g);
+        assert_eq!(m.nodes, 3);
+        assert_eq!(m.edges, 3);
+        assert_eq!(m.orphans, 0);
+        // avg_connections = edges*2 / nodes = 6/3 = 2.0
+        assert!((m.avg_connections - 2.0).abs() < 1e-9);
+        // density = edges / (nodes*(nodes-1)) = 3/6 = 0.5
+        assert!((m.density - 0.5).abs() < 1e-9);
     }
 }

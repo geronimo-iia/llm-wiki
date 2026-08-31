@@ -9,6 +9,7 @@ mod hot_reload;
 mod index;
 mod ingest;
 mod logs;
+mod migrate;
 mod schema;
 mod search;
 mod spaces;

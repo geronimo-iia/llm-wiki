@@ -45,7 +45,7 @@ fn hot_reload_mount_wiki_makes_it_searchable() {
     manager.mount_wiki(&entry).unwrap();
 
     // Search beta — should find the page
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let results = ops::search(
         &engine,
         "beta",
@@ -79,7 +79,7 @@ fn hot_reload_unmount_wiki_removes_from_search() {
 
     // Verify beta is mounted
     {
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         assert!(engine.space("beta").is_ok());
     }
 
@@ -87,7 +87,7 @@ fn hot_reload_unmount_wiki_removes_from_search() {
     ops::spaces_remove("beta", false, &config_path, Some(&manager)).unwrap();
 
     // Verify beta is no longer mounted
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     assert!(engine.space("beta").is_err());
 }
 
@@ -153,7 +153,7 @@ fn hot_reload_set_default_updates_engine() {
     ops::spaces_set_default("beta", &config_path, Some(&manager)).unwrap();
 
     // Verify engine state updated
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     assert_eq!(engine.default_wiki_name(), Some("beta"));
 }
 
@@ -192,7 +192,7 @@ fn hot_reload_cross_wiki_search_reflects_new_wiki() {
     manager.mount_wiki(&entry).unwrap();
 
     // Cross-wiki search from alpha should find beta's page
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let results = ops::search(
         &engine,
         "alpha",
@@ -236,7 +236,7 @@ fn spaces_create_set_default_updates_engine() {
     .unwrap();
 
     // Engine default must update in-process without restart.
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     assert_eq!(engine.default_wiki_name(), Some("beta"));
 }
 
@@ -281,7 +281,7 @@ fn spaces_create_mount_failure_rolls_back_config() {
     );
 
     // Engine must not have beta mounted.
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     assert!(engine.space("beta").is_err(), "beta must not be mounted");
 }
 
@@ -314,6 +314,6 @@ fn spaces_register_mount_failure_rolls_back_config() {
         "beta must be absent from config after rollback"
     );
 
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     assert!(engine.space("beta").is_err(), "beta must not be mounted");
 }

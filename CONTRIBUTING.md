@@ -49,6 +49,12 @@ crate as a dependency.
 See [docs/implementation/rust.md](docs/implementation/rust.md) for toolchain
 details, error handling conventions, testing patterns, and code quality rules.
 
+## Local Testing
+
+Test the local binary and skills plugin against a real wiki before publishing:
+
+See [docs/guides/local-testing.md](docs/guides/local-testing.md).
+
 ## Release Process
 
 See [docs/guides/release.md](docs/guides/release.md) for the full checklist, branch strategy, and tagging instructions.

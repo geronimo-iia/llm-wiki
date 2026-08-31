@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use llm_wiki_engine::config::SearchConfig;
+use llm_wiki_engine::config::{IngestConfig, SearchConfig, Tokenizer};
 use llm_wiki_engine::git;
 use llm_wiki_engine::index_manager::SpaceIndexManager;
 use llm_wiki_engine::index_schema::IndexSchema;
@@ -10,12 +10,12 @@ use llm_wiki_engine::space_builder;
 use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 
 fn schema() -> IndexSchema {
-    let (_registry, schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
+    let (_registry, schema) = space_builder::build_space_from_embedded(&Tokenizer::EnStem).unwrap();
     schema
 }
 
 fn registry() -> SpaceTypeRegistry {
-    let (registry, _schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
+    let (registry, _schema) = space_builder::build_space_from_embedded(&Tokenizer::EnStem).unwrap();
     registry
 }
 
@@ -61,8 +61,15 @@ fn section_page(title: &str) -> String {
 fn build_index(dir: &Path, wiki_root: &Path) -> SpaceIndexManager {
     let index_path = dir.join("index-store");
     git::commit(dir, "index pages").unwrap();
-    let mgr = SpaceIndexManager::new("test", &index_path);
-    mgr.rebuild(wiki_root, dir, &schema(), &registry()).unwrap();
+    let mgr = SpaceIndexManager::new("test", &index_path, 50_000_000);
+    mgr.rebuild(
+        wiki_root,
+        dir,
+        &schema(),
+        &registry(),
+        &IngestConfig::default(),
+    )
+    .unwrap();
     mgr.open(&schema(), None).unwrap();
     mgr
 }
@@ -394,6 +401,48 @@ fn list_tags_multiple() {
     let mut tags = result.pages[0].tags.clone();
     tags.sort();
     assert_eq!(tags, vec!["deep learning", "machine learning", "nlp"]);
+}
+
+#[test]
+fn list_tags_facet_counts_multi_value_doc() {
+    // One doc with two tags: "ml" and "nlp". Facet counts must show ml:1, nlp:1.
+    // This catches a collector that reads only the first term ordinal per doc.
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/a.md",
+        "---\ntitle: \"A\"\nstatus: active\ntype: concept\ntags:\n  - ml\n  - nlp\n---\n\nbody\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/b.md",
+        "---\ntitle: \"B\"\nstatus: active\ntype: concept\ntags:\n  - nlp\n---\n\nbody\n",
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions {
+            facets_top_tags: 10,
+            ..ListOptions::default()
+        },
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert_eq!(
+        result.facets.tags.get("ml").copied(),
+        Some(1),
+        "ml must appear in facets with count 1"
+    );
+    assert_eq!(
+        result.facets.tags.get("nlp").copied(),
+        Some(2),
+        "nlp must appear in both docs — count must be 2"
+    );
 }
 
 #[test]

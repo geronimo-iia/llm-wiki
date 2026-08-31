@@ -35,7 +35,7 @@ struct RedactPattern {
 
 // ── Built-in patterns ─────────────────────────────────────────────────────────
 
-fn builtin_patterns() -> Vec<RedactPattern> {
+static BUILTIN_PATTERNS: std::sync::LazyLock<Vec<RedactPattern>> = std::sync::LazyLock::new(|| {
     let specs: &[(&'static str, &'static str, &'static str)] = &[
         (
             "github-pat",
@@ -72,7 +72,7 @@ fn builtin_patterns() -> Vec<RedactPattern> {
             replacement: rep,
         })
         .collect()
-}
+});
 
 // ── Pattern builder ───────────────────────────────────────────────────────────
 
@@ -86,12 +86,12 @@ fn build_patterns(config: &RedactConfig) -> Vec<CompiledPattern> {
     let disabled: std::collections::HashSet<&str> =
         config.disable.iter().map(String::as_str).collect();
 
-    let mut patterns: Vec<CompiledPattern> = builtin_patterns()
-        .into_iter()
+    let mut patterns: Vec<CompiledPattern> = BUILTIN_PATTERNS
+        .iter()
         .filter(|p| !disabled.contains(p.name))
         .map(|p| CompiledPattern {
             name: p.name.to_string(),
-            regex: p.regex,
+            regex: p.regex.clone(),
             replacement: p.replacement.to_string(),
         })
         .collect();

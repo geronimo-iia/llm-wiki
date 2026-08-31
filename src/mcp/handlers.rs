@@ -1,30 +1,11 @@
-use std::sync::LazyLock;
-
 use rmcp::model::ContentBlock as Content;
 use serde_json::{Map, Value};
 
 use crate::ops;
-use crate::slug::{ReadTarget, WikiUri, resolve_read_target};
+use crate::slug::{ReadTarget, Slug, WikiUri, resolve_read_target};
 
 use super::McpServer;
 use super::helpers::*;
-
-static PATH_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
-    // Two alternatives:
-    //   /[a-zA-Z0-9_./-]{3,}  — absolute Unix paths starting with /
-    //   ~[a-zA-Z0-9_./~-]{2,} — tilde-prefixed paths (~/ or ~user/)
-    regex::Regex::new(r"(?:/[a-zA-Z0-9_./-]{3,}|~[a-zA-Z0-9_./~-]{2,})").unwrap()
-});
-
-/// Redact filesystem paths from an error message before sending to LLM clients.
-///
-/// Strips absolute and tilde-prefixed Unix paths so that
-/// `failed to open /home/user/wikis/my-wiki/search-index/state.toml: No such file`
-/// becomes `failed to open <path>: No such file`, and
-/// `config at ~/wikis/foo` becomes `config at <path>`.
-fn redact_error(e: impl std::fmt::Display) -> String {
-    PATH_RE.replace_all(&format!("{e}"), "<path>").into_owned()
-}
 
 // ── Spaces ────────────────────────────────────────────────────────────────────
 
@@ -38,7 +19,7 @@ pub fn handle_spaces_create(server: &McpServer, args: &Map<String, Value>) -> To
     let wiki_root = arg_str(args, "wiki_root");
 
     let config_path = {
-        let engine = server.engine();
+        let engine = server.engine()?;
         engine.config_path.clone()
     };
     let report = ops::spaces_create(
@@ -72,7 +53,7 @@ pub fn handle_spaces_register(server: &McpServer, args: &Map<String, Value>) -> 
     let wiki_root = arg_str(args, "wiki_root");
 
     let config_path = {
-        let engine = server.engine();
+        let engine = server.engine()?;
         engine.config_path.clone()
     };
     let report = ops::spaces_register(
@@ -96,7 +77,7 @@ pub fn handle_spaces_register(server: &McpServer, args: &Map<String, Value>) -> 
 
 /// Handle `wiki_spaces_list` — list registered wiki spaces.
 pub fn handle_spaces_list(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
-    let engine = server.engine();
+    let engine = server.engine()?;
     let name = arg_str(args, "name");
     let entries = ops::spaces_list(&engine.config, name.as_deref());
     let s = serde_json::to_string_pretty(&entries).map_err(redact_error)?;
@@ -108,7 +89,7 @@ pub fn handle_spaces_remove(server: &McpServer, args: &Map<String, Value>) -> To
     let name = arg_str_req(args, "name")?;
     let delete = arg_bool(args, "delete");
     let config_path = {
-        let engine = server.engine();
+        let engine = server.engine()?;
         engine.config_path.clone()
     };
     ops::spaces_remove(&name, delete, &config_path, Some(&server.manager)).map_err(redact_error)?;
@@ -122,7 +103,7 @@ pub fn handle_spaces_set_default(
 ) -> ToolHandlerResult {
     let name = arg_str_req(args, "name")?;
     let config_path = {
-        let engine = server.engine();
+        let engine = server.engine()?;
         engine.config_path.clone()
     };
     ops::spaces_set_default(&name, &config_path, Some(&server.manager)).map_err(redact_error)?;
@@ -134,7 +115,7 @@ pub fn handle_spaces_set_default(
 /// Handle `wiki_config` — get, set, or list configuration values.
 pub fn handle_config(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let action = arg_str_req(args, "action")?;
-    let engine = server.engine();
+    let engine = server.engine()?;
     let config_path = &engine.config_path;
 
     match action.as_str() {
@@ -144,7 +125,9 @@ pub fn handle_config(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
         }
         "get" => {
             let key = arg_str_req(args, "key")?;
-            let val = ops::config_get(config_path, &key).map_err(redact_error)?;
+            let wiki_name = arg_str(args, "wiki");
+            let val =
+                ops::config_get(config_path, &key, wiki_name.as_deref()).map_err(redact_error)?;
             ok_text(format!("{key}: {val}"))
         }
         "set" => {
@@ -165,7 +148,7 @@ pub fn handle_config(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
 /// Handle `wiki_content_read` — read a page or list its co-located assets.
 pub fn handle_content_read(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let uri = arg_str_req(args, "uri")?;
-    let engine = server.engine();
+    let engine = server.engine()?;
     let wiki_flag = arg_str(args, "wiki");
     let no_frontmatter = arg_bool(args, "no_frontmatter");
     let list_assets = arg_bool(args, "list_assets");
@@ -211,15 +194,15 @@ pub fn handle_content_read(server: &McpServer, args: &Map<String, Value>) -> Too
 pub fn handle_content_write(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let uri = arg_str_req(args, "uri")?;
     let content = arg_str_req(args, "content")?;
-    const MAX_CONTENT_BYTES: usize = 10 * 1024 * 1024;
-    if content.len() > MAX_CONTENT_BYTES {
+    let engine = server.engine()?;
+    let max_content_bytes = engine.config.defaults.max_content_bytes;
+    if content.len() > max_content_bytes {
         return Err(format!(
             "content exceeds maximum allowed size of {} bytes (got {})",
-            MAX_CONTENT_BYTES,
+            max_content_bytes,
             content.len()
         ));
     }
-    let engine = server.engine();
     let wiki_flag = arg_str(args, "wiki");
 
     let result =
@@ -235,7 +218,7 @@ pub fn handle_content_new(server: &McpServer, args: &Map<String, Value>) -> Tool
     let name = arg_str(args, "name");
     let type_ = arg_str(args, "type");
 
-    let engine = server.engine();
+    let engine = server.engine()?;
     let wiki_flag = arg_str(args, "wiki");
 
     let result = ops::content_new(
@@ -260,7 +243,7 @@ pub fn handle_content_new(server: &McpServer, args: &Map<String, Value>) -> Tool
 /// Handle `wiki_resolve` — resolve a slug or URI to its filesystem path.
 pub fn handle_resolve(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let uri = arg_str_req(args, "uri")?;
-    let engine = server.engine();
+    let engine = server.engine()?;
     let wiki_flag = arg_str(args, "wiki");
 
     let (entry, slug) =
@@ -295,13 +278,19 @@ pub fn handle_resolve(server: &McpServer, args: &Map<String, Value>) -> ToolHand
 
 /// Handle `wiki_content_commit` — commit pending changes to git.
 pub fn handle_content_commit(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
-    let engine = server.engine();
+    let slugs: Vec<String> = match arg_str(args, "slugs") {
+        None => Vec::new(),
+        Some(s) => s
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| Slug::try_from(s).map(|_| s.to_string()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(redact_error)?,
+    };
+    let engine = server.engine()?;
     let wiki_name = resolve_wiki_name(&engine, args)?;
     let message = arg_str(args, "message");
-
-    let slugs: Vec<String> = arg_str(args, "slugs")
-        .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
-        .unwrap_or_default();
     let all = slugs.is_empty();
 
     let hash = ops::content_commit(&engine, &wiki_name, &slugs, all, message.as_deref())
@@ -321,7 +310,7 @@ pub fn handle_search(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
     let query = arg_str_req(args, "query")?;
     let cross_wiki = arg_bool(args, "cross_wiki");
     let format = arg_str(args, "format");
-    let engine = server.engine();
+    let engine = server.engine()?;
     let wiki_name = resolve_wiki_name(&engine, args)?;
 
     let results = ops::search(
@@ -357,7 +346,7 @@ pub fn handle_search(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
 
 /// Handle `wiki_list` — paginated page listing with optional type/status filters.
 pub fn handle_list(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
-    let engine = server.engine();
+    let engine = server.engine()?;
     let wiki_name = resolve_wiki_name(&engine, args)?;
     let format = arg_str(args, "format");
 
@@ -389,7 +378,7 @@ pub fn handle_ingest(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
 
     // Read path: ingest (ops handles WikiEngine mutation internally)
     let (report, wiki_name, notify_uris) = {
-        let engine = server.engine();
+        let engine = server.engine()?;
         let wiki_name = resolve_wiki_name(&engine, args)?;
 
         let report =
@@ -417,7 +406,7 @@ pub fn handle_ingest(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
 /// Handle `wiki_index_rebuild` — rebuild the tantivy search index from scratch.
 pub fn handle_index_rebuild(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let wiki_name = {
-        let engine = server.engine();
+        let engine = server.engine()?;
         resolve_wiki_name(&engine, args)?
     };
 
@@ -434,7 +423,7 @@ pub fn handle_index_rebuild(server: &McpServer, args: &Map<String, Value>) -> To
 
 /// Handle `wiki_index_status` — report health and staleness of the search index.
 pub fn handle_index_status(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
-    let engine = server.engine();
+    let engine = server.engine()?;
     let wiki_name = resolve_wiki_name(&engine, args)?;
 
     let status = ops::index_status(&engine, &wiki_name).map_err(redact_error)?;
@@ -446,20 +435,23 @@ pub fn handle_index_status(server: &McpServer, args: &Map<String, Value>) -> Too
 
 /// Handle `wiki_graph` — build and render the concept graph.
 pub fn handle_graph(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
-    let engine = server.engine();
+    let engine = server.engine()?;
     let wiki_name = resolve_wiki_name(&engine, args)?;
 
     let result = ops::graph_build(
         &engine,
         &wiki_name,
         &ops::GraphParams {
-            format: arg_str(args, "format").as_deref(),
+            format: arg_str(args, "format")
+                .map(|s| s.parse::<ops::GraphRenderFormat>().map_err(redact_error))
+                .transpose()?,
             root: arg_str(args, "root"),
             depth: arg_usize(args, "depth"),
             type_filter: arg_str(args, "type").as_deref(),
             relation: arg_str(args, "relation"),
             output: arg_str(args, "output").as_deref(),
             cross_wiki: arg_bool(args, "cross_wiki"),
+            limit: arg_usize(args, "limit"),
         },
     )
     .map_err(redact_error)?;
@@ -478,7 +470,7 @@ pub fn handle_history(server: &McpServer, args: &Map<String, Value>) -> ToolHand
     let follow = args.get("follow").and_then(|v| v.as_bool());
     let wiki_flag = arg_str(args, "wiki");
 
-    let engine = server.engine();
+    let engine = server.engine()?;
     let result =
         ops::history(&engine, &slug, wiki_flag.as_deref(), limit, follow).map_err(redact_error)?;
     let s = serde_json::to_string_pretty(&result).map_err(redact_error)?;
@@ -487,21 +479,39 @@ pub fn handle_history(server: &McpServer, args: &Map<String, Value>) -> ToolHand
 
 /// Handle `wiki_stats` — return aggregate health and coverage stats for a wiki.
 pub fn handle_stats(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
-    let engine = server.engine();
+    let engine = server.engine()?;
     let wiki_name = resolve_wiki_name(&engine, args)?;
-    let result = ops::stats(&engine, &wiki_name).map_err(redact_error)?;
+    let detail_str = arg_str(args, "detail");
+    let detail = match detail_str.as_deref() {
+        Some("full") => ops::StatsDetail::Full,
+        _ => ops::StatsDetail::Summary,
+    };
+    let result =
+        ops::stats(&engine, &wiki_name, &ops::StatsOptions { detail }).map_err(redact_error)?;
     let s = serde_json::to_string_pretty(&result).map_err(redact_error)?;
     ok_text(s)
 }
 
 /// Handle `wiki_lint` — run deterministic lint rules and return findings.
 pub fn handle_lint(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
-    let engine = server.engine();
+    let engine = server.engine()?;
     let wiki_name = resolve_wiki_name(&engine, args)?;
     let rules = arg_str(args, "rules");
     let severity = arg_str(args, "severity");
-    let result = ops::run_lint(&engine, &wiki_name, rules.as_deref(), severity.as_deref())
-        .map_err(redact_error)?;
+    let path_prefix = arg_str(args, "path_prefix");
+    let result = ops::run_lint(
+        &engine,
+        &wiki_name,
+        &ops::LintOptions {
+            rules: rules.as_deref(),
+            severity: severity.as_deref(),
+            summary: arg_bool(args, "summary"),
+            path_prefix: path_prefix.as_deref(),
+            page_size: arg_usize(args, "page_size"),
+            cursor: arg_usize(args, "cursor"),
+        },
+    )
+    .map_err(redact_error)?;
     let s = serde_json::to_string_pretty(&result).map_err(redact_error)?;
     ok_text(s)
 }
@@ -513,7 +523,7 @@ pub fn handle_suggest(server: &McpServer, args: &Map<String, Value>) -> ToolHand
     let slug = raw_slug;
     let limit = arg_usize(args, "limit");
     let wiki_flag = arg_str(args, "wiki");
-    let engine = server.engine();
+    let engine = server.engine()?;
     let result = ops::suggest(&engine, &slug, wiki_flag.as_deref(), limit).map_err(redact_error)?;
     let s = serde_json::to_string_pretty(&result).map_err(redact_error)?;
     ok_text(s)
@@ -522,7 +532,7 @@ pub fn handle_suggest(server: &McpServer, args: &Map<String, Value>) -> ToolHand
 /// Handle `wiki_schema` — list, show, add, remove, or validate type schemas.
 pub fn handle_schema(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let action = arg_str(args, "action").ok_or("action is required")?;
-    let engine = server.engine();
+    let engine = server.engine()?;
     let wiki_name = resolve_wiki_name(&engine, args)?;
 
     match action.as_str() {
@@ -606,7 +616,7 @@ pub fn handle_schema(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
 /// Handle `wiki_export` — export the full wiki to llms.txt, llms-full, or JSON.
 pub fn handle_export(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
     let wiki = arg_str_req(args, "wiki")?;
-    let engine = server.engine();
+    let engine = server.engine()?;
 
     let format = ops::ExportFormat::parse(arg_str(args, "format").as_deref().unwrap_or("llms-txt"));
     let include_archived = arg_str(args, "status").as_deref() == Some("all");
@@ -630,9 +640,8 @@ pub fn handle_export(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
 
 /// Handle `wiki_info` — return server version, config path, registered spaces, and index health.
 pub fn handle_info(server: &McpServer, _args: &Map<String, Value>) -> ToolHandlerResult {
-    let engine = server.engine();
+    let engine = server.engine()?;
     let version = env!("CARGO_PKG_VERSION");
-    let config_path = engine.config_path.display().to_string();
     let spaces: Vec<String> = engine.config.wikis.iter().map(|w| w.name.clone()).collect();
     let default_wiki = engine.config.global.default_wiki.clone();
     let mut all_ok = true;
@@ -646,12 +655,11 @@ pub fn handle_info(server: &McpServer, _args: &Map<String, Value>) -> ToolHandle
                 }
                 Ok(s) => {
                     all_ok = false;
-                    let reason = s.degraded_reason.unwrap_or_else(|| "unknown".to_string());
-                    serde_json::json!({"status": "degraded", "reason": reason})
+                    serde_json::json!({"status": "degraded", "reason": s.degraded_reason})
                 }
                 Err(e) => {
                     all_ok = false;
-                    serde_json::json!({"status": "degraded", "reason": format!("{e}")})
+                    serde_json::json!({"status": "degraded", "reason": redact_error(e)})
                 }
             };
             (wiki_name.clone(), entry)
@@ -659,12 +667,25 @@ pub fn handle_info(server: &McpServer, _args: &Map<String, Value>) -> ToolHandle
         .collect();
     let info = serde_json::json!({
         "version": version,
-        "config_path": config_path,
         "spaces": spaces,
         "default_wiki": default_wiki,
-        "index_status": if all_ok { Value::String("ok".into()) } else { Value::Object(index_status) },
+        "index_status": if all_ok {
+            serde_json::json!({"status": "ok"})
+        } else {
+            serde_json::json!({"status": "degraded", "wikis": index_status})
+        },
     });
     ok_text(serde_json::to_string_pretty(&info).map_err(redact_error)?)
+}
+
+pub fn handle_wiki_migrate(server: &McpServer, args: &Map<String, Value>) -> ToolHandlerResult {
+    let wiki = arg_str(args, "wiki");
+    let dry_run = arg_bool(args, "dry_run");
+    let engine = server.engine()?;
+    let report =
+        ops::wiki_migrate(&engine.config, wiki.as_deref(), dry_run).map_err(redact_error)?;
+    let s = serde_json::to_string_pretty(&report).map_err(redact_error)?;
+    ok_text(s)
 }
 
 #[cfg(test)]

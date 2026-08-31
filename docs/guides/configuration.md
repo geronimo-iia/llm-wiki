@@ -94,10 +94,37 @@ llm-wiki config set ingest.auto_commit false --wiki research
 
 Then commit manually with `llm-wiki content commit --all`.
 
+### Exclude files from the search index
+
+Use `ingest.exclude` to keep certain slugs out of the index. Patterns are gitignore-style globs matched against slugs (relative to `wiki_root`), not absolute paths:
+
+```toml
+# wiki.toml
+[ingest]
+exclude = ["drafts/**", "generated/**"]
+```
+
+Or via CLI:
+
+```bash
+llm-wiki config set ingest.exclude '["drafts/**","generated/**"]' --wiki research
+```
+
+### Index bare markdown files
+
+By default (`skip_no_frontmatter = true`), any `.md` file without a `---` YAML frontmatter block is skipped at ingest time. Set to `false` if you intentionally store bare markdown under `wiki_root`:
+
+```toml
+# wiki.toml
+[ingest]
+skip_no_frontmatter = false
+```
+
 ### Enable strict type validation
 
-By default, unknown types produce a warning. Switch to strict mode
-to reject pages with unregistered types:
+`validation.type_strictness` accepts `"loose"` (default) or `"strict"`. In
+`loose` mode, unknown types produce a warning; in `strict` mode they are
+rejected as an error:
 
 ```bash
 llm-wiki config set validation.type_strictness strict --wiki research
@@ -111,6 +138,31 @@ is 500ms. Lower for faster feedback, higher for busy editors:
 ```bash
 llm-wiki config set watch.debounce_ms 300 --global
 ```
+
+### Tune content write size limit
+
+By default `wiki_content_write` rejects content larger than 10 MB. Raise or
+lower the limit per wiki or globally:
+
+```bash
+llm-wiki config set defaults.max_content_bytes 20971520 --wiki research  # 20 MB
+llm-wiki config set defaults.max_content_bytes 5242880 --global           # 5 MB
+```
+
+### Tune suggest strategy weights
+
+`wiki_suggest` combines four strategies (tag overlap, graph neighbors, BM25,
+community peers). The scores for three of them are configurable:
+
+```toml
+# wiki.toml
+[suggest]
+graph_neighbor_score = 0.5   # 2-hop graph neighbors (default 0.5)
+community_peer_score = 0.4   # same Louvain community (default 0.4)
+bm25_weight          = 0.7   # weight on normalized BM25 score (default 0.7)
+```
+
+Tag overlap score is always `shared_tags / total_tags` (not configurable).
 
 ### Tune lint rules
 
@@ -168,7 +220,8 @@ for the full reference.
 
 ### Change graph output format
 
-Default is Mermaid. Switch to DOT for Graphviz:
+`graph.format` accepts `"mermaid"` (default), `"dot"`, `"llms"`, or `"json"`.
+Switch to DOT for Graphviz:
 
 ```bash
 llm-wiki config set graph.format dot --global
@@ -249,13 +302,18 @@ llm-wiki config set serve.acp_max_sessions 5 --global
 This is a global-only key — it applies to the server process, not
 per-wiki.
 
-To tighten or relax the MCP input size limit (default 8192 bytes):
+To tighten or relax the MCP input size limit for short parameters such as
+slugs, queries, and wiki names (default 8192 bytes):
 
 ```bash
 llm-wiki config set serve.mcp_max_param_len 16384 --global
 ```
 
 This is a global-only key — it applies to the server process, not per-wiki.
+
+> **Note:** The `content` parameter of `wiki_content_write` and
+> `wiki_content_new` is exempt from this limit. Those tools enforce their own
+> cap via `serve.max_content_len` (default 10 MiB).
 
 ### Configure logging
 

@@ -108,7 +108,10 @@ pub fn content_read(
         .with_context(|| format!("wiki={wiki_name} slug={slug}"))?
     {
         ReadTarget::Page(_) => {
-            let wiki_cfg = config::load_wiki(&entry.path).unwrap_or_default();
+            let wiki_cfg = config::load_wiki(&entry.path).unwrap_or_else(|e| {
+                tracing::warn!(path = %entry.path.display(), error = %e, "failed to load wiki config, using defaults");
+                Default::default()
+            });
             let resolved = config::resolve(&engine.config, &wiki_cfg);
             let strip = no_frontmatter || resolved.read.no_frontmatter;
             let content = markdown::read_page(&slug, &wiki_root, strip)

@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 
+use llm_wiki_engine::config::{IngestConfig, Tokenizer};
 use llm_wiki_engine::git;
 use llm_wiki_engine::graph::*;
 use llm_wiki_engine::index_manager::SpaceIndexManager;
@@ -10,7 +11,7 @@ use llm_wiki_engine::type_registry::SpaceTypeRegistry;
 use petgraph_live as _;
 
 fn schema_and_registry() -> (IndexSchema, SpaceTypeRegistry) {
-    let (registry, schema) = space_builder::build_space_from_embedded("en_stem").unwrap();
+    let (registry, schema) = space_builder::build_space_from_embedded(&Tokenizer::EnStem).unwrap();
     (schema, registry)
 }
 
@@ -44,8 +45,15 @@ fn write_page(wiki_root: &Path, rel_path: &str, content: &str) {
 fn build_index(dir: &Path, wiki_root: &Path) -> SpaceIndexManager {
     let index_path = dir.join("index-store");
     git::commit(dir, "index pages").unwrap();
-    let mgr = SpaceIndexManager::new("test", &index_path);
-    mgr.rebuild(wiki_root, dir, &schema(), &registry()).unwrap();
+    let mgr = SpaceIndexManager::new("test", &index_path, 50_000_000);
+    mgr.rebuild(
+        wiki_root,
+        dir,
+        &schema(),
+        &registry(),
+        &IngestConfig::default(),
+    )
+    .unwrap();
     mgr.open(&schema(), None).unwrap();
     mgr
 }
@@ -562,6 +570,42 @@ fn render_llms_shows_hubs_and_isolated() {
     assert!(output.contains("Isolated"));
 }
 
+#[test]
+fn render_llms_isolated_titles_capped_at_20() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    // 23 isolated nodes — hub links to iso0/iso1, leaving 21 isolated (> 20 cap)
+    for i in 0..23u32 {
+        write_page(
+            &wiki_root,
+            &format!("concepts/iso{i}.md"),
+            &simple_page(&format!("Iso{i}"), "concept"),
+        );
+    }
+    // one hub to keep the graph non-trivial
+    write_page(
+        &wiki_root,
+        "concepts/hub.md",
+        &page_with_body_links("Hub", "See [[concepts/iso0]] and [[concepts/iso1]]."),
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
+
+    let output = render_llms(&g);
+    assert!(output.contains("**Isolated nodes ("));
+    assert!(output.contains("and"));
+    assert!(output.contains("more"));
+    assert!(output.contains("wiki_lint"));
+}
+
 // ── cross-wiki graph ──────────────────────────────────────────────────────────
 
 fn page_with_cross_wiki_link(title: &str, target: &str) -> String {
@@ -630,15 +674,27 @@ fn build_graph_cross_wiki_resolves_cross_wiki_edge() {
     git::commit(dir_a.path(), "pages").unwrap();
     git::commit(dir_b.path(), "pages").unwrap();
 
-    let mgr_a = SpaceIndexManager::new("wiki-a", &index_a);
+    let mgr_a = SpaceIndexManager::new("wiki-a", &index_a, 50_000_000);
     mgr_a
-        .rebuild(&wiki_root_a, dir_a.path(), &is, &reg)
+        .rebuild(
+            &wiki_root_a,
+            dir_a.path(),
+            &is,
+            &reg,
+            &IngestConfig::default(),
+        )
         .unwrap();
     mgr_a.open(&is, None).unwrap();
 
-    let mgr_b = SpaceIndexManager::new("wiki-b", &index_b);
+    let mgr_b = SpaceIndexManager::new("wiki-b", &index_b, 50_000_000);
     mgr_b
-        .rebuild(&wiki_root_b, dir_b.path(), &is, &reg)
+        .rebuild(
+            &wiki_root_b,
+            dir_b.path(),
+            &is,
+            &reg,
+            &IngestConfig::default(),
+        )
         .unwrap();
     mgr_b.open(&is, None).unwrap();
 
@@ -748,9 +804,10 @@ fn compute_communities_three_dense_clusters() {
     )
     .unwrap();
 
-    let stats = compute_communities(&g, 30).expect("should compute at 30 nodes");
+    let stats = compute_communities(&g, 30)
+        .unwrap()
+        .expect("should compute at 30 nodes");
     assert_eq!(stats.count, 3, "should find 3 communities");
-    assert!(stats.isolated.is_empty(), "no isolated nodes expected");
 }
 
 #[test]
@@ -774,13 +831,13 @@ fn compute_communities_below_threshold_returns_none() {
     .unwrap();
 
     assert!(
-        compute_communities(&g, 30).is_none(),
+        compute_communities(&g, 30).unwrap().is_none(),
         "should be None below threshold"
     );
 }
 
 #[test]
-fn compute_communities_isolated_pair_appears_in_isolated_list() {
+fn compute_communities_weakly_connected_pair_reflected_in_smallest() {
     let dir = tempfile::tempdir().unwrap();
     let wiki_root = setup_repo(dir.path());
 
@@ -808,14 +865,15 @@ fn compute_communities_isolated_pair_appears_in_isolated_list() {
     )
     .unwrap();
 
-    let stats = compute_communities(&g, 30).expect("should compute at ≥ 30 nodes");
+    let stats = compute_communities(&g, 30)
+        .unwrap()
+        .expect("should compute at ≥ 30 nodes");
+    // The orphan pair forms its own community of size 2 — the smallest.
+    assert!(stats.count >= 2, "expected at least 2 communities");
     assert!(
-        stats.isolated.contains(&"orphans/alpha".to_string()),
-        "orphans/alpha should be isolated"
-    );
-    assert!(
-        stats.isolated.contains(&"orphans/beta".to_string()),
-        "orphans/beta should be isolated"
+        stats.smallest <= 2,
+        "orphan pair should produce a community of size ≤ 2, got smallest={}",
+        stats.smallest
     );
 }
 
@@ -837,14 +895,10 @@ fn compute_communities_deterministic() {
     )
     .unwrap();
 
-    let s1 = compute_communities(&g, 30).unwrap();
-    let s2 = compute_communities(&g, 30).unwrap();
+    let s1 = compute_communities(&g, 30).unwrap().unwrap();
+    let s2 = compute_communities(&g, 30).unwrap().unwrap();
 
     assert_eq!(s1.count, s2.count, "count must be deterministic");
-    assert_eq!(
-        s1.isolated, s2.isolated,
-        "isolated list must be deterministic"
-    );
 }
 
 // ── generation counter ────────────────────────────────────────────────────────
@@ -852,7 +906,7 @@ fn compute_communities_deterministic() {
 #[test]
 fn index_manager_generation_starts_at_zero() {
     let dir = tempfile::tempdir().unwrap();
-    let mgr = SpaceIndexManager::new("test", dir.path().join("idx"));
+    let mgr = SpaceIndexManager::new("test", dir.path().join("idx"), 50_000_000);
     assert_eq!(mgr.generation(), 0);
 }
 
@@ -1046,4 +1100,51 @@ fn render_llms_empty_graph_no_panic() {
     let out = render_llms(&g);
     // Should not panic; output may be empty or contain header text
     let _ = out;
+}
+
+// ── render_summary ───────────────────────────────────────────────────────────
+
+#[test]
+fn render_summary_returns_json_with_expected_fields() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/a.md",
+        &page_with_body_links("Alpha", "See [[concepts/b]]."),
+    );
+    write_page(&wiki_root, "concepts/b.md", &simple_page("Beta", "concept"));
+    write_page(&wiki_root, "sources/s.md", &simple_page("Source", "paper"));
+    // isolated node
+    write_page(
+        &wiki_root,
+        "concepts/z.md",
+        &simple_page("Orphan", "concept"),
+    );
+
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let g = build_graph(
+        &mgr.searcher().unwrap(),
+        &is,
+        &default_filter(),
+        &registry(),
+    )
+    .unwrap();
+
+    let output = render_summary(
+        &g,
+        &RenderContext {
+            top_n: 10,
+            communities: None,
+        },
+    );
+    let v: serde_json::Value =
+        serde_json::from_str(&output).expect("render_summary must produce valid JSON");
+    assert!(v["nodes"].as_u64().unwrap() >= 4);
+    assert!(v["edges"].as_u64().is_some());
+    assert!(v["isolated_count"].as_u64().unwrap() >= 1);
+    assert!(v["by_type"].is_object());
+    assert!(v["relation_counts"].is_object());
+    assert!(v["top_hubs"].is_array());
 }

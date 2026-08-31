@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 
+use llm_wiki_engine::config::{Tokenizer, TypeStrictness};
 use llm_wiki_engine::engine::WikiEngine;
 use llm_wiki_engine::ops;
 use llm_wiki_engine::spaces;
@@ -23,7 +24,7 @@ fn schema_list_returns_all_default_types() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.state.read().unwrap();
+    let eng = mgr.state_for_test().read().unwrap();
 
     let entries = ops::schema_list(&eng, "test").unwrap();
     assert_eq!(entries.len(), 15);
@@ -44,7 +45,7 @@ fn schema_show_returns_valid_json_schema() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.state.read().unwrap();
+    let eng = mgr.state_for_test().read().unwrap();
 
     let content = ops::schema_show(&eng, "test", "concept").unwrap();
     let schema: serde_json::Value = serde_json::from_str(&content).unwrap();
@@ -65,7 +66,7 @@ fn schema_show_errors_on_unknown_type() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.state.read().unwrap();
+    let eng = mgr.state_for_test().read().unwrap();
 
     let result = ops::schema_show(&eng, "test", "nonexistent");
     assert!(result.is_err());
@@ -78,7 +79,7 @@ fn schema_template_concept_has_required_fields() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.state.read().unwrap();
+    let eng = mgr.state_for_test().read().unwrap();
 
     let tmpl = ops::schema_show_template(&eng, "test", "concept").unwrap();
     assert!(tmpl.contains("title:"));
@@ -91,7 +92,7 @@ fn schema_template_skill_uses_aliased_fields() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.state.read().unwrap();
+    let eng = mgr.state_for_test().read().unwrap();
 
     let tmpl = ops::schema_show_template(&eng, "test", "skill").unwrap();
     assert!(tmpl.contains("name:"));
@@ -106,7 +107,7 @@ fn schema_template_passes_own_validation() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.state.read().unwrap();
+    let eng = mgr.state_for_test().read().unwrap();
 
     // Templates are scaffolds with empty values. Fill required fields
     // to verify the structure is correct for validation.
@@ -142,7 +143,7 @@ fn schema_template_passes_own_validation() {
             serde_yaml::from_str(yaml_content).unwrap_or_default();
 
         let space = eng.space("test").unwrap();
-        let result = space.type_registry.validate(&fm, "loose");
+        let result = space.type_registry.validate(&fm, TypeStrictness::Loose);
         assert!(
             result.is_ok(),
             "template for '{type_name}' failed validation: {:?}",
@@ -158,7 +159,7 @@ fn roundtrip_template_write_ingest() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.state.read().unwrap();
+    let eng = mgr.state_for_test().read().unwrap();
 
     let tmpl = ops::schema_show_template(&eng, "test", "concept").unwrap();
     // Fill in required values
@@ -179,7 +180,7 @@ fn roundtrip_template_write_ingest() {
     drop(eng);
 
     let result = ops::ingest(
-        &mgr.state.read().unwrap(),
+        &mgr.state_for_test().read().unwrap(),
         &mgr,
         "concepts/test.md",
         false,
@@ -195,7 +196,7 @@ fn schema_add_registers_custom_type() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.state.read().unwrap();
+    let eng = mgr.state_for_test().read().unwrap();
 
     // Write a custom schema file
     let custom_schema = dir.path().join("meeting.json");
@@ -251,7 +252,7 @@ fn schema_add_rebuilds_search_index() {
 
     {
         let mgr = engine(&config_path);
-        let eng = mgr.state.read().unwrap();
+        let eng = mgr.state_for_test().read().unwrap();
         let msg = ops::schema_add(&eng, "test", "meeting", &custom_schema).unwrap();
         assert!(
             msg.contains("search index rebuilt"),
@@ -275,7 +276,7 @@ fn schema_add_from_inside_schemas_dir_does_not_truncate() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.state.read().unwrap();
+    let eng = mgr.state_for_test().read().unwrap();
 
     let schema_json = r#"{
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -310,7 +311,8 @@ fn schema_add_from_inside_schemas_dir_does_not_truncate() {
     assert_eq!(parsed["x-wiki-types"]["meeting"], "Meeting notes");
 
     // And the type registers when the space is rebuilt from disk.
-    let (registry, _) = llm_wiki_engine::space_builder::build_space(&repo_root, "en_stem").unwrap();
+    let (registry, _) =
+        llm_wiki_engine::space_builder::build_space(&repo_root, &Tokenizer::EnStem).unwrap();
     assert!(registry.is_known("meeting"), "meeting type should register");
 }
 
@@ -321,7 +323,7 @@ fn schema_validate_passes_for_default_schemas() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.state.read().unwrap();
+    let eng = mgr.state_for_test().read().unwrap();
 
     let issues = ops::schema_validate(&eng, "test", None).unwrap();
     assert!(issues.is_empty(), "unexpected issues: {issues:?}");
@@ -332,7 +334,7 @@ fn schema_validate_catches_invalid_json() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path());
     let mgr = engine(&config_path);
-    let eng = mgr.state.read().unwrap();
+    let eng = mgr.state_for_test().read().unwrap();
 
     // Write an invalid JSON file to schemas/
     let space = eng.space("test").unwrap();
@@ -380,28 +382,30 @@ fn schema_change_makes_index_stale() {
 
     // Index is current after build
     {
-        let eng = mgr.state.read().unwrap();
+        let eng = mgr.state_for_test().read().unwrap();
         let space = eng.space("test").unwrap();
         let status = space.index_manager.status(&space.repo_root).unwrap();
         assert!(!status.stale, "index should not be stale after build");
     }
 
-    // Modify a schema file
+    // Place a custom concept.json on disk (overlay override) then modify it
     {
-        let eng = mgr.state.read().unwrap();
+        let eng = mgr.state_for_test().read().unwrap();
         let space = eng.space("test").unwrap();
         let schema_path = space.repo_root.join("schemas/concept.json");
-        let mut content = fs::read_to_string(&schema_path).unwrap();
-        content = content.replace(
+        // Write the embedded content to disk as a starting point
+        let embedded = llm_wiki_engine::default_schemas::default_schemas();
+        let base_content = embedded["concept.json"];
+        let modified = base_content.replace(
             "\"Synthesized knowledge",
             "\"MODIFIED Synthesized knowledge",
         );
-        fs::write(&schema_path, content).unwrap();
+        fs::write(&schema_path, modified).unwrap();
     }
 
     // Rebuild engine — new schema_hash should differ
     let mgr2 = engine(&config_path);
-    let eng2 = mgr2.state.read().unwrap();
+    let eng2 = mgr2.state_for_test().read().unwrap();
     let space2 = eng2.space("test").unwrap();
 
     // The old state.toml has the old hash, new registry has new hash

@@ -97,7 +97,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_spaces_set_default",
-            "Set the default wiki space.",
+            "Set the default wiki space. Once set, tools that accept an optional wiki parameter will target this wiki when wiki is omitted.",
             schema(
                 json!({
                     "name": str_prop("Wiki name to set as default"),
@@ -148,7 +148,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_content_write",
-            "Write content to a page in the wiki tree.",
+            "Write content to a page in the wiki tree. Content size is limited by defaults.max_content_bytes (default 10 MB); larger payloads are rejected with an error.",
             schema(
                 json!({
                     "uri": str_prop("Slug (e.g. \"concepts/attention\") or wiki:// URI (e.g. \"wiki://my-wiki/concepts/attention\")"),
@@ -242,7 +242,7 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_index_status",
-            "Return detailed health for the search index of one wiki — reports openable, queryable, stale, and degraded_reason. Call this when wiki_info shows index_status: \"degraded\" to identify the specific failure.",
+            "Return detailed health for the search index of one wiki — reports openable, queryable, stale, and degraded_reason. Call this when wiki_info returns a degraded entry for a specific wiki (index_status object with status \"degraded\").",
             schema(
                 json!({
                     "wiki": opt_str("Target wiki name"),
@@ -252,10 +252,11 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_graph",
-            "Generate concept graph, returns GraphReport.",
+            "Generate concept graph. For large wikis: call with format: \"summary\" first to understand topology, then scope with type/root/relation filters. Use format: \"llms\" for interpretation of scoped subgraphs. Use mermaid/dot only for scoped visualization — unfiltered on large wikis these exceed context limits.",
             schema(
                 json!({
-                    "format": opt_str("Output format: mermaid | dot | llms | json (default: mermaid)"),
+                    "format": opt_str("Output format: mermaid | dot | llms | json | summary (default: from config, mermaid if unset). summary returns aggregate metrics under 2KB."),
+                    "limit": opt_int("Top-hub count for format: \"summary\" (default: 10)"),
                     "root": opt_str("Subgraph from this node (slug)"),
                     "depth": opt_int("Hop limit from root"),
                     "type": opt_str("Comma-separated page types to include"),
@@ -295,10 +296,15 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_stats",
-            "Wiki health dashboard — page counts, graph metrics, staleness, structural topology (diameter, radius, center).",
+            concat!(
+                "Wiki health dashboard — page counts, graph metrics, staleness, structural topology. ",
+                "Use detail=\"summary\" (default) for compact output: center_count replaces the full center slug list. ",
+                "Use detail=\"full\" to retrieve the complete center slug list.",
+            ),
             schema(
                 json!({
                     "wiki": opt_str("Target wiki name"),
+                    "detail": opt_str("\"summary\" (default) or \"full\" — controls center slug list vs center_count"),
                 }),
                 &[],
             ),
@@ -317,19 +323,29 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         Tool::new(
             "wiki_lint",
-            "Run deterministic lint checks on wiki pages — validates frontmatter fields, detects broken links, and reports structural issues.",
+            concat!(
+                "Run deterministic lint checks on wiki pages — validates frontmatter fields, ",
+                "detects broken links, and reports structural issues. ",
+                "For large wikis: call with `summary: true` first to see counts per rule. ",
+                "Then narrow with `rules` (single rule) and optionally `path_prefix`. ",
+                "Use `page_size` / `cursor` only when the scoped result is still large."
+            ),
             schema(
                 json!({
                     "rules": opt_str("Comma-separated rule names: orphan, broken-link, broken-cross-wiki-link, missing-fields, stale, unknown-type, articulation-point, bridge, periphery (omit for all)"),
                     "severity": opt_str("Filter output: error | warning (omit for all)"),
                     "wiki": opt_str("Target wiki name"),
+                    "summary": opt_bool("Return counts only (total, errors, warnings, by_rule) — no findings array. Use first on large wikis to identify which rules have findings."),
+                    "path_prefix": opt_str("Restrict findings to slugs starting with this prefix, e.g. \"nrg-architecture/studies\". Applied after rules run."),
+                    "page_size": opt_int("Maximum number of findings per response. When set, response includes has_more and next_cursor for pagination."),
+                    "cursor": opt_int("Zero-based offset into the sorted findings list. Use the next_cursor value from the previous response."),
                 }),
                 &[],
             ),
         ),
         Tool::new(
             "wiki_resolve",
-            "Resolve a slug or wiki:// URI to its local filesystem path. Use before writing content directly to disk.",
+            "Resolve a slug or wiki:// URI to its local filesystem path. Use before writing content directly to disk. If you receive 'wiki X is not registered', call wiki_info to list registered wiki names.",
             schema(
                 json!({
                     "uri": str_prop("Slug or wiki:// URI"),
@@ -359,11 +375,25 @@ pub fn tool_list() -> Vec<Tool> {
             "wiki_info",
             concat!(
                 "Return server version, config path, registered spaces, and index health. ",
-                "The `index_status` field is the string \"ok\" when all wikis are healthy, ",
-                "or an object `{\"<wiki-name>\": {\"status\": \"degraded\", \"reason\": \"...\"}}` ",
-                "for each degraded wiki. Call wiki_index_status for field-level detail on a specific wiki."
+                "The `index_status` field is always an object: `{\"status\": \"ok\"}` when all wikis are healthy, ",
+                "or `{\"status\": \"degraded\", \"wikis\": {\"<wiki-name>\": {\"status\": \"degraded\", \"reason\": \"...\"}}}` ",
+                "when one or more wikis are degraded. Call wiki_index_status for field-level detail on a specific wiki."
             ),
             schema(json!({}), &[]),
+        ),
+        Tool::new(
+            "wiki_migrate",
+            "Remove redundant stock schema copies from wiki directories. \
+             Stock schemas are detected by JSON equality against embedded defaults — \
+             customised files are never touched. Pass dry_run=true to preview. \
+             Pass wiki to target one space; omit to run against all registered wikis.",
+            schema(
+                json!({
+                    "wiki":    opt_str("Target wiki name (omit to run against all wikis)"),
+                    "dry_run": opt_bool("Report what would be deleted without modifying anything"),
+                }),
+                &[],
+            ),
         ),
     ]
 }
@@ -373,8 +403,26 @@ pub fn tool_list() -> Vec<Tool> {
 /// Dispatch a tool call by name to the appropriate handler, catching panics.
 pub fn call(server: &McpServer, name: &str, args: &Map<String, Value>) -> ToolResult {
     let _span = tracing::info_span!("tool_call", tool = name).entered();
-    let max_len = server.engine().config.serve.mcp_max_param_len;
-    if let Err(e) = check_param_lengths(args, max_len) {
+    let max_len = server
+        .engine()
+        .map(|e| e.config.serve.mcp_max_param_len)
+        .unwrap_or(8192);
+    // wiki_content_write and wiki_content_new enforce their own max_content_len
+    // on the `content` param — exempting it here avoids a conflict with the
+    // tighter mcp_max_param_len guard (see docs/decisions/1.0.0/mcp-max-param-len-scope.md).
+    let args_to_check;
+    let effective_args: &Map<String, Value> =
+        if name == "wiki_content_write" || name == "wiki_content_new" {
+            args_to_check = args
+                .iter()
+                .filter(|(k, _)| k.as_str() != "content")
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            &args_to_check
+        } else {
+            args
+        };
+    if let Err(e) = check_param_lengths(effective_args, max_len) {
         return ToolResult {
             content: err_text(e),
             is_error: true,
@@ -407,6 +455,7 @@ pub fn call(server: &McpServer, name: &str, args: &Map<String, Value>) -> ToolRe
         "wiki_schema" => handlers::handle_schema(server, args),
         "wiki_export" => handlers::handle_export(server, args),
         "wiki_info" => handlers::handle_info(server, args),
+        "wiki_migrate" => handlers::handle_wiki_migrate(server, args),
         _ => Err(format!("unknown tool: {name}")),
     }));
     match result {

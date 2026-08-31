@@ -41,7 +41,7 @@ fn graph_cache_hit_returns_same_arc() {
     let config_path = setup_wiki(dir.path(), "test");
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let space = engine.spaces.get("test").unwrap();
 
     let searcher = space.index_manager.searcher().unwrap();
@@ -79,7 +79,7 @@ fn graph_cache_miss_on_filtered_request() {
     let config_path = setup_wiki(dir.path(), "test");
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let space = engine.spaces.get("test").unwrap();
 
     let searcher = space.index_manager.searcher().unwrap();
@@ -122,7 +122,7 @@ fn graph_cache_hit_is_faster_than_miss() {
     let config_path = setup_wiki(dir.path(), "test");
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let space = engine.spaces.get("test").unwrap();
 
     let searcher = space.index_manager.searcher().unwrap();
@@ -167,7 +167,7 @@ fn get_cached_community_map_returns_none_for_small_graph() {
     let config_path = setup_wiki(dir.path(), "test");
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let space = engine.spaces.get("test").unwrap();
 
     let searcher = space.index_manager.searcher().unwrap();
@@ -192,7 +192,7 @@ fn get_cached_community_stats_returns_none_for_small_graph() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let space = engine.spaces.get("test").unwrap();
     let searcher = space.index_manager.searcher().unwrap();
 
@@ -261,7 +261,7 @@ fn cross_wiki_merge_cached_graphs_matches_build_graph_cross_wiki() {
     );
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let filter = GraphFilter::default();
 
     // Build via merge_cached_graphs (the new path)
@@ -338,7 +338,7 @@ fn cross_wiki_merge_keeps_external_when_target_wiki_missing() {
     );
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let filter = GraphFilter::default();
 
     let sp = engine.spaces.get("alpha").unwrap();
@@ -373,7 +373,7 @@ fn community_stats_and_map_are_consistent() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let space = engine.spaces.get("test").unwrap();
     let searcher = space.index_manager.searcher().unwrap();
 
@@ -388,8 +388,8 @@ fn community_stats_and_map_are_consistent() {
     .unwrap();
 
     // threshold=1: both wiki's 2 nodes should be >= 1
-    let stats = compute_communities(&graph, 1);
-    let map = node_community_map(&graph, 1);
+    let stats = compute_communities(&graph, 1).unwrap();
+    let map = node_community_map(&graph, 1).unwrap();
 
     assert!(stats.is_some(), "expected Some(CommunityStats)");
     assert!(map.is_some(), "expected Some(community_map)");
@@ -415,7 +415,7 @@ fn graph_cache_invalidated_after_rebuild() {
     let manager = WikiEngine::build(&config_path).unwrap();
 
     let arc1 = {
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         let space = engine.spaces.get("test").unwrap();
         let searcher = space.index_manager.searcher().unwrap();
         get_or_build_graph(
@@ -433,7 +433,7 @@ fn graph_cache_invalidated_after_rebuild() {
     llm_wiki_engine::ops::index_rebuild(&manager, "test").unwrap();
 
     let arc2 = {
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         let space = engine.spaces.get("test").unwrap();
         let searcher = space.index_manager.searcher().unwrap();
         get_or_build_graph(
@@ -450,6 +450,54 @@ fn graph_cache_invalidated_after_rebuild() {
     assert!(
         !Arc::ptr_eq(&arc1, &arc2),
         "cache must be invalidated after rebuild"
+    );
+}
+
+/// Invariant 1 regression: a fresh `WikiEngine` (simulating a process restart) always starts with
+/// a cold graph cache. The in-memory `GenerationCache` must not carry over between engine instances.
+#[test]
+fn graph_cache_is_cold_after_engine_restart() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = setup_wiki(dir.path(), "test");
+    let filter = GraphFilter::default();
+
+    // First engine — prime the cache
+    let arc1 = {
+        let manager = WikiEngine::build(&config_path).unwrap();
+        let engine = manager.state_for_test().read().unwrap();
+        let space = engine.spaces.get("test").unwrap();
+        let searcher = space.index_manager.searcher().unwrap();
+        get_or_build_graph(
+            &space.index_schema,
+            &space.type_registry,
+            &space.index_manager,
+            &space.graph_cache,
+            &searcher,
+            &filter,
+        )
+        .unwrap()
+    }; // manager dropped here — simulates process restart
+
+    // Second engine from same config — must not see first engine's in-memory cache
+    let arc2 = {
+        let manager = WikiEngine::build(&config_path).unwrap();
+        let engine = manager.state_for_test().read().unwrap();
+        let space = engine.spaces.get("test").unwrap();
+        let searcher = space.index_manager.searcher().unwrap();
+        get_or_build_graph(
+            &space.index_schema,
+            &space.type_registry,
+            &space.index_manager,
+            &space.graph_cache,
+            &searcher,
+            &filter,
+        )
+        .unwrap()
+    };
+
+    assert!(
+        !Arc::ptr_eq(&arc1, &arc2),
+        "fresh engine must start with a cold cache — no cross-restart Arc reuse"
     );
 }
 
@@ -494,7 +542,7 @@ fn get_cached_community_stats_returns_some_for_graph_above_min_nodes_threshold()
     );
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let space = engine.spaces.get("test").unwrap();
     let searcher = space.index_manager.searcher().unwrap();
 

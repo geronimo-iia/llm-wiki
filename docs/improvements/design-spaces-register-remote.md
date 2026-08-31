@@ -11,7 +11,7 @@ last_updated: "2026-05-01"
 
 # Design: Remote Wiki Registration and Version Management
 
-**Scope:** (A) `spaces register` accepting a git remote URL with cloning,
+Scope: (A) `spaces register` accepting a git remote URL with cloning,
 (B) version lifecycle subcommands under `spaces` (install, use, update, uninstall),
 (C) `default_repo_root` in global config.
 

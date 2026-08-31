@@ -29,12 +29,12 @@ Four strategies are combined:
 
 1. **Tag overlap** — pages sharing tags. Score = shared / total.
 2. **Graph neighborhood** — pages within 2 hops not directly linked.
-   Score = 1 / hops.
+   Score = `suggest.graph_neighbor_score` (default `0.5`).
 3. **BM25 similarity** — input page's title + summary as query.
-   Score = normalized BM25.
+   Score = `suggest.bm25_weight` × normalized BM25 (default weight `0.7`).
 4. **Community peers** — pages in the same Louvain community not already linked.
-   Score = 0.4, reason = "same knowledge cluster". Suppressed when
-   `node_count < min_nodes_for_communities`.
+   Score = `suggest.community_peer_score` (default `0.4`), reason = "same knowledge cluster".
+   Suppressed when `node_count < min_nodes_for_communities`.
 
 Results are merged, deduplicated, ranked by max score, filtered by
 `suggest.min_score`, and capped to limit.
@@ -88,6 +88,9 @@ JSON (`--format json`):
 |-----|---------|-------------|
 | `suggest.default_limit` | `5` | Max suggestions returned |
 | `suggest.min_score` | `0.1` | Minimum score threshold |
+| `suggest.graph_neighbor_score` | `0.5` | Score for 2-hop graph neighbor candidates |
+| `suggest.community_peer_score` | `0.4` | Score for community peer candidates |
+| `suggest.bm25_weight` | `0.7` | Weight on normalized BM25 scores |
 | `graph.min_nodes_for_communities` | `30` | Suppress community strategy below this node count |
 | `graph.community_suggestions_limit` | `2` | Max extra results from the community strategy |
 

@@ -2,7 +2,7 @@
 use std::fmt;
 use std::path::{Component, Path, PathBuf};
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 
 /// A validated slug — path relative to wiki root, no extension.
 ///
@@ -41,6 +41,11 @@ impl Slug {
     ///
     /// 1. `<wiki_root>/<slug>.md`
     /// 2. `<wiki_root>/<slug>/index.md`
+    ///
+    /// The slug invariants prevent `..` traversal, but symlinks inside `wiki_root` are
+    /// not followed through `canonicalize`. Callers that accept user-supplied slugs and
+    /// perform write operations must canonicalize the resolved path and verify it is still
+    /// under `wiki_root` (see `ingest.rs` for the pattern).
     pub fn resolve(&self, wiki_root: &Path) -> Result<PathBuf> {
         let flat = wiki_root.join(format!("{}.md", self.0));
         if flat.is_file() {
@@ -125,7 +130,18 @@ pub struct NormalizedSlug(String);
 
 impl NormalizedSlug {
     /// Wrap a string that is already known to be normalized.
+    ///
+    /// Caller guarantees `s` is lowercase ASCII, contains no path separators or
+    /// whitespace, and has already passed `Slug::try_from` validation. Skips
+    /// the normalization pass — use only when re-hydrating a slug that was
+    /// previously stored in a validated context (e.g. the Tantivy index).
     /// For internal crate use only — bypasses the normalization step.
+    ///
+    /// The `debug_assert!` below is intentionally elided in release builds.
+    /// All three call sites read from the Tantivy index, which only ever stores
+    /// values written via `Slug::normalize()`. Promoting to a hard `assert!`
+    /// would panic on every search result for any index field that legitimately
+    /// stores mixed-case text, so the check is debug-only.
     pub(crate) fn from_normalized(s: String) -> Self {
         debug_assert!(
             s == s.to_lowercase(),
@@ -293,6 +309,10 @@ pub fn resolve_read_target(input: &str, wiki_root: &Path) -> Result<ReadTarget> 
             let ext = &filename[dot + 1..];
             if !ext.is_empty() && ext != "md" {
                 let parent_slug = &input[..pos];
+                // Validate parent_slug before any filesystem probe — prevents existence oracle
+                // for paths outside wiki_root. Callers must not skip this; it is the only guard.
+                Slug::try_from(parent_slug)
+                    .with_context(|| format!("asset path has invalid parent slug: {input:?}"))?;
                 let path = wiki_root.join(parent_slug).join(filename);
                 if path.is_file() {
                     return Ok(ReadTarget::Asset(
@@ -328,6 +348,7 @@ fn title_case(segment: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile;
 
     // ── Slug construction ─────────────────────────────────────────────────────
 
@@ -412,6 +433,31 @@ mod tests {
     fn normalized_slug_partial_eq_string() {
         let slug = Slug::try_from("concepts/moe").unwrap().normalize();
         assert_eq!(slug, String::from("concepts/moe"));
+    }
+
+    // ── resolve_read_target ───────────────────────────────────────────────────
+
+    #[test]
+    fn resolve_read_target_rejects_traversal_in_asset_parent() {
+        let dir = tempfile::tempdir().unwrap();
+        // Attempt: read an asset whose parent slug traverses out of wiki root
+        let result = resolve_read_target("../etc/passwd.pub", dir.path());
+        assert!(
+            result.is_err(),
+            "traversal asset path must be rejected before any filesystem probe"
+        );
+        let result2 = resolve_read_target("concepts/../../etc/passwd.pdf", dir.path());
+        assert!(
+            result2.is_err(),
+            "multi-component traversal asset path must be rejected"
+        );
+    }
+
+    #[test]
+    fn resolve_read_target_valid_asset_not_found_returns_err() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = resolve_read_target("concepts/diagram.png", dir.path());
+        assert!(result.is_err(), "asset not on disk must return Err");
     }
 
     // ── from_normalized (internal) ────────────────────────────────────────────

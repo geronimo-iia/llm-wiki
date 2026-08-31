@@ -35,7 +35,7 @@ fn graph_snapshot_keyed_by_sha_not_generation() {
     // Build engine, trigger snapshot creation via get_or_build_graph.
     let expected_sha = {
         let manager = llm_wiki_engine::engine::WikiEngine::build(&config_path).unwrap();
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         let space = engine.spaces.get("mywiki").unwrap();
         let sha = space
             .index_manager
@@ -144,7 +144,7 @@ fn graph_not_empty_after_index_rebuild_simulating_fresh_process() {
     // Simulates: `llm-wiki graph --wiki mywiki`
     // BUG: before fix, this loads the stale empty wiki-graph-0.snap.lz4 and returns 0 nodes.
     let manager3 = llm_wiki_engine::engine::WikiEngine::build(&config_path).unwrap();
-    let engine3 = manager3.state.read().unwrap();
+    let engine3 = manager3.state_for_test().read().unwrap();
     let space = engine3.spaces.get("mywiki").unwrap();
     let searcher = space.index_manager.searcher().unwrap();
 

@@ -1,10 +1,27 @@
 use std::path::Path;
+use std::sync::LazyLock;
 
 use rmcp::model::ContentBlock as Content;
 use serde_json::{Map, Value};
 
 use crate::engine::EngineState;
 use crate::slug::Slug;
+
+static PATH_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+    // Two alternatives:
+    //   /[a-zA-Z0-9_./-]{3,}  — absolute Unix paths starting with /
+    //   ~[a-zA-Z0-9_./~-]{2,} — tilde-prefixed paths (~/ or ~user/)
+    // Known limitation: paths containing spaces are not fully redacted.
+    // Expanding the character class to include space greedily absorbs adjacent
+    // English words — a more robust fix requires a parser, not a regex.
+    // Primary protection: all handler call sites already pass errors through this function.
+    regex::Regex::new(r"(?:/[a-zA-Z0-9_./-]{3,}|~[a-zA-Z0-9_./~-]{2,})").unwrap()
+});
+
+/// Redact filesystem paths from an error message before sending to LLM clients.
+pub fn redact_error(e: impl std::fmt::Display) -> String {
+    PATH_RE.replace_all(&format!("{e}"), "<path>").into_owned()
+}
 
 // ── ToolResult ────────────────────────────────────────────────────────────────
 
@@ -84,12 +101,13 @@ pub fn arg_bool(args: &Map<String, Value>, key: &str) -> bool {
 
 /// Extract an optional unsigned integer argument by key.
 pub fn arg_usize(args: &Map<String, Value>, key: &str) -> Option<usize> {
-    args.get(key).and_then(|v| v.as_u64()).map(|n| n as usize)
+    args.get(key)
+        .and_then(|v| v.as_u64())
+        .and_then(|n| usize::try_from(n).ok())
 }
 
 // ── Wiki resolution ───────────────────────────────────────────────────────────
 
-/// Resolve the target wiki from Engine state + optional `wiki` arg.
 /// Resolve the target wiki from Engine state + optional `wiki` arg.
 pub fn resolve_wiki_name(
     engine: &EngineState,
@@ -100,6 +118,19 @@ pub fn resolve_wiki_name(
         .resolve_wiki_name(name.as_deref())
         .map(|s| s.to_string())
         .map_err(|e| e.to_string())
+}
+
+// ── Walk helper ───────────────────────────────────────────────────────────────
+
+/// Yield every `.md` file under `start` as a [`Slug`] resolved relative to `wiki_root`.
+pub fn walk_wiki_slugs<'a>(start: &Path, wiki_root: &'a Path) -> impl Iterator<Item = Slug> + 'a {
+    walkdir::WalkDir::new(start)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.path().is_file() && e.path().extension().and_then(|x| x.to_str()) == Some("md")
+        })
+        .filter_map(move |e| Slug::from_path(e.path(), wiki_root).ok())
 }
 
 // ── Resource notification helper ──────────────────────────────────────────────
@@ -114,17 +145,8 @@ pub fn collect_page_uris(path: &Path, wiki_root: &Path, wiki_name: &str) -> Vec<
         }
         return vec![];
     }
-    walkdir::WalkDir::new(path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.path().is_file() && e.path().extension().and_then(|x| x.to_str()) == Some("md")
-        })
-        .filter_map(|e| {
-            Slug::from_path(e.path(), wiki_root)
-                .ok()
-                .map(|slug| format!("wiki://{wiki_name}/{slug}"))
-        })
+    walk_wiki_slugs(path, wiki_root)
+        .map(|slug| format!("wiki://{wiki_name}/{slug}"))
         .collect()
 }
 

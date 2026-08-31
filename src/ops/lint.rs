@@ -1,20 +1,15 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
 use petgraph::graph::{NodeIndex, UnGraph};
 use serde::Serialize;
+use tantivy::query::AllQuery;
 use tantivy::schema::Value;
-use tantivy::{
-    Term,
-    query::{AllQuery, TermQuery},
-    schema::IndexRecordOption,
-};
 
 use crate::engine::EngineState;
 use crate::graph::{GraphFilter, WikiGraph, get_or_build_graph};
-use crate::index_schema::IndexSchema;
 use crate::slug::Slug;
 
 /// Severity level of a lint finding.
@@ -56,25 +51,70 @@ pub struct LintFinding {
 pub struct LintReport {
     /// Name of the wiki that was linted.
     pub wiki: String,
-    /// Total number of findings (errors + warnings).
+    /// Total number of findings after prefix/severity filters, before pagination.
     pub total: usize,
-    /// Number of error-severity findings.
+    /// Number of error-severity findings (after filters, before pagination).
     pub errors: usize,
-    /// Number of warning-severity findings.
+    /// Number of warning-severity findings (after filters, before pagination).
     pub warnings: usize,
-    /// Individual lint findings, sorted by slug then rule.
+    /// Individual lint findings (empty when `summary: true`).
     pub findings: Vec<LintFinding>,
+    /// Whether more pages exist beyond the current window.
+    pub has_more: bool,
+    /// Offset for the next page; absent when `has_more` is false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<usize>,
+    /// Finding count per rule; present only when `summary: true`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub by_rule: Option<HashMap<&'static str, usize>>,
 }
 
-/// Run lint rules against a wiki. `rules` is a comma-separated list; `None` runs all rules.
-/// `severity_filter` restricts output to `"error"` or `"warning"`.
+/// Options for a `run_lint` call. All fields default to their zero/None values.
+#[derive(Default)]
+pub struct LintOptions<'a> {
+    /// Comma-separated rule names; `None` runs all rules.
+    pub rules: Option<&'a str>,
+    /// Restrict to `"error"` or `"warning"`; `None` returns all severities.
+    pub severity: Option<&'a str>,
+    /// Return counts only — no `findings` array.
+    pub summary: bool,
+    /// Restrict findings to slugs starting with this prefix.
+    pub path_prefix: Option<&'a str>,
+    /// Maximum findings per response; `None` returns all.
+    pub page_size: Option<usize>,
+    /// Zero-based offset into the sorted findings list.
+    pub cursor: Option<usize>,
+}
+
+/// Per-document data extracted in a single shared tantivy pass.
+struct DocRecord {
+    slug: String,
+    page_type: String,
+    status: String,
+    last_updated: String,
+    confidence: Option<f64>,
+    /// True when the confidence field is absent from the index schema entirely.
+    /// Distinguishes schema-absent (fall back to date-only) from value-absent
+    /// (not low confidence — page hasn't declared a confidence score).
+    confidence_field_absent: bool,
+    body_links: Vec<String>,
+    sources: Vec<String>,
+    concepts: Vec<String>,
+    document_refs: Vec<String>,
+    superseded_by: Vec<String>,
+    /// Required-field presence map. Keyed by field name from the union of all
+    /// types' required fields. `true` = present or not in index schema (can't check).
+    fields_present: HashMap<String, bool>,
+}
+
+/// Run lint rules against a wiki. `opts.rules` is a comma-separated list; `None` runs all rules.
+/// `opts.severity` restricts output to `"error"` or `"warning"`.
 pub fn run_lint(
     engine: &EngineState,
     wiki_name: &str,
-    rules: Option<&str>,
-    severity_filter: Option<&str>,
+    opts: &LintOptions<'_>,
 ) -> Result<LintReport> {
-    let active_rules: HashSet<&str> = match rules {
+    let active_rules: HashSet<&str> = match opts.rules {
         None | Some("") => [
             "orphan",
             "broken-link",
@@ -95,49 +135,149 @@ pub fn run_lint(
     let space = engine.space(wiki_name)?;
     let searcher = space.index_manager.searcher()?;
     let is = &space.index_schema;
-    let resolved = space.resolved_config(&engine.config);
+    let resolved = space.resolved_config();
     let lint_cfg = &resolved.lint;
     let wiki_root = &space.wiki_root;
+
+    // ── Shared fetch pass ──────────────────────────────────────────────────────
+    // Single AllQuery + N doc reads replaces the previous 5 AllQuery + 8×N reads.
+
+    let all_addrs = searcher.search(&AllQuery, &tantivy::collector::DocSetCollector)?;
+
+    let all_required: HashSet<String> = space
+        .type_registry
+        .list_types()
+        .into_iter()
+        .flat_map(|(t, _)| space.type_registry.required_fields(t).iter().cloned())
+        .collect();
+
+    let f_slug = is.field("slug");
+    let f_type = is.field("type");
+    let f_status = is.try_field("status");
+    let f_last_updated = is.try_field("last_updated");
+    let has_last_updated_field = f_last_updated.is_some();
+    let f_confidence = is.try_field("confidence");
+    let f_body_links = is.field("body_links");
+
+    let mut records: Vec<DocRecord> = Vec::with_capacity(all_addrs.len());
+
+    for addr in &all_addrs {
+        let doc: tantivy::TantivyDocument = searcher.doc(*addr)?;
+
+        let slug = doc
+            .get_first(f_slug)
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        if slug.is_empty() {
+            continue;
+        }
+
+        let page_type = doc
+            .get_first(f_type)
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let status = f_status
+            .and_then(|f| doc.get_first(f))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let last_updated = f_last_updated
+            .and_then(|f| doc.get_first(f))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let confidence_field_absent = f_confidence.is_none();
+        let confidence = f_confidence
+            .and_then(|f| doc.get_first(f))
+            .and_then(|v| v.as_f64());
+
+        let body_links = doc
+            .get_all(f_body_links)
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect();
+
+        let mut sources = Vec::new();
+        let mut concepts = Vec::new();
+        let mut document_refs = Vec::new();
+        let mut superseded_by = Vec::new();
+        for (field_name, vec) in [
+            ("sources", &mut sources),
+            ("concepts", &mut concepts),
+            ("document_refs", &mut document_refs),
+            ("superseded_by", &mut superseded_by),
+        ] {
+            if let Some(f) = is.try_field(field_name) {
+                *vec = doc
+                    .get_all(f)
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect();
+            }
+        }
+
+        // unwrap_or(true): field absent from index schema → can't check → treat as present (skip).
+        let fields_present: HashMap<String, bool> = all_required
+            .iter()
+            .map(|name| {
+                let present = is
+                    .try_field(name)
+                    .map(|f| doc.get_first(f).is_some())
+                    .unwrap_or(true);
+                (name.clone(), present)
+            })
+            .collect();
+
+        records.push(DocRecord {
+            slug,
+            page_type,
+            status,
+            last_updated,
+            confidence,
+            confidence_field_absent,
+            body_links,
+            sources,
+            concepts,
+            document_refs,
+            superseded_by,
+            fields_present,
+        });
+    }
+
+    // ── Rule dispatch ──────────────────────────────────────────────────────────
 
     let mut findings: Vec<LintFinding> = Vec::new();
 
     if active_rules.contains("orphan") {
-        findings.extend(rule_orphan(&searcher, is, wiki_root)?);
+        findings.extend(rule_orphan(&records, wiki_root));
     }
     if active_rules.contains("broken-link") || active_rules.contains("broken-cross-wiki-link") {
         let mounted: HashSet<String> = engine.spaces.keys().cloned().collect();
         findings.extend(rule_broken_link(
-            &searcher,
-            is,
+            &records,
             wiki_root,
             active_rules.contains("broken-cross-wiki-link"),
             &mounted,
-        )?);
+        ));
     }
     if active_rules.contains("missing-fields") {
         findings.extend(rule_missing_fields(
-            &searcher,
-            is,
+            &records,
             wiki_root,
             &space.type_registry,
-        )?);
+        ));
     }
-    if active_rules.contains("stale") {
+    // Guard mirrors the original early-return when last_updated is absent from the schema.
+    if active_rules.contains("stale") && has_last_updated_field {
         findings.extend(rule_stale(
-            &searcher,
-            is,
+            &records,
             wiki_root,
             lint_cfg.stale_days,
             lint_cfg.stale_confidence_threshold,
-        )?);
+        ));
     }
     if active_rules.contains("unknown-type") {
-        findings.extend(rule_unknown_type(
-            &searcher,
-            is,
-            wiki_root,
-            &space.type_registry,
-        )?);
+        findings.extend(rule_unknown_type(&records, wiki_root, &space.type_registry));
     }
 
     let needs_graph = active_rules.contains("articulation-point")
@@ -168,14 +308,20 @@ pub fn run_lint(
         }
     }
 
+    // Apply path_prefix filter before severity
+    if let Some(prefix) = opts.path_prefix {
+        findings.retain(|f| f.slug.starts_with(prefix));
+    }
+
     // Apply severity filter
-    if let Some(sev) = severity_filter {
+    if let Some(sev) = opts.severity {
         let sev = sev.trim().to_lowercase();
         findings.retain(|f| f.severity.to_string() == sev);
     }
 
     findings.sort_by(|a, b| a.slug.cmp(&b.slug).then(a.rule.cmp(b.rule)));
 
+    // Counts are over the full filtered list, before pagination.
     let errors = findings
         .iter()
         .filter(|f| f.severity == Severity::Error)
@@ -186,12 +332,41 @@ pub fn run_lint(
         .count();
     let total = findings.len();
 
+    // Build by_rule before any pagination (summary mode only).
+    let by_rule: Option<HashMap<&'static str, usize>> = if opts.summary {
+        let mut map: HashMap<&'static str, usize> = HashMap::new();
+        for f in &findings {
+            *map.entry(f.rule).or_insert(0) += 1;
+        }
+        Some(map)
+    } else {
+        None
+    };
+
+    // Apply pagination. When summary: true, page_findings is built then discarded below —
+    // wasteful but harmless. has_more and next_cursor remain correct in all cases.
+    let (page_findings, has_more, next_cursor) = if let Some(size) = opts.page_size {
+        let start = opts.cursor.unwrap_or(0);
+        let end = (start + size).min(findings.len());
+        let more = end < findings.len();
+        let next = if more { Some(end) } else { None };
+        (findings[start..end].to_vec(), more, next)
+    } else {
+        (findings, false, None)
+    };
+
+    // summary mode: drop the findings array (by_rule carries the information instead).
+    let final_findings = if opts.summary { vec![] } else { page_findings };
+
     Ok(LintReport {
         wiki: wiki_name.to_string(),
         total,
         errors,
         warnings,
-        findings,
+        findings: final_findings,
+        has_more,
+        next_cursor,
+        by_rule,
     })
 }
 
@@ -208,311 +383,185 @@ fn slug_path(slug: &str, wiki_root: &Path) -> String {
 
 // ── Rule: orphan ──────────────────────────────────────────────────────────────
 
-fn rule_orphan(
-    searcher: &tantivy::Searcher,
-    is: &IndexSchema,
-    wiki_root: &Path,
-) -> Result<Vec<LintFinding>> {
-    let f_slug = is.field("slug");
-    let f_type = is.field("type");
+fn rule_orphan(records: &[DocRecord], wiki_root: &Path) -> Vec<LintFinding> {
+    let all_linked: HashSet<&str> = records
+        .iter()
+        .flat_map(|r| {
+            r.body_links
+                .iter()
+                .map(String::as_str)
+                .chain(r.sources.iter().map(String::as_str))
+                .chain(r.concepts.iter().map(String::as_str))
+                .chain(r.document_refs.iter().map(String::as_str))
+                .chain(r.superseded_by.iter().map(String::as_str))
+        })
+        .collect();
 
-    // Collect all slugs referenced in body_links across all docs
-    let mut all_linked: HashSet<String> = HashSet::new();
-    let f_body_links = is.field("body_links");
-
-    let all_addrs = searcher.search(&AllQuery, &tantivy::collector::DocSetCollector)?;
-
-    for addr in &all_addrs {
-        let doc: tantivy::TantivyDocument = searcher.doc(*addr)?;
-        for val in doc.get_all(f_body_links) {
-            if let Some(s) = val.as_str() {
-                all_linked.insert(s.to_string());
-            }
-        }
-        // Also count frontmatter edge fields as incoming-link evidence
-        for field_name in &["sources", "concepts", "document_refs", "superseded_by"] {
-            if let Some(f) = is.try_field(field_name) {
-                for val in doc.get_all(f) {
-                    if let Some(s) = val.as_str() {
-                        all_linked.insert(s.to_string());
-                    }
-                }
-            }
-        }
-    }
-
-    let mut findings = Vec::new();
-    for addr in &all_addrs {
-        let doc: tantivy::TantivyDocument = searcher.doc(*addr)?;
-        let slug = doc
-            .get_first(f_slug)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        if slug.is_empty() {
-            continue;
-        }
-        let page_type = doc
-            .get_first(f_type)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-
-        // Sections are structural — not flagged as orphans
-        if page_type == "section" {
-            continue;
-        }
-        // Root/index pages are exempt
-        if slug == "index" || slug.ends_with("/index") {
-            continue;
-        }
-
-        if !all_linked.contains(&slug) {
-            findings.push(LintFinding {
-                path: slug_path(&slug, wiki_root),
-                slug,
-                rule: "orphan",
-                severity: Severity::Warning,
-                message: "no incoming links".to_string(),
-            });
-        }
-    }
-
-    Ok(findings)
+    records
+        .iter()
+        .filter(|r| r.page_type != "section" && r.slug != "index" && !r.slug.ends_with("/index"))
+        .filter(|r| !all_linked.contains(r.slug.as_str()))
+        .map(|r| LintFinding {
+            path: slug_path(&r.slug, wiki_root),
+            slug: r.slug.clone(),
+            rule: "orphan",
+            severity: Severity::Warning,
+            message: "no incoming links".to_string(),
+        })
+        .collect()
 }
 
 // ── Rule: broken-link ─────────────────────────────────────────────────────────
 
-fn slug_exists(searcher: &tantivy::Searcher, is: &IndexSchema, slug: &str) -> Result<bool> {
-    let f_slug = is.field("slug");
-    let term = Term::from_field_text(f_slug, slug);
-    let query = TermQuery::new(term, IndexRecordOption::Basic);
-    let results = searcher.search(&query, &tantivy::collector::DocSetCollector)?;
-    Ok(!results.is_empty())
-}
-
 fn rule_broken_link(
-    searcher: &tantivy::Searcher,
-    is: &IndexSchema,
+    records: &[DocRecord],
     wiki_root: &Path,
     check_cross_wiki: bool,
-    mounted_wiki_names: &HashSet<String>,
-) -> Result<Vec<LintFinding>> {
-    let f_slug = is.field("slug");
-    let link_fields = [
-        "body_links",
-        "sources",
-        "concepts",
-        "document_refs",
-        "superseded_by",
-    ];
-
-    let all_addrs = searcher.search(&AllQuery, &tantivy::collector::DocSetCollector)?;
-
+    mounted: &HashSet<String>,
+) -> Vec<LintFinding> {
+    let known_slugs: HashSet<&str> = records.iter().map(|r| r.slug.as_str()).collect();
     let mut findings = Vec::new();
-
-    for addr in &all_addrs {
-        let doc: tantivy::TantivyDocument = searcher.doc(*addr)?;
-        let slug = doc
-            .get_first(f_slug)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        if slug.is_empty() {
-            continue;
-        }
-
-        for field_name in &link_fields {
-            let f = match is.try_field(field_name) {
-                Some(f) => f,
-                None => continue,
-            };
-            for val in doc.get_all(f) {
-                let target = match val.as_str() {
-                    Some(s) => s,
-                    None => continue,
-                };
-                if target.starts_with("wiki://") {
-                    if check_cross_wiki
-                        && let Some(wiki_name) = target
-                            .strip_prefix("wiki://")
-                            .and_then(|r| r.split('/').next())
-                        && !mounted_wiki_names.contains(wiki_name)
-                    {
-                        findings.push(LintFinding {
-                            path: slug_path(&slug, wiki_root),
-                            slug: slug.clone(),
-                            rule: "broken-cross-wiki-link",
-                            severity: Severity::Warning,
-                            message: format!("cross-wiki link to unmounted wiki: {target}"),
-                        });
-                    }
-                    continue;
-                }
-                if !slug_exists(searcher, is, target)? {
+    for r in records {
+        let all_links = r
+            .body_links
+            .iter()
+            .map(|s| ("body_links", s.as_str()))
+            .chain(r.sources.iter().map(|s| ("sources", s.as_str())))
+            .chain(r.concepts.iter().map(|s| ("concepts", s.as_str())))
+            .chain(
+                r.document_refs
+                    .iter()
+                    .map(|s| ("document_refs", s.as_str())),
+            )
+            .chain(
+                r.superseded_by
+                    .iter()
+                    .map(|s| ("superseded_by", s.as_str())),
+            );
+        for (field_name, target) in all_links {
+            if target.starts_with("wiki://") {
+                if check_cross_wiki
+                    && let Some(wiki_name) = target
+                        .strip_prefix("wiki://")
+                        .and_then(|rest| rest.split('/').next())
+                    && !mounted.contains(wiki_name)
+                {
                     findings.push(LintFinding {
-                        path: slug_path(&slug, wiki_root),
-                        slug: slug.clone(),
-                        rule: "broken-link",
-                        severity: Severity::Error,
-                        message: format!("broken link in {field_name}: {target}"),
+                        path: slug_path(&r.slug, wiki_root),
+                        slug: r.slug.clone(),
+                        rule: "broken-cross-wiki-link",
+                        severity: Severity::Warning,
+                        message: format!("cross-wiki link to unmounted wiki: {target}"),
                     });
                 }
+                continue;
+            }
+            if !known_slugs.contains(target) {
+                findings.push(LintFinding {
+                    path: slug_path(&r.slug, wiki_root),
+                    slug: r.slug.clone(),
+                    rule: "broken-link",
+                    severity: Severity::Error,
+                    message: format!("broken link in {field_name}: {target}"),
+                });
             }
         }
     }
-
-    Ok(findings)
+    findings
 }
 
 // ── Rule: missing-fields ──────────────────────────────────────────────────────
 
 fn rule_missing_fields(
-    searcher: &tantivy::Searcher,
-    is: &IndexSchema,
+    records: &[DocRecord],
     wiki_root: &Path,
     registry: &crate::type_registry::SpaceTypeRegistry,
-) -> Result<Vec<LintFinding>> {
-    let f_slug = is.field("slug");
-    let f_type = is.field("type");
-
-    let all_addrs = searcher.search(&AllQuery, &tantivy::collector::DocSetCollector)?;
-
-    let mut findings = Vec::new();
-
-    for addr in &all_addrs {
-        let doc: tantivy::TantivyDocument = searcher.doc(*addr)?;
-        let slug = doc
-            .get_first(f_slug)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        if slug.is_empty() {
-            continue;
-        }
-        let page_type = doc
-            .get_first(f_type)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        if page_type.is_empty() || !registry.is_known(&page_type) {
-            continue;
-        }
-
-        // Get required fields from JSON schema
-        let required = registry.required_fields(&page_type);
-        for field_name in &required {
-            // Check via index field presence
-            let present = if let Some(f) = is.try_field(field_name) {
-                doc.get_first(f).is_some()
-            } else {
-                // Field not in index schema — can't check, skip
-                true
-            };
-            if !present {
-                findings.push(LintFinding {
-                    path: slug_path(&slug, wiki_root),
-                    slug: slug.clone(),
+) -> Vec<LintFinding> {
+    records
+        .iter()
+        .filter(|r| !r.page_type.is_empty() && registry.is_known(&r.page_type))
+        .flat_map(|r| {
+            registry
+                .required_fields(&r.page_type)
+                .iter()
+                .filter(|field| !r.fields_present.get(*field).copied().unwrap_or(true))
+                .map(|field| LintFinding {
+                    path: slug_path(&r.slug, wiki_root),
+                    slug: r.slug.clone(),
                     rule: "missing-fields",
                     severity: Severity::Error,
-                    message: format!("required field missing: {field_name}"),
-                });
-            }
-        }
-    }
-
-    Ok(findings)
+                    message: format!("required field missing: {field}"),
+                })
+        })
+        .collect()
 }
 
 // ── Rule: stale ───────────────────────────────────────────────────────────────
 
 fn rule_stale(
-    searcher: &tantivy::Searcher,
-    is: &IndexSchema,
+    records: &[DocRecord],
     wiki_root: &Path,
     stale_days: u32,
-    stale_confidence_threshold: f32,
-) -> Result<Vec<LintFinding>> {
-    let f_slug = is.field("slug");
-    let f_last_updated = match is.try_field("last_updated") {
-        Some(f) => f,
-        None => return Ok(vec![]),
-    };
-    let f_confidence = is.try_field("confidence");
-    let f_status = is.try_field("status");
-
+    threshold: f32,
+) -> Vec<LintFinding> {
     let today = chrono::Utc::now().date_naive();
     let threshold_date = today - chrono::Duration::days(stale_days as i64);
-
-    let all_addrs = searcher.search(&AllQuery, &tantivy::collector::DocSetCollector)?;
-
-    let mut findings = Vec::new();
-
-    for addr in &all_addrs {
-        let doc: tantivy::TantivyDocument = searcher.doc(*addr)?;
-        let slug = doc
-            .get_first(f_slug)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        if slug.is_empty() {
-            continue;
-        }
-
-        // Stale only applies to active pages; skip drafts and archived
-        if let Some(f_st) = f_status {
-            let status = doc.get_first(f_st).and_then(|v| v.as_str()).unwrap_or("");
-            if status != "active" && !status.is_empty() {
-                continue;
+    records
+        .iter()
+        .filter(|r| r.status == "active" || r.status.is_empty())
+        .filter_map(|r| {
+            let is_old = chrono::NaiveDate::parse_from_str(&r.last_updated, "%Y-%m-%d")
+                .map(|d| d < threshold_date)
+                .unwrap_or(true);
+            if !is_old {
+                return None;
             }
-        }
-
-        let date_str = doc
-            .get_first(f_last_updated)
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-
-        let is_old = if let Ok(date) = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
-            date < threshold_date
-        } else {
-            // No valid date — treat as old
-            true
-        };
-
-        if !is_old {
-            continue;
-        }
-
-        // Check confidence if the field is indexed
-        let is_low_confidence = if let Some(f_conf) = f_confidence {
-            match doc.get_first(f_conf).and_then(|v| v.as_f64()) {
-                Some(v) => (v as f32) < stale_confidence_threshold,
-                // Absent confidence is NOT low — stale fires only on pages
-                // that explicitly declare a low confidence.
-                None => false,
+            // Mirrors original: absent schema field → date-only (low confidence = true).
+            // Schema field present but no value → NOT low confidence (page hasn't declared one).
+            let is_low_confidence = if r.confidence_field_absent {
+                true
+            } else {
+                r.confidence
+                    .map(|v| (v as f32) < threshold)
+                    .unwrap_or(false)
+            };
+            if !is_low_confidence {
+                return None;
             }
-        } else {
-            // Field not indexed — fall back to date-only
-            true
-        };
-
-        if is_old && is_low_confidence {
-            let age_note = if date_str.is_empty() {
+            let age_note = if r.last_updated.is_empty() {
                 "no last_updated date".to_string()
             } else {
-                format!("last updated {date_str}")
+                format!("last updated {}", r.last_updated)
             };
-            findings.push(LintFinding {
-                path: slug_path(&slug, wiki_root),
-                slug,
+            Some(LintFinding {
+                path: slug_path(&r.slug, wiki_root),
+                slug: r.slug.clone(),
                 rule: "stale",
                 severity: Severity::Warning,
                 message: format!("stale page: {age_note}"),
-            });
-        }
-    }
+            })
+        })
+        .collect()
+}
 
-    Ok(findings)
+// ── Rule: unknown-type ────────────────────────────────────────────────────────
+
+fn rule_unknown_type(
+    records: &[DocRecord],
+    wiki_root: &Path,
+    registry: &crate::type_registry::SpaceTypeRegistry,
+) -> Vec<LintFinding> {
+    records
+        .iter()
+        .filter(|r| !r.page_type.is_empty() && !registry.is_known(&r.page_type))
+        .map(|r| LintFinding {
+            path: slug_path(&r.slug, wiki_root),
+            slug: r.slug.clone(),
+            rule: "unknown-type",
+            severity: Severity::Error,
+            message: format!("unknown type: {}", r.page_type),
+        })
+        .collect()
 }
 
 // ── Graph helper ─────────────────────────────────────────────────────────────
@@ -547,49 +596,6 @@ fn build_undirected(
         }
     }
     (ug, reverse_map)
-}
-
-// ── Rule: unknown-type ────────────────────────────────────────────────────────
-
-fn rule_unknown_type(
-    searcher: &tantivy::Searcher,
-    is: &IndexSchema,
-    wiki_root: &Path,
-    registry: &crate::type_registry::SpaceTypeRegistry,
-) -> Result<Vec<LintFinding>> {
-    let f_slug = is.field("slug");
-    let f_type = is.field("type");
-
-    let all_addrs = searcher.search(&AllQuery, &tantivy::collector::DocSetCollector)?;
-
-    let mut findings = Vec::new();
-
-    for addr in &all_addrs {
-        let doc: tantivy::TantivyDocument = searcher.doc(*addr)?;
-        let slug = doc
-            .get_first(f_slug)
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        if slug.is_empty() {
-            continue;
-        }
-        let page_type = doc.get_first(f_type).and_then(|v| v.as_str()).unwrap_or("");
-        if page_type.is_empty() {
-            continue;
-        }
-        if !registry.is_known(page_type) {
-            findings.push(LintFinding {
-                path: slug_path(&slug, wiki_root),
-                slug,
-                rule: "unknown-type",
-                severity: Severity::Error,
-                message: format!("unknown type: {page_type}"),
-            });
-        }
-    }
-
-    Ok(findings)
 }
 
 // ── Rule: articulation-point ──────────────────────────────────────────────────
@@ -678,10 +684,9 @@ fn rule_periphery(
 mod tests {
     use super::*;
     use crate::graph::{LabeledEdge, PageNode};
-    use petgraph::graph::DiGraph;
 
     fn make_graph(slugs: &[&str], edges: &[(&str, &str)]) -> WikiGraph {
-        let mut g = DiGraph::new();
+        let mut g = WikiGraph::new();
         let indices: std::collections::HashMap<&str, petgraph::graph::NodeIndex> = slugs
             .iter()
             .map(|&s| {
@@ -710,7 +715,7 @@ mod tests {
 
     #[test]
     fn build_undirected_excludes_external() {
-        let mut g = DiGraph::new();
+        let mut g = WikiGraph::new();
         let local = g.add_node(PageNode {
             slug: "a".into(),
             title: "a".into(),
@@ -858,5 +863,176 @@ mod tests {
             &[("a", "b"), ("b", "c"), ("c", "a")],
         ));
         assert!(rule_periphery(&g, Path::new("/wiki"), 2).is_empty());
+    }
+
+    fn make_record(slug: &str, page_type: &str) -> DocRecord {
+        DocRecord {
+            slug: slug.to_string(),
+            page_type: page_type.to_string(),
+            status: String::new(),
+            last_updated: String::new(),
+            confidence: None,
+            confidence_field_absent: false,
+            body_links: vec![],
+            sources: vec![],
+            concepts: vec![],
+            document_refs: vec![],
+            superseded_by: vec![],
+            fields_present: std::collections::HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn rule_orphan_flags_unlinked_page() {
+        let root = std::path::Path::new("/wiki");
+        // a↔b form a mutually-linked pair; "c" has no incoming links → only orphan
+        let mut a = make_record("a", "note");
+        a.body_links = vec!["b".to_string()];
+        let mut b = make_record("b", "note");
+        b.body_links = vec!["a".to_string()];
+        let c = make_record("c", "note");
+        let findings = rule_orphan(&[a, b, c], root);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].slug, "c");
+        assert_eq!(findings[0].rule, "orphan");
+        assert_eq!(findings[0].severity, Severity::Warning);
+    }
+
+    #[test]
+    fn rule_orphan_skips_section_and_index_slugs() {
+        let root = std::path::Path::new("/wiki");
+        // section pages and slugs ending in /index are exempt
+        let sec = make_record("intro", "section");
+        let idx = make_record("projects/index", "note");
+        let bare_idx = make_record("index", "note");
+        let findings = rule_orphan(&[sec, idx, bare_idx], root);
+        assert!(findings.is_empty(), "got findings: {findings:?}");
+    }
+
+    #[test]
+    fn rule_unknown_type_flags_unrecognised_type() {
+        use crate::type_registry::SpaceTypeRegistry;
+        let registry = SpaceTypeRegistry::default();
+        let root = std::path::Path::new("/wiki");
+        // "ghost" is not in any embedded schema
+        let r = make_record("some-page", "ghost");
+        let findings = rule_unknown_type(&[r], root, &registry);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].rule, "unknown-type");
+        assert_eq!(findings[0].severity, Severity::Error);
+        assert!(findings[0].message.contains("ghost"));
+    }
+
+    #[test]
+    fn rule_broken_link_flags_missing_slug() {
+        let root = std::path::Path::new("/wiki");
+        let mut a = make_record("a", "note");
+        a.body_links = vec!["nonexistent".to_string()];
+        let b = make_record("b", "note");
+        let findings = rule_broken_link(&[a, b], root, false, &std::collections::HashSet::new());
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].slug, "a");
+        assert_eq!(findings[0].rule, "broken-link");
+        assert_eq!(findings[0].severity, Severity::Error);
+        assert!(findings[0].message.contains("nonexistent"));
+    }
+
+    #[test]
+    fn rule_stale_flags_old_page_with_no_confidence_field() {
+        let root = std::path::Path::new("/wiki");
+        let mut r = make_record("old-page", "note");
+        r.last_updated = "2000-01-01".to_string();
+        r.confidence_field_absent = true;
+        let findings = rule_stale(&[r], root, 1, 0.7);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].rule, "stale");
+        assert_eq!(findings[0].severity, Severity::Warning);
+        assert!(findings[0].message.contains("2000-01-01"));
+    }
+
+    #[test]
+    fn rule_stale_skips_non_active_status() {
+        let root = std::path::Path::new("/wiki");
+        let mut r = make_record("archived-page", "note");
+        r.last_updated = "2000-01-01".to_string();
+        r.status = "archived".to_string();
+        r.confidence_field_absent = true;
+        let findings = rule_stale(&[r], root, 1, 0.7);
+        assert!(findings.is_empty(), "archived pages must not be flagged");
+    }
+
+    #[test]
+    fn rule_stale_skips_high_confidence_page() {
+        let root = std::path::Path::new("/wiki");
+        let mut r = make_record("solid-page", "note");
+        r.last_updated = "2000-01-01".to_string();
+        r.confidence = Some(0.9);
+        r.confidence_field_absent = false;
+        let findings = rule_stale(&[r], root, 1, 0.7);
+        assert!(
+            findings.is_empty(),
+            "high-confidence page must not be flagged"
+        );
+    }
+
+    #[test]
+    fn rule_missing_fields_flags_absent_required_field() {
+        use crate::type_registry::SpaceTypeRegistry;
+        let registry = SpaceTypeRegistry::default();
+        let root = std::path::Path::new("/wiki");
+        let type_name = registry
+            .list_types()
+            .into_iter()
+            .find(|(t, _)| !registry.required_fields(t).is_empty())
+            .expect("at least one type with required fields in embedded schemas")
+            .0
+            .to_string();
+        let required = registry.required_fields(&type_name).to_vec();
+
+        let mut r = make_record("test-page", &type_name);
+        r.fields_present = required.iter().map(|f| (f.clone(), false)).collect();
+
+        let findings = rule_missing_fields(&[r], root, &registry);
+        assert!(
+            !findings.is_empty(),
+            "expected findings for absent required fields"
+        );
+        for f in &findings {
+            assert_eq!(f.rule, "missing-fields");
+            assert_eq!(f.severity, Severity::Error);
+        }
+    }
+
+    #[test]
+    fn rule_missing_fields_no_findings_when_all_present() {
+        use crate::type_registry::SpaceTypeRegistry;
+        let registry = SpaceTypeRegistry::default();
+        let root = std::path::Path::new("/wiki");
+        let type_name = registry
+            .list_types()
+            .into_iter()
+            .find(|(t, _)| !registry.required_fields(t).is_empty())
+            .expect("at least one type with required fields")
+            .0
+            .to_string();
+        let required = registry.required_fields(&type_name).to_vec();
+
+        let mut r = make_record("test-page", &type_name);
+        r.fields_present = required.iter().map(|f| (f.clone(), true)).collect();
+
+        let findings = rule_missing_fields(&[r], root, &registry);
+        assert!(findings.is_empty(), "expected no findings: {findings:?}");
+    }
+
+    #[test]
+    fn rule_broken_link_cross_wiki_flagged_when_unmounted() {
+        let root = std::path::Path::new("/wiki");
+        let mut a = make_record("a", "note");
+        a.body_links = vec!["wiki://other-wiki/some-page".to_string()];
+        let mounted: std::collections::HashSet<String> = ["my-wiki".to_string()].into();
+        let findings = rule_broken_link(&[a], root, true, &mounted);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].rule, "broken-cross-wiki-link");
+        assert_eq!(findings[0].severity, Severity::Warning);
     }
 }

@@ -5,7 +5,7 @@ read_when:
   - Understanding the base frontmatter fields
   - Understanding what happens with unrecognized types
 status: ready
-last_updated: "2025-07-17"
+last_updated: "2026-08-19"
 ---
 
 # Base Type
@@ -21,7 +21,7 @@ field (registered as `[types.default]` in `wiki.toml`).
 | Field   | Type   | Description             |
 | ------- | ------ | ----------------------- |
 | `title` | string | Display name            |
-| `type`  | string | Page type from registry |
+| `type`  | string | Page type from registry. Indexed as keyword (`STRING \| STORED \| FAST`) — controlled vocabulary, never free-text. |
 
 ## Optional Fields
 
@@ -29,7 +29,7 @@ field (registered as `[types.default]` in `wiki.toml`).
 | --------------- | ------------ | ------------------------------------------------ |
 | `summary`       | string       | One-line scope                                   |
 | `status`        | string       | Lifecycle state (e.g. `active`, `draft`, `stub`) |
-| `last_updated`  | string       | ISO 8601 date                                    |
+| `last_updated`  | string       | ISO 8601 date. Indexed as keyword (`STRING \| STORED \| FAST`) — enables zero-doc-fetch staleness collection via `StrColumn`. |
 | `tags`          | list[string] | Lowercase hyphenated search terms. Indexed as one keyword value per tag (`x-keyword: true`); values lowercased at index time. Multi-word tags (e.g. `machine learning`) are stored verbatim as a single term. |
 | `owner`         | string       | Person, team, or agent responsible               |
 | `superseded_by` | string       | Slug of replacement page                         |

@@ -8,7 +8,7 @@ use tantivy::schema::{
     TextOptions,
 };
 
-use crate::config;
+use crate::config::{self, Tokenizer};
 use crate::default_schemas;
 
 /// Tantivy schema + field handles.
@@ -33,7 +33,7 @@ impl IndexSchema {
     ///
     /// Reads each schema file once, extracts properties, classifies
     /// fields, builds the tantivy schema, then discards the raw JSON.
-    pub fn build_from_schemas(repo_root: &Path, tokenizer: &str) -> Result<Self> {
+    pub fn build_from_schemas(repo_root: &Path, tokenizer: &Tokenizer) -> Result<Self> {
         let schemas_dir = repo_root.join("schemas");
         let schema_sources = if schemas_dir.is_dir() {
             collect_schema_sources_from_dir(&schemas_dir, repo_root)?
@@ -126,8 +126,11 @@ pub(crate) fn classify_field(prop: &serde_json::Value, is_slug_field: bool) -> F
 
     match prop_type {
         "string" => {
-            // enum or const → keyword
-            if prop.get("enum").is_some() || prop.get("const").is_some() {
+            // x-keyword: true, enum, or const → keyword
+            if prop.get("x-keyword").and_then(|v| v.as_bool()) == Some(true)
+                || prop.get("enum").is_some()
+                || prop.get("const").is_some()
+            {
                 FieldClass::Keyword
             } else {
                 FieldClass::Text
@@ -265,9 +268,9 @@ pub(crate) struct SchemaBuilder {
 }
 
 impl SchemaBuilder {
-    pub(crate) fn new(tokenizer: &str) -> Self {
+    pub(crate) fn new(tokenizer: &Tokenizer) -> Self {
         let text_indexing = TextFieldIndexing::default()
-            .set_tokenizer(tokenizer)
+            .set_tokenizer(tokenizer.as_str())
             .set_index_option(IndexRecordOption::WithFreqsAndPositions);
         let text_opts = TextOptions::default()
             .set_indexing_options(text_indexing)

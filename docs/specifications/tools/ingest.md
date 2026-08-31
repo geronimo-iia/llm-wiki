@@ -60,6 +60,15 @@ patterns matched. `#[serde(default)]` — absent from older responses.
 
 `commit` is empty when `ingest.auto_commit` is false.
 
+### Exclusion and frontmatter filtering
+
+Before indexing, the ingest pipeline applies two filters driven by `[ingest]` config:
+
+- **`exclude`** — slug is matched against each gitignore-style glob in `ingest.exclude`. Patterns match slugs (relative to `wiki_root`), not absolute paths. Matching files are skipped entirely.
+- **`skip_no_frontmatter`** — defaults to `true`. Any `.md` file with no `---` YAML frontmatter block is skipped. This is a behavior change from earlier versions where bare markdown was indexed. Set `skip_no_frontmatter = false` in `wiki.toml` (or globally) to restore the old behavior.
+
+Both filters run at every WalkDir entry via `should_index`. Skipped files are not counted as errors and do not appear in `warnings`.
+
 ### Validation scope
 
 Normal ingest (`dry_run: false`) narrows validation to files that are new or

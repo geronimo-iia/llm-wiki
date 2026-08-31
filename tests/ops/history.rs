@@ -11,7 +11,7 @@ fn history_returns_commits_for_page() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::history(&engine, "concepts/moe", None, None, None).unwrap();
     assert!(
@@ -37,7 +37,7 @@ fn history_respects_limit() {
     git::commit(&wiki_path, "update moe").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::history(&engine, "concepts/moe", None, Some(1), None).unwrap();
     assert_eq!(result.entries.len(), 1, "limit should cap to 1 entry");
@@ -59,7 +59,7 @@ fn history_excludes_unrelated_commits() {
     git::commit(&wiki_path, "update transformer only").unwrap();
 
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::history(&engine, "concepts/moe", None, None, None).unwrap();
     // The "update transformer only" commit should NOT appear in moe's history
@@ -77,7 +77,7 @@ fn history_empty_for_nonexistent_page() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::history(&engine, "concepts/nonexistent", None, None, None);
     // Should error because slug doesn't resolve to a file
@@ -89,7 +89,7 @@ fn history_via_wiki_uri() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let result = ops::history(&engine, "wiki://test/concepts/moe", None, None, None).unwrap();
     assert!(!result.entries.is_empty());

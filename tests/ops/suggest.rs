@@ -22,11 +22,11 @@ fn suggest_returns_candidates_with_shared_tags() {
 
     let manager = WikiEngine::build(&config_path).unwrap();
     {
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         ops::ingest(&engine, &manager, "sources/paper-a.md", false, "test").unwrap();
     }
 
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let suggestions = ops::suggest(&engine, "concepts/moe", None, None).unwrap();
     assert!(
         suggestions.iter().any(|s| s.slug == "sources/paper-a"),
@@ -40,7 +40,7 @@ fn suggest_excludes_already_linked() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     // transformer has [[concepts/moe]] in body — moe should not be suggested for transformer
     let suggestions = ops::suggest(&engine, "concepts/transformer", None, None).unwrap();
@@ -55,7 +55,7 @@ fn suggest_respects_limit() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = setup_wiki(dir.path(), "test");
     let manager = WikiEngine::build(&config_path).unwrap();
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
 
     let suggestions = ops::suggest(&engine, "concepts/moe", None, Some(1)).unwrap();
     assert!(suggestions.len() <= 1);
@@ -80,11 +80,11 @@ fn suggest_on_empty_wiki() {
 
     let manager = WikiEngine::build(&config_path).unwrap();
     {
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         ops::ingest(&engine, &manager, "concepts/lonely.md", false, "empty").unwrap();
     }
 
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let suggestions = ops::suggest(&engine, "concepts/lonely", None, None).unwrap();
     // Single page wiki — no suggestions possible
     assert!(suggestions.is_empty());
@@ -107,11 +107,11 @@ fn suggest_has_field_suggestion() {
 
     let manager = WikiEngine::build(&config_path).unwrap();
     {
-        let engine = manager.state.read().unwrap();
+        let engine = manager.state_for_test().read().unwrap();
         ops::ingest(&engine, &manager, "sources/paper-b.md", false, "test").unwrap();
     }
 
-    let engine = manager.state.read().unwrap();
+    let engine = manager.state_for_test().read().unwrap();
     let suggestions = ops::suggest(&engine, "concepts/moe", None, None).unwrap();
     // A paper suggested for a concept should have field "sources"
     if let Some(paper_suggestion) = suggestions.iter().find(|s| s.r#type == "paper") {

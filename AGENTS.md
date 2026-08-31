@@ -1,7 +1,7 @@
 ---
 title: "Agent Context"
 summary: "Orientation for AI agents and contributors working on llm-wiki."
-last_updated: "2026-08-04"
+last_updated: "2026-08-28"
 ---
 
 # Agent Context
@@ -24,7 +24,7 @@ Quick orientation for AI agents starting a fresh session. Not a spec — read
 
 ## Key types
 
-- `WikiEngine` — `Arc<RwLock<EngineState>>`; cheap to clone, share across tasks
+- `WikiEngine` — holds `pub(crate) state: Arc<RwLock<EngineState>>`; cheap to clone, share across tasks. External callers use `with_state(|s| ...)` to read; integration tests use `state_for_test()` (`#[doc(hidden)] pub`). Internal lib code accesses `self.state` directly.
 - `SpaceContext` — all runtime state for one mounted wiki; lives inside `EngineState.spaces`
 - `WikiGraphCache` — `NoSnapshot(GenerationCache<WikiGraph>)` or `WithSnapshot(GraphState<WikiGraph>)`
 - `SpaceIndexManager` — tantivy index lifecycle; `last_commit()` reads `state.toml`

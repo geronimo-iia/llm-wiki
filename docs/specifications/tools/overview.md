@@ -10,7 +10,7 @@ last_updated: "2026-08-18"
 
 # Tool Surface Overview
 
-The engine exposes 24 tools. Every tool is available via MCP
+The engine exposes 25 tools. Every tool is available via MCP
 (stdio + HTTP), ACP, and CLI. Same tool surface, three transports.
 
 ## Design Principle
@@ -26,7 +26,7 @@ access** that a skill cannot replicate:
 Everything else — workflow orchestration, LLM prompting, multi-step
 procedures — belongs in skills (the `llm-wiki-skills` repository).
 
-## The 24 Tools
+## The 25 Tools
 
 ### Space management (5 tools)
 
@@ -77,11 +77,11 @@ References:
 | `wiki_ingest` | Validate frontmatter + update index + commit |
 | `wiki_graph` | Generate concept graph (Mermaid/DOT/LLMs/JSON) |
 | `wiki_history` | Git commit history for a page |
-| `wiki_info` | Server status — version, config path, spaces, and per-wiki index health |
+| `wiki_info` | Server status — version, spaces, default wiki, and per-wiki index health |
 | `wiki_stats` | Wiki health dashboard |
 | `wiki_suggest` | Suggest related pages to link |
 | `wiki_resolve` | Resolve a slug or `wiki://` URI to a canonical path |
-| `wiki_lint` | Lint pages for broken links, orphans, and schema violations |
+| `wiki_lint` | Lint pages for broken links, orphans, and schema violations; scalable via summary/prefix/pagination |
 | `wiki_export` | Export wiki content as a single document |
 | `wiki_index_rebuild` | Rebuild tantivy index from committed files |
 | `wiki_index_status` | Check index health |
@@ -106,6 +106,13 @@ All CLI commands accept:
 
 All MCP/ACP tools accept an optional `wiki` parameter with the same
 semantics.
+
+### Migration (1 tool)
+
+`wiki_migrate` — remove redundant stock schema copies from wiki `schemas/` directories; supports `dry_run` to preview without modifying, and `--all` to run across every registered wiki.
+
+References:
+- [migrate.md](migrate.md)
 
 ## CLI-Only Commands
 

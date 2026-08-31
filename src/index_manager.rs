@@ -8,17 +8,53 @@ use chrono::Utc;
 use git2::Delta;
 use serde::{Deserialize, Serialize};
 use tantivy::{
-    Index, IndexReader, IndexWriter, Searcher, Term, collector::TopDocs, directory::MmapDirectory,
-    query::AllQuery,
+    Index, IndexReader, IndexWriter, Searcher, Term,
+    collector::{Count, TopDocs},
+    directory::MmapDirectory,
+    query::{AllQuery, TermQuery},
+    schema::IndexRecordOption,
 };
 use walkdir::WalkDir;
 
+use crate::config::IngestConfig;
 use crate::frontmatter;
 use crate::git;
 use crate::index_schema::IndexSchema;
 use crate::links;
 use crate::slug::Slug;
 use crate::type_registry::SpaceTypeRegistry;
+
+fn should_index(
+    slug: &str,
+    content: &str,
+    config: &IngestConfig,
+    exclude: &globset::GlobSet,
+) -> bool {
+    if exclude.is_match(slug) {
+        tracing::debug!(slug, "skipping excluded file");
+        return false;
+    }
+    if config.skip_no_frontmatter && !content.trim_start().starts_with("---") {
+        tracing::debug!(slug, "skipping file without frontmatter");
+        return false;
+    }
+    true
+}
+
+fn build_exclude_set(config: &IngestConfig) -> globset::GlobSet {
+    let mut builder = globset::GlobSetBuilder::new();
+    for pattern in &config.exclude {
+        match globset::Glob::new(pattern) {
+            Ok(g) => {
+                builder.add(g);
+            }
+            Err(e) => tracing::warn!(pattern, error = %e, "invalid exclude glob; skipping"),
+        }
+    }
+    builder
+        .build()
+        .unwrap_or_else(|_| globset::GlobSetBuilder::new().build().unwrap())
+}
 
 // ── Return types ──────────────────────────────────────────────────────────────
 
@@ -49,11 +85,13 @@ pub struct UpdateReport {
 /// Healthy when `openable = true`, `queryable = true`, and `stale = false`.
 /// Any failing condition sets `degraded_reason`; priority order: openable →
 /// queryable → stale (a non-openable index is also non-queryable by definition).
+/// `degraded_reason` is an empty string when the index is fully healthy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexStatus {
     /// Wiki name.
     pub wiki: String,
     /// Absolute path to the search-index directory.
+    #[serde(skip)]
     pub path: String,
     /// ISO-8601 timestamp of the last successful build, or None if never built.
     pub built: Option<String>,
@@ -68,9 +106,9 @@ pub struct IndexStatus {
     /// True if the index can be queried (reader opened successfully).
     pub queryable: bool,
     /// Human-readable explanation when the index is degraded (not ok).
-    /// None when the index is fully healthy.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub degraded_reason: Option<String>,
+    /// Empty string when the index is fully healthy.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub degraded_reason: String,
 }
 
 /// Classification of index staleness used to choose the cheapest rebuild strategy.
@@ -119,7 +157,11 @@ struct IndexInner {
 pub struct SpaceIndexManager {
     wiki_name: String,
     index_path: PathBuf,
+    memory_budget_bytes: usize,
     inner: RwLock<IndexInner>,
+    /// Serializes concurrent rebuild() calls. Prevents two rebuild paths (MCP + watcher)
+    /// from racing over the build_dir / live_dir swap.
+    rebuild_lock: std::sync::Mutex<()>,
     /// When `true`, the next `reload_reader()` call returns `Err` and clears the flag.
     /// Never set in production code — only meaningful in tests.
     #[doc(hidden)]
@@ -128,15 +170,21 @@ pub struct SpaceIndexManager {
 
 impl SpaceIndexManager {
     /// Create a new `SpaceIndexManager` for `wiki_name` with its index stored at `index_path`.
-    pub fn new(wiki_name: impl Into<String>, index_path: impl Into<PathBuf>) -> Self {
+    pub fn new(
+        wiki_name: impl Into<String>,
+        index_path: impl Into<PathBuf>,
+        memory_budget_bytes: usize,
+    ) -> Self {
         Self {
             wiki_name: wiki_name.into(),
             index_path: index_path.into(),
+            memory_budget_bytes,
             inner: RwLock::new(IndexInner {
                 tantivy_index: None,
                 index_reader: None,
                 generation: AtomicU64::new(0),
             }),
+            rebuild_lock: std::sync::Mutex::new(()),
             fail_next_reload: std::sync::atomic::AtomicBool::new(false),
         }
     }
@@ -162,13 +210,23 @@ impl SpaceIndexManager {
             .unwrap_or(0)
     }
 
+    /// Drop all held index handles. Tests use this before overwriting index files on
+    /// Windows, where writing to a memory-mapped file returns ERROR_USER_MAPPED_FILE.
+    #[doc(hidden)]
+    pub fn close(&self) {
+        if let Ok(mut inner) = self.inner.write() {
+            inner.tantivy_index = None;
+            inner.index_reader = None;
+        }
+    }
+
     /// Open the index from disk and hold the reader.
     /// Call after rebuild/staleness check. Recovery: if open fails and
     /// wiki_root/repo_root/registry are provided, rebuild and retry.
     pub fn open(
         &self,
         is: &IndexSchema,
-        recovery: Option<(&Path, &Path, &SpaceTypeRegistry)>,
+        recovery: Option<(&Path, &Path, &SpaceTypeRegistry, &IngestConfig)>,
     ) -> Result<()> {
         let search_dir = self.index_path.join("search-index");
 
@@ -180,7 +238,7 @@ impl SpaceIndexManager {
         let index = match try_open() {
             Ok(idx) => idx,
             Err(e) => {
-                if let Some((wiki_root, repo_root, registry)) = recovery {
+                if let Some((wiki_root, repo_root, registry, ingest_config)) = recovery {
                     tracing::warn!(
                         wiki = %self.wiki_name,
                         error = %e,
@@ -189,7 +247,7 @@ impl SpaceIndexManager {
                     if search_dir.exists() {
                         let _ = std::fs::remove_dir_all(&search_dir);
                     }
-                    self.rebuild(wiki_root, repo_root, is, registry)?;
+                    self.rebuild(wiki_root, repo_root, is, registry, ingest_config)?;
                     try_open().context("index still corrupt after rebuild")?
                 } else {
                     return Err(e);
@@ -250,14 +308,14 @@ impl SpaceIndexManager {
             .read()
             .map_err(|_| anyhow::anyhow!("index lock poisoned"))?;
         if let Some(ref idx) = inner.tantivy_index {
-            Ok(idx.writer(50_000_000)?)
+            Ok(idx.writer(self.memory_budget_bytes)?)
         } else {
             drop(inner);
             let search_dir = self.index_path.join("search-index");
             let dir = MmapDirectory::open(&search_dir)
                 .with_context(|| format!("failed to open index dir: {}", search_dir.display()))?;
             let index = Index::open(dir).context("failed to open index")?;
-            Ok(index.writer(50_000_000)?)
+            Ok(index.writer(self.memory_budget_bytes)?)
         }
     }
 
@@ -280,7 +338,15 @@ impl SpaceIndexManager {
         repo_root: &Path,
         is: &IndexSchema,
         registry: &SpaceTypeRegistry,
+        ingest_config: &IngestConfig,
     ) -> Result<IndexReport> {
+        let _rebuild_guard = self.rebuild_lock.lock().unwrap_or_else(|e| {
+            tracing::warn!(
+                "rebuild lock poisoned — previous rebuild may have panicked; recovering"
+            );
+            e.into_inner()
+        });
+
         let start = std::time::Instant::now();
 
         let live_dir = self.index_path.join("search-index");
@@ -303,11 +369,12 @@ impl SpaceIndexManager {
         let dir = MmapDirectory::open(&build_dir)
             .with_context(|| format!("failed to open build dir: {}", build_dir.display()))?;
         let index = Index::open_or_create(dir, is.schema.clone())?;
-        let mut writer: IndexWriter = index.writer(50_000_000)?;
+        let mut writer: IndexWriter = index.writer(self.memory_budget_bytes)?;
 
         let mut pages = 0usize;
         let mut sections = 0usize;
         let mut skipped = 0usize;
+        let exclude = build_exclude_set(ingest_config);
 
         for entry in WalkDir::new(wiki_root).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
@@ -327,11 +394,15 @@ impl SpaceIndexManager {
             let slug = match Slug::from_path(path, wiki_root) {
                 Ok(s) => s,
                 Err(e) => {
-                    tracing::debug!(path = %path.display(), error = %e, "skipping invalid path");
+                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path");
                     skipped += 1;
                     continue;
                 }
             };
+            if !should_index(slug.as_str(), &content, ingest_config, &exclude) {
+                skipped += 1;
+                continue;
+            }
             let uri = format!("wiki://{}/{slug}", self.wiki_name);
             let page = frontmatter::parse(&content, Some(path));
 
@@ -360,6 +431,21 @@ impl SpaceIndexManager {
         }
 
         writer.commit()?;
+        // Drop writer and local build index — Windows refuses to rename a directory
+        // while file handles inside it are still open.
+        drop(writer);
+        drop(index);
+
+        // Also close any live reader/index held in self.inner: it points at live_dir
+        // and would block the live→backup rename on Windows (os error 5).
+        {
+            let mut inner = self
+                .inner
+                .write()
+                .map_err(|_| anyhow::anyhow!("index lock poisoned"))?;
+            inner.tantivy_index = None;
+            inner.index_reader = None;
+        }
 
         // Atomic swap: live → prev, building → live.
         // Both dirs are under self.index_path — same filesystem, rename is atomic.
@@ -376,33 +462,59 @@ impl SpaceIndexManager {
         }
         std::fs::rename(&build_dir, &live_dir).context("failed to promote build dir to live")?;
 
-        // Activate new reader. On failure: roll back all renames and return error.
-        if let Err(e) = self.reload_reader() {
-            tracing::error!(
-                index_path = %self.index_path.display(),
-                error = %e,
-                "reload_reader failed after index swap — rolling back"
-            );
-            // Step 1: move broken new index out of live_dir back to build_dir.
-            // If this fails, live_dir still holds the broken index; in-process
-            // reader keeps serving the old data via its open file descriptors.
-            // On next process start, open() with recovery=Some(...) will auto-rebuild.
-            let r1 = std::fs::rename(&live_dir, &build_dir);
-            if let Err(e2) = &r1 {
-                tracing::error!(error = %e2, "rollback step 1 failed — live index broken on disk; restart will auto-rebuild");
+        // Reopen from the new live_dir. The old handles were dropped above, so
+        // reload_reader() would be a no-op; open fresh instead.
+        // Honor fail_next_reload so test-injected failures still trigger rollback.
+        let open_result = (|| -> Result<(Index, IndexReader)> {
+            if self
+                .fail_next_reload
+                .swap(false, std::sync::atomic::Ordering::AcqRel)
+            {
+                return Err(anyhow::anyhow!("injected reload_reader failure"));
             }
-            // Step 2: restore old index from backup. Only exists when there was a prior
-            // live_dir (not first build). If step 1 failed, live_dir is non-empty so
-            // this rename will also fail with ENOTEMPTY — both errors are logged.
-            if backup_dir.exists() {
-                let r2 = std::fs::rename(&backup_dir, &live_dir);
-                if let Err(e2) = &r2 {
-                    tracing::error!(error = %e2, "rollback step 2 failed — live index broken on disk; restart will auto-rebuild");
+            let dir = MmapDirectory::open(&live_dir)
+                .with_context(|| format!("failed to open new live dir: {}", live_dir.display()))?;
+            let idx = Index::open(dir).context("failed to open new live index")?;
+            let reader = idx
+                .reader_builder()
+                .reload_policy(tantivy::ReloadPolicy::Manual)
+                .try_into()
+                .context("failed to create reader for new live index")?;
+            Ok((idx, reader))
+        })();
+
+        match open_result {
+            Ok((idx, reader)) => {
+                let mut inner = self
+                    .inner
+                    .write()
+                    .map_err(|_| anyhow::anyhow!("index lock poisoned"))?;
+                inner.tantivy_index = Some(idx);
+                inner.index_reader = Some(reader);
+                inner.generation.fetch_add(1, Ordering::AcqRel);
+            }
+            Err(e) => {
+                tracing::error!(
+                    index_path = %self.index_path.display(),
+                    error = %e,
+                    "reopen failed after index swap — rolling back"
+                );
+                // Step 1: move broken new index out of live_dir back to build_dir.
+                let r1 = std::fs::rename(&live_dir, &build_dir);
+                if let Err(e2) = &r1 {
+                    tracing::error!(error = %e2, "rollback step 1 failed — live index broken on disk; restart will auto-rebuild");
                 }
+                // Step 2: restore old index from backup.
+                if backup_dir.exists() {
+                    let r2 = std::fs::rename(&backup_dir, &live_dir);
+                    if let Err(e2) = &r2 {
+                        tracing::error!(error = %e2, "rollback step 2 failed — live index broken on disk; restart will auto-rebuild");
+                    }
+                }
+                let _ = std::fs::remove_dir_all(&build_dir);
+                return Err(e)
+                    .context("reopen failed after index rebuild; index may be unavailable");
             }
-            let _ = std::fs::remove_dir_all(&build_dir);
-            return Err(e)
-                .context("reload_reader failed after index rebuild; index may be unavailable");
         }
 
         let _ = std::fs::remove_dir_all(&backup_dir);
@@ -437,12 +549,14 @@ impl SpaceIndexManager {
         last_indexed_commit: Option<&str>,
         is: &IndexSchema,
         registry: &SpaceTypeRegistry,
+        ingest_config: &IngestConfig,
     ) -> Result<UpdateReport> {
         let changes = git::collect_changed_files(repo_root, wiki_root, last_indexed_commit)?;
         if changes.is_empty() {
             return Ok(UpdateReport::default());
         }
 
+        let exclude = build_exclude_set(ingest_config);
         let mut writer = self.writer()?;
 
         let f_slug = is.field("slug");
@@ -460,11 +574,12 @@ impl SpaceIndexManager {
             let slug = match Slug::from_path(path, wiki_prefix) {
                 Ok(s) => s,
                 Err(e) => {
-                    tracing::debug!(path = %path.display(), error = %e, "skipping invalid path in update");
+                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path in update");
                     continue;
                 }
             };
 
+            // delete_term runs unconditionally — removes the doc if it was previously indexed
             writer.delete_term(Term::from_field_text(f_slug, slug.as_str()));
 
             if *status == Delta::Deleted {
@@ -472,6 +587,9 @@ impl SpaceIndexManager {
             } else {
                 let full_path = repo_root.join(path);
                 if let Ok(content) = std::fs::read_to_string(&full_path) {
+                    if !should_index(slug.as_str(), &content, ingest_config, &exclude) {
+                        continue;
+                    }
                     let page = frontmatter::parse(&content, Some(&full_path));
                     let uri = format!("wiki://{}/{slug}", self.wiki_name);
                     let is_bundle = full_path.file_name() == Some(std::ffi::OsStr::new("index.md"));
@@ -498,6 +616,11 @@ impl SpaceIndexManager {
 
         writer.commit()?;
         self.reload_reader()?;
+        // state.toml is intentionally not updated here. It reflects the last full rebuild only.
+        // Updating it after every incremental update would require re-querying pages + sections
+        // on each watcher event, and raises partial-failure questions (what if the loop above
+        // partially fails?). The only consumer of state.toml is `wiki index status`, which is
+        // informational. `wiki_stats` reads the live index directly and is unaffected.
         Ok(UpdateReport { updated, deleted })
     }
 
@@ -550,16 +673,15 @@ impl SpaceIndexManager {
         };
 
         let degraded_reason = if !openable {
-            Some("search index directory cannot be opened by Tantivy; run wiki_index_rebuild to recover".to_string())
+            "search index directory cannot be opened by Tantivy; run wiki_index_rebuild to recover"
+                .to_string()
         } else if !queryable {
-            Some(
-                "search index reader failed to initialize; run wiki_index_rebuild to recover"
-                    .to_string(),
-            )
+            "search index reader failed to initialize; run wiki_index_rebuild to recover"
+                .to_string()
         } else if stale {
-            Some("index is behind the current HEAD commit or schema — rebuild needed".to_string())
+            "index is behind the current HEAD commit or schema — rebuild needed; run wiki_index_rebuild to recover".to_string()
         } else {
-            None
+            String::new()
         };
 
         Ok(IndexStatus {
@@ -639,6 +761,7 @@ impl SpaceIndexManager {
         repo_root: &Path,
         is: &IndexSchema,
         registry: &SpaceTypeRegistry,
+        ingest_config: &IngestConfig,
     ) -> Result<IndexReport> {
         let start = std::time::Instant::now();
         let mut writer = self.writer()?;
@@ -653,6 +776,7 @@ impl SpaceIndexManager {
         let type_set: std::collections::HashSet<&str> = types.iter().map(|s| s.as_str()).collect();
         let mut pages = 0usize;
         let mut skipped = 0usize;
+        let exclude = build_exclude_set(ingest_config);
 
         for entry in WalkDir::new(wiki_root).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
@@ -675,11 +799,15 @@ impl SpaceIndexManager {
             let slug = match Slug::from_path(path, wiki_root) {
                 Ok(s) => s,
                 Err(e) => {
-                    tracing::debug!(path = %path.display(), error = %e, "skipping invalid path");
+                    tracing::warn!(path = %path.display(), error = %e, "skipping invalid path");
                     skipped += 1;
                     continue;
                 }
             };
+            if !should_index(slug.as_str(), &content, ingest_config, &exclude) {
+                skipped += 1;
+                continue;
+            }
             let uri = format!("wiki://{}/{slug}", self.wiki_name);
             let is_bundle = path.file_name() == Some(std::ffi::OsStr::new("index.md"));
             let source_dir_str = if is_bundle {
@@ -703,7 +831,15 @@ impl SpaceIndexManager {
 
         writer.commit()?;
         self.reload_reader()?;
-        let total_pages = self.searcher()?.num_docs() as usize;
+        let searcher = self.searcher()?;
+        let total_pages = searcher.num_docs() as usize;
+        let total_sections = searcher.search(
+            &TermQuery::new(
+                Term::from_field_text(f_type, "section"),
+                IndexRecordOption::Basic,
+            ),
+            &Count,
+        )?;
 
         // Update state.toml
         let commit = git::current_head(repo_root).unwrap_or_default();
@@ -711,9 +847,7 @@ impl SpaceIndexManager {
             schema_hash: registry.schema_hash().to_string(),
             built: Utc::now().to_rfc3339(),
             pages: total_pages,
-            // rebuild() counts sections via page_type filter; update() does not —
-            // a type-filtered tantivy query would be needed, out of P3.4 scope.
-            sections: 0,
+            sections: total_sections,
             commit,
             types: registry.type_hashes().clone(),
         };
@@ -775,6 +909,9 @@ fn index_page(
         );
     }
 
+    // body_links: multi-value keyword field storing every wiki:// URI found in the
+    // markdown body. Separate from frontmatter edge fields so graph and lint can
+    // distinguish inline prose links from structured relationship declarations.
     for link in links::extract_body_wikilinks(&page.body, source_dir) {
         doc.add_text(is.field("body_links"), &link);
     }
@@ -868,7 +1005,9 @@ fn yaml_to_text(value: &serde_yaml::Value) -> String {
             })
             .collect::<Vec<_>>()
             .join(" "),
-        serde_yaml::Value::Mapping(_) => serde_json::to_string(value).unwrap_or_default(),
+        serde_yaml::Value::Mapping(_) => serde_json::to_string(value)
+            .inspect_err(|e| tracing::warn!(error = %e, "YAML mapping not JSON-serializable; skipped from index"))
+            .unwrap_or_default(),
         serde_yaml::Value::Null => String::new(),
         _ => String::new(),
     }
@@ -888,5 +1027,86 @@ fn yaml_to_strings(value: &serde_yaml::Value) -> Vec<String> {
             .collect(),
         serde_yaml::Value::Null => vec![],
         _ => vec![yaml_to_text(value)],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Two reload_reader() calls on the same commit must yield different generation() values
+    /// but an identical last_commit(). This pins the cache-key contract: generation is the
+    /// correct cache key for graph/community caches, not last_commit.
+    #[test]
+    fn generation_advances_independently_of_last_commit() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mgr = SpaceIndexManager::new("test-wiki", dir.path(), 50_000_000);
+
+        // Write a state.toml so last_commit() returns a known value.
+        let state = IndexState {
+            schema_hash: String::new(),
+            built: "2026-01-01T00:00:00Z".into(),
+            pages: 0,
+            sections: 0,
+            commit: "abc123".into(),
+            types: Default::default(),
+        };
+        let toml_str = toml::to_string(&state).expect("serialize state");
+        std::fs::write(dir.path().join("state.toml"), toml_str).expect("write state.toml");
+
+        assert_eq!(mgr.generation(), 0);
+        assert_eq!(mgr.last_commit().as_deref(), Some("abc123"));
+
+        mgr.reload_reader().expect("first reload");
+        assert_eq!(mgr.generation(), 1);
+        assert_eq!(
+            mgr.last_commit().as_deref(),
+            Some("abc123"),
+            "last_commit unchanged after first reload"
+        );
+
+        mgr.reload_reader().expect("second reload");
+        assert_eq!(mgr.generation(), 2);
+        assert_eq!(
+            mgr.last_commit().as_deref(),
+            Some("abc123"),
+            "last_commit unchanged after second reload"
+        );
+    }
+
+    #[test]
+    fn should_index_no_exclusions() {
+        let cfg = IngestConfig::default();
+        let gs = build_exclude_set(&cfg);
+        assert!(should_index(
+            "concepts/foo",
+            "---\ntype: concept\n---\nbody",
+            &cfg,
+            &gs
+        ));
+        assert!(!should_index("readme", "# bare", &cfg, &gs));
+    }
+
+    #[test]
+    fn should_index_exclude_glob() {
+        let cfg = IngestConfig {
+            auto_commit: true,
+            exclude: vec!["drafts/**".to_string()],
+            skip_no_frontmatter: false,
+        };
+        let gs = build_exclude_set(&cfg);
+        assert!(!should_index("drafts/wip", "---\n---", &cfg, &gs));
+        assert!(should_index("concepts/foo", "---\n---", &cfg, &gs));
+    }
+
+    #[test]
+    fn should_index_skip_no_frontmatter_false() {
+        let cfg = IngestConfig {
+            auto_commit: true,
+            exclude: vec![],
+            skip_no_frontmatter: false,
+        };
+        let gs = build_exclude_set(&cfg);
+        assert!(should_index("readme", "# bare", &cfg, &gs));
     }
 }

@@ -15,7 +15,8 @@ MCP tool: `wiki_graph`
 
 ```
 llm-wiki graph
-          [--format <fmt>]          # mermaid | dot | llms (default: from config)
+          [--format <fmt>]          # mermaid | dot | llms | json | summary (default: from config)
+          [--limit <n>]             # top-hub count for summary format (default: 10)
           [--root <slug|uri>]       # subgraph from this node
           [--depth <n>]             # hop limit
           [--type <types>]          # comma-separated page types
@@ -33,8 +34,6 @@ llm-wiki graph
 | set | N | Subgraph from root, N hops |
 
 See [graph.md](../engine/graph.md) for the graph engine contract.
-
-> **Note:** This specification is subject to change as the typed graph evolves.
 
 ### Output
 
@@ -65,6 +64,52 @@ digraph wiki {
 }
 ```
 
+JSON (`--format json`): structured output with all nodes, edges, aggregate metrics, and Louvain community assignments. Use for `jq` pipelines, custom visualisers, or downstream analysis.
+
+```json
+{
+  "nodes": [
+    { "slug": "concepts/moe",         "title": "MoE",               "type": "concept", "external": false },
+    { "slug": "sources/switch",       "title": "Switch Transformer", "type": "paper",   "external": false },
+    { "slug": "concepts/scaling",     "title": "Scaling Laws",       "type": "concept", "external": false }
+  ],
+  "edges": [
+    { "from": "sources/switch",   "to": "concepts/moe",     "relation": "informs"    },
+    { "from": "concepts/moe",     "to": "concepts/scaling", "relation": "depends-on" }
+  ],
+  "metrics": {
+    "nodes": 3,
+    "edges": 2,
+    "orphans": 0,
+    "avg_connections": 1.33,
+    "density": 0.33
+  },
+  "communities": {
+    "concepts/moe":     0,
+    "sources/switch":   0,
+    "concepts/scaling": 1
+  }
+}
+```
+
+Field reference:
+
+| Field | Type | Description |
+|---|---|---|
+| `nodes[].slug` | string | Page slug |
+| `nodes[].title` | string | Display title |
+| `nodes[].type` | string | Frontmatter type |
+| `nodes[].external` | bool | `true` for cross-wiki placeholder nodes not in the local index |
+| `edges[].from` | string | Source slug |
+| `edges[].to` | string | Target slug |
+| `edges[].relation` | string | Relation label |
+| `metrics.nodes` | int | Total node count |
+| `metrics.edges` | int | Total edge count |
+| `metrics.orphans` | int | Nodes with no edges |
+| `metrics.avg_connections` | float | Mean edge count per node (edges × 2 / nodes) |
+| `metrics.density` | float | edges / (nodes × (nodes − 1)) |
+| `communities` | object\|null | slug → Louvain community id; `null` when graph is too small |
+
 LLM (`--format llms`):
 
 Natural language description of graph structure — directly readable
@@ -88,8 +133,40 @@ Key hubs: Mixture of Experts (12 edges), Scaling Laws (9 edges), Agent (7 edges)
 **Isolated nodes (3):** draft-stub-xyz, tangent-note-abc, orphan-page
 ```
 
+Isolated titles are capped at 20. When more exist, the output appends:
+`"… and N more (use wiki_lint(rules: \"orphan,periphery\") for the full list)"`.
+
 Use `format: "llms"` when the goal is interpretation or analysis.
 Use `format: "mermaid"` or `format: "dot"` when a renderable diagram is needed.
+
+Summary (`--format summary`):
+
+Aggregate topology metrics only — no node or edge enumeration. Under 2KB at any scale.
+
+```json
+{
+  "nodes": 1315,
+  "edges": 3742,
+  "external_refs": 48,
+  "by_type": { "concept": 412, "source": 287, "doc": 198 },
+  "top_hubs": [
+    { "slug": "concepts/transformer", "degree": 24 },
+    { "slug": "concepts/moe", "degree": 18 }
+  ],
+  "relation_counts": { "links-to": 2841, "fed-by": 612 },
+  "isolated_count": 71,
+  "communities": { "count": 74, "largest": 42, "smallest": 1 }
+}
+```
+
+Use `format: "summary"` as the first call on any unfamiliar wiki to understand topology before applying filters.
+
+### Call sequence for large wikis
+
+1. `wiki_graph(format: "summary")` — topology overview under 2KB; identify dominant types, isolated count, top hubs
+2. `wiki_graph(type: "<type>", format: "llms")` — scoped interpretation; isolated titles capped at 20 in llms output
+3. `wiki_graph(root: "<slug>", depth: 2)` — subgraph around a specific node
+4. `wiki_graph(format: "mermaid", root: "<slug>", depth: 2)` — renderable diagram of a scoped subgraph only
 
 A summary line is printed to stderr:
 

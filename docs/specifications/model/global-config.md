@@ -39,13 +39,14 @@ path = "/Users/geronimo/wikis/work"
 # ── Defaults (overridable per wiki in wiki.toml) ──────────────────────────────
 
 [defaults]
-search_top_k    = 10
-search_excerpt  = true
-search_sections = false
-page_mode       = "flat"
-list_page_size  = 20
-output_format   = "text"
-facets_top_tags = 10
+search_top_k       = 10
+search_excerpt     = true
+search_sections    = false
+page_mode          = "flat"
+list_page_size     = 20
+output_format      = "text"
+facets_top_tags    = 10
+max_content_bytes  = 10485760   # 10 MB
 
 [read]
 no_frontmatter = false
@@ -70,8 +71,11 @@ follow        = true
 default_limit = 10
 
 [suggest]
-default_limit = 5
-min_score     = 0.1
+default_limit        = 5
+min_score            = 0.1
+graph_neighbor_score = 0.5
+community_peer_score = 0.4
+bm25_weight          = 0.7
 
 [search.status]
 active   = 1.0
@@ -105,7 +109,6 @@ log_format    = "text"
 debounce_ms = 500
 ```
 
-
 ## Sections
 
 ### `[global]` — Identity
@@ -138,17 +141,23 @@ These keys can appear in both `config.toml` (global) and `wiki.toml`
 | `defaults.list_page_size`    | `20`      | Default page size for `wiki_list`                 |
 | `defaults.output_format`     | `text`    | Default output format: `text` or `json`           |
 | `defaults.facets_top_tags`   | `10`      | Max tag facet entries returned; `0` = all          |
+| `defaults.max_content_bytes` | `10485760` | Max content size accepted by `wiki_content_write` (bytes; default 10 MB) |
 | `history.follow`             | `true`    | Track renames in `wiki_history`                    |
 | `history.default_limit`      | `10`      | Default entry count for `wiki_history`             |
 | `suggest.default_limit`      | `5`       | Max suggestions for `wiki_suggest`                 |
 | `suggest.min_score`          | `0.1`     | Minimum score threshold for suggestions            |
+| `suggest.graph_neighbor_score` | `0.5`  | Score assigned to 2-hop graph neighbor candidates  |
+| `suggest.community_peer_score` | `0.4`  | Score assigned to community peer candidates        |
+| `suggest.bm25_weight`        | `0.7`     | Weight applied to normalized BM25 scores           |
 | `lint.stale_days`            | `90`      | Days before a page's `last_updated` is considered old |
 | `lint.stale_confidence_threshold` | `0.4` | Confidence below this threshold (AND old) = stale finding |
 | `search.status`              | `{ active=1.0, draft=0.8, archived=0.3, unknown=0.9 }` | Status multiplier map. `unknown` is the reserved fallback for absent or unmapped statuses. Add custom entries (`stub`, `verified`, …) alongside built-ins. Per-wiki resolution merges key-by-key — a `wiki.toml` only needs to declare what differs. Accessible via CLI: `config set search.status.<key> <value>`. |
 | `read.no_frontmatter`        | `false`   | Strip frontmatter from `wiki_content_read` output         |
 | `ingest.auto_commit`         | `true`    | Commit after ingest                               |
+| `ingest.exclude`             | `[]`      | Gitignore-style glob patterns matched against slugs (relative to `wiki_root`). Matching files are excluded from the search index. |
+| `ingest.skip_no_frontmatter` | `true`    | Skip `.md` files that have no `---` YAML frontmatter block. Set to `false` if you intentionally store bare markdown under `wiki_root`. |
 | `validation.type_strictness` | `loose`   | `strict`: unknown type is error; `loose`: warning |
-| `graph.format`               | `mermaid` | Default output format: `mermaid` or `dot`         |
+| `graph.format`               | `mermaid` | Default output format: `mermaid`, `dot`, `llms`, or `json` |
 | `graph.depth`                | `3`       | Default hop limit when `--root` is set            |
 | `graph.type`                 | `[]`      | Page types to include; empty = all                |
 | `graph.output`               | `""`      | Default output path; empty = stdout               |
@@ -160,7 +169,7 @@ These keys can appear in both `config.toml` (global) and `wiki.toml`
 | `graph.structural_algorithms` | `true`       | Enable diameter/radius/center fields in `wiki_stats`; set `false` to skip entirely |
 | `graph.max_nodes_for_diameter` | `2000`      | Skip O(n²) diameter/radius/center/periphery above this local node count |
 | `index.memory_budget_mb`     | `50`      | Tantivy writer memory budget in MB                |
-| `index.tokenizer`            | `en_stem` | Tantivy tokenizer for text fields                 |
+| `index.tokenizer`            | `en_stem` | Tantivy tokenizer for text fields: `en_stem`, `raw`, `simple`, or `default` |
 
 ### Global-only settings
 
@@ -185,7 +194,6 @@ is rejected.
 | `logging.log_rotation`  | `daily`            | `daily`, `hourly`, `never`                |
 | `logging.log_max_files` | `7`                | Max rotated files; `0` = unlimited        |
 | `logging.log_format`    | `text`             | `text` or `json`                          |
-
 
 ## Resolution Order
 

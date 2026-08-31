@@ -151,6 +151,32 @@ wiki_lint(rules: "broken-link")      → focus on one rule
    not structural breaks.
 4. Re-run to confirm clean.
 
+## Workflow for large wikis (1,000+ pages)
+
+On wikis with many pages a full `wiki_lint()` may return hundreds of findings.
+Use the three-phase call sequence:
+
+**Phase 1 — triage:**
+```
+wiki_lint(summary: true)
+```
+Returns `by_rule` counts. Identify which rule has the most findings.
+
+**Phase 2 — scope:**
+```
+wiki_lint(rules: "missing-fields", path_prefix: "nrg-architecture/studies")
+```
+Narrow to one rule and the subtree you are working on.
+
+**Phase 3 — paginate (if still large):**
+```
+wiki_lint(rules: "missing-fields", path_prefix: "nrg-architecture/studies", page_size: 100)
+```
+Pass the returned `next_cursor` to the next call until `has_more` is false.
+
+Cursor values are stable within a session while the index is not rebuilt.
+A re-index invalidates cursor positions — restart from phase 1.
+
 ## Running a subset of rules
 
 ```bash

@@ -146,12 +146,18 @@ pub fn schema_add(
             }
             // Fresh manager: the mounted one still holds a reader opened on
             // the old schema, which must not be reused for the new index.
-            let manager = crate::index_manager::SpaceIndexManager::new(&space.name, &index_path);
+            let manager = crate::index_manager::SpaceIndexManager::new(
+                &space.name,
+                &index_path,
+                (engine.config.index.memory_budget_mb as usize) * 1_000_000,
+            );
+            let ingest_cfg = space.resolved_config().ingest.clone();
             match manager.rebuild(
                 &space.wiki_root,
                 &space.repo_root,
                 &new_index_schema,
                 &new_registry,
+                &ingest_cfg,
             ) {
                 Ok(_) => msg.push_str(", search index rebuilt"),
                 Err(e) => msg.push_str(&format!(
@@ -274,7 +280,7 @@ pub fn schema_remove(
     }
 
     // Auto-commit if configured and changes were made
-    let resolved = space.resolved_config(&engine.config);
+    let resolved = space.resolved_config();
     let repo_root = space.repo_root.clone();
     if resolved.ingest.auto_commit
         && (pages_deleted_from_disk > 0 || wiki_toml_updated || schema_file_deleted)
@@ -331,7 +337,7 @@ pub fn schema_validate(
     }
 
     // Index resolution check
-    match space_builder::build_space(&space.repo_root, "en_stem") {
+    match space_builder::build_space(&space.repo_root, &engine.config.index.tokenizer) {
         Ok(_) => {}
         Err(e) => issues.push(format!("index resolution failed: {e}")),
     }

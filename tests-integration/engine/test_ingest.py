@@ -29,6 +29,6 @@ def test_ingest_redact_removes_secret(wiki_env):
     dst = wiki_env.inbox / "secrets-test.md"
     shutil.copy(src, dst)
     wiki_env.run("ingest", "inbox/secrets-test.md", "--redact")
-    content = dst.read_text()
+    content = dst.read_text(encoding="utf-8")
     assert "sk-ant-api03" not in content
     assert "REDACTED" in content
