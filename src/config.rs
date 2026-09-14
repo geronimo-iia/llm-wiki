@@ -161,6 +161,7 @@ pub enum Tokenizer {
     Raw,
     Simple,
     Default,
+    Jieba,
 }
 impl Tokenizer {
     pub fn as_str(&self) -> &'static str {
@@ -169,6 +170,7 @@ impl Tokenizer {
             Self::Raw => "raw",
             Self::Simple => "simple",
             Self::Default => "default",
+            Self::Jieba => "jieba",
         }
     }
 }
@@ -185,8 +187,9 @@ impl std::str::FromStr for Tokenizer {
             "raw" => Ok(Self::Raw),
             "simple" => Ok(Self::Simple),
             "default" => Ok(Self::Default),
+            "jieba" => Ok(Self::Jieba),
             other => Err(format!(
-                "invalid value {other:?} for index.tokenizer; allowed: en_stem, raw, simple, default"
+                "invalid value {other:?} for index.tokenizer; allowed: en_stem, raw, simple, default, jieba"
             )),
         }
     }

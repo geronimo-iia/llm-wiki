@@ -56,7 +56,8 @@ regex      = "1"
 pulldown-cmark = { version = "0.13", default-features = false }
 
 # Full-text search
-tantivy    = "0.26"
+tantivy       = "0.26"
+tantivy-jieba = "0.20"
 
 # Graph
 petgraph   = "0.8"
