@@ -1,10 +1,10 @@
 ---
 title: "List"
-summary: "Paginated page listing with type and status filters and facets."
+summary: "Paginated page listing with type, status, tags, confidence filters, sort, and facets."
 read_when:
   - Listing pages with filters
 status: ready
-last_updated: "2026-04-27"
+last_updated: "2026-09-24"
 ---
 
 # List
@@ -15,15 +15,40 @@ MCP tool: `wiki_list`
 llm-wiki list
          [--type <type>]
          [--status <status>]
+         [--tags <tag>]...           # filter by tag (repeatable)
+         [--tags-mode and|or]        # tag match mode (default: and)
+         [--min-confidence <f>]      # minimum confidence threshold [0.0–1.0]
+         [--sort slug|confidence|status]  # sort field (default: slug)
+         [--order asc|desc]          # sort direction (default: asc)
          [--page <n>]               # 1-based (default: 1)
          [--page-size <n>]          # default: from config
          [--format <fmt>]           # text | json | llms (default: text)
          [--wiki <name>]
 ```
 
-Results ordered alphabetically by slug via `order_by_string_fast_field`
-on the `slug` FAST field. No search ranking. Only the requested page
-window is extracted from the index.
+Results ordered by the `--sort` field via tantivy native fast-field collectors.
+No search ranking. Only the requested page window is extracted from the index.
+
+## Filter and sort parameters
+
+| Parameter | Type | Default | Semantics |
+|---|---|---|---|
+| `tags` | array[string] | absent = no filter | Tag filter list |
+| `tags_mode` | `and` \| `or` | `and` | AND = all tags must match; OR = any one tag matches |
+| `min_confidence` | float 0.0–1.0 | absent = no threshold | Pages without a `confidence` field always pass |
+| `sort` | `slug` \| `confidence` \| `status` | `slug` | Sort field |
+| `order` | `asc` \| `desc` | `asc` | Sort direction |
+
+Sort implementation:
+
+| `sort` value | Tantivy collector |
+|---|---|
+| `slug` | `order_by_string_fast_field("slug", order)` |
+| `status` | `order_by_string_fast_field("status", order)` — lexicographic |
+| `confidence` | `order_by_fast_field::<f64>("confidence", order)` — pages without the field sort to tantivy's absent-value position (confirmed by `list_sort_confidence_desc` test) |
+
+`min_confidence` is applied as a post-collection filter on the page window.
+Pages without a `confidence` field are treated as `1.0` and always pass.
 
 Each entry includes slug, `wiki://` URI, title, type, status, tags, and `confidence`.
 
