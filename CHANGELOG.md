@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Replaced deprecated `rmcp::model::ServerInfo` type alias with `ServerConfig` in MCP server handler.
+- **jsonschema** upgraded 0.53.0 → 0.56.0.
 
 ## [1.0.0] — 2026-08-31
 
