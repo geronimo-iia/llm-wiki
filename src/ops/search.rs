@@ -75,46 +75,62 @@ pub fn search(
     )
 }
 
+/// Parameters for the `list` operation.
+pub struct ListParams<'a> {
+    /// Restrict results to this frontmatter type.
+    pub type_filter: Option<&'a str>,
+    /// Optional frontmatter status filter.
+    pub status: Option<&'a str>,
+    /// Tag filter list; empty = no filter.
+    pub tags: Vec<String>,
+    /// Tag match mode: "and" (default) | "or".
+    pub tags_mode: Option<&'a str>,
+    /// Minimum confidence threshold.
+    pub min_confidence: Option<f64>,
+    /// Sort field: "slug" (default) | "confidence" | "status".
+    pub sort: Option<&'a str>,
+    /// Sort direction: "asc" (default) | "desc".
+    pub order: Option<&'a str>,
+    /// 1-based page number.
+    pub page: usize,
+    /// Items per page; None = use config default.
+    pub page_size: Option<usize>,
+}
+
 /// Return a paginated listing of wiki pages with optional type/status/tags/sort filters.
 pub fn list(
     engine: &EngineState,
     wiki_name: &str,
-    type_filter: Option<&str>,
-    status: Option<&str>,
-    tags: Vec<String>,
-    tags_mode: Option<&str>,
-    min_confidence: Option<f64>,
-    sort: Option<&str>,
-    order: Option<&str>,
-    page: usize,
-    page_size: Option<usize>,
+    params: &ListParams<'_>,
 ) -> Result<search::PageList> {
     let space = engine.space(wiki_name)?;
     let resolved = space.resolved_config();
 
-    let tags_mode = match tags_mode {
+    let tags_mode = match params.tags_mode {
         Some("or") => search::TagsMode::Or,
         _ => search::TagsMode::And,
     };
-    let sort = match sort {
+    let sort = match params.sort {
         Some("confidence") => search::SortField::Confidence,
         Some("status") => search::SortField::Status,
         _ => search::SortField::Slug,
     };
-    let order = match order {
+    let order = match params.order {
         Some("desc") => search::SortOrder::Desc,
         _ => search::SortOrder::Asc,
     };
 
     let opts = search::ListOptions {
-        r#type: type_filter.map(|s| s.to_string()),
-        status: status.map(|s| s.to_string()),
-        page,
-        page_size: page_size.unwrap_or(resolved.defaults.list_page_size as usize),
+        r#type: params.type_filter.map(|s| s.to_string()),
+        status: params.status.map(|s| s.to_string()),
+        page: params.page,
+        page_size: params
+            .page_size
+            .unwrap_or(resolved.defaults.list_page_size as usize),
         facets_top_tags: resolved.defaults.facets_top_tags as usize,
-        tags,
+        tags: params.tags.clone(),
         tags_mode,
-        min_confidence,
+        min_confidence: params.min_confidence,
         sort,
         order,
     };

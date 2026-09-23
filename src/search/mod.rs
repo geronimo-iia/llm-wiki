@@ -8,17 +8,17 @@
 #![allow(unreachable_pub)]
 
 mod facets;
+mod fn_search;
 mod list;
 mod options;
 mod render;
-mod search;
 mod search_all;
 mod types;
 
+pub use fn_search::search;
 pub use list::list;
 pub use options::{ListOptions, SearchOptions, SortField, SortOrder, TagsMode};
 pub use render::{render_list_llms, render_search_llms};
-pub use search::search;
 pub use search_all::search_all;
 pub use types::{FacetCounts, PageList, PageRef, PageSummary, SearchResult};
 

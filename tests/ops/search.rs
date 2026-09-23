@@ -73,15 +73,17 @@ fn list_returns_pages() {
     let result = ops::list(
         &engine,
         "test",
-        None,
-        None,
-        vec![],
-        None,
-        None,
-        None,
-        None,
-        1,
-        None,
+        &ops::ListParams {
+            type_filter: None,
+            status: None,
+            tags: vec![],
+            tags_mode: None,
+            min_confidence: None,
+            sort: None,
+            order: None,
+            page: 1,
+            page_size: None,
+        },
     )
     .unwrap();
     assert!(result.total >= 2);
@@ -97,15 +99,17 @@ fn list_type_filter() {
     let result = ops::list(
         &engine,
         "test",
-        Some("concept"),
-        None,
-        vec![],
-        None,
-        None,
-        None,
-        None,
-        1,
-        None,
+        &ops::ListParams {
+            type_filter: Some("concept"),
+            status: None,
+            tags: vec![],
+            tags_mode: None,
+            min_confidence: None,
+            sort: None,
+            order: None,
+            page: 1,
+            page_size: None,
+        },
     )
     .unwrap();
     assert!(result.total >= 2);
@@ -113,15 +117,17 @@ fn list_type_filter() {
     let result = ops::list(
         &engine,
         "test",
-        Some("paper"),
-        None,
-        vec![],
-        None,
-        None,
-        None,
-        None,
-        1,
-        None,
+        &ops::ListParams {
+            type_filter: Some("paper"),
+            status: None,
+            tags: vec![],
+            tags_mode: None,
+            min_confidence: None,
+            sort: None,
+            order: None,
+            page: 1,
+            page_size: None,
+        },
     )
     .unwrap();
     assert_eq!(result.total, 0);
@@ -265,15 +271,17 @@ fn list_facets_always_present() {
     let result = ops::list(
         &engine,
         "test",
-        None,
-        None,
-        vec![],
-        None,
-        None,
-        None,
-        None,
-        1,
-        None,
+        &ops::ListParams {
+            type_filter: None,
+            status: None,
+            tags: vec![],
+            tags_mode: None,
+            min_confidence: None,
+            sort: None,
+            order: None,
+            page: 1,
+            page_size: None,
+        },
     )
     .unwrap();
 

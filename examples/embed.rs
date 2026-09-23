@@ -33,7 +33,7 @@
 
 use std::path::PathBuf;
 
-use llm_wiki_engine::ops::{SearchParams, list, search};
+use llm_wiki_engine::ops::{self, SearchParams, list, search};
 use llm_wiki_engine::{SearchResult, WikiEngine};
 
 fn main() -> anyhow::Result<()> {
@@ -77,15 +77,17 @@ fn main() -> anyhow::Result<()> {
         let page_list = list(
             state,
             &wiki_name,
-            None,
-            None,
-            vec![],
-            None,
-            None,
-            None,
-            None,
-            1,
-            Some(5),
+            &ops::ListParams {
+                type_filter: None,
+                status: None,
+                tags: vec![],
+                tags_mode: None,
+                min_confidence: None,
+                sort: None,
+                order: None,
+                page: 1,
+                page_size: Some(5),
+            },
         )?;
         Ok((result, page_list))
     })?;

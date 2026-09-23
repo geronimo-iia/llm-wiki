@@ -5,8 +5,8 @@ use tantivy::Searcher;
 
 use crate::index_schema::IndexSchema;
 
+use super::fn_search::search;
 use super::options::SearchOptions;
-use super::search::search;
 use super::types::{FacetCounts, SearchResult};
 
 // ── search_all ────────────────────────────────────────────────────────────────

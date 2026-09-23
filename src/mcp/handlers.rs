@@ -362,15 +362,17 @@ pub fn handle_list(server: &McpServer, args: &Map<String, Value>) -> ToolHandler
     let result = ops::list(
         &engine,
         &wiki_name,
-        arg_str(args, "type").as_deref(),
-        arg_str(args, "status").as_deref(),
-        arg_str_array(args, "tags"),
-        list_tags_mode_str.as_deref(),
-        arg_f64(args, "min_confidence"),
-        sort_str.as_deref(),
-        order_str.as_deref(),
-        arg_usize(args, "page").unwrap_or(1),
-        arg_usize(args, "page_size"),
+        &ops::ListParams {
+            type_filter: arg_str(args, "type").as_deref(),
+            status: arg_str(args, "status").as_deref(),
+            tags: arg_str_array(args, "tags"),
+            tags_mode: list_tags_mode_str.as_deref(),
+            min_confidence: arg_f64(args, "min_confidence"),
+            sort: sort_str.as_deref(),
+            order: order_str.as_deref(),
+            page: arg_usize(args, "page").unwrap_or(1),
+            page_size: arg_usize(args, "page_size"),
+        },
     )
     .map_err(redact_error)?;
 

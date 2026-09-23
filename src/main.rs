@@ -333,15 +333,17 @@ fn main() -> Result<()> {
                 ops::list(
                     engine,
                     wiki_name,
-                    r#type.as_deref(),
-                    status.as_deref(),
-                    tags,
-                    tags_mode.as_deref(),
-                    min_confidence,
-                    sort.as_deref(),
-                    order.as_deref(),
-                    page,
-                    page_size,
+                    &ops::ListParams {
+                        type_filter: r#type.as_deref(),
+                        status: status.as_deref(),
+                        tags,
+                        tags_mode: tags_mode.as_deref(),
+                        min_confidence,
+                        sort: sort.as_deref(),
+                        order: order.as_deref(),
+                        page,
+                        page_size,
+                    },
                 )
             })?;
 
