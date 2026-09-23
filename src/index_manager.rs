@@ -24,6 +24,15 @@ use crate::links;
 use crate::slug::Slug;
 use crate::type_registry::SpaceTypeRegistry;
 
+/// Register custom tokenizers (e.g. jieba for CJK) on an opened index.
+/// Tantivy tokenizers are referenced by name in the schema but registered
+/// per-Index in memory, so this must run after every open/create.
+fn register_custom_tokenizers(index: &Index) {
+    index
+        .tokenizers()
+        .register("jieba", tantivy_jieba::JiebaTokenizer::new());
+}
+
 fn should_index(
     slug: &str,
     content: &str,
@@ -232,7 +241,9 @@ impl SpaceIndexManager {
 
         let try_open = || -> Result<Index> {
             let dir = MmapDirectory::open(&search_dir)?;
-            Ok(Index::open(dir)?)
+            let idx = Index::open(dir)?;
+            register_custom_tokenizers(&idx);
+            Ok(idx)
         };
 
         let index = match try_open() {
@@ -315,6 +326,7 @@ impl SpaceIndexManager {
             let dir = MmapDirectory::open(&search_dir)
                 .with_context(|| format!("failed to open index dir: {}", search_dir.display()))?;
             let index = Index::open(dir).context("failed to open index")?;
+            register_custom_tokenizers(&index);
             Ok(index.writer(self.memory_budget_bytes)?)
         }
     }
@@ -369,6 +381,7 @@ impl SpaceIndexManager {
         let dir = MmapDirectory::open(&build_dir)
             .with_context(|| format!("failed to open build dir: {}", build_dir.display()))?;
         let index = Index::open_or_create(dir, is.schema.clone())?;
+        register_custom_tokenizers(&index);
         let mut writer: IndexWriter = index.writer(self.memory_budget_bytes)?;
 
         let mut pages = 0usize;
@@ -475,6 +488,7 @@ impl SpaceIndexManager {
             let dir = MmapDirectory::open(&live_dir)
                 .with_context(|| format!("failed to open new live dir: {}", live_dir.display()))?;
             let idx = Index::open(dir).context("failed to open new live index")?;
+            register_custom_tokenizers(&idx);
             let reader = idx
                 .reader_builder()
                 .reload_policy(tantivy::ReloadPolicy::Manual)
@@ -650,7 +664,9 @@ impl SpaceIndexManager {
         let (openable, queryable) = if search_dir.exists() {
             let try_open = || -> std::result::Result<Index, Box<dyn std::error::Error>> {
                 let dir = MmapDirectory::open(&search_dir)?;
-                Ok(Index::open(dir)?)
+                let idx = Index::open(dir)?;
+                register_custom_tokenizers(&idx);
+                Ok(idx)
             };
             match try_open() {
                 Ok(index) => {
