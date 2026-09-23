@@ -1030,14 +1030,12 @@ fn list_facet_on_absent_type_returns_empty() {
 // ── jieba tokenizer ───────────────────────────────────────────────────────────
 
 fn schema_jieba() -> IndexSchema {
-    let (_registry, schema) =
-        space_builder::build_space_from_embedded(&Tokenizer::Jieba).unwrap();
+    let (_registry, schema) = space_builder::build_space_from_embedded(&Tokenizer::Jieba).unwrap();
     schema
 }
 
 fn registry_jieba() -> SpaceTypeRegistry {
-    let (registry, _schema) =
-        space_builder::build_space_from_embedded(&Tokenizer::Jieba).unwrap();
+    let (registry, _schema) = space_builder::build_space_from_embedded(&Tokenizer::Jieba).unwrap();
     registry
 }
 
