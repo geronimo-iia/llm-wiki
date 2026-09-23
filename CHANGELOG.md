@@ -6,12 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [Unreleased]
+## [1.1.0] - Unreleased
 
 ### Added
 
 - **`wiki_search`**: `status`, `tags`, `tags_mode`, `min_confidence` filter parameters.
 - **`wiki_list`**: `tags`, `tags_mode`, `min_confidence` filter parameters; `sort` (`slug` | `confidence` | `status`) and `order` (`asc` | `desc`) sort parameters.
+
+### Changed
+
+- **`src/search`**: monolithic `search.rs` split into a module (`types`, `options`, `facets`, `search`, `list`, `search_all`, `render`). Public API unchanged.
 
 ## [1.0.1] — 2026-09-23
 
