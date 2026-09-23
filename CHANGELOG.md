@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [1.0.1] — Unreleased
+
+### Security
+
+- **rustls** upgraded 0.23.43 → 0.23.45 (RUSTSEC-2026-0285, CVSS 5.3 medium): TLS 1.3 handshake messages incorrectly accepted across encryption level boundaries. Lockfile-only update; no API changes.
+- **hyper-rustls** upgraded 0.27.9 → 0.27.10 (patch).
+- **tokio-rustls** upgraded 0.26.4 → 0.26.5 (patch).
+
 ## [1.0.0] — 2026-08-31
 
 ### Security
