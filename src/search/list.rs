@@ -105,6 +105,10 @@ pub fn list(
         SortOrder::Desc => Order::Desc,
     };
 
+    // FruitHandle is monomorphic: order_by_string_fast_field and order_by_fast_field::<f64>
+    // return incompatible handle types that cannot share a single match arm. This local enum
+    // wraps both variants so we can add exactly one collector to MultiCollector, execute one
+    // search, then extract Vec<DocAddress> by matching on the variant.
     use tantivy::collector::FruitHandle;
     enum SortHandle {
         Str(FruitHandle<Vec<(Option<String>, tantivy::DocAddress)>>),
