@@ -406,7 +406,26 @@ Built-in tantivy tokenizers:
 `en_stem` is the right default — "scaling" matches "scale", "routing"
 matches "route".
 
-For non-English wikis, register a custom tokenizer and set
+### Jieba (Chinese full-text search)
+
+`jieba` is a built-in CJK tokenizer backed by `tantivy-jieba` / `jieba-rs`.
+It segments consecutive Chinese characters so queries like `机坪` return pages
+containing that word. Japanese and Korean are not covered (use lindera for
+those — same registration pattern).
+
+To enable:
+
+```toml
+# wiki.toml
+[index]
+tokenizer = "jieba"
+```
+
+Then run `wiki index rebuild`. The tokenizer is registered on every `Index`
+open regardless of the configured value, so switching back to `en_stem` and
+rebuilding is safe.
+
+For other non-English wikis, register a custom tokenizer and set
 `index.tokenizer` in `wiki.toml`:
 
 ```rust

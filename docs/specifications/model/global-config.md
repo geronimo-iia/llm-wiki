@@ -169,7 +169,7 @@ These keys can appear in both `config.toml` (global) and `wiki.toml`
 | `graph.structural_algorithms` | `true`       | Enable diameter/radius/center fields in `wiki_stats`; set `false` to skip entirely |
 | `graph.max_nodes_for_diameter` | `2000`      | Skip O(n²) diameter/radius/center/periphery above this local node count |
 | `index.memory_budget_mb`     | `50`      | Tantivy writer memory budget in MB                |
-| `index.tokenizer`            | `en_stem` | Tantivy tokenizer for text fields: `en_stem`, `raw`, `simple`, or `default` |
+| `index.tokenizer`            | `en_stem` | Tantivy tokenizer for text fields: `en_stem`, `raw`, `simple`, `default`, or `jieba` (Chinese full-text search) |
 
 ### Global-only settings
 
