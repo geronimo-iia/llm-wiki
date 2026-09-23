@@ -1026,3 +1026,123 @@ fn list_facet_on_absent_type_returns_empty() {
     assert_eq!(result.total, 0);
     assert!(result.pages.is_empty());
 }
+
+// ── jieba tokenizer ───────────────────────────────────────────────────────────
+
+fn schema_jieba() -> IndexSchema {
+    let (_registry, schema) =
+        space_builder::build_space_from_embedded(&Tokenizer::Jieba).unwrap();
+    schema
+}
+
+fn registry_jieba() -> SpaceTypeRegistry {
+    let (registry, _schema) =
+        space_builder::build_space_from_embedded(&Tokenizer::Jieba).unwrap();
+    registry
+}
+
+fn build_index_jieba(dir: &Path, wiki_root: &Path) -> SpaceIndexManager {
+    let index_path = dir.join("index-store");
+    git::commit(dir, "index pages").unwrap();
+    let mgr = SpaceIndexManager::new("test", &index_path, 50_000_000);
+    mgr.rebuild(
+        wiki_root,
+        dir,
+        &schema_jieba(),
+        &registry_jieba(),
+        &IngestConfig::default(),
+    )
+    .unwrap();
+    mgr.open(&schema_jieba(), None).unwrap();
+    mgr
+}
+
+#[test]
+fn jieba_tokenizer_finds_chinese_substring() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/airport.md",
+        &concept_page(
+            "机场机坪多智能体仿真系统设计方案",
+            "本文描述机坪运行仿真系统的设计方案。",
+        ),
+    );
+
+    let mgr = build_index_jieba(dir.path(), &wiki_root);
+    let is = schema_jieba();
+
+    let results = search(
+        "机坪",
+        &SearchOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert!(
+        !results.results.is_empty(),
+        "jieba tokenizer should segment '机坪' and return the page"
+    );
+}
+
+#[test]
+fn jieba_tokenizer_multi_word_query() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/airport.md",
+        &concept_page(
+            "机场机坪多智能体仿真系统设计方案",
+            "本文描述机坪运行仿真系统的设计方案。机坪仿真是核心模块。",
+        ),
+    );
+
+    let mgr = build_index_jieba(dir.path(), &wiki_root);
+    let is = schema_jieba();
+
+    let results = search(
+        "机坪仿真",
+        &SearchOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert!(
+        !results.results.is_empty(),
+        "jieba tokenizer should handle multi-word Chinese query"
+    );
+}
+
+#[test]
+fn jieba_tokenizer_no_regression_english() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/pagerank.md",
+        &concept_page("PageRank", "PageRank is a link analysis algorithm."),
+    );
+
+    let mgr = build_index_jieba(dir.path(), &wiki_root);
+    let is = schema_jieba();
+
+    let results = search(
+        "PageRank",
+        &SearchOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+
+    assert!(
+        !results.results.is_empty(),
+        "jieba tokenizer must not break English search"
+    );
+}

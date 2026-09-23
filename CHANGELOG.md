@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **tokio-rustls** upgraded 0.26.4 → 0.26.5 (patch).
 - **chacha20** upgraded 0.10.1 → 0.10.2 (yanked version removed); **rand** upgraded 0.10.2 → 0.10.3. Lockfile-only update.
 
+### Added
+
+- **Jieba tokenizer for Chinese full-text search** — set `tokenizer = "jieba"` in `[index]` and run `wiki index rebuild`. Segments CJK text so queries like `机坪` return pages containing that word. English search is unaffected. Backed by `tantivy-jieba 0.20` / `jieba-rs`.
+
 ### Changed
 
 - Replaced deprecated `rmcp::model::ServerInfo` type alias with `ServerConfig` in MCP server handler.
