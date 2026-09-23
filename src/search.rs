@@ -111,6 +111,31 @@ pub struct SearchResult {
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
+/// Tag filter match mode.
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub enum TagsMode {
+    #[default]
+    And,
+    Or,
+}
+
+/// Sort field for list operations.
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub enum SortField {
+    #[default]
+    Slug,
+    Confidence,
+    Status,
+}
+
+/// Sort direction.
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub enum SortOrder {
+    #[default]
+    Asc,
+    Desc,
+}
+
 /// Options for a BM25 search query.
 pub struct SearchOptions {
     /// Omit HTML excerpt from results when true.
@@ -125,6 +150,14 @@ pub struct SearchOptions {
     pub facets_top_tags: usize,
     /// Status score multiplier config applied to BM25 scores.
     pub search_config: SearchConfig,
+    /// Optional frontmatter status filter.
+    pub status: Option<String>,
+    /// Tag filter list; empty = no filter.
+    pub tags: Vec<String>,
+    /// Tag match mode (AND = all must match, OR = any must match).
+    pub tags_mode: TagsMode,
+    /// Minimum confidence threshold; pages without confidence field always pass.
+    pub min_confidence: Option<f64>,
 }
 
 impl Default for SearchOptions {
@@ -136,6 +169,10 @@ impl Default for SearchOptions {
             r#type: None,
             facets_top_tags: 10,
             search_config: SearchConfig::default(),
+            status: None,
+            tags: vec![],
+            tags_mode: TagsMode::default(),
+            min_confidence: None,
         }
     }
 }
@@ -152,6 +189,16 @@ pub struct ListOptions {
     pub page_size: usize,
     /// Maximum tag facet values to return (0 = all).
     pub facets_top_tags: usize,
+    /// Tag filter list; empty = no filter.
+    pub tags: Vec<String>,
+    /// Tag match mode (AND = all must match, OR = any must match).
+    pub tags_mode: TagsMode,
+    /// Minimum confidence threshold; pages without confidence field always pass.
+    pub min_confidence: Option<f64>,
+    /// Sort field for list results.
+    pub sort: SortField,
+    /// Sort direction.
+    pub order: SortOrder,
 }
 
 impl Default for ListOptions {
@@ -162,6 +209,11 @@ impl Default for ListOptions {
             page: 1,
             page_size: 20,
             facets_top_tags: 10,
+            tags: vec![],
+            tags_mode: TagsMode::default(),
+            min_confidence: None,
+            sort: SortField::default(),
+            order: SortOrder::default(),
         }
     }
 }
@@ -196,7 +248,10 @@ pub fn search(
         .parse_query(query_str)
         .unwrap_or_else(|_| query_parser.parse_query_lenient(query_str).0);
 
-    // Build the filtered query (with type filter)
+    let f_status = is.field("status");
+    let f_tags = is.field("tags");
+
+    // Build the filtered query (with type, status, tags filters)
     let final_query: Box<dyn tantivy::query::Query> = {
         let mut clauses: Vec<(Occur, Box<dyn tantivy::query::Query>)> = Vec::new();
         clauses.push((Occur::Must, parsed));
@@ -219,6 +274,46 @@ pub fn search(
                     IndexRecordOption::Basic,
                 )),
             ));
+        }
+
+        if let Some(ref status_filter) = options.status {
+            clauses.push((
+                Occur::Must,
+                Box::new(TermQuery::new(
+                    Term::from_field_text(f_status, status_filter),
+                    IndexRecordOption::Basic,
+                )),
+            ));
+        }
+
+        if !options.tags.is_empty() {
+            match options.tags_mode {
+                TagsMode::And => {
+                    for tag in &options.tags {
+                        clauses.push((
+                            Occur::Must,
+                            Box::new(TermQuery::new(
+                                Term::from_field_text(f_tags, tag),
+                                IndexRecordOption::Basic,
+                            )),
+                        ));
+                    }
+                }
+                TagsMode::Or => {
+                    let or_clauses: Vec<(Occur, Box<dyn tantivy::query::Query>)> = options
+                        .tags
+                        .iter()
+                        .map(|tag| {
+                            let q: Box<dyn tantivy::query::Query> = Box::new(TermQuery::new(
+                                Term::from_field_text(f_tags, tag),
+                                IndexRecordOption::Basic,
+                            ));
+                            (Occur::Should, q)
+                        })
+                        .collect();
+                    clauses.push((Occur::Must, Box::new(BooleanQuery::new(or_clauses))));
+                }
+            }
         }
 
         Box::new(BooleanQuery::new(clauses))
@@ -327,6 +422,10 @@ pub fn search(
         });
     }
 
+    if let Some(min_conf) = options.min_confidence {
+        results.retain(|r| r.confidence as f64 >= min_conf);
+    }
+
     // Facets: type is unfiltered, status and tags are filtered
     // Re-parse query for the unfiltered facet query (same lenient fallback as above).
     let unfiltered_query: Box<dyn tantivy::query::Query> = {
@@ -400,6 +499,36 @@ pub fn list(
             ));
         }
 
+        if !options.tags.is_empty() {
+            match options.tags_mode {
+                TagsMode::And => {
+                    for tag in &options.tags {
+                        clauses.push((
+                            Occur::Must,
+                            Box::new(TermQuery::new(
+                                Term::from_field_text(f_tags, tag),
+                                IndexRecordOption::Basic,
+                            )),
+                        ));
+                    }
+                }
+                TagsMode::Or => {
+                    let or_clauses: Vec<(Occur, Box<dyn tantivy::query::Query>)> = options
+                        .tags
+                        .iter()
+                        .map(|tag| {
+                            let q: Box<dyn tantivy::query::Query> = Box::new(TermQuery::new(
+                                Term::from_field_text(f_tags, tag),
+                                IndexRecordOption::Basic,
+                            ));
+                            (Occur::Should, q)
+                        })
+                        .collect();
+                    clauses.push((Occur::Must, Box::new(BooleanQuery::new(or_clauses))));
+                }
+            }
+        }
+
         if clauses.is_empty() {
             Box::new(AllQuery)
         } else {
@@ -418,10 +547,30 @@ pub fn list(
     let offset = (page - 1) * page_size;
     let limit = offset + page_size;
 
+    let tantivy_order = match options.order {
+        SortOrder::Asc => Order::Asc,
+        SortOrder::Desc => Order::Desc,
+    };
+
+    use tantivy::collector::FruitHandle;
+    enum SortHandle {
+        Str(FruitHandle<Vec<(Option<String>, tantivy::DocAddress)>>),
+        F64(FruitHandle<Vec<(Option<f64>, tantivy::DocAddress)>>),
+    }
+
     let mut multi = MultiCollector::new();
     let count_handle = multi.add_collector(Count);
-    let top_docs_handle = multi
-        .add_collector(TopDocs::with_limit(limit).order_by_string_fast_field("slug", Order::Asc));
+    let sort_handle = match options.sort {
+        SortField::Slug => SortHandle::Str(multi.add_collector(
+            TopDocs::with_limit(limit).order_by_string_fast_field("slug", tantivy_order),
+        )),
+        SortField::Status => SortHandle::Str(multi.add_collector(
+            TopDocs::with_limit(limit).order_by_string_fast_field("status", tantivy_order),
+        )),
+        SortField::Confidence => SortHandle::F64(multi.add_collector(
+            TopDocs::with_limit(limit).order_by_fast_field::<f64>("confidence", tantivy_order),
+        )),
+    };
     let status_handle = multi.add_collector(KeywordFacetCollector {
         field_name: "status".to_string(),
         top_n: 0,
@@ -432,7 +581,18 @@ pub fn list(
     });
     let mut multi_fruit = searcher.search(&query, &multi)?;
     let total = count_handle.extract(&mut multi_fruit);
-    let sorted_docs = top_docs_handle.extract(&mut multi_fruit);
+    let sorted_docs: Vec<tantivy::DocAddress> = match sort_handle {
+        SortHandle::Str(h) => h
+            .extract(&mut multi_fruit)
+            .into_iter()
+            .map(|(_, a)| a)
+            .collect(),
+        SortHandle::F64(h) => h
+            .extract(&mut multi_fruit)
+            .into_iter()
+            .map(|(_, a)| a)
+            .collect(),
+    };
     let status_facet = status_handle.extract(&mut multi_fruit);
     let tags_facet = tags_handle.extract(&mut multi_fruit);
 
@@ -460,7 +620,7 @@ pub fn list(
     };
 
     let mut summaries = Vec::with_capacity(window.len());
-    for (_slug_val, doc_addr) in window {
+    for doc_addr in window {
         let doc: tantivy::TantivyDocument = searcher.doc(*doc_addr)?;
 
         // See comment above: Tantivy index stores pre-normalized slugs.
@@ -515,6 +675,10 @@ pub fn list(
             confidence,
             summary,
         });
+    }
+
+    if let Some(min_conf) = options.min_confidence {
+        summaries.retain(|p| p.confidence as f64 >= min_conf);
     }
 
     Ok(PageList {

@@ -17,6 +17,14 @@ pub struct SearchParams<'a> {
     pub include_sections: bool,
     /// When true, search across all mounted wikis.
     pub cross_wiki: bool,
+    /// Optional frontmatter status filter.
+    pub status: Option<&'a str>,
+    /// Tag filter list; empty = no filter.
+    pub tags: Vec<String>,
+    /// Tag match mode: "and" (default) | "or".
+    pub tags_mode: Option<&'a str>,
+    /// Minimum confidence threshold.
+    pub min_confidence: Option<f64>,
 }
 
 /// Run a BM25 search against the wiki index.
@@ -28,6 +36,11 @@ pub fn search(
     let space = engine.space(wiki_name)?;
     let resolved = space.resolved_config();
 
+    let tags_mode = match params.tags_mode {
+        Some("or") => search::TagsMode::Or,
+        _ => search::TagsMode::And,
+    };
+
     let opts = search::SearchOptions {
         no_excerpt: params.no_excerpt,
         include_sections: params.include_sections,
@@ -37,6 +50,10 @@ pub fn search(
         r#type: params.type_filter.map(|s| s.to_string()),
         facets_top_tags: resolved.defaults.facets_top_tags as usize,
         search_config: resolved.search.clone(),
+        status: params.status.map(|s| s.to_string()),
+        tags: params.tags.clone(),
+        tags_mode,
+        min_confidence: params.min_confidence,
     };
 
     if params.cross_wiki {
@@ -58,17 +75,36 @@ pub fn search(
     )
 }
 
-/// Return a paginated listing of wiki pages with optional type/status filters.
+/// Return a paginated listing of wiki pages with optional type/status/tags/sort filters.
 pub fn list(
     engine: &EngineState,
     wiki_name: &str,
     type_filter: Option<&str>,
     status: Option<&str>,
+    tags: Vec<String>,
+    tags_mode: Option<&str>,
+    min_confidence: Option<f64>,
+    sort: Option<&str>,
+    order: Option<&str>,
     page: usize,
     page_size: Option<usize>,
 ) -> Result<search::PageList> {
     let space = engine.space(wiki_name)?;
     let resolved = space.resolved_config();
+
+    let tags_mode = match tags_mode {
+        Some("or") => search::TagsMode::Or,
+        _ => search::TagsMode::And,
+    };
+    let sort = match sort {
+        Some("confidence") => search::SortField::Confidence,
+        Some("status") => search::SortField::Status,
+        _ => search::SortField::Slug,
+    };
+    let order = match order {
+        Some("desc") => search::SortOrder::Desc,
+        _ => search::SortOrder::Asc,
+    };
 
     let opts = search::ListOptions {
         r#type: type_filter.map(|s| s.to_string()),
@@ -76,6 +112,11 @@ pub fn list(
         page,
         page_size: page_size.unwrap_or(resolved.defaults.list_page_size as usize),
         facets_top_tags: resolved.defaults.facets_top_tags as usize,
+        tags,
+        tags_mode,
+        min_confidence,
+        sort,
+        order,
     };
     let searcher = space.index_manager.searcher()?;
     search::list(&opts, &searcher, wiki_name, &space.index_schema)

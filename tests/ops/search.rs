@@ -23,6 +23,10 @@ fn search_returns_results() {
             top_k: None,
             include_sections: false,
             cross_wiki: false,
+            status: None,
+            tags: vec![],
+            tags_mode: None,
+            min_confidence: None,
         },
     )
     .unwrap();
@@ -47,6 +51,10 @@ fn search_type_filter() {
             top_k: None,
             include_sections: false,
             cross_wiki: false,
+            status: None,
+            tags: vec![],
+            tags_mode: None,
+            min_confidence: None,
         },
     )
     .unwrap();
@@ -62,7 +70,20 @@ fn list_returns_pages() {
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state_for_test().read().unwrap();
 
-    let result = ops::list(&engine, "test", None, None, 1, None).unwrap();
+    let result = ops::list(
+        &engine,
+        "test",
+        None,
+        None,
+        vec![],
+        None,
+        None,
+        None,
+        None,
+        1,
+        None,
+    )
+    .unwrap();
     assert!(result.total >= 2);
 }
 
@@ -73,10 +94,36 @@ fn list_type_filter() {
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state_for_test().read().unwrap();
 
-    let result = ops::list(&engine, "test", Some("concept"), None, 1, None).unwrap();
+    let result = ops::list(
+        &engine,
+        "test",
+        Some("concept"),
+        None,
+        vec![],
+        None,
+        None,
+        None,
+        None,
+        1,
+        None,
+    )
+    .unwrap();
     assert!(result.total >= 2);
 
-    let result = ops::list(&engine, "test", Some("paper"), None, 1, None).unwrap();
+    let result = ops::list(
+        &engine,
+        "test",
+        Some("paper"),
+        None,
+        vec![],
+        None,
+        None,
+        None,
+        None,
+        1,
+        None,
+    )
+    .unwrap();
     assert_eq!(result.total, 0);
 }
 
@@ -111,6 +158,10 @@ fn search_facets_type_distribution() {
             top_k: None,
             include_sections: false,
             cross_wiki: false,
+            status: None,
+            tags: vec![],
+            tags_mode: None,
+            min_confidence: None,
         },
     )
     .unwrap();
@@ -157,6 +208,10 @@ fn search_facets_type_unfiltered_when_type_filter_active() {
             top_k: None,
             include_sections: false,
             cross_wiki: false,
+            status: None,
+            tags: vec![],
+            tags_mode: None,
+            min_confidence: None,
         },
     )
     .unwrap();
@@ -186,6 +241,10 @@ fn search_facets_empty_when_no_results() {
             top_k: None,
             include_sections: false,
             cross_wiki: false,
+            status: None,
+            tags: vec![],
+            tags_mode: None,
+            min_confidence: None,
         },
     )
     .unwrap();
@@ -203,7 +262,20 @@ fn list_facets_always_present() {
     let manager = WikiEngine::build(&config_path).unwrap();
     let engine = manager.state_for_test().read().unwrap();
 
-    let result = ops::list(&engine, "test", None, None, 1, None).unwrap();
+    let result = ops::list(
+        &engine,
+        "test",
+        None,
+        None,
+        vec![],
+        None,
+        None,
+        None,
+        None,
+        1,
+        None,
+    )
+    .unwrap();
 
     // Should have type facet with at least "concept"
     assert!(

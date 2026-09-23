@@ -313,6 +313,8 @@ pub fn handle_search(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
     let engine = server.engine()?;
     let wiki_name = resolve_wiki_name(&engine, args)?;
 
+    let status_str = arg_str(args, "status");
+    let tags_mode_str = arg_str(args, "tags_mode");
     let results = ops::search(
         &engine,
         &wiki_name,
@@ -323,6 +325,10 @@ pub fn handle_search(server: &McpServer, args: &Map<String, Value>) -> ToolHandl
             top_k: arg_usize(args, "top_k"),
             include_sections: arg_bool(args, "include_sections"),
             cross_wiki,
+            status: status_str.as_deref(),
+            tags: arg_str_array(args, "tags"),
+            tags_mode: tags_mode_str.as_deref(),
+            min_confidence: arg_f64(args, "min_confidence"),
         },
     )
     .map_err(|e| {
@@ -350,11 +356,19 @@ pub fn handle_list(server: &McpServer, args: &Map<String, Value>) -> ToolHandler
     let wiki_name = resolve_wiki_name(&engine, args)?;
     let format = arg_str(args, "format");
 
+    let sort_str = arg_str(args, "sort");
+    let order_str = arg_str(args, "order");
+    let list_tags_mode_str = arg_str(args, "tags_mode");
     let result = ops::list(
         &engine,
         &wiki_name,
         arg_str(args, "type").as_deref(),
         arg_str(args, "status").as_deref(),
+        arg_str_array(args, "tags"),
+        list_tags_mode_str.as_deref(),
+        arg_f64(args, "min_confidence"),
+        sort_str.as_deref(),
+        order_str.as_deref(),
         arg_usize(args, "page").unwrap_or(1),
         arg_usize(args, "page_size"),
     )

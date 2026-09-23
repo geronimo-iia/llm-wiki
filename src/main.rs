@@ -269,6 +269,10 @@ fn main() -> Result<()> {
             top_k,
             include_sections,
             cross_wiki,
+            status,
+            tags,
+            tags_mode,
+            min_confidence,
             format,
         } => {
             let manager = WikiEngine::build(&config_path)?;
@@ -284,6 +288,10 @@ fn main() -> Result<()> {
                         top_k,
                         include_sections,
                         cross_wiki,
+                        status: status.as_deref(),
+                        tags,
+                        tags_mode: tags_mode.as_deref(),
+                        min_confidence,
                     },
                 )
             })?;
@@ -312,6 +320,11 @@ fn main() -> Result<()> {
             status,
             page,
             page_size,
+            tags,
+            tags_mode,
+            min_confidence,
+            sort,
+            order,
             format,
         } => {
             let manager = WikiEngine::build(&config_path)?;
@@ -322,6 +335,11 @@ fn main() -> Result<()> {
                     wiki_name,
                     r#type.as_deref(),
                     status.as_deref(),
+                    tags,
+                    tags_mode.as_deref(),
+                    min_confidence,
+                    sort.as_deref(),
+                    order.as_deref(),
                     page,
                     page_size,
                 )
