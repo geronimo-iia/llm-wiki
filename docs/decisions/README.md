@@ -2,6 +2,14 @@
 
 Architectural decisions and their rationale, grouped by release.
 
+## v1.0.1
+
+### Tokenization
+
+| Decision | Summary |
+| -------- | ------- |
+| [jieba-tokenizer-always-registered](1.0.1/jieba-tokenizer-always-registered.md) | `tantivy-jieba` registered unconditionally at every `Index` open — feature-flag rejected (3 MB binary cost acceptable, flag adds maintenance burden); conditional registration rejected (footgun when switching tokenizers on existing indexes); `tokenizer = "jieba"` + `index rebuild` enables Chinese full-text search |
+
 ## v1.0.0
 
 ### Concurrency
