@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **hyper-rustls** upgraded 0.27.9 → 0.27.10 (patch).
 - **tokio-rustls** upgraded 0.26.4 → 0.26.5 (patch).
 
+### Changed
+
+- Replaced deprecated `rmcp::model::ServerInfo` type alias with `ServerConfig` in MCP server handler.
+
 ## [1.0.0] — 2026-08-31
 
 ### Security
