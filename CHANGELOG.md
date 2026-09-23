@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **rustls** upgraded 0.23.43 → 0.23.45 (RUSTSEC-2026-0285, CVSS 5.3 medium): TLS 1.3 handshake messages incorrectly accepted across encryption level boundaries. Lockfile-only update; no API changes.
 - **hyper-rustls** upgraded 0.27.9 → 0.27.10 (patch).
 - **tokio-rustls** upgraded 0.26.4 → 0.26.5 (patch).
+- **chacha20** upgraded 0.10.1 → 0.10.2 (yanked version removed); **rand** upgraded 0.10.2 → 0.10.3. Lockfile-only update.
 
 ### Changed
 
