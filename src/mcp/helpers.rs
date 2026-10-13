@@ -106,6 +106,23 @@ pub fn arg_usize(args: &Map<String, Value>, key: &str) -> Option<usize> {
         .and_then(|n| usize::try_from(n).ok())
 }
 
+/// Extract an optional array-of-strings argument by key.
+pub fn arg_str_array(args: &Map<String, Value>, key: &str) -> Vec<String> {
+    args.get(key)
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Extract an optional f64 argument by key.
+pub fn arg_f64(args: &Map<String, Value>, key: &str) -> Option<f64> {
+    args.get(key).and_then(|v| v.as_f64())
+}
+
 // ── Wiki resolution ───────────────────────────────────────────────────────────
 
 /// Resolve the target wiki from Engine state + optional `wiki` arg.

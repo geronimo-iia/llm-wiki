@@ -1144,3 +1144,331 @@ fn jieba_tokenizer_no_regression_english() {
         "jieba tokenizer must not break English search"
     );
 }
+
+// ── tags / confidence / sort filters ─────────────────────────────────────────
+
+#[test]
+fn list_tags_filter_and() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/a.md",
+        "---\ntitle: \"A\"\nsummary: \"s\"\nstatus: active\ntype: concept\ntags:\n  - rust\n  - async\n---\nbody\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/b.md",
+        "---\ntitle: \"B\"\nsummary: \"s\"\nstatus: active\ntype: concept\ntags:\n  - rust\n---\nbody\n",
+    );
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let opts = ListOptions {
+        tags: vec!["rust".into(), "async".into()],
+        tags_mode: TagsMode::And,
+        ..Default::default()
+    };
+    let result = list(&opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
+    assert_eq!(result.total, 1);
+    assert_eq!(result.pages[0].slug.as_ref(), "concepts/a");
+}
+
+#[test]
+fn list_tags_filter_or() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/rust.md",
+        "---\ntitle: \"Rust\"\nsummary: \"s\"\nstatus: active\ntype: concept\ntags:\n  - rust\n---\nbody\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/python.md",
+        "---\ntitle: \"Python\"\nsummary: \"s\"\nstatus: active\ntype: concept\ntags:\n  - python\n---\nbody\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/java.md",
+        "---\ntitle: \"Java\"\nsummary: \"s\"\nstatus: active\ntype: concept\ntags:\n  - java\n---\nbody\n",
+    );
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let opts = ListOptions {
+        tags: vec!["rust".into(), "python".into()],
+        tags_mode: TagsMode::Or,
+        ..Default::default()
+    };
+    let result = list(&opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
+    assert_eq!(result.total, 2);
+    let slugs: Vec<&str> = result.pages.iter().map(|p| p.slug.as_ref()).collect();
+    assert!(slugs.contains(&"concepts/python"));
+    assert!(slugs.contains(&"concepts/rust"));
+}
+
+#[test]
+fn list_tags_empty_no_op() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/a.md",
+        "---\ntitle: \"A\"\nsummary: \"s\"\nstatus: active\ntype: concept\ntags:\n  - rust\n---\nbody\n",
+    );
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let result = list(
+        &ListOptions::default(),
+        &mgr.searcher().unwrap(),
+        "test",
+        &is,
+    )
+    .unwrap();
+    assert_eq!(result.total, 1);
+}
+
+#[test]
+fn list_min_confidence() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/high.md",
+        "---\ntitle: \"High\"\nsummary: \"s\"\nstatus: active\ntype: concept\nconfidence: 0.9\n---\nbody\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/low.md",
+        "---\ntitle: \"Low\"\nsummary: \"s\"\nstatus: active\ntype: concept\nconfidence: 0.4\n---\nbody\n",
+    );
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let opts = ListOptions {
+        min_confidence: Some(0.8),
+        ..Default::default()
+    };
+    let result = list(&opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
+    assert_eq!(result.pages.len(), 1);
+    assert_eq!(result.pages[0].slug.as_ref(), "concepts/high");
+}
+
+#[test]
+fn list_confidence_absent_passes() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/no_conf.md",
+        "---\ntitle: \"NoCo\"\nsummary: \"s\"\nstatus: active\ntype: concept\n---\nbody\n",
+    );
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let opts = ListOptions {
+        min_confidence: Some(0.5),
+        ..Default::default()
+    };
+    let result = list(&opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
+    assert_eq!(
+        result.pages.len(),
+        1,
+        "page without confidence field should pass min_confidence threshold"
+    );
+}
+
+#[test]
+fn list_sort_confidence_desc() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/low.md",
+        "---\ntitle: \"Low\"\nsummary: \"s\"\nstatus: active\ntype: concept\nconfidence: 0.3\n---\nbody\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/high.md",
+        "---\ntitle: \"High\"\nsummary: \"s\"\nstatus: active\ntype: concept\nconfidence: 0.9\n---\nbody\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/mid.md",
+        "---\ntitle: \"Mid\"\nsummary: \"s\"\nstatus: active\ntype: concept\nconfidence: 0.6\n---\nbody\n",
+    );
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let opts = ListOptions {
+        sort: SortField::Confidence,
+        order: SortOrder::Desc,
+        ..Default::default()
+    };
+    let result = list(&opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
+    let confs: Vec<f32> = result.pages.iter().map(|p| p.confidence).collect();
+    for w in confs.windows(2) {
+        assert!(w[0] >= w[1], "confidence should be descending: {confs:?}");
+    }
+}
+
+#[test]
+fn list_order_desc() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/aaa.md",
+        "---\ntitle: \"AAA\"\nsummary: \"s\"\nstatus: active\ntype: concept\n---\nbody\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/zzz.md",
+        "---\ntitle: \"ZZZ\"\nsummary: \"s\"\nstatus: active\ntype: concept\n---\nbody\n",
+    );
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let opts = ListOptions {
+        order: SortOrder::Desc,
+        ..Default::default()
+    };
+    let result = list(&opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
+    assert_eq!(result.pages[0].slug.as_ref(), "concepts/zzz");
+    assert_eq!(result.pages[1].slug.as_ref(), "concepts/aaa");
+}
+
+#[test]
+fn search_status_filter() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/active.md",
+        "---\ntitle: \"Active Page\"\nsummary: \"s\"\nstatus: active\ntype: concept\n---\nrust async content\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/draft.md",
+        "---\ntitle: \"Draft Page\"\nsummary: \"s\"\nstatus: draft\ntype: concept\n---\nrust async content\n",
+    );
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let opts = SearchOptions {
+        status: Some("draft".into()),
+        ..Default::default()
+    };
+    let results = search("rust", &opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
+    assert!(!results.results.is_empty());
+    for r in &results.results {
+        assert_eq!(r.slug.as_ref(), "concepts/draft");
+    }
+}
+
+#[test]
+fn search_tags_filter_and() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/both.md",
+        "---\ntitle: \"Both\"\nsummary: \"s\"\nstatus: active\ntype: concept\ntags:\n  - rust\n  - async\n---\ntokio content\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/rust_only.md",
+        "---\ntitle: \"RustOnly\"\nsummary: \"s\"\nstatus: active\ntype: concept\ntags:\n  - rust\n---\ntokio content\n",
+    );
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let opts = SearchOptions {
+        tags: vec!["rust".into(), "async".into()],
+        tags_mode: TagsMode::And,
+        ..Default::default()
+    };
+    let results = search("tokio", &opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
+    assert_eq!(results.results.len(), 1);
+    assert_eq!(results.results[0].slug.as_ref(), "concepts/both");
+}
+
+#[test]
+fn search_tags_filter_or() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/rust.md",
+        "---\ntitle: \"Rust\"\nsummary: \"s\"\nstatus: active\ntype: concept\ntags:\n  - rust\n---\nasync runtime\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/python.md",
+        "---\ntitle: \"Python\"\nsummary: \"s\"\nstatus: active\ntype: concept\ntags:\n  - python\n---\nasync runtime\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/java.md",
+        "---\ntitle: \"Java\"\nsummary: \"s\"\nstatus: active\ntype: concept\ntags:\n  - java\n---\nasync runtime\n",
+    );
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let opts = SearchOptions {
+        tags: vec!["rust".into(), "python".into()],
+        tags_mode: TagsMode::Or,
+        ..Default::default()
+    };
+    let results = search("async", &opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
+    assert_eq!(results.results.len(), 2);
+    let slugs: Vec<&str> = results.results.iter().map(|r| r.slug.as_ref()).collect();
+    assert!(slugs.contains(&"concepts/rust"));
+    assert!(slugs.contains(&"concepts/python"));
+}
+
+#[test]
+fn search_min_confidence() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/trusted.md",
+        "---\ntitle: \"Trusted\"\nsummary: \"s\"\nstatus: active\ntype: concept\nconfidence: 0.9\n---\nrust async\n",
+    );
+    write_page(
+        &wiki_root,
+        "concepts/uncertain.md",
+        "---\ntitle: \"Uncertain\"\nsummary: \"s\"\nstatus: active\ntype: concept\nconfidence: 0.3\n---\nrust async\n",
+    );
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let opts = SearchOptions {
+        min_confidence: Some(0.7),
+        ..Default::default()
+    };
+    let results = search("rust", &opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
+    assert!(!results.results.is_empty());
+    for r in &results.results {
+        assert!(
+            r.confidence as f64 >= 0.7,
+            "confidence {} below threshold",
+            r.confidence
+        );
+    }
+}
+
+#[test]
+fn search_tags_nonexistent_or_returns_empty() {
+    let dir = tempfile::tempdir().unwrap();
+    let wiki_root = setup_repo(dir.path());
+    write_page(
+        &wiki_root,
+        "concepts/a.md",
+        "---\ntitle: \"A\"\nsummary: \"s\"\nstatus: active\ntype: concept\ntags:\n  - rust\n---\ncontent\n",
+    );
+    let mgr = build_index(dir.path(), &wiki_root);
+    let is = schema();
+    let opts = SearchOptions {
+        tags: vec!["__nonexistent__".into()],
+        tags_mode: TagsMode::Or,
+        ..Default::default()
+    };
+    let results = search("content", &opts, &mgr.searcher().unwrap(), "test", &is).unwrap();
+    assert!(
+        results.results.is_empty(),
+        "OR-mode with nonexistent tag must not match all docs"
+    );
+}

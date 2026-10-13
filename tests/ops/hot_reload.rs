@@ -56,6 +56,10 @@ fn hot_reload_mount_wiki_makes_it_searchable() {
             top_k: None,
             include_sections: false,
             cross_wiki: false,
+            status: None,
+            tags: vec![],
+            tags_mode: None,
+            min_confidence: None,
         },
     )
     .unwrap();
@@ -203,6 +207,10 @@ fn hot_reload_cross_wiki_search_reflects_new_wiki() {
             top_k: None,
             include_sections: false,
             cross_wiki: true,
+            status: None,
+            tags: vec![],
+            tags_mode: None,
+            min_confidence: None,
         },
     )
     .unwrap();

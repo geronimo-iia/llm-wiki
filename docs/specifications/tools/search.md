@@ -14,6 +14,10 @@ MCP tool: `wiki_search`
 ```
 llm-wiki search "<query>"
             [--type <type>]           # filter by page type
+            [--status <status>]       # filter by frontmatter status
+            [--tags <tag>]...         # filter by tag (repeatable)
+            [--tags-mode and|or]      # tag match mode (default: and)
+            [--min-confidence <f>]    # minimum confidence threshold [0.0–1.0]
             [--no-excerpt]            # refs only, no excerpt
             [--top-k <n>]             # default: from config
             [--include-sections]      # include section index pages
@@ -24,6 +28,19 @@ llm-wiki search "<query>"
 
 BM25 ranks across `title`, `summary`, `read_when`, `tldr`, `tags`, and
 body text. `--type` adds a keyword filter on the `type` field.
+
+## Filter parameters
+
+| Parameter | Type | Default | Semantics |
+|---|---|---|---|
+| `status` | string | absent = no filter | Exact match on frontmatter `status` field |
+| `tags` | array[string] | absent = no filter | Tag filter list |
+| `tags_mode` | `and` \| `or` | `and` | AND = all tags must match; OR = any one tag matches |
+| `min_confidence` | float 0.0–1.0 | absent = no threshold | Pages without a `confidence` field always pass |
+
+`tags` with `tags_mode: "and"` maps to one `Occur::Must` `TermQuery` per tag in the tantivy `BooleanQuery`.
+`tags` with `tags_mode: "or"` maps to `Occur::Should` clauses wrapped in an outer `Occur::Must` so an empty tag set never degrades to match-all.
+`min_confidence` is applied as a post-collection filter — pages where the `confidence` field is absent are treated as `1.0` and always pass.
 
 Results are ranked by a combined score applied **inside** the tantivy
 collector (via `tweak_score`), so the top-k returned are the true
