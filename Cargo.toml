@@ -78,7 +78,7 @@ rmcp       = { version = "3.1", features = ["server", "transport-io", "transport
 axum       = "0.8"
 
 # ACP server
-agent-client-protocol = "2.0"
+agent-client-protocol = "3.4"
 tokio-util = { version = "0.7", features = ["compat"] }
 notify = "8"
 tempfile = "3"
