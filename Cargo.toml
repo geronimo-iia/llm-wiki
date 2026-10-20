@@ -57,7 +57,7 @@ pulldown-cmark = { version = "0.13", default-features = false }
 
 # Full-text search
 tantivy       = "0.27"
-tantivy-jieba = "0.20"
+tantivy-jieba = "0.21"
 
 # Graph
 petgraph   = "0.8"
