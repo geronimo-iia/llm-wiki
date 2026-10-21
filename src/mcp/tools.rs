@@ -37,6 +37,14 @@ fn opt_bool(desc: &str) -> Value {
     json!({"type": "boolean", "description": desc})
 }
 
+fn opt_array(desc: &str) -> Value {
+    json!({"type": "array", "items": {"type": "string"}, "description": desc})
+}
+
+fn opt_num(desc: &str) -> Value {
+    json!({"type": "number", "description": desc, "minimum": 0.0, "maximum": 1.0})
+}
+
 fn opt_int(desc: &str) -> Value {
     json!({"type": "integer", "description": desc})
 }
@@ -192,6 +200,10 @@ pub fn tool_list() -> Vec<Tool> {
                 json!({
                     "query": str_prop("Search query. Supports BM25 full-text, phrase quoting (\"exact phrase\"), field filters (title:\"foo\"), and type shorthand (type:concept)."),
                     "type": opt_str("Filter by frontmatter type"),
+                    "status": opt_str("Filter by frontmatter status (e.g. active, draft)"),
+                    "tags": opt_array("Filter by tags. Use with tags_mode."),
+                    "tags_mode": opt_str("Tag match mode: and (default, all tags must match) | or (any tag matches)"),
+                    "min_confidence": opt_num("Minimum confidence threshold [0.0–1.0]. Pages without a confidence field always pass."),
                     "no_excerpt": opt_bool("Omit excerpts — refs only"),
                     "include_sections": opt_bool("Include section index pages"),
                     "top_k": opt_int("Max results to return (default: 10, max: 100)"),
@@ -209,6 +221,11 @@ pub fn tool_list() -> Vec<Tool> {
                 json!({
                     "type": opt_str("Filter by frontmatter type"),
                     "status": opt_str("Filter by frontmatter status"),
+                    "tags": opt_array("Filter by tags. Use with tags_mode."),
+                    "tags_mode": opt_str("Tag match mode: and (default) | or"),
+                    "min_confidence": opt_num("Minimum confidence threshold [0.0–1.0]."),
+                    "sort": opt_str("Sort field: slug (default) | confidence | status"),
+                    "order": opt_str("Sort direction: asc (default) | desc"),
                     "page": opt_int("Page number, 1-based"),
                     "page_size": opt_int("Results per page (default: 20, max: 200)"),
                     "wiki": opt_str("Target wiki name"),
