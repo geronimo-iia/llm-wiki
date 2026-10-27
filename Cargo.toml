@@ -33,7 +33,7 @@ tracing-appender = "0.2"
 
 # Async
 tokio      = { version = "1", features = ["full"] }
-parking_lot = "0.12"
+parking_lot = "0.13"
 
 # Serialization
 serde      = { version = "1", features = ["derive"] }
