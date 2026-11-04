@@ -74,7 +74,11 @@ chrono     = { version = "0.4", default-features = false, features = ["clock", "
 git2       = { version = "0.21", default-features = false, features = ["vendored-libgit2"] }
 
 # MCP server
-rmcp       = { version = "3.1", features = ["server", "transport-io", "transport-streamable-http-server"] }
+# Floor is 3.5.1, not 3.1: protocol 2026-07-28 requires `ttlMs`/`cacheScope` on every
+# cacheable result, and rmcp only started defaulting them server-side in 3.5.1 (#1308).
+# With 3.2.0 the fields are absent from `tools/list`, strict 2026-07-28 clients reject
+# the response and the connection is torn down before any tool can be called.
+rmcp       = { version = "3.5.1", features = ["server", "transport-io", "transport-streamable-http-server"] }
 axum       = "0.8"
 
 # ACP server
