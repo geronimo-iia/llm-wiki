@@ -66,6 +66,18 @@ pub enum Commands {
         /// Search across all registered wikis
         #[arg(long)]
         cross_wiki: bool,
+        /// Filter by frontmatter status
+        #[arg(long)]
+        status: Option<String>,
+        /// Filter by tag (repeatable: --tags rust --tags async)
+        #[arg(long = "tags", name = "TAG")]
+        tags: Vec<String>,
+        /// Tag match mode: and (default) | or
+        #[arg(long)]
+        tags_mode: Option<String>,
+        /// Minimum confidence threshold [0.0–1.0]
+        #[arg(long)]
+        min_confidence: Option<f64>,
         /// Output format: text | json
         #[arg(long)]
         format: Option<String>,
@@ -84,6 +96,21 @@ pub enum Commands {
         /// Results per page
         #[arg(long)]
         page_size: Option<usize>,
+        /// Filter by tag (repeatable: --tags rust --tags async)
+        #[arg(long = "tags", name = "TAG")]
+        tags: Vec<String>,
+        /// Tag match mode: and (default) | or
+        #[arg(long)]
+        tags_mode: Option<String>,
+        /// Minimum confidence threshold [0.0–1.0]
+        #[arg(long)]
+        min_confidence: Option<f64>,
+        /// Sort field: slug (default) | confidence | status
+        #[arg(long)]
+        sort: Option<String>,
+        /// Sort direction: asc (default) | desc
+        #[arg(long)]
+        order: Option<String>,
         /// Output format: text | json
         #[arg(long)]
         format: Option<String>,

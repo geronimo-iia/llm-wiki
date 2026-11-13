@@ -50,6 +50,10 @@ pub fn step_search(
                 top_k: Some(top_k),
                 include_sections: false,
                 cross_wiki: false,
+                status: None,
+                tags: vec![],
+                tags_mode: None,
+                min_confidence: None,
             },
         )
     };
