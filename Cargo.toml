@@ -80,7 +80,7 @@ axum       = "0.8"
 # ACP server
 agent-client-protocol = "2.0"
 tokio-util = { version = "0.7", features = ["compat"] }
-notify = "8"
+notify = "9"
 tempfile = "3"
 
 [dev-dependencies]
