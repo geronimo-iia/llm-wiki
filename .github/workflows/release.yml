@@ -30,7 +30,7 @@ jobs:
       - name: Test
         run: cargo test
 
-      - uses: taiki-e/install-action@v2.90.4
+      - uses: taiki-e/install-action@v2.90.7
         with:
           tool: cargo-audit
 
